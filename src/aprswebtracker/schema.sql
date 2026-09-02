@@ -68,8 +68,14 @@ CREATE TABLE IF NOT EXISTS roster (
     expects_aprs  INTEGER NOT NULL DEFAULT 1,
     -- Fixed assignment: drawn at this POI when they do not beacon.
     poi_id        INTEGER REFERENCES poi(id) ON DELETE SET NULL,
-    -- Manual, NCS-set. pending | active | closed. Independent of radio status.
+    -- Manual, NCS-set. pending | active | closed. Independent of radio status:
+    -- "on station, no APRS" is healthy, "rolling, silent 18 min" is an alarm.
     op_status     TEXT    NOT NULL DEFAULT 'pending',
+    -- When op_status last changed, and who said so. The timestamp answers
+    -- "closed at 10:42" on the after-action; the initials are a log annotation
+    -- for shift handover, not authentication.
+    op_status_at  TEXT,
+    op_status_by  TEXT,
     color         TEXT,
     UNIQUE (event_id, station_key)
 );

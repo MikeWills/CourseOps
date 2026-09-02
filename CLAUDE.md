@@ -15,11 +15,11 @@ below is the short list of things that cost real time when violated.
 
 ## Status
 
-Phases 1-3 complete: APRS-IS ingest, KML/KMZ import, and the live map with
-role-gated access. Repo: private, `MikeWills/AprsWebTracker`.
+Phases 1-4 complete: APRS-IS ingest, KML/KMZ import, the live map with
+role-gated access, and the NCS panel with operational status. Repo: private, `MikeWills/AprsWebTracker`.
 
-Phases: 1 ingest ✅ · 2 KML import ✅ · 3 live map ✅ · 4 roster/NCS panel ·
-4a What3Words · 5 course-relative position · 6 incidents · 7 replay · 8 deployment
+Phases: 1 ingest ✅ · 2 KML import ✅ · 3 live map ✅ · 4 roster/NCS panel ✅ ·
+4a What3Words ✅ · 5 course-relative position · 6 incidents · 7 replay · 8 deployment
 
 ## Commands
 
@@ -28,7 +28,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 119 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 128 tests, no network
 
 awt init-db
 awt add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -153,6 +153,11 @@ usability, not style preferences.
   alone. Both read-only in v1 (`WRITE_ROLES`).
 - **Sweeps stay visible to Logistics.** The sweep is the back of the pack, so its
   position is what says a road is clear and the cones can come up.
+- **Every mutation goes through `require_write()`.** One place enforces role
+  permission, so granting a field role write access is a `WRITE_ROLES` change.
+  A valid token in a read-only role gets 403; an invalid token still gets 404.
+- **Operator initials are a log annotation, never identity.** Free text, kept in
+  the browser, truncated server-side. Nothing may start trusting it as auth.
 - **An invalid token returns 404, never 403.** A 403 would confirm the event
   exists. Tokens are also scoped to their event: valid elsewhere means nothing.
 - **Never interpolate marker movement in the client** (same rule as the plan).
@@ -222,6 +227,8 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-02** Phase 4: operational status, the first write path, role-enforced and broadcast.
+- **2026-09-02** Added operator initials, stamped on status changes for shift handover.
 - **2026-09-02** Added `docs/RUNBOOK.md` and a documentation-discipline checklist to CLAUDE.md.
 - **2026-09-02** Preserved the real Mankato course as a fixture with 8 regression tests.
 - **2026-09-02** Added "Known gaps and open threads" to `docs/PLAN.md`.
@@ -230,5 +237,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-02** Added a location status line so location errors no longer overwrite the connection badge.
 - **2026-09-02** Phase 3: FastAPI server, role-gated access, WebSocket fan-out, Leaflet map client.
 - **2026-09-02** Fixed: connection badge was hidden behind Leaflet's zoom control.
-- **2026-09-02** Fixed: `Subscription` was unhashable; `@dataclass` unset `__hash__`.
-- **2026-09-02** Added `access.py`, `hub.py`, `web.py` and the `serve`/`links` CLI commands.

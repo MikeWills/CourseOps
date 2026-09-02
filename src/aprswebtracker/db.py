@@ -30,6 +30,8 @@ _ADDED_COLUMNS: list[tuple[str, str, str]] = [
     ("poi", "what3words", "TEXT"),
     ("course", "dash_pattern", "TEXT"),
     ("import_feature", "style_id", "TEXT"),
+    ("roster", "op_status_at", "TEXT"),
+    ("roster", "op_status_by", "TEXT"),
 ]
 
 
@@ -187,6 +189,63 @@ def latest_position_per_station(
         """,
         (event_id,),
     ).fetchall()
+
+
+# Operational status. Manual and NCS-set, deliberately separate from the radio
+# status derived from the feed - see the note in schema.sql.
+OP_STATUSES = ("pending", "active", "closed")
+
+# Category-specific wording for the same three states. "Torn down" and
+# "Finished" mean the same thing operationally but reading the wrong one on a
+# radio net costs a clarifying exchange.
+OP_STATUS_LABELS = {
+    "aid_station": {"pending": "Not staffed", "active": "On station", "closed": "Torn down"},
+    "sweep":       {"pending": "Not started", "active": "Rolling",    "closed": "Finished"},
+    "sag":         {"pending": "Not started", "active": "Rolling",    "closed": "Finished"},
+    "rover":       {"pending": "Not started", "active": "Rolling",    "closed": "Finished"},
+    "shadow":      {"pending": "Not started", "active": "Assigned",   "closed": "Released"},
+    "net_control": {"pending": "Not open",    "active": "Open",       "closed": "Closed"},
+    "start_finish":{"pending": "Not staffed", "active": "Staffed",    "closed": "Closed"},
+}
+DEFAULT_OP_STATUS_LABELS = {
+    "pending": "Not started", "active": "Active", "closed": "Closed",
+}
+
+
+def op_status_label(category: str, op_status: str) -> str:
+    return OP_STATUS_LABELS.get(category, DEFAULT_OP_STATUS_LABELS).get(
+        op_status, op_status
+    )
+
+
+def set_op_status(
+    conn: sqlite3.Connection,
+    event_id: int,
+    station_key: str,
+    op_status: str,
+    changed_by: str | None = None,
+) -> sqlite3.Row:
+    """Set a roster entry's operational status. Raises ValueError if unknown."""
+    if op_status not in OP_STATUSES:
+        raise ValueError(
+            f"Unknown status {op_status!r}. Use one of {', '.join(OP_STATUSES)}."
+        )
+    cur = conn.execute(
+        """
+        UPDATE roster
+           SET op_status = ?,
+               op_status_at = strftime('%Y-%m-%dT%H:%M:%SZ','now'),
+               op_status_by = ?
+         WHERE event_id = ? AND station_key = ?
+        """,
+        (op_status, changed_by, event_id, station_key.upper()),
+    )
+    if cur.rowcount == 0:
+        raise ValueError(f"{station_key} is not on this event's roster.")
+    return conn.execute(
+        "SELECT * FROM roster WHERE event_id = ? AND station_key = ?",
+        (event_id, station_key.upper()),
+    ).fetchone()
 
 
 def all_station_keys(conn: sqlite3.Connection, event_id: int) -> list[str]:

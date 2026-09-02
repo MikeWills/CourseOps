@@ -14,7 +14,7 @@ person setting it up and for Net Control, not for developers.
 
 | Role | Link | Can |
 |---|---|---|
-| **Net Control (NCS)** | NCS link | See everything, edit What3Words, set station status **[PHASE 4]**, manage incidents **[PHASE 6]** |
+| **Net Control (NCS)** | NCS link | See everything, edit What3Words, set station status, manage incidents **[PHASE 6]** |
 | **Liaison** | Liaison link | View only. Embedded with Public Safety / Medics |
 | **Logistics** | Logistics link | View only. Traffic control, cone placement, teardown |
 
@@ -168,6 +168,32 @@ Tell recipients:
 ---
 
 ## During the event
+
+### Setting station status
+
+Each station row has two lines. The top line is **radio status**, derived
+automatically from the feed. The second line is **operational status**, which
+NCS sets by tapping — and the two are deliberately independent:
+
+| Category | Buttons |
+|---|---|
+| Aid station | Not staffed / On station / Torn down |
+| Sweep, SAG, rover | Not started / Rolling / Finished |
+| Shadow | Not started / Assigned / Released |
+
+"Aid 1 — no APRS — On station" is a perfectly healthy row. "SAG 1 — silent 16
+min — Rolling" is the one that should worry you. Never read one line as if it
+were the other.
+
+Closed stations dim and sink to the bottom of the list, so what is still running
+stays at the top.
+
+**Type your initials** in the Operator box at the bottom of the panel, once per
+shift. They are stamped on every status change with a timestamp, so a handover
+can see who marked Aid 3 torn down and when. It is a note in a log, not a login.
+
+Changes appear on the Liaison and Logistics views within a second; they cannot
+change anything themselves.
 
 ### What NCS watches
 

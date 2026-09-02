@@ -73,13 +73,16 @@ def build_state(conn: sqlite3.Connection, event_id: int) -> dict[str, Any]:
         ).fetchall()
     ]
 
-    roster = [
-        _row_to_dict(row)
-        for row in conn.execute(
-            "SELECT * FROM roster WHERE event_id = ? ORDER BY category, display_label",
-            (event_id,),
-        ).fetchall()
-    ]
+    roster = []
+    for row in conn.execute(
+        "SELECT * FROM roster WHERE event_id = ? ORDER BY category, display_label",
+        (event_id,),
+    ).fetchall():
+        entry = _row_to_dict(row)
+        # Wording differs by category: an aid station is "Torn down", a sweep is
+        # "Finished". The client should not have to know that mapping.
+        entry["op_status_label"] = db.op_status_label(row["category"], row["op_status"])
+        roster.append(entry)
 
     positions = [
         {
@@ -111,6 +114,7 @@ def build_state(conn: sqlite3.Connection, event_id: int) -> dict[str, Any]:
         "pois": pois,
         "roster": roster,
         "positions": positions,
+        "op_statuses": list(db.OP_STATUSES),
         "thresholds": {
             "stale_after_s": STALE_AFTER_SECONDS,
             "silent_after_s": SILENT_AFTER_SECONDS,
@@ -185,6 +189,61 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         payload["role"] = granted.role
         payload["role_label"] = granted.role_label
         payload["can_write"] = granted.can_write
+        return JSONResponse(payload)
+
+    # --- writes ------------------------------------------------------------
+    #
+    # Every mutation goes through require_write() regardless of role, so
+    # granting a field role write access later is a change to WRITE_ROLES
+    # rather than a rewrite of each endpoint.
+
+    def require_write(event_slug: str, token: str):
+        conn, granted = require_access(event_slug, token)
+        if not granted.can_write:
+            conn.close()
+            # 403 here, not 404: the token is valid and its holder knows the
+            # event exists. Hiding the reason would just be confusing.
+            raise HTTPException(
+                status_code=403,
+                detail=f"{granted.role_label} is read-only.",
+            )
+        return conn, granted
+
+    @app.post("/api/{event_slug}/{token}/station/{station_key}/status")
+    async def set_station_status(
+        event_slug: str, token: str, station_key: str, request: Request
+    ) -> JSONResponse:
+        conn, granted = require_write(event_slug, token)
+        try:
+            body = await request.json()
+        except Exception:
+            conn.close()
+            raise HTTPException(status_code=400, detail="Expected a JSON body.")
+
+        op_status = str(body.get("op_status", "")).strip().lower()
+        # Free-text initials typed once per shift. A log annotation for handover,
+        # never authentication - do not start trusting it as identity.
+        changed_by = (body.get("changed_by") or "").strip()[:12] or None
+
+        try:
+            row = db.set_op_status(
+                conn, granted.event_id, station_key, op_status, changed_by
+            )
+        except ValueError as exc:
+            conn.close()
+            raise HTTPException(status_code=400, detail=str(exc))
+
+        payload = {
+            "type": "station_status",
+            "station_key": row["station_key"],
+            "op_status": row["op_status"],
+            "op_status_at": row["op_status_at"],
+            "op_status_by": row["op_status_by"],
+            "op_status_label": db.op_status_label(row["category"], row["op_status"]),
+        }
+        conn.close()
+        # Everyone watching sees it immediately, including the read-only roles.
+        await app.state.hub.publish(granted.event_id, payload)
         return JSONResponse(payload)
 
     # --- live feed ---------------------------------------------------------

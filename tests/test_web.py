@@ -220,3 +220,104 @@ def test_revoking_one_field_role_leaves_the_other_working(setup):
     with TestClient(app) as client:
         assert client.get(f"/api/m2026/{tokens['logistics']}/state").status_code == 404
         assert client.get(f"/api/m2026/{tokens['liaison']}/state").status_code == 200
+
+
+# --- operational status (Phase 4) -------------------------------------------
+
+def status_url(token, station_key="N0CALL-7"):
+    return f"/api/m2026/{token}/station/{station_key}/status"
+
+
+def test_ncs_can_set_operational_status(setup):
+    app, tokens, _, _ = setup
+    with TestClient(app) as client:
+        response = client.post(status_url(tokens["ncs"]),
+                               json={"op_status": "active", "changed_by": "MW"})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["op_status"] == "active"
+    assert body["op_status_label"] == "Rolling"     # sweep wording
+    assert body["op_status_by"] == "MW"
+    assert body["op_status_at"] is not None
+
+
+def test_read_only_roles_cannot_write(setup):
+    """The whole point of the role split."""
+    app, tokens, _, _ = setup
+    with TestClient(app) as client:
+        for role in ("liaison", "logistics"):
+            response = client.post(status_url(tokens[role]), json={"op_status": "active"})
+            assert response.status_code == 403, role
+            assert "read-only" in response.json()["detail"]
+
+
+def test_write_with_a_bad_token_is_404_not_403(setup):
+    """An invalid token must not reveal that the event exists, even on a write."""
+    app, _, _, _ = setup
+    with TestClient(app) as client:
+        response = client.post(status_url("not-a-token"), json={"op_status": "active"})
+    assert response.status_code == 404
+
+
+def test_unknown_status_is_rejected(setup):
+    app, tokens, _, _ = setup
+    with TestClient(app) as client:
+        response = client.post(status_url(tokens["ncs"]), json={"op_status": "banana"})
+    assert response.status_code == 400
+    assert "banana" in response.json()["detail"]
+
+
+def test_status_for_a_station_not_on_the_roster_is_rejected(setup):
+    app, tokens, _, _ = setup
+    with TestClient(app) as client:
+        response = client.post(status_url(tokens["ncs"], "ZZ9ZZZ-1"),
+                               json={"op_status": "active"})
+    assert response.status_code == 400
+
+
+def test_status_change_is_broadcast_to_every_viewer(setup):
+    """A read-only role must see NCS's change without reloading."""
+    app, tokens, _, event_id = setup
+    with TestClient(app) as client:
+        with client.websocket_connect(f"/ws/m2026/{tokens['liaison']}") as ws:
+            client.post(status_url(tokens["ncs"]), json={"op_status": "closed"})
+            message = ws.receive_json()
+
+    assert message["type"] == "station_status"
+    assert message["station_key"] == "N0CALL-7"
+    assert message["op_status"] == "closed"
+    assert message["op_status_label"] == "Finished"
+
+
+def test_state_carries_both_status_axes_independently(setup):
+    """expects_aprs=0 plus op_status=active is a healthy row, not a conflict."""
+    app, tokens, _, _ = setup
+    with TestClient(app) as client:
+        client.post(status_url(tokens["ncs"], "KI4HMD-1"), json={"op_status": "active"})
+        data = client.get(f"/api/m2026/{tokens['ncs']}/state").json()
+
+    aid = next(r for r in data["roster"] if r["station_key"] == "KI4HMD-1")
+    assert aid["op_status"] == "active"
+    assert aid["op_status_label"] == "On station"   # aid station wording
+    assert aid["expects_aprs"] == 0                 # and still not APRS-tracked
+
+
+def test_category_specific_wording(setup):
+    app, tokens, _, _ = setup
+    with TestClient(app) as client:
+        sweep = client.post(status_url(tokens["ncs"], "N0CALL-7"),
+                            json={"op_status": "closed"}).json()
+        aid = client.post(status_url(tokens["ncs"], "KI4HMD-1"),
+                          json={"op_status": "closed"}).json()
+    assert sweep["op_status_label"] == "Finished"
+    assert aid["op_status_label"] == "Torn down"
+
+
+def test_initials_are_truncated_not_trusted(setup):
+    """A log annotation for shift handover, never identity."""
+    app, tokens, _, _ = setup
+    with TestClient(app) as client:
+        body = client.post(status_url(tokens["ncs"]),
+                           json={"op_status": "active",
+                                 "changed_by": "x" * 50}).json()
+    assert len(body["op_status_by"]) == 12

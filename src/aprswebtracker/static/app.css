@@ -188,22 +188,63 @@ html, body {
 
 /* --- stations ----------------------------------------------------------- */
 
+/* Two lines per station: radio status on top, operational status beneath.
+   Deliberately never combined - "On station, no APRS" is healthy while
+   "Rolling, silent 18 min" is an alarm, and one badge cannot say both. */
 .station {
+  padding: 6px 0 8px;
+  border-bottom: 1px solid #edf1f5;
+}
+.station:last-child { border-bottom: 0; }
+
+/* A closed station is done. Dim it so it stops competing for attention, but
+   keep it legible - NCS still needs to confirm what was torn down. */
+.station--op-closed { opacity: 0.55; }
+
+.station-main {
   display: flex;
   align-items: center;
   gap: 10px;
   width: 100%;
-  min-height: 46px;
-  padding: 6px 2px;
+  min-height: 44px;
+  padding: 0 2px;
   border: 0;
-  border-bottom: 1px solid #edf1f5;
   background: none;
   font: inherit;
   color: inherit;
   text-align: left;
   cursor: pointer;
 }
-.station:last-child { border-bottom: 0; }
+
+.station-op {
+  display: flex;
+  gap: 6px;
+  padding: 4px 2px 0 23px;   /* aligns under the name, past the status dot */
+}
+
+.op-btn {
+  flex: 1;
+  min-height: 36px;
+  padding: 4px 6px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--paper);
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.op-btn--on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.op-readonly {
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--ink-soft);
+}
 
 .dot { width: 11px; height: 11px; border-radius: 50%; flex: none; }
 .dot--fresh   { background: var(--fresh); }
@@ -296,4 +337,24 @@ html, body {
   #map, #topbar { left: 360px; }
   #locate-btn { bottom: 24px; }
   #locate-status { bottom: 80px; }
+}
+
+/* Operator initials: a log annotation for shift handover, never authentication.
+   Only shown to roles that can write. */
+.operator-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+}
+.operator-row span { flex: 1; }
+#operator-initials {
+  width: 90px;
+  min-height: 40px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 16px;          /* 16px stops iOS zooming the page on focus */
+  text-transform: uppercase;
 }
