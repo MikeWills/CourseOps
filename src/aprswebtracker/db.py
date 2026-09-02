@@ -21,8 +21,43 @@ def connect(db_path: str | Path) -> sqlite3.Connection:
     return conn
 
 
-def init_schema(conn: sqlite3.Connection) -> None:
+# Columns added after a database may already exist in the wild. `CREATE TABLE
+# IF NOT EXISTS` silently skips an existing table, so new columns would never
+# appear without this. Each entry is applied only if missing, which makes
+# init_schema idempotent and safe to run on an old file.
+_ADDED_COLUMNS: list[tuple[str, str, str]] = [
+    # (table, column, DDL type/default)
+    ("poi", "what3words", "TEXT"),
+    ("course", "dash_pattern", "TEXT"),
+]
+
+
+def _column_names(conn: sqlite3.Connection, table: str) -> set[str]:
+    rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
+    return {row["name"] for row in rows}
+
+
+def _apply_migrations(conn: sqlite3.Connection) -> list[str]:
+    """Add columns missing from an older database. Returns what was applied."""
+    applied = []
+    existing_tables = {
+        row["name"]
+        for row in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table'"
+        ).fetchall()
+    }
+    for table, column, ddl in _ADDED_COLUMNS:
+        if table not in existing_tables:
+            continue  # freshly created by schema.sql; already has the column
+        if column not in _column_names(conn, table):
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
+            applied.append(f"{table}.{column}")
+    return applied
+
+
+def init_schema(conn: sqlite3.Connection) -> list[str]:
     conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
+    return _apply_migrations(conn)
 
 
 # --- events ---------------------------------------------------------------

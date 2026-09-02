@@ -7,7 +7,7 @@ import asyncio
 import logging
 import sys
 
-from . import aprsis, db, importer, kml, units, what3words
+from . import aprsis, db, importer, kml, styling, units, what3words
 from .config import Settings, load_dotenv
 
 CATEGORIES = [
@@ -198,7 +198,8 @@ def cmd_assign_course(args: argparse.Namespace) -> int:
     event = _event_or_exit(conn, args.event)
     try:
         course_id, distance_m, warnings = importer.assign_course(
-            conn, event["id"], args.ids, args.name, args.color, args.reverse
+            conn, event["id"], args.ids, args.name, args.color, args.reverse,
+            args.dash,
         )
     except ValueError as exc:
         print(f"Could not build course: {exc}", file=sys.stderr)
@@ -259,10 +260,20 @@ def cmd_courses(args: argparse.Namespace) -> int:
     ).fetchall()
 
     if courses:
-        print("COURSES")
+        print("COURSES  (listed in draw order: last is on top)")
+        print(f"  {'ID':>3}  {'ORD':>3}  {'NAME':<20} {'DISTANCE':>9}  "
+              f"{'COLOR':<9} STYLE")
         for row in courses:
-            print(f"  {row['id']:>3}  {row['name']:<20} "
-                  f"{units.format_distance(row['distance_m'])}")
+            print(
+                f"  {row['id']:>3}  {row['sort_order']:>3}  {row['name']:<20} "
+                f"{units.format_distance(row['distance_m']):>9}  "
+                f"{row['color'] or '(none)':<9} "
+                f"{styling.describe_dash(row['dash_pattern'])}"
+            )
+        print("\n  Restyle:  awt style-course <event> <id> [--color #cc3333] "
+              "[--dash dotted]")
+        print("  Reorder:  awt style-course <event> <id> --order N   "
+              "(higher draws on top)")
     else:
         print("No courses yet.")
 
@@ -272,6 +283,26 @@ def cmd_courses(args: argparse.Namespace) -> int:
             w3w = what3words.format_for_display(row["what3words"])
             print(f"  {row['id']:>3}  {row['name']:<24} {row['poi_type']:<13} "
                   f"{row['lat']:>9.5f},{row['lon']:>11.5f}  {w3w}")
+    return 0
+
+
+def cmd_style_course(args: argparse.Namespace) -> int:
+    settings = _settings()
+    conn = db.connect(settings.db_path)
+    event = _event_or_exit(conn, args.event)
+    try:
+        row = importer.set_course_style(
+            conn, event["id"], args.id,
+            color=args.color, dash=args.dash, name=args.name,
+            sort_order=args.order,
+        )
+    except ValueError as exc:
+        print(f"Could not update course: {exc}", file=sys.stderr)
+        return 1
+    print(
+        f"Course {row['id']} {row['name']!r}: color {row['color'] or '(none)'}, "
+        f"{styling.describe_dash(row['dash_pattern'])}, draw order {row['sort_order']}"
+    )
     return 0
 
 
@@ -363,7 +394,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("event")
     p.add_argument("ids", type=int, nargs="+", help="staged feature ids to stitch")
     p.add_argument("--name", required=True, help="e.g. 'Half'")
-    p.add_argument("--color", help="hex color for the map")
+    p.add_argument("--color", help="hex color; defaults to the next palette color")
+    p.add_argument("--dash", help="line style (default solid); see style-course")
     p.add_argument(
         "--reverse", action="store_true", help="flip a line drawn finish-to-start"
     )
@@ -385,6 +417,24 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("courses", help="show imported courses and POIs")
     p.add_argument("event")
     p.set_defaults(func=cmd_courses)
+
+    p = sub.add_parser(
+        "style-course", help="change a course's color, line style, name or draw order"
+    )
+    p.add_argument("event")
+    p.add_argument("id", type=int, help="course id from 'awt courses'")
+    p.add_argument("--color", help="hex color, e.g. #cc3333")
+    p.add_argument(
+        "--dash",
+        help="line style: " + ", ".join(styling.DASH_PRESETS)
+             + ", or an SVG dasharray like '12,8'",
+    )
+    p.add_argument("--name", help="rename the course")
+    p.add_argument(
+        "--order", type=int,
+        help="draw order; higher draws on top where courses share road",
+    )
+    p.set_defaults(func=cmd_style_course)
 
     p = sub.add_parser("set-w3w", help="set a POI's What3Words address (NCS)")
     p.add_argument("event")

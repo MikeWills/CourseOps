@@ -164,7 +164,24 @@ survives a radio net.
 - Store the words as given; validate only loosely (three dot-separated words).
   Do not attempt to resolve or verify offline.
 
-### Phase 5 — Course-relative position
+### Phase 3a - Course styling and draw order
+
+Each course carries a color, an optional dash pattern and a draw order, all
+adjustable.
+
+The Full, Half and 10K share road, so their lines are coincident for miles.
+**Draw order is the control for that** (`course.sort_order`, higher draws on
+top) and must be adjustable in the UI - the operator decides which route wins on
+shared pavement. Courses are solid by default; nothing is imposed.
+
+Dash patterns stay available as an opt-in for the one thing draw order cannot
+do - showing two coincident routes at once, since a dashed line on top lets the
+solid line beneath show through its gaps.
+
+Default colors are Okabe-Ito, minus the yellow which vanishes on light map
+tiles. Colorblind-safe matters more than usual on a course map.
+
+### Phase 5 - Course-relative position
 
 Project each station onto the nearest course line: "Full-back is at mile 14.2".
 Far more actionable over a radio net than a lat/lon.

@@ -21,7 +21,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 24 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 82 tests, no network
 
 awt init-db
 awt add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -37,6 +37,7 @@ awt assign-course marathon2026 1 3 --name "Half"   # stitches segments
 awt assign-poi marathon2026 6 --type aid_station --what3words filled.count.soap
 awt discard marathon2026 2 8
 awt courses marathon2026
+awt style-course marathon2026 1 --color "#cc3333" --order 10
 awt set-w3w marathon2026 4 index.home.raft
 ```
 
@@ -57,6 +58,7 @@ src/aprswebtracker/
   kml.py          KML/KMZ parsing, hardened; classification is advisory only
   importer.py     two-phase import: stage for review, then commit assignments
   units.py        metric storage -> US customary display
+  styling.py      course colors, line styles, draw order
   what3words.py   normalize/validate W3W strings, no API
   cli.py          awt entry point
 tests/fixtures/packets.txt        packet corpus, `expectation|raw` per line
@@ -113,6 +115,13 @@ usability, not style preferences.
 - **`geo.stitch` must grow the chain at both ends.** Growing only from the tail
   silently folds a course back on itself when the file lists a middle segment
   first. This was a real bug; there is a regression test.
+- **Course overlap is solved by draw order, not by dashes.** The Full, Half and
+  10K share road; `course.sort_order` decides which line wins (higher draws on
+  top) and is adjustable. Courses are solid by default. Dash patterns exist as
+  an opt-in for seeing two coincident routes at once.
+- **Adding a schema column requires a migration entry.** `CREATE TABLE IF NOT
+  EXISTS` skips existing tables, so a new column never reaches an existing
+  database. Add it to `_ADDED_COLUMNS` in `db.py` as well as `schema.sql`.
 - **CLI output stays ASCII.** Em dashes become mojibake in the Windows console,
   and a club laptop is the target environment.
 
@@ -120,7 +129,8 @@ usability, not style preferences.
 
 - Python 3.11+, `from __future__ import annotations`, dataclasses for value types.
 - Dependencies stay minimal — every added package is one more thing a club has to
-  install. One runtime dependency today (`aprslib`); justify any second one.
+  install. Two runtime dependencies today (`aprslib`, `defusedxml`), each with a
+  stated reason; justify any third one.
 - Comments explain *why*, especially where a choice looks arbitrary but is
   protecting against a real event-day failure.
 - New parser edge cases get a line in `tests/fixtures/packets.txt`, not a bespoke
@@ -131,21 +141,13 @@ usability, not style preferences.
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
-- **2026-09-02** Fixed: `geo.stitch` folded a course back on itself when the file
-  listed a middle segment first; the chain now grows at both ends.
+- **2026-09-02** Added `styling.py`, adjustable course draw order, opt-in dash patterns, and `style-course`.
+- **2026-09-02** Fixed: new schema columns never reached an existing database; `init_schema` now migrates.
+- **2026-09-02** Fixed: `geo.stitch` folded a course back on itself when a middle segment was listed first.
 - **2026-09-02** CLI output made ASCII-only for the Windows console.
-- **2026-09-02** Added `defusedxml`; KMZ decompression-bomb and size guards, with
-  entity-expansion, XXE and zip-bomb tests.
-- **2026-09-02** Added `importer.py` and the `import_batch`/`import_feature`
-  staging tables — two-phase import, additive across files.
-- **2026-09-02** Added `kml.py` and `geo.py`, plus `messy_course.kml` reproducing
-  real organizer defects.
-- **2026-09-02** Added import CLI: `import`, `review`, `assign-course`,
-  `assign-poi`, `discard`, `courses`, `set-w3w`.
+- **2026-09-02** Added `defusedxml` plus KMZ decompression-bomb and size guards, with hardening tests.
+- **2026-09-02** Added `importer.py` and the `import_batch`/`import_feature` staging tables.
+- **2026-09-02** Added `kml.py`, `geo.py`, and `messy_course.kml` reproducing real organizer defects.
+- **2026-09-02** Added import CLI: `import`, `review`, `assign-course`, `assign-poi`, `discard`, `courses`.
 - **2026-09-02** Added MIT license; pushed to private repo `MikeWills/AprsWebTracker`.
-- **2026-09-02** Fixed: ingest discarded packets from rostered operators marked
-  `expects_aprs=0`; filter and membership are now separate queries.
-- **2026-09-02** Added `what3words.py` and a `poi.what3words` column, NCS-maintained,
-  manual entry, no API.
-- **2026-09-02** Phase 1 complete: `parser.py`, `aprsis.py`, `db.py`, `ingest.py`,
-  `units.py`, `cli.py`, `schema.sql`, and `docs/PLAN.md`.
+- **2026-09-02** Fixed: ingest discarded packets from rostered operators marked `expects_aprs=0`.

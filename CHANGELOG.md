@@ -7,6 +7,30 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-09-02 - Course styling and draw order
+
+#### Added
+- `styling.py` - course color and line-style handling. Colors come from the
+  Okabe-Ito colorblind-safe palette minus the yellow, which vanishes against
+  light map tiles; a new course takes the next unused one automatically.
+- Adjustable draw order per course (`course.sort_order`). Where the Full, Half
+  and 10K share road their lines are coincident, and draw order decides which
+  one is visible. This is the primary control for overlap and will be adjustable
+  in the UI.
+- `course.dash_pattern` - opt-in line styles (solid, long, dotted, dash-dot,
+  medium, or a raw SVG dasharray). Courses are solid by default; a dash is for
+  the case draw order cannot cover, seeing two coincident routes at once.
+- CLI `style-course` to change a course's color, line style, name or draw order.
+  `assign-course` gained `--dash`, and `courses` now lists draw order and style.
+- A column migration step in `init_schema`, applied only where missing.
+- 17 new tests (82 total).
+
+#### Fixed
+- New columns would never have reached an existing database: `CREATE TABLE IF
+  NOT EXISTS` silently skips a table that already exists, so `poi.what3words`
+  and `course.dash_pattern` were unreachable on any file created earlier.
+  `init_schema` now adds missing columns and reports what it applied.
+
 ### 2026-09-02 - Phase 2: KML/KMZ import
 
 #### Added

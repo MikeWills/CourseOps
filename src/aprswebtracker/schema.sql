@@ -25,7 +25,8 @@ CREATE TABLE IF NOT EXISTS course (
     id         INTEGER PRIMARY KEY,
     event_id   INTEGER NOT NULL REFERENCES event(id) ON DELETE CASCADE,
     name       TEXT    NOT NULL,
-    color      TEXT,
+    color        TEXT,
+    dash_pattern TEXT,
     geojson    TEXT    NOT NULL,
     distance_m REAL,
     sort_order INTEGER NOT NULL DEFAULT 0

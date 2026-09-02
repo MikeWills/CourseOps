@@ -22,7 +22,7 @@ import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import geo, kml
+from . import geo, kml, styling
 from .geo import LonLat
 
 
@@ -102,6 +102,73 @@ def _coords_of(row: sqlite3.Row) -> list[LonLat]:
     return geo.from_geojson_linestring(geometry)
 
 
+def colors_in_use(conn: sqlite3.Connection, event_id: int) -> list[str | None]:
+    rows = conn.execute(
+        "SELECT color FROM course WHERE event_id = ?", (event_id,)
+    ).fetchall()
+    return [r["color"] for r in rows]
+
+
+def courses_for_event(conn: sqlite3.Connection, event_id: int) -> list[sqlite3.Row]:
+    """Courses in draw order: lowest sort_order first, so the last row is on top."""
+    return conn.execute(
+        "SELECT * FROM course WHERE event_id = ? ORDER BY sort_order, id",
+        (event_id,),
+    ).fetchall()
+
+
+def set_course_style(
+    conn: sqlite3.Connection,
+    event_id: int,
+    course_id: int,
+    color: str | None = None,
+    dash: str | None = None,
+    name: str | None = None,
+    sort_order: int | None = None,
+) -> sqlite3.Row:
+    """Restyle or reorder an existing course. Only the fields given are touched.
+
+    `sort_order` is the draw order: lower draws first, so a HIGHER value puts a
+    course on top where routes share road. This is the primary control for
+    overlapping courses.
+    """
+    updates: list[str] = []
+    values: list[object] = []
+
+    if color is not None:
+        if not styling.is_valid_color(color):
+            raise ValueError(f"{color!r} is not a hex color like #cc3333.")
+        updates.append("color = ?")
+        values.append(styling.normalize_color(color))
+    if dash is not None:
+        if not styling.is_valid_dash(dash):
+            raise ValueError(
+                f"{dash!r} is not a dash pattern. Use a preset "
+                f"({', '.join(styling.DASH_PRESETS)}) or comma-separated "
+                "numbers like '12,8'."
+            )
+        updates.append("dash_pattern = ?")
+        values.append(styling.normalize_dash(dash))
+    if name is not None:
+        updates.append("name = ?")
+        values.append(name)
+    if sort_order is not None:
+        updates.append("sort_order = ?")
+        values.append(sort_order)
+
+    if not updates:
+        raise ValueError("Nothing to change.")
+
+    values.extend([course_id, event_id])
+    cur = conn.execute(
+        f"UPDATE course SET {', '.join(updates)} WHERE id = ? AND event_id = ?",
+        values,
+    )
+    if cur.rowcount == 0:
+        raise ValueError(f"No course with id {course_id} in this event.")
+    return conn.execute("SELECT * FROM course WHERE id = ?", (course_id,)).fetchone()
+
+
 def assign_course(
     conn: sqlite3.Connection,
     event_id: int,
@@ -109,6 +176,7 @@ def assign_course(
     name: str,
     color: str | None = None,
     reverse: bool = False,
+    dash: str | None = None,
 ) -> tuple[int, float, list[str]]:
     """Build one course from one or more staged line features.
 
@@ -139,12 +207,36 @@ def assign_course(
         raise ValueError("Result has fewer than two points; nothing to draw.")
 
     distance_m = geo.line_length_m(coords)
+
+    # A new course takes the next unused palette color. Lines are solid unless a
+    # dash is asked for; where courses share road, draw order decides which one
+    # is visible, and that is adjustable per course.
+    if color is not None and not styling.is_valid_color(color):
+        raise ValueError(f"{color!r} is not a hex color like #cc3333.")
+    if dash is not None and not styling.is_valid_dash(dash):
+        raise ValueError(
+            f"{dash!r} is not a dash pattern. Use a preset "
+            f"({', '.join(styling.DASH_PRESETS)}) or comma-separated numbers "
+            "like '12,8'."
+        )
+    final_color = (
+        styling.normalize_color(color) if color
+        else styling.next_color(colors_in_use(conn, event_id))
+    )
+    final_dash = styling.normalize_dash(dash)
+
+    next_order = conn.execute(
+        "SELECT COALESCE(MAX(sort_order), -1) + 1 FROM course WHERE event_id = ?",
+        (event_id,),
+    ).fetchone()[0]
+
     cur = conn.execute(
-        "INSERT INTO course (event_id, name, color, geojson, distance_m)"
-        " VALUES (?, ?, ?, ?, ?)",
+        "INSERT INTO course"
+        " (event_id, name, color, dash_pattern, geojson, distance_m, sort_order)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?)",
         (
-            event_id, name, color,
-            json.dumps(geo.to_geojson_linestring(coords)), distance_m,
+            event_id, name, final_color, final_dash,
+            json.dumps(geo.to_geojson_linestring(coords)), distance_m, next_order,
         ),
     )
     course_id = int(cur.lastrowid)
