@@ -19,7 +19,7 @@ from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconn
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import access, db, hub as hub_module, progress
+from . import access, db, hub as hub_module, incidents, progress
 from .config import Settings
 from .ingest import run_ingest
 
@@ -118,6 +118,14 @@ def build_state(conn: sqlite3.Connection, event_id: int) -> dict[str, Any]:
         for row in db.latest_position_per_station(conn, event_id)
     ]
 
+    incident_rows = []
+    for row in incidents.for_event(conn, event_id):
+        entry = incidents.Incident(row).as_dict()
+        # "bib 1432, mile 9.1 of Half" is dramatically more actionable over a
+        # radio net than a lat/lon.
+        entry["course_position"] = _course_position(index, row["lat"], row["lon"])
+        incident_rows.append(entry)
+
     return {
         "type": "state",
         "event": {
@@ -132,6 +140,11 @@ def build_state(conn: sqlite3.Connection, event_id: int) -> dict[str, Any]:
         "pois": pois,
         "roster": roster,
         "positions": positions,
+        "incidents": incident_rows,
+        "incident_statuses": [
+            {"value": value, "label": incidents.STATUS_LABELS[value]}
+            for value in incidents.STATUSES
+        ],
         "op_statuses": list(db.OP_STATUSES),
         "thresholds": {
             "stale_after_s": STALE_AFTER_SECONDS,
@@ -263,6 +276,17 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     # granting a field role write access later is a change to WRITE_ROLES
     # rather than a rewrite of each endpoint.
 
+    async def _json_body(request: Request, conn) -> dict:
+        try:
+            body = await request.json()
+        except Exception:
+            conn.close()
+            raise HTTPException(status_code=400, detail="Expected a JSON body.")
+        if not isinstance(body, dict):
+            conn.close()
+            raise HTTPException(status_code=400, detail="Expected a JSON object.")
+        return body
+
     def require_write(event_slug: str, token: str):
         conn, granted = require_access(event_slug, token)
         if not granted.can_write:
@@ -311,6 +335,95 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         # Everyone watching sees it immediately, including the read-only roles.
         await app.state.hub.publish(granted.event_id, payload)
         return JSONResponse(payload)
+
+    async def _publish_incident(event_id: int, row, kind: str) -> None:
+        conn = get_conn()
+        try:
+            index = progress.CourseIndex.for_event(conn, event_id)
+        finally:
+            conn.close()
+        payload = incidents.Incident(row).as_dict()
+        payload["course_position"] = _course_position(index, row["lat"], row["lon"])
+        payload["type"] = "incident"
+        payload["change"] = kind
+        await app.state.hub.publish(event_id, payload)
+
+    @app.post("/api/{event_slug}/{token}/incidents")
+    async def create_incident(
+        event_slug: str, token: str, request: Request
+    ) -> JSONResponse:
+        conn, granted = require_write(event_slug, token)
+        body = await _json_body(request, conn)
+        try:
+            row = incidents.create(
+                conn, granted.event_id,
+                lat=float(body.get("lat")), lon=float(body.get("lon")),
+                bib=body.get("bib"), note=body.get("note"),
+                poi_id=body.get("poi_id"), by=body.get("changed_by"),
+            )
+        except (incidents.IncidentError, TypeError, ValueError) as exc:
+            conn.close()
+            raise HTTPException(status_code=400, detail=str(exc))
+        conn.close()
+        await _publish_incident(granted.event_id, row, "created")
+        return JSONResponse(incidents.Incident(row).as_dict(), status_code=201)
+
+    @app.post("/api/{event_slug}/{token}/incidents/{incident_id}/status")
+    async def set_incident_status(
+        event_slug: str, token: str, incident_id: int, request: Request
+    ) -> JSONResponse:
+        conn, granted = require_write(event_slug, token)
+        body = await _json_body(request, conn)
+        try:
+            row = incidents.set_status(
+                conn, granted.event_id, incident_id,
+                str(body.get("status", "")).strip().lower(),
+                by=body.get("changed_by"),
+            )
+        except incidents.IncidentError as exc:
+            conn.close()
+            raise HTTPException(status_code=400, detail=str(exc))
+        conn.close()
+        await _publish_incident(granted.event_id, row, "status")
+        return JSONResponse(incidents.Incident(row).as_dict())
+
+    @app.post("/api/{event_slug}/{token}/incidents/{incident_id}")
+    async def update_incident(
+        event_slug: str, token: str, incident_id: int, request: Request
+    ) -> JSONResponse:
+        conn, granted = require_write(event_slug, token)
+        body = await _json_body(request, conn)
+        fields = {k: v for k, v in body.items()
+                  if k in {"bib", "note", "assigned_to", "lat", "lon"}}
+        try:
+            row = incidents.update(
+                conn, granted.event_id, incident_id,
+                by=body.get("changed_by"), **fields,
+            )
+        except (incidents.IncidentError, TypeError, ValueError) as exc:
+            conn.close()
+            raise HTTPException(status_code=400, detail=str(exc))
+        conn.close()
+        await _publish_incident(granted.event_id, row, "edited")
+        return JSONResponse(incidents.Incident(row).as_dict())
+
+    @app.get("/api/{event_slug}/{token}/incidents/{incident_id}/log")
+    async def incident_log(
+        event_slug: str, token: str, incident_id: int
+    ) -> JSONResponse:
+        # Readable by every role: the log is what a shift handover reads.
+        conn, granted = require_access(event_slug, token)
+        try:
+            incidents.get(conn, granted.event_id, incident_id)
+            entries = [
+                {key: row[key] for key in row.keys()}
+                for row in incidents.log_for(conn, incident_id)
+            ]
+        except incidents.IncidentError as exc:
+            raise HTTPException(status_code=404, detail=str(exc))
+        finally:
+            conn.close()
+        return JSONResponse({"entries": entries})
 
     # --- live feed ---------------------------------------------------------
 

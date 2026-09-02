@@ -316,14 +316,37 @@ courseops links mankato2026 --new logistics    # issue a replacement
 
 Revoking one role's link does not affect the others.
 
-### Closing aid stations **[PHASE 5]**
+### Closing aid stations
 
-Once course-relative position lands, the sweep's mile marker is what tells NCS
-which aid stations can tear down and which roads can reopen.
+The sweep's mile marker is what tells NCS which aid stations can tear down and
+which roads can reopen. Watch the sweep's mile figure, then set each aid station
+it has passed to *Torn down*.
 
-### Pickups and incidents **[PHASE 6]**
+### Pickups and incidents
 
-Dropping a pin for a runner pickup, tracked by bib number.
+When a pickup is called in:
+
+1. Tap **+ Drop a pickup pin**, then tap the map where the runner is.
+2. The incident opens straight away as **Reported** and the cursor lands in the
+   bib box. Type the bib if you have it — if not, leave it and fill it in later.
+   Add a short note if it helps ("waiting at mile 9").
+3. As it progresses, tap **En route**, **Picked up**, then **Closed**.
+
+The list puts whatever needs attention first: unanswered reports at the top,
+and within each status the one that has been waiting longest. The time shown is
+**how long it has been in its current status** — so a report reading `8m` has
+been sitting undispatched for eight minutes. That is the number to watch.
+
+Closed incidents come off the map but stay in the list, so the map shows only
+live work.
+
+Liaison and Logistics see every incident and its status, live, but cannot change
+anything.
+
+> **Keep notes operational.** Bib, location, status and something like "unable
+> to continue, waiting at mile 9" are what the net needs. Do not record a
+> runner's medical condition — the note field is deliberately short, and the app
+> never holds the bib-to-name mapping.
 
 ---
 

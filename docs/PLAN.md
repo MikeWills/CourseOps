@@ -77,7 +77,7 @@ that open many connections or reconnect in a tight loop.
 3. **Live map** — mobile-first, WebSocket updates, layer toggles *(complete)*
 4. **Roster / NCS panel** — dual status axes, staleness scoped to `expects_aprs` *(complete)*
 5. **Course-relative position** — "Full-back at mile 14.2" *(complete)*
-6. **Incidents** — pin, bib, status workflow, operator initials, role-gated writes
+6. **Incidents** — pin, bib, status workflow, operator initials, role-gated writes *(complete)*
 7. **Replay** — scrub the event afterward
 8. **Deployment** — GitHub repo, Docker image, club setup docs
 
