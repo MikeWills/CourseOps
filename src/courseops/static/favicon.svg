@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img"
+     aria-label="Course Ops">
+  <title>Course Ops</title>
+  <!-- Favicon derived from the primary pin, NOT from the C.O. monogram.
+       Tested at 16px: two letters plus an antenna became an unreadable smudge,
+       while the pin silhouette survives because its outline is doing the work.
+       At this size you get about three distinguishable features - so: pin
+       shape, light disc, one bold pulse. Nothing else. -->
+  <rect width="64" height="64" rx="14" fill="#0B2545"/>
+  <path d="M32 9c-9.4 0-17 7.5-17 16.8C15 38 32 55 32 55s17-17 17-29.2C49 16.5 41.4 9 32 9z"
+        fill="#FF6A13"/>
+  <circle cx="32" cy="26" r="11.5" fill="#F7F9FC"/>
+  <!-- One pulse, heavy stroke: still legible when the whole mark is 16px. -->
+  <polyline points="22,26 26,26 29,17 35,35 38,26 42,26"
+            fill="none" stroke="#0B2545" stroke-width="5"
+            stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

@@ -5,6 +5,7 @@ KML/KMZ, overlaid with live APRS positions of the ham radio operators supporting
 the event. Built to be stood up by a radio club without much effort.
 
 Full plan, phase detail, and **known gaps / open threads**: `docs/PLAN.md`.
+Brand, palette and logo decisions: `docs/DESIGN.md`.
 Event-day operating procedure: `docs/RUNBOOK.md`.
 Complete history with the reasoning behind each fix: `CHANGELOG.md`.
 Open work is also tracked as GitHub issues (issue #1: GPX import).
@@ -176,6 +177,11 @@ usability, not style preferences.
   stored, never visible to other viewers.
 - **"Ops" in Course Ops is the product name, not the Logistics team.** Roles are
   NCS / Liaison / Logistics.
+- **Navy is chrome; the map stays light.** Field roles read it outdoors for six
+  hours. Never theme the map surface dark without a user toggle and dark tiles.
+- **Brand orange never appears inside a station row.** Amber and red mean
+  something there. Status colour only ever appears on status. Use `--orange-ink`
+  for orange text on white; `--orange` fails contrast at 2.87:1.
 - **CLI output stays ASCII.** Em dashes become mojibake in the Windows console,
   and a club laptop is the target environment.
 
@@ -229,6 +235,8 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-02** Applied Course Ops branding: navy chrome, safety orange accent, pin logo, favicon.
+- **2026-09-02** Rejected the C.O. monogram favicon after testing at 16px; favicon derives from the pin.
 - **2026-09-02** Renamed to Course Ops: repo, package, CLI and docs.
 - **2026-09-02** Phase 4: operational status, the first write path, role-enforced and broadcast.
 - **2026-09-02** Added operator initials, stamped on status changes for shift handover.
@@ -237,5 +245,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-02** Added "Known gaps and open threads" to `docs/PLAN.md`.
 - **2026-09-02** Split Logistics out as its own read-only role, separate from Liaison.
 - **2026-09-02** Locate button now tracks continuously with `watchPosition`, plus an accuracy circle.
-- **2026-09-02** Added a location status line so location errors no longer overwrite the connection badge.
-- **2026-09-02** Phase 3: FastAPI server, role-gated access, WebSocket fan-out, Leaflet map client.

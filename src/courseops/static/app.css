@@ -7,6 +7,16 @@
    - The desktop NCS layout is the enhancement, not the baseline. */
 
 :root {
+  /* Brand. Navy owns the CHROME only - top bar, panel header, logo. The map and
+     the station panel stay light: the field roles read this on a phone outdoors
+     for six hours, and a dark surface loses contrast against ambient glare while
+     the OSM tiles underneath are light regardless. See docs/DESIGN.md. */
+  --navy-900:   #071A2F;
+  --navy-700:   #0B2545;
+  --navy-500:   #1B3B6F;
+  --orange:     #FF6A13;   /* safety orange: identity and accent only */
+  --orange-ink: #B34700;   /* dark enough for text on white (AA) */
+
   --ink:        #14181d;
   --ink-soft:   #4a5560;
   --paper:      #ffffff;
@@ -46,21 +56,63 @@ html, body {
   z-index: 500;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 9px;
   /* Right padding clears Leaflet's zoom control, which sits in the same
      corner at a higher z-index and would otherwise hide the status badge. */
   padding: calc(6px + env(safe-area-inset-top, 0px)) 60px 6px 12px;
-  background: rgba(255, 255, 255, 0.94);
-  border-bottom: 1px solid var(--line);
+  background: var(--navy-700);
+  color: #fff;
+  /* Safety orange as a thin rule: brand presence without competing with the
+     amber and red that mean something in the station list. */
+  border-bottom: 3px solid var(--orange);
+}
+
+#brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+#brand img { width: 22px; height: 27px; display: block; }
+#brand-name {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+#brand-rule {
+  width: 1px;
+  height: 20px;
+  background: rgba(255, 255, 255, 0.28);
+  flex: none;
 }
 
 #event-name {
-  font-weight: 650;
+  font-weight: 600;
   font-size: 15px;
+  color: rgba(255, 255, 255, 0.92);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   flex: 1;
+}
+
+/* The panel keeps its own navy header so the brand frames the working surface
+   on desktop, where the sheet is a fixed sidebar. */
+#sheet-header {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  margin: -4px -14px 12px;
+  background: var(--navy-700);
+  color: #fff;
+  border-bottom: 3px solid var(--orange);
+}
+#sheet-header .tagline {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.62);
+  letter-spacing: 0.02em;
 }
 
 /* Connection state is never hidden. A phone back from a dead zone must not
@@ -72,9 +124,9 @@ html, body {
   border-radius: 999px;
   white-space: nowrap;
 }
-.conn--live       { background: #e3f3e9; color: var(--fresh); }
-.conn--connecting { background: #fdf0dc; color: var(--stale); }
-.conn--down       { background: #fbe4e2; color: var(--silent); }
+.conn--live       { background: #d7f0e1; color: #10502c; }
+.conn--connecting { background: #fbe6c6; color: #6b3a00; }
+.conn--down       { background: #fbd8d5; color: #8c1a14; }
 
 /* --- buttons ------------------------------------------------------------ */
 
@@ -334,7 +386,11 @@ html, body {
     padding-top: 64px;
   }
   #sheet-grip { display: none; }
+  #sheet-header { display: flex; }
+  #sheet { padding-top: 0; }
   #map, #topbar { left: 360px; }
+  /* The sidebar already carries the brand, so the top bar drops the lockup. */
+  #brand, #brand-rule { display: none; }
   #locate-btn { bottom: 24px; }
   #locate-status { bottom: 80px; }
 }

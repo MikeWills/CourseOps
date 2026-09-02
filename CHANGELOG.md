@@ -7,6 +7,43 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-09-02 - Course Ops branding
+
+Applied the club's design brief. Recorded verbatim in `docs/DESIGN.md` alongside
+the implementation decisions.
+
+#### Added
+- `docs/DESIGN.md` - the brief (naming, tagline, logo concepts, palette) plus
+  how it was implemented and where it conflicted with field constraints.
+- `logo-pin.svg` - primary mark: checkpoint pin whose interior is an
+  oscilloscope trace. Used in the top bar and the desktop panel header.
+- `favicon.svg` - compact mark, plus `theme-color` for mobile browser chrome.
+- Navy/orange tokens in `app.css`: `--navy-900/700/500`, `--orange`,
+  `--orange-ink`.
+- Tagline "Track the course, run the net." in the desktop panel header.
+
+#### Changed
+- Top bar and panel header are navy with a safety-orange rule. **The map and the
+  station panel are untouched** - navy owns the chrome only.
+- Connection badge colours darkened for contrast against navy.
+
+#### Design decisions worth keeping
+- **Navy is chrome, not the map surface.** The field roles read this on a phone
+  outdoors for six hours; a dark working surface loses contrast against glare,
+  and the OSM tiles underneath are light regardless.
+- **Safety orange never appears inside a station row.** Amber and red mean
+  something specific there, and brand orange sits close enough to the stale
+  amber to be misread as a warning. Status colour only ever appears on status.
+- **`--orange-ink` exists because `#FF6A13` on white measures 2.87:1** - below
+  the 4.5:1 needed for text. Safety orange is a surface and a mark, never small
+  text on white. Contrast was measured, not eyeballed: white on navy 15.4:1,
+  orange on navy 5.4:1, orange-ink on white 5.5:1.
+- **The favicon is a pin, not the C.O. monogram the brief specified.** The
+  monogram was built and tested: at 16px it is an unreadable smudge and reads as
+  a wifi glyph. A 22px pin beat a 32px monogram side by side. The brief's own
+  rule - use the monogram where the pin is too detailed - pointed the other way
+  once measured. The monogram is still wanted for large-format use.
+
 ### 2026-09-02 - Renamed to Course Ops
 
 `AprsWebTracker` was a working title. Renamed now rather than later: the repo is
