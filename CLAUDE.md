@@ -7,6 +7,7 @@ the event. Built to be stood up by a radio club without much effort.
 Full plan, phase detail, and **known gaps / open threads**: `docs/PLAN.md`.
 Brand, palette and logo decisions: `docs/DESIGN.md`.
 Event-day operating procedure: `docs/RUNBOOK.md`.
+Deployment behind Apache with TLS: `docs/DEPLOYMENT.md`.
 Brand, palette and logo decisions: `docs/DESIGN.md`.
 Complete history with the reasoning behind each fix: `CHANGELOG.md`.
 Open work is also tracked as GitHub issues (issue #1: GPX import).
@@ -26,8 +27,8 @@ courses, roster, links and administrators. Repo: private, `MikeWills/CourseOps`.
 terminal: the callsign in `.env`, and `courseops serve`.
 
 Phases: 1 ingest ✅ · 2 KML import ✅ · 3 live map ✅ · 4 roster/NCS panel ✅ ·
-4a What3Words ✅ · 5 course-relative position ✅ · 6 incidents ✅ · 7 replay ·
-8 deployment
+4a What3Words ✅ · 5 course-relative position ✅ · 6 incidents ✅ ·
+7 replay (backlogged, issue #2) · 8 deployment ✅
 
 ## Commands
 
@@ -36,7 +37,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 255 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 257 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -204,6 +205,11 @@ usability, not style preferences.
   A valid token in a read-only role gets 403; an invalid token still gets 404.
 - **Operator initials are a log annotation, never identity.** Free text, kept in
   the browser, truncated server-side. Nothing may start trusting it as auth.
+- **Behind a proxy the app cannot see the real scheme.** Run with
+  `--behind-proxy` or session cookies silently lose the Secure flag. Bind
+  127.0.0.1 so TLS cannot be bypassed.
+- **Apache needs `mod_proxy_wstunnel` and /ws/ rules BEFORE the catch-all.**
+  Otherwise the map loads and then never moves, with no visible error.
 - **Setup belongs in the UI.** The premise is that a club can stand this up
   without much effort; only `.env` and starting the server may stay in a
   terminal. The CLI is kept for scripted setup and for tests.
@@ -305,6 +311,9 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-02** Phase 8: Apache reverse proxy, Let's Encrypt and systemd deployment.
+- **2026-09-02** Fixed: session cookies were never marked Secure behind a reverse proxy.
+- **2026-09-02** Brought README, RUNBOOK and PLAN up to date with the setup UI.
 - **2026-09-02** Added the `/setup` UI: organizations, events, visual course review, roster, links.
 - **2026-09-02** Added admin accounts (scrypt, sessions) and three roles including organizations.
 - **2026-09-02** Fixed: `__FIRST_RUN__` templating replaced the variable name too, losing the flag.
@@ -312,6 +321,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-02** SSID mismatches now surface in the UI with one-click adopt/ignore.
 - **2026-09-02** Filter now wildcards every SSID per callsign; a wrong SSID no longer hides someone.
 - **2026-09-02** Added `roster_status_log`: status history for handover; cannot be rebuilt later.
-- **2026-09-02** Added lead runner tracking: first male/female per race, bib colours, pace and ETA.
-- **2026-09-02** Phase 6: incidents — pickups by bib, status workflow, live and role-gated.
-- **2026-09-02** Phase 5: course-relative position — "Full-back at mile 14.2".

@@ -875,3 +875,45 @@ def test_the_first_run_flag_is_substituted_not_swallowed(setup):
     assert "window.false" not in flag          # the bug: both sides replaced
     assert flag.strip() in ("window.__FIRST_RUN__ = true;",
                             "window.__FIRST_RUN__ = false;")
+
+
+# --- behind a reverse proxy -------------------------------------------------
+
+def _make_admin(db_path):
+    conn = db.connect(db_path)
+    from courseops import users
+    org = users.create_organization(conn, "club", "Club")["id"]
+    user = users.create_user(conn, "mike", "a-long-enough-password",
+                             users.ROLE_SYSTEM_ADMIN)
+    conn.close()
+    return user
+
+
+def test_session_cookie_is_not_secure_over_plain_http(setup, tmp_path):
+    """Local development: marking it Secure would stop it working at all."""
+    app, _, db_path, _ = setup
+    _make_admin(db_path)
+    with TestClient(app) as client:
+        response = client.post("/api/setup/login",
+                               json={"username": "mike",
+                                     "password": "a-long-enough-password"})
+    assert response.status_code == 200
+    assert "secure" not in response.headers["set-cookie"].lower()
+
+
+def test_session_cookie_is_secure_when_the_proxy_says_https(setup, tmp_path):
+    """The bug this guards: behind Apache the app is spoken to in plain HTTP on
+    localhost, so without honouring the forwarded scheme the admin session
+    cookie would never be marked Secure in the one deployment where it matters.
+    """
+    app, _, db_path, _ = setup
+    _make_admin(db_path)
+    with TestClient(app, base_url="https://courseops.example.org") as client:
+        response = client.post("/api/setup/login",
+                               json={"username": "mike",
+                                     "password": "a-long-enough-password"})
+    cookie = response.headers["set-cookie"].lower()
+    assert "secure" in cookie
+    # And the other protections travel with it.
+    assert "httponly" in cookie
+    assert "samesite=lax" in cookie

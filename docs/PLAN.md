@@ -79,7 +79,8 @@ that open many connections or reconnect in a tight loop.
 5. **Course-relative position** — "Full-back at mile 14.2" *(complete)*
 6. **Incidents** — pin, bib, status workflow, operator initials, role-gated writes *(complete)*
 7. **Replay** — scrub the event afterward
-8. **Deployment** — GitHub repo, Docker image, club setup docs
+8. **Deployment** — Apache reverse proxy, Let's Encrypt, systemd *(complete;
+   see `docs/DEPLOYMENT.md`)*
 
 ## Phase detail
 
@@ -400,9 +401,9 @@ Things discovered but not yet acted on. Each is a real constraint, not a wish.
 
 - **GPX import** - GitHub issue #1. Consumer route tools (MapMyRun, Strava,
   Garmin) often export GPX only. Parser swap feeding the existing staging.
-- **Geolocation requires HTTPS.** Browsers block it outside a secure context,
-  localhost excepted. A club serving over plain http:// on a LAN loses the
-  "where am I" dot. Decide in Phase 8: terminate TLS, or accept the loss.
+- ~~**Geolocation requires HTTPS.**~~ Resolved by Phase 8: Apache terminates
+  TLS with a Let's Encrypt certificate, so the field roles' location dot works.
+  A club running on a LAN without TLS still loses it.
 - **OpenStreetMap tile policy.** The public tile server is fine for one club but
   its usage policy does not cover a hosted multi-club service. That deployment
   needs its own tile source or a commercial provider.

@@ -18,6 +18,7 @@ Not yet deployed anywhere — it runs locally.
 - [`docs/PLAN.md`](docs/PLAN.md) — the plan, decisions, and known gaps
 - [`docs/RUNBOOK.md`](docs/RUNBOOK.md) — event-day procedure for operators
 - [`docs/DESIGN.md`](docs/DESIGN.md) — brand, palette and logo decisions
+- [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) — Apache, TLS and systemd
 
 ## What it will do
 

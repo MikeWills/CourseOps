@@ -616,7 +616,31 @@ def cmd_serve(args: argparse.Namespace) -> int:
     conn.close()
 
     app = create_app(settings, ingest_events=ingest_events)
-    uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
+
+    # Behind a reverse proxy the app is spoken to in plain HTTP on localhost.
+    # Without this, X-Forwarded-Proto is ignored, request.url.scheme stays
+    # "http", and session cookies never get the Secure flag in exactly the
+    # deployment where it matters.
+    #
+    # `forwarded_allow_ips` is what stops any client simply claiming HTTPS:
+    # only the named proxy is believed. It defaults to the loopback address,
+    # which is the normal Apache-on-the-same-host case.
+    if args.behind_proxy:
+        print(f"Trusting proxy headers from {args.trusted_proxy}.")
+        if args.host not in ("127.0.0.1", "::1", "localhost"):
+            print(
+                f"  warning: listening on {args.host}, which is reachable "
+                "directly.\n"
+                "  Behind a proxy this should bind 127.0.0.1 so the only way "
+                "in is through it.",
+                file=sys.stderr,
+            )
+        uvicorn.run(
+            app, host=args.host, port=args.port, log_level="warning",
+            proxy_headers=True, forwarded_allow_ips=args.trusted_proxy,
+        )
+    else:
+        uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
     return 0
 
 
@@ -810,6 +834,15 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--no-ingest", action="store_true",
         help="serve the map without opening an APRS-IS connection",
+    )
+    p.add_argument(
+        "--behind-proxy", action="store_true",
+        help="running behind Apache/nginx: honour X-Forwarded-Proto so session "
+             "cookies get the Secure flag on HTTPS",
+    )
+    p.add_argument(
+        "--trusted-proxy", default="127.0.0.1",
+        help="which address may set forwarded headers (default: 127.0.0.1)",
     )
     p.set_defaults(func=cmd_serve)
 
