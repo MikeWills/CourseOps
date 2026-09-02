@@ -16,11 +16,13 @@ below is the short list of things that cost real time when violated.
 
 ## Status
 
-Phases 1-4 complete: APRS-IS ingest, KML/KMZ import, the live map with
-role-gated access, and the NCS panel with operational status. Repo: private, `MikeWills/CourseOps`.
+Phases 1-5 complete: APRS-IS ingest, KML/KMZ import, the live map with
+role-gated access, the NCS panel with operational status, and
+course-relative position. Repo: private, `MikeWills/CourseOps`.
 
 Phases: 1 ingest ✅ · 2 KML import ✅ · 3 live map ✅ · 4 roster/NCS panel ✅ ·
-4a What3Words ✅ · 5 course-relative position · 6 incidents · 7 replay · 8 deployment
+4a What3Words ✅ · 5 course-relative position ✅ · 6 incidents · 7 replay ·
+8 deployment
 
 ## Commands
 
@@ -29,7 +31,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 134 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 147 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -71,6 +73,7 @@ src/courseops/
   kml.py          KML/KMZ parsing, hardened; classification is advisory only
   importer.py     two-phase import: stage for review, then commit assignments
   units.py        metric storage -> US customary display
+  progress.py     snap a station onto a course: "mile 14.2 of Full"
   styling.py      course colors, line styles, draw order
   what3words.py   normalize/validate W3W strings, no API
   access.py       role tokens: ncs writes; liaison + logistics read
@@ -179,6 +182,13 @@ usability, not style preferences.
   NCS / Liaison / Logistics.
 - **Navy is chrome; the map stays light.** Field roles read it outdoors for six
   hours. Never theme the map surface dark without a user toggle and dark tiles.
+- **No mile figure beats a wrong one.** A station further than
+  `progress.DEFAULT_MAX_OFFSET_M` from every course reports `None`, and the
+  client shows the callsign instead. Someone acts on this number.
+- **The course name always travels with the mile.** Routes share road, so the
+  snap is a coin flip there; "mile 14.2" alone would mislead.
+- **Mile figures inherit the course geometry's accuracy.** A hand-drawn route
+  that cuts corners is shorter than the road. Never silently smooth it.
 - **Icons: regenerate with `python tools/make_icons.py`, never by hand.** iOS
   ignores SVG and the manifest for home screen icons; Android crops maskable
   icons to the central 80%. Full-bleed sources keep square corners because both
@@ -241,6 +251,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-02** Phase 5: course-relative position — "Full-back at mile 14.2".
 - **2026-09-02** Added the full icon set (iOS, Android maskable, favicons) and a per-role manifest.
 - **2026-09-02** Applied Course Ops branding: navy chrome, safety orange accent, pin logo.
 - **2026-09-02** Rejected the C.O. monogram favicon after testing at 16px; favicon derives from the pin.
@@ -250,4 +261,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-02** Added `docs/RUNBOOK.md` and a documentation-discipline checklist to CLAUDE.md.
 - **2026-09-02** Preserved the real Mankato course as a fixture with 8 regression tests.
 - **2026-09-02** Added "Known gaps and open threads" to `docs/PLAN.md`.
-- **2026-09-02** Split Logistics out as its own read-only role, separate from Liaison.

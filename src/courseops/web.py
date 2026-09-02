@@ -19,7 +19,7 @@ from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconn
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import access, db, hub as hub_module
+from . import access, db, hub as hub_module, progress
 from .config import Settings
 from .ingest import run_ingest
 
@@ -36,6 +36,11 @@ SILENT_AFTER_SECONDS = 20 * 60
 
 def _row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
     return {key: row[key] for key in row.keys()}
+
+
+def _course_position(index: "progress.CourseIndex", lat: float, lon: float):
+    located = index.locate(lat, lon)
+    return located.as_dict() if located else None
 
 
 def build_state(conn: sqlite3.Connection, event_id: int) -> dict[str, Any]:
@@ -84,6 +89,10 @@ def build_state(conn: sqlite3.Connection, event_id: int) -> dict[str, Any]:
         entry["op_status_label"] = db.op_status_label(row["category"], row["op_status"])
         roster.append(entry)
 
+    # Built once per snapshot: cumulative course lengths are the expensive part
+    # and every station reuses them.
+    index = progress.CourseIndex.for_event(conn, event_id)
+
     positions = [
         {
             "station_key": row["station_key"],
@@ -96,6 +105,7 @@ def build_state(conn: sqlite3.Connection, event_id: int) -> dict[str, Any]:
             "symbol_table": row["symbol_table"],
             "symbol_code": row["symbol_code"],
             "comment": row["comment"],
+            "course_position": _course_position(index, row["lat"], row["lon"]),
         }
         for row in db.latest_position_per_station(conn, event_id)
     ]
@@ -327,19 +337,27 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     async def _ingest_for(slug: str) -> None:
         conn = db.connect(settings.db_path)
         event = db.get_event(conn, slug)
-        roster_by_key = {
-            row["station_key"]: row
-            for row in db.roster_for_event(conn, event["id"])
-        } if event else {}
-        conn.close()
         if event is None:
+            conn.close()
             log.error("Cannot ingest unknown event %r", slug)
             return
+        roster_by_key = {
+            row["station_key"]: row for row in db.roster_for_event(conn, event["id"])
+        }
+        # Course geometry is loaded once for the life of the ingest task rather
+        # than per packet. Courses are set up before the event and do not change
+        # while it runs; restart the server if one is re-imported mid-event.
+        index = progress.CourseIndex.for_event(conn, event["id"])
+        conn.close()
 
         async def on_position(event_id: int, report) -> None:
             await app.state.hub.publish(
                 event_id,
-                hub_module.position_message(report, roster_by_key.get(report.station_key)),
+                hub_module.position_message(
+                    report,
+                    roster_by_key.get(report.station_key),
+                    _course_position(index, report.lat, report.lon),
+                ),
             )
 
         await run_ingest(settings, slug, on_position=on_position)

@@ -120,6 +120,19 @@ function ageSeconds(iso) {
   return Math.max(0, (Date.now() - then) / 1000);
 }
 
+/* "mile 14.2" is what the net says. One decimal on purpose: the course geometry
+   is not accurate to better than that, and more digits would imply precision we
+   do not have. */
+function formatMile(meters) {
+  if (meters == null) return null;
+  return `mile ${(meters / 1609.344).toFixed(1)}`;
+}
+
+function coursePositionOf(stationKey) {
+  const position = state.positions.get(stationKey);
+  return position ? (position.course_position || null) : null;
+}
+
 function formatAge(seconds) {
   if (seconds == null) return '--';
   if (seconds < 60) return `${Math.floor(seconds)}s`;
@@ -201,6 +214,20 @@ function stationPopup(stationKey) {
     }
     if (position.altitude_m != null) {
       rows.push(['Altitude', `${Math.round(feet(position.altitude_m))} ft`]);
+    }
+    const located = position.course_position;
+    if (located) {
+      // Course name always travels with the mile: where routes share road the
+      // station snaps to whichever line is nearest, which is a coin flip.
+      rows.push(['Course position',
+        `${formatMile(located.distance_along_m)} of ${located.course_name}`]);
+      rows.push(['Remaining',
+        `${(located.remaining_m / 1609.344).toFixed(1)} mi`]);
+      if (located.offset_m > 60) {
+        // Worth surfacing: either they have left the route, or the course line
+        // cuts a corner here and the road does not.
+        rows.push(['Off the line', `${Math.round(located.offset_m)} m`]);
+      }
     }
     rows.push(['Position', `${position.lat.toFixed(5)}, ${position.lon.toFixed(5)}`]);
     if (position.comment) rows.push(['Comment', position.comment]);
@@ -494,10 +521,19 @@ function renderStations() {
     const locate = document.createElement('button');
     locate.type = 'button';
     locate.className = 'station-main';
+    // The mile figure replaces the callsign when we have one: on a phone the
+    // row has space for one of them, and "mile 14.2" is what gets said on the
+    // radio. The callsign is still in the popup.
+    const located = coursePositionOf(stationKey);
+    const middle = located
+      ? `<span class="mile" title="${escapeHtml(located.course_name)}">` +
+        `${escapeHtml(formatMile(located.distance_along_m))}</span>`
+      : `<span class="call">${escapeHtml(stationKey)}</span>`;
+
     locate.innerHTML =
       `<span class="dot dot--${status}"></span>` +
       `<span class="name">${escapeHtml(labelOf(stationKey))}</span>` +
-      `<span class="call">${escapeHtml(stationKey)}</span>` +
+      middle +
       `<span class="age ${ageClass}">${escapeHtml(ageText)}</span>`;
     locate.addEventListener('click', () => {
       const marker = state.markers.get(stationKey);

@@ -306,6 +306,15 @@ html, body {
 
 .station .name { flex: 1; font-weight: 550; }
 .station .call { color: var(--ink-soft); font-size: 13px; font-variant-numeric: tabular-nums; }
+/* The mile figure is the number read aloud on the net, so it is set stronger
+   than the callsign it replaces - but in ink, not in a status colour. */
+.station .mile {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
 .station .age  { font-size: 13px; font-variant-numeric: tabular-nums; }
 .age--stale  { color: var(--stale);  font-weight: 650; }
 .age--silent { color: var(--silent); font-weight: 700; }

@@ -385,3 +385,47 @@ def test_map_page_injects_the_manifest_link(setup):
     assert f'href="/api/m2026/{tokens["ncs"]}/manifest.webmanifest"' in html
     assert "__MANIFEST_URL__" not in html
     assert 'rel="apple-touch-icon"' in html
+
+
+# --- course-relative position (Phase 5) -------------------------------------
+
+def test_state_includes_course_position(setup):
+    """The mile figure is what the net speaks, so it travels with the position."""
+    app, tokens, db_path, event_id = setup
+    conn = db.connect(db_path)
+    # A point on the imported Half course from the fixture.
+    conn.execute(
+        "INSERT INTO position (event_id, station_key, received_at, lat, lon, raw)"
+        " VALUES (?, 'N0CALL-7', '2026-04-11T14:00:00Z', 34.732, -86.575, 'x')",
+        (event_id,),
+    )
+    conn.close()
+
+    with TestClient(app) as client:
+        data = client.get(f"/api/m2026/{tokens['ncs']}/state").json()
+
+    located = data["positions"][0]["course_position"]
+    assert located is not None
+    assert located["course_name"] == "Half"
+    assert located["distance_along_m"] >= 0
+    assert located["distance_along_m"] + located["remaining_m"] == pytest.approx(
+        located["course_length_m"], abs=1.0
+    )
+
+
+def test_station_far_from_any_course_reports_none(setup):
+    """No number beats a plausible wrong one; someone acts on this."""
+    app, tokens, db_path, event_id = setup
+    conn = db.connect(db_path)
+    conn.execute(
+        "INSERT INTO position (event_id, station_key, received_at, lat, lon, raw)"
+        " VALUES (?, 'W1AW-9', '2026-04-11T14:00:00Z', 40.0, -100.0, 'x')",
+        (event_id,),
+    )
+    conn.close()
+
+    with TestClient(app) as client:
+        data = client.get(f"/api/m2026/{tokens['ncs']}/state").json()
+
+    far = next(p for p in data["positions"] if p["station_key"] == "W1AW-9")
+    assert far["course_position"] is None

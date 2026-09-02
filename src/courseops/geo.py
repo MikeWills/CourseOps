@@ -12,6 +12,7 @@ well under a meter — far below the accuracy of the KML the organizer hands us.
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 
 LonLat = tuple[float, float]
 
@@ -137,3 +138,94 @@ def centroid(coords: list[LonLat]) -> LonLat | None:
         return None
     min_lon, min_lat, max_lon, max_lat = box
     return ((min_lon + max_lon) / 2, (min_lat + max_lat) / 2)
+
+
+# --- projecting a station onto a course -------------------------------------
+#
+# "Full-back is at mile 14.2" is far more actionable over a radio net than a
+# lat/lon, and it is the signal that says a road segment is clear: once the
+# sweep passes an aid station, that station can tear down and the cones can come
+# up. Both NCS and Logistics work off it.
+
+
+@dataclass(frozen=True)
+class Projection:
+    """Where a point sits relative to a course line."""
+
+    distance_along_m: float   # travelled from the start of the course
+    offset_m: float           # lateral distance from the line
+    index: int                # index of the segment it snapped to
+    point: LonLat             # the snapped position on the line
+
+
+def cumulative_lengths(coords: list[LonLat]) -> list[float]:
+    """Distance from the start to each vertex. `[0]` is always 0.
+
+    Precomputed once per course: the projection needs it for every station, and
+    recomputing 1200 haversines per packet would be wasteful for no gain.
+    """
+    totals = [0.0]
+    for i in range(len(coords) - 1):
+        totals.append(totals[-1] + haversine_m(coords[i], coords[i + 1]))
+    return totals
+
+
+def _local_metres(origin: LonLat) -> tuple[float, float]:
+    """Metres per degree of longitude and latitude near `origin`.
+
+    An equirectangular approximation. Over the few hundred metres between a
+    station and the course it is accurate to well under a metre, and it turns
+    the projection into ordinary planar geometry.
+    """
+    lat_rad = math.radians(origin[1])
+    return 111320.0 * math.cos(lat_rad), 110574.0
+
+
+def project_onto_line(
+    coords: list[LonLat],
+    target: LonLat,
+    totals: list[float] | None = None,
+) -> Projection | None:
+    """Snap `target` to the nearest point on the polyline.
+
+    Returns None for a degenerate line. Distance along is measured with
+    haversine so it agrees with `line_length_m`, while the perpendicular
+    projection uses local planar maths.
+    """
+    if len(coords) < 2:
+        return None
+    if totals is None:
+        totals = cumulative_lengths(coords)
+
+    mx, my = _local_metres(target)
+    tx, ty = target[0] * mx, target[1] * my
+
+    best: Projection | None = None
+    for i in range(len(coords) - 1):
+        ax, ay = coords[i][0] * mx, coords[i][1] * my
+        bx, by = coords[i + 1][0] * mx, coords[i + 1][1] * my
+        dx, dy = bx - ax, by - ay
+        seg_sq = dx * dx + dy * dy
+        if seg_sq == 0:
+            continue
+
+        # Clamped so the nearest point never runs past either end of the
+        # segment - without the clamp a station beside the course would snap to
+        # an imaginary extension of the nearest segment.
+        t = ((tx - ax) * dx + (ty - ay) * dy) / seg_sq
+        t = 0.0 if t < 0.0 else (1.0 if t > 1.0 else t)
+
+        px, py = ax + t * dx, ay + t * dy
+        offset = math.hypot(tx - px, ty - py)
+        if best is not None and offset >= best.offset_m:
+            continue
+
+        segment_length = totals[i + 1] - totals[i]
+        best = Projection(
+            distance_along_m=totals[i] + t * segment_length,
+            offset_m=offset,
+            index=i,
+            point=(px / mx, py / my),
+        )
+
+    return best
