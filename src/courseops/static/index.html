@@ -7,8 +7,24 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
 <meta name="color-scheme" content="light">
 <title>Course Ops</title>
+<!-- Icons. SVG first for browsers that take it; PNG/ICO for those that do not.
+     iOS ignores BOTH the SVG and the web manifest when adding to the home
+     screen - it reads apple-touch-icon and the apple-* metas below, so those
+     are not redundant. -->
 <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16.png">
+<link rel="shortcut icon" href="/static/favicon.ico">
+<link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
+<link rel="manifest" href="__MANIFEST_URL__">
+
 <meta name="theme-color" content="#0B2545">
+<!-- Standalone on the home screen: no browser chrome, which matters on a phone
+     held one-handed for six hours. -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Course Ops">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
       integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 <link rel="stylesheet" href="/static/app.css">

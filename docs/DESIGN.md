@@ -144,6 +144,56 @@ The monogram idea is still worth having for contexts where letterforms have room
 to work — an app icon at 512px, embroidery, a vehicle magnet. It is just wrong
 for a favicon.
 
+## Icon set
+
+One SVG is not enough. Three platform facts drive the file list:
+
+1. **iOS ignores SVG for home screen icons, and ignores the web manifest too.**
+   It reads `<link rel="apple-touch-icon">` and the `apple-mobile-web-app-*`
+   metas. Without a PNG there, adding Course Ops to a home screen produces a
+   blurry screenshot of the page instead of an icon.
+2. **Android maskable icons are cropped to a launcher-chosen shape** - circle,
+   squircle, teardrop - and only the central 80% is guaranteed. A maskable icon
+   drawn edge to edge gets shaved. The maskable variants therefore draw the mark
+   *smaller*; that is correct, not an error.
+3. **Neither platform wants your corner radius.** Both apply their own mask, so
+   the full-bleed sources have square corners. Baking in a different radius
+   shows as a double-rounded edge. Only the browser-tab favicons, which are
+   never masked, carry their own corners.
+
+| File | Size | Purpose |
+|---|---|---|
+| `favicon.svg` | vector | Modern browsers |
+| `favicon.ico` | 16/32/48 | Legacy `/favicon.ico` requests |
+| `favicon-16/32/48.png` | 16, 32, 48 | Browser tab, bookmarks |
+| `apple-touch-icon.png` | 180 | iOS home screen (full bleed, iOS masks) |
+| `icon-192.png`, `icon-512.png` | 192, 512 | Manifest, purpose `any` |
+| `icon-maskable-192/512.png` | 192, 512 | Manifest, purpose `maskable`, 80% safe zone |
+
+Regenerate with `python tools/make_icons.py` (needs `pip install pillow`;
+Pillow is not a runtime dependency). The marks are drawn geometrically and
+supersampled 4x, so no native SVG rasteriser is required.
+
+## Installing to a home screen
+
+The manifest is served per role at
+`/api/{event}/{token}/manifest.webmanifest`, not as a static file, because the
+app has **no tokenless entry point** - a fixed `start_url` would install a
+shortcut to a 404. `start_url` and `scope` are the caller's own role link, so
+"Add to Home Screen" lands on the right event with the right permissions.
+
+`short_name` is the **role**, not the product: home screen labels truncate around
+twelve characters, and "Net Control" / "Logistics" is the useful half when
+someone holds links for two roles.
+
+`display: standalone` means it opens without browser chrome, which is worth
+having on a phone held one-handed for six hours.
+
+> **Consequence to know:** installing puts the bearer token on that phone's home
+> screen. That is consistent with the link model - anyone holding the link has
+> the role - but it means a lost phone is a link to revoke. Covered in
+> `docs/RUNBOOK.md`.
+
 ## Still to do
 
 - Marketing/landing page (the app itself has no public page by design).

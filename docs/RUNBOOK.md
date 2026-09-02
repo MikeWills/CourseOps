@@ -165,6 +165,23 @@ Tell recipients:
   anyone else
 - Positions update on their own; **do not refresh**
 
+### Add it to the phone's home screen
+
+Worth doing for anyone in the field. It opens full screen with no browser bar,
+which is a real gain on a phone held one-handed all morning, and it saves
+hunting for the link in a text thread.
+
+- **iPhone/iPad:** open the link in Safari, then Share, then *Add to Home Screen*
+- **Android:** open the link in Chrome, then the menu, then *Add to Home screen*
+
+The icon is labelled with the **role** - "Net Control", "Liaison", "Logistics" -
+so someone holding two links can tell them apart.
+
+> **If a phone is lost or stolen, revoke that role's link.** Installing saves the
+> access link onto the home screen, so whoever has the phone has the role. Use
+> `courseops revoke-link`, then issue a replacement with `courseops links
+> <event> --new <role>` and redistribute.
+
 ---
 
 ## During the event

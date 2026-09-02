@@ -29,7 +29,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 128 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 134 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -76,7 +76,7 @@ src/courseops/
   access.py       role tokens: ncs writes; liaison + logistics read
   hub.py          per-event fan-out, bounded queues
   web.py          FastAPI: map page, state snapshot, WebSocket
-  static/         Leaflet client, no build step
+  static/         Leaflet client, no build step, plus the icon set
   cli.py          courseops entry point
 tests/fixtures/packets.txt          packet corpus, `expectation|raw` per line
 tests/fixtures/messy_course.kml     synthetic KML with real organizer defects
@@ -179,6 +179,12 @@ usability, not style preferences.
   NCS / Liaison / Logistics.
 - **Navy is chrome; the map stays light.** Field roles read it outdoors for six
   hours. Never theme the map surface dark without a user toggle and dark tiles.
+- **Icons: regenerate with `python tools/make_icons.py`, never by hand.** iOS
+  ignores SVG and the manifest for home screen icons; Android crops maskable
+  icons to the central 80%. Full-bleed sources keep square corners because both
+  platforms apply their own mask.
+- **The manifest is per-role and dynamic.** The app has no tokenless entry
+  point, so a static `start_url` installs a shortcut to a 404.
 - **Brand orange never appears inside a station row.** Amber and red mean
   something there. Status colour only ever appears on status. Use `--orange-ink`
   for orange text on white; `--orange` fails contrast at 2.87:1.
@@ -235,7 +241,8 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
-- **2026-09-02** Applied Course Ops branding: navy chrome, safety orange accent, pin logo, favicon.
+- **2026-09-02** Added the full icon set (iOS, Android maskable, favicons) and a per-role manifest.
+- **2026-09-02** Applied Course Ops branding: navy chrome, safety orange accent, pin logo.
 - **2026-09-02** Rejected the C.O. monogram favicon after testing at 16px; favicon derives from the pin.
 - **2026-09-02** Renamed to Course Ops: repo, package, CLI and docs.
 - **2026-09-02** Phase 4: operational status, the first write path, role-enforced and broadcast.
@@ -244,4 +251,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-02** Preserved the real Mankato course as a fixture with 8 regression tests.
 - **2026-09-02** Added "Known gaps and open threads" to `docs/PLAN.md`.
 - **2026-09-02** Split Logistics out as its own read-only role, separate from Liaison.
-- **2026-09-02** Locate button now tracks continuously with `watchPosition`, plus an accuracy circle.

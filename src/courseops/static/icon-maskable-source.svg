@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img"
+     aria-label="Course Ops">
+  <title>Course Ops</title>
+  <!-- Rasterisation source for Android maskable icons.
+       Android crops a maskable icon to an arbitrary shape (circle, squircle,
+       teardrop - the launcher decides), guaranteeing only the central 80%
+       "safe zone": a circle of diameter 409px on a 512px canvas. Anything
+       outside that can be cut off.
+
+       So the mark here is noticeably smaller than in icon-source.svg. That is
+       correct, not a mistake: a maskable icon that fills the canvas gets its
+       edges shaved off on most Android launchers. -->
+  <rect width="512" height="512" fill="#0B2545"/>
+  <g transform="translate(256 264) scale(4.0) translate(-32 -32)">
+    <path d="M32 9c-9.4 0-17 7.5-17 16.8C15 38 32 55 32 55s17-17 17-29.2C49 16.5 41.4 9 32 9z"
+          fill="#FF6A13"/>
+    <circle cx="32" cy="26" r="11.5" fill="#F7F9FC"/>
+    <polyline points="23.5,26 26.5,26 29.2,19.5 34.8,32.5 37.5,26 40.5,26"
+              fill="none" stroke="#0B2545" stroke-width="4"
+              stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>
