@@ -548,3 +548,107 @@ def test_editing_an_incident_updates_and_logs(setup):
 
     assert updated["bib"] == "0917"
     assert updated["assigned_to"] == "SAG 1"
+
+
+# --- lead runners -----------------------------------------------------------
+
+def test_leaders_appear_in_state_per_course_and_division(setup):
+    app, tokens, _, _ = setup
+    with TestClient(app) as client:
+        data = client.get(f"/api/m2026/{tokens['ncs']}/state").json()
+
+    assert {e["division"] for e in data["leaders"]} == {"male", "female"}
+    assert [d["label"] for d in data["divisions"]] == ["First male", "First female"]
+
+
+def test_recording_a_sighting_broadcasts_to_read_only_roles(setup):
+    """Aid stations need to know the leader is coming; Logistics watches too."""
+    app, tokens, db_path, event_id = setup
+    conn = db.connect(db_path)
+    course_id = conn.execute("SELECT id FROM course").fetchone()["id"]
+    poi_id = conn.execute("SELECT id FROM poi").fetchone()["id"]
+    conn.close()
+
+    with TestClient(app) as client:
+        with client.websocket_connect(f"/ws/m2026/{tokens['logistics']}") as ws:
+            response = client.post(
+                f"/api/m2026/{tokens['ncs']}/leaders/sighting",
+                json={"course_id": course_id, "division": "male",
+                      "poi_id": poi_id, "bib": "101", "changed_by": "MW"},
+            )
+            message = ws.receive_json()
+
+    assert response.status_code == 201
+    assert message["type"] == "leaders"
+    male = next(e for e in message["leaders"] if e["division"] == "male")
+    assert male["bib"] == "101"
+    assert male["last_by"] == "MW"
+
+
+def test_read_only_roles_cannot_record_a_sighting(setup):
+    app, tokens, db_path, _ = setup
+    conn = db.connect(db_path)
+    course_id = conn.execute("SELECT id FROM course").fetchone()["id"]
+    poi_id = conn.execute("SELECT id FROM poi").fetchone()["id"]
+    conn.close()
+
+    with TestClient(app) as client:
+        for role in ("liaison", "logistics"):
+            assert client.post(
+                f"/api/m2026/{tokens[role]}/leaders/sighting",
+                json={"course_id": course_id, "division": "male", "poi_id": poi_id},
+            ).status_code == 403
+
+
+def test_a_mis_tap_can_be_undone_over_the_api(setup):
+    app, tokens, db_path, _ = setup
+    conn = db.connect(db_path)
+    course_id = conn.execute("SELECT id FROM course").fetchone()["id"]
+    poi_id = conn.execute("SELECT id FROM poi").fetchone()["id"]
+    conn.close()
+
+    with TestClient(app) as client:
+        client.post(f"/api/m2026/{tokens['ncs']}/leaders/sighting",
+                    json={"course_id": course_id, "division": "male",
+                          "poi_id": poi_id})
+        undone = client.post(f"/api/m2026/{tokens['ncs']}/leaders/undo",
+                             json={"course_id": course_id, "division": "male"})
+        data = client.get(f"/api/m2026/{tokens['ncs']}/state").json()
+
+    assert undone.json()["removed"] is True
+    male = next(e for e in data["leaders"] if e["division"] == "male")
+    assert male["last_poi_id"] is None
+
+
+def test_bib_colour_can_be_set_over_the_api(setup):
+    app, tokens, db_path, _ = setup
+    conn = db.connect(db_path)
+    course_id = conn.execute("SELECT id FROM course").fetchone()["id"]
+    conn.close()
+
+    with TestClient(app) as client:
+        response = client.post(
+            f"/api/m2026/{tokens['ncs']}/course/{course_id}/bib-color",
+            json={"bib_color": "#ffcc00", "bib_color_name": "Yellow"},
+        )
+        data = client.get(f"/api/m2026/{tokens['ncs']}/state").json()
+
+    assert response.status_code == 200
+    male = next(e for e in data["leaders"] if e["division"] == "male")
+    assert male["bib_color"] == "#ffcc00"
+    assert male["bib_color_name"] == "Yellow"
+
+
+def test_bad_sighting_payloads_are_rejected(setup):
+    app, tokens, db_path, _ = setup
+    conn = db.connect(db_path)
+    course_id = conn.execute("SELECT id FROM course").fetchone()["id"]
+    conn.close()
+
+    with TestClient(app) as client:
+        assert client.post(f"/api/m2026/{tokens['ncs']}/leaders/sighting",
+                           json={"course_id": course_id, "division": "male",
+                                 "poi_id": 9999}).status_code == 400
+        assert client.post(f"/api/m2026/{tokens['ncs']}/leaders/sighting",
+                           json={"course_id": course_id, "division": "",
+                                 "poi_id": 1}).status_code == 400

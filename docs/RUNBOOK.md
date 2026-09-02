@@ -322,6 +322,37 @@ The sweep's mile marker is what tells NCS which aid stations can tear down and
 which roads can reopen. Watch the sweep's mile figure, then set each aid station
 it has passed to *Torn down*.
 
+### Lead runners
+
+Track the first male and first female for each race. Aid stations call it in as
+the leaders pass; NCS records it.
+
+Before the event, set each race's bib colour so it matches what operators will
+see on the runners:
+
+```bash
+courseops bib-color mankato2026 1 --color "#ffcc00" --name Yellow
+```
+
+On the day, when a station reports *"first yellow male, bib 101, just passed
+Bravo"*:
+
+1. Type the bib in the small box (it stays filled in, so usually it is already
+   right).
+2. Tap **Passed <station>** — the button already names the station they were
+   expected at next.
+
+Use the **At...** picker if they passed a different station, and **Undo** to
+remove a mis-tap.
+
+Once two sightings exist, the panel shows a pace and an estimate for the next
+station — which is what tells an aid station when to be ready.
+
+> **If the pace looks absent, that is deliberate.** When two reports are entered
+> close together — catching up after a busy net — the arithmetic produces a
+> nonsense pace, so the app shows none rather than an estimate you might plan
+> around. The sighting itself is still recorded.
+
 ### Pickups and incidents
 
 When a pickup is called in:

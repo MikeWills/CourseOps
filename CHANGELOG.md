@@ -7,6 +7,50 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-09-02 - Lead runner tracking
+
+The counterpart to the sweep. The sweep says when an aid station may close; the
+leader says when it has to be ready. Between them they bracket the field.
+
+#### Added
+- `leaders.py` and the `lead_sighting` table. First male and first female
+  tracked per course, from reports called in as runners pass aid stations.
+- Bib colour per race (`course.bib_color`, `bib_color_name`), pre-set before the
+  event and defaulting to the course line colour. It is a separate field because
+  the two answer different questions: the line colour is a map choice, the bib
+  colour is how an operator identifies a runner - "first yellow male just went
+  through" is what actually gets said on the net.
+- Derived pace and an estimate for the next aid station, computed from the last
+  leg so it stays responsive to a runner slowing late in the race.
+- Lead runner panel: bib colour swatch, where each leader was last seen, pace,
+  next station with an estimate, a bib field, a "Passed <station>" button, a
+  picker for corrections and an undo.
+- `courseops bib-color` to pre-set colours before race day.
+- 22 tests (204 total).
+
+#### Deliberate choices
+- **Sightings are stored; everything else is derived.** There is no tracker on
+  the front runner - we only learn this when someone reports it on the net - so
+  current position, pace and ETA all come from the sighting log and nothing can
+  disagree with the reports the net actually made.
+- **Undo exists** because mis-taps happen while NCS is holding a microphone.
+- **Divisions are free text** in the database (`male`, `female` by default), so a
+  club can add wheelchair or non-binary divisions without a migration.
+
+#### Fixed
+- **An implausible pace is now discarded rather than published.** Found in the
+  browser: two sightings entered thirty seconds apart - exactly what happens
+  when NCS catches up on backlogged reports - produced a 0:28/mile pace and an
+  ETA of two minutes. An aid station told the leader is two minutes out when
+  they are twenty would act on it. Paces outside 3:00-30:00 per mile are now
+  treated as clock artifacts: the sighting is still recorded, but no pace and no
+  estimate are shown.
+- Palette colours are stored lowercase, matching `normalize_color()`, so a
+  colour compares equal regardless of whether it came from the palette or a
+  user.
+- `Leader.division_label` is a property, so the object and its serialized form
+  no longer disagree.
+
 ### 2026-09-02 - Phase 6: incidents
 
 Runner pickups tracked by bib, with a status workflow. The first write that

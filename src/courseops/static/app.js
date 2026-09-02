@@ -45,6 +45,10 @@ const state = {
     {value: 'closed', label: 'Closed'},
   ],
   droppingPin: false,
+  leaders: [],
+  divisions: [{value: 'male', label: 'First male'},
+              {value: 'female', label: 'First female'}],
+  aidStations: [],
   operatorInitials: '',
   following: false,
   meMarker: null,
@@ -596,6 +600,173 @@ function renderStations() {
   });
 }
 
+/* ---------- lead runners ------------------------------------------------- */
+
+/* The counterpart to the sweep: the sweep says when an aid station may close,
+   the leader says when it has to be ready.
+
+   We only ever learn this when a runner passes an operator who calls it in, so
+   the primary control is a single button naming the station they are expected
+   at next. On race day that has to be one tap while holding a microphone;
+   picking from a list is the correction path, not the normal one. */
+
+function formatEta(seconds) {
+  if (seconds == null) return null;
+  const mins = Math.round(seconds / 60);
+  if (mins < 1) return 'due now';
+  if (mins < 60) return `~${mins} min`;
+  return `~${Math.floor(mins / 60)}h${String(mins % 60).padStart(2, '0')}`;
+}
+
+function paceLabel(mps) {
+  if (!mps) return null;
+  // Runners think in minutes per mile, never in metres per second.
+  const minPerMile = 1609.344 / mps / 60;
+  if (!isFinite(minPerMile) || minPerMile > 60) return null;
+  const mins = Math.floor(minPerMile);
+  const secs = Math.round((minPerMile - mins) * 60);
+  return `${mins}:${String(secs).padStart(2, '0')}/mi`;
+}
+
+async function recordSighting(leader, poiId, bib) {
+  try {
+    const response = await fetch(`/api/${M.slug}/${M.token}/leaders/sighting`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        course_id: leader.course_id, division: leader.division,
+        poi_id: poiId, bib: bib || null, changed_by: state.operatorInitials,
+      }),
+    });
+    if (!response.ok) throw new Error(String(response.status));
+  } catch (err) {
+    setLocateStatus('Could not record the sighting');
+  }
+}
+
+async function undoSighting(leader) {
+  try {
+    await fetch(`/api/${M.slug}/${M.token}/leaders/undo`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({course_id: leader.course_id, division: leader.division}),
+    });
+  } catch (err) {
+    setLocateStatus('Could not undo');
+  }
+}
+
+function renderLeaders() {
+  const host = document.getElementById('leader-list');
+  if (!state.leaders.length) {
+    host.innerHTML = '<p class="muted">No courses imported yet.</p>';
+    return;
+  }
+
+  host.innerHTML = '';
+  let lastCourse = null;
+  state.leaders.forEach((leader) => {
+    if (leader.course_id !== lastCourse) {
+      lastCourse = leader.course_id;
+      const head = document.createElement('div');
+      head.className = 'leader-course';
+      const swatch = document.createElement('span');
+      swatch.className = 'leader-swatch';
+      // Bib colour, not line colour: "first yellow male" is what gets said.
+      swatch.style.background = leader.bib_color || '#5a6572';
+      const name = document.createElement('span');
+      name.textContent = leader.bib_color_name
+        ? `${leader.course_name} — ${leader.bib_color_name} bibs`
+        : leader.course_name;
+      head.append(swatch, name);
+      host.appendChild(head);
+    }
+
+    const row = document.createElement('div');
+    row.className = 'leader';
+
+    const line = document.createElement('div');
+    line.className = 'leader-main';
+    const where = leader.last_poi_name
+      ? `${escapeHtml(leader.last_poi_name)} · ${escapeHtml(formatAge(ageSeconds(leader.last_at)))} ago`
+      : 'not yet seen';
+    const pace = paceLabel(leader.pace_mps);
+    line.innerHTML =
+      `<span class="leader-div">${escapeHtml(leader.division_label)}</span>` +
+      (leader.bib ? `<span class="leader-bib">#${escapeHtml(leader.bib)}</span>` : '') +
+      `<span class="leader-at">${where}</span>` +
+      (pace ? `<span class="leader-pace">${escapeHtml(pace)}</span>` : '');
+    row.appendChild(line);
+
+    if (leader.next_poi_name) {
+      const eta = formatEta(leader.eta_seconds);
+      const hint = document.createElement('div');
+      hint.className = 'leader-next';
+      hint.textContent = eta
+        ? `Next: ${leader.next_poi_name} (${eta})`
+        : `Next: ${leader.next_poi_name}`;
+      row.appendChild(hint);
+    }
+
+    if (state.canWrite) {
+      const controls = document.createElement('div');
+      controls.className = 'leader-controls';
+
+      // Prefilled with the last known bib: the leader rarely changes, so this
+      // is usually already correct and NCS only edits it when it does.
+      const bibField = document.createElement('input');
+      bibField.type = 'text';
+      bibField.className = 'leader-bib-input';
+      bibField.placeholder = 'Bib';
+      bibField.maxLength = 16;
+      bibField.value = leader.bib || '';
+      bibField.setAttribute('aria-label',
+        `Bib for ${leader.division_label}, ${leader.course_name}`);
+      controls.appendChild(bibField);
+
+      if (leader.next_poi_id) {
+        const passed = document.createElement('button');
+        passed.type = 'button';
+        passed.className = 'leader-passed';
+        passed.textContent = `Passed ${leader.next_poi_name}`;
+        passed.addEventListener('click',
+          () => recordSighting(leader, leader.next_poi_id, bibField.value.trim()));
+        controls.appendChild(passed);
+      }
+
+      // Correction path: any station, plus undo.
+      const picker = document.createElement('select');
+      picker.className = 'leader-picker';
+      picker.setAttribute('aria-label', `Record ${leader.division_label} at a station`);
+      picker.innerHTML = '<option value="">At…</option>' +
+        state.aidStations
+          .filter((poi) => !leader.course_id || true)
+          .map((poi) => `<option value="${poi.id}">${escapeHtml(poi.name)}</option>`)
+          .join('');
+      picker.addEventListener('change', () => {
+        if (picker.value) {
+          recordSighting(leader, Number(picker.value), bibField.value.trim());
+          picker.value = '';
+        }
+      });
+      controls.appendChild(picker);
+
+      if (leader.last_poi_id) {
+        const undo = document.createElement('button');
+        undo.type = 'button';
+        undo.className = 'leader-undo';
+        undo.textContent = 'Undo';
+        undo.title = 'Remove the last sighting';
+        undo.addEventListener('click', () => undoSighting(leader));
+        controls.appendChild(undo);
+      }
+      row.appendChild(controls);
+    }
+
+    host.appendChild(row);
+  });
+}
+
 /* ---------- incidents ---------------------------------------------------- */
 
 /* An unanswered report outranks everything: the failure this list exists to
@@ -881,6 +1052,9 @@ function applyState(data) {
   state.thresholds = data.thresholds;
   if (Array.isArray(data.op_statuses)) state.opStatuses = data.op_statuses;
   if (Array.isArray(data.incident_statuses)) state.incidentStatuses = data.incident_statuses;
+  if (Array.isArray(data.divisions)) state.divisions = data.divisions;
+  state.leaders = data.leaders || [];
+  state.aidStations = (data.pois || []).filter((p) => p.poi_type === 'aid_station');
 
   if (firstLoad) {
     const prefs = loadPrefs();
@@ -916,6 +1090,7 @@ function applyState(data) {
   renderCourseToggles(data.courses);
   if (firstLoad) renderLayerToggles();
   document.getElementById('incident-add').hidden = !state.canWrite;
+  renderLeaders();
   renderIncidents();
   renderStations();
   if (firstLoad) fitToContent();
@@ -936,6 +1111,11 @@ function connect() {
     try {
       message = JSON.parse(ev.data);
     } catch (e) {
+      return;
+    }
+    if (message.type === 'leaders') {
+      state.leaders = message.leaders || [];
+      renderLeaders();
       return;
     }
     if (message.type === 'incident') {
@@ -987,6 +1167,7 @@ function scheduleReconnect() {
 setInterval(() => {
   renderStations();
   renderIncidents();
+  renderLeaders();
   state.markers.forEach((_, stationKey) => {
     const marker = state.markers.get(stationKey);
     if (marker) marker.setIcon(stationIcon(stationKey));

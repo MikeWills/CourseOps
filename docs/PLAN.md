@@ -305,6 +305,28 @@ Where colour lives today, and what a spec would touch:
 | `styling.py` `DEFAULT_COLORS` | Course line palette (currently Okabe-Ito minus yellow) |
 | `static/app.css` `.stn--*`, `.poi-icon` | Marker fills and shapes |
 
+### Lead runner tracking
+
+First male and first female per race, reported as they pass aid stations. The
+counterpart to the sweep: the sweep says when a station may close, the leader
+says when it must be ready.
+
+There is no tracker on the front runner, so this is a **log of reports** called
+in over the net, not a track. Position, pace and the estimate for the next
+station are all derived from that log, which keeps them from disagreeing with
+what the net actually said.
+
+Bib colour is pre-set per race before the event and defaults to the course line
+colour, but is a separate field: the line colour is a map choice, while the bib
+colour is how an operator identifies a runner in front of them.
+
+Entered by NCS, not by aid stations directly. It needs to be quick - a
+"Passed <next station>" button, a bib box and an undo - but not one-tap, since
+NCS is at a workstation.
+
+Pace outside 3:00-30:00 per mile is discarded as a clock artifact rather than
+shown; reports arrive in bursts and a bad ETA is worse than none.
+
 ## Known gaps and open threads
 
 Things discovered but not yet acted on. Each is a real constraint, not a wish.
