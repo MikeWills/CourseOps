@@ -45,6 +45,7 @@ const state = {
     {value: 'closed', label: 'Closed'},
   ],
   droppingPin: false,
+  ssidAlerts: [],
   leaders: [],
   divisions: [{value: 'male', label: 'First male'},
               {value: 'female', label: 'First female'}],
@@ -600,6 +601,107 @@ function renderStations() {
   });
 }
 
+/* ---------- SSID mismatches ---------------------------------------------- */
+
+/* Someone signs up as WX0MIK-1 and their phone beacons WX0MIK-5. The filter
+   asks for every SSID so they are tracked either way, but the roster label is
+   wrong and their own digipeater may be on the map too.
+
+   This is surfaced here, unprompted, rather than in a command someone has to
+   remember to run. The failure it catches is silent, and anything that must be
+   remembered will eventually be forgotten - especially on race morning. */
+
+async function resolveSsid(path, body) {
+  try {
+    const response = await fetch(`/api/${M.slug}/${M.token}/ssid/${path}`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      const detail = await response.json().catch(() => ({}));
+      throw new Error(detail.detail || String(response.status));
+    }
+    await loadState();          // the roster changed; resync rather than patch
+  } catch (err) {
+    setLocateStatus(`Could not update: ${err.message}`);
+  }
+}
+
+function renderSsidAlerts() {
+  const section = document.getElementById('ssid-section');
+  const host = document.getElementById('ssid-alerts');
+  const badge = document.getElementById('sheet-badge');
+  const alerts = state.ssidAlerts || [];
+
+  section.hidden = alerts.length === 0;
+  badge.hidden = alerts.length === 0;
+  badge.textContent = alerts.length ? String(alerts.length) : '';
+  if (!alerts.length) return;
+
+  host.innerHTML = '';
+  alerts.forEach((alert) => {
+    const box = document.createElement('div');
+    box.className = 'ssid-alert';
+
+    const head = document.createElement('div');
+    head.className = 'ssid-head';
+    head.innerHTML =
+      `<span class="ssid-key">${escapeHtml(alert.station_key)}</span>` +
+      `<span class="ssid-meta">${escapeHtml(alert.symbol)} · ` +
+      `${alert.packets} pos</span>`;
+    box.appendChild(head);
+
+    const why = document.createElement('p');
+    why.className = 'ssid-why';
+    why.textContent = alert.looks_like_infrastructure
+      ? 'Transmitting under a rostered callsign, but looks like fixed equipment.'
+      : 'Transmitting under a rostered callsign, but this SSID is not on the roster.';
+    box.appendChild(why);
+
+    if (!state.canWrite) {
+      const note = document.createElement('p');
+      note.className = 'muted';
+      note.textContent = 'Net Control can resolve this.';
+      box.appendChild(note);
+      host.appendChild(box);
+      return;
+    }
+
+    const actions = document.createElement('div');
+    actions.className = 'ssid-actions';
+
+    // Adopting is offered per roster entry sharing the callsign, so the label
+    // says who it actually is rather than making NCS work it out.
+    alert.roster_candidates.forEach((candidate) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'ssid-adopt';
+      button.textContent = `This is ${candidate.display_label}`;
+      button.title = `Point ${candidate.station_key} at ${alert.station_key}`;
+      button.addEventListener('click', () => resolveSsid('adopt', {
+        from_station_key: candidate.station_key,
+        to_station_key: alert.station_key,
+      }));
+      actions.appendChild(button);
+    });
+
+    const ignore = document.createElement('button');
+    ignore.type = 'button';
+    ignore.className = 'ssid-ignore';
+    ignore.textContent = alert.looks_like_infrastructure
+      ? 'Ignore (equipment)' : 'Ignore';
+    ignore.addEventListener('click', () => resolveSsid('ignore', {
+      station_key: alert.station_key,
+      reason: alert.symbol,
+    }));
+    actions.appendChild(ignore);
+
+    box.appendChild(actions);
+    host.appendChild(box);
+  });
+}
+
 /* ---------- lead runners ------------------------------------------------- */
 
 /* The counterpart to the sweep: the sweep says when an aid station may close,
@@ -1054,6 +1156,7 @@ function applyState(data) {
   if (Array.isArray(data.incident_statuses)) state.incidentStatuses = data.incident_statuses;
   if (Array.isArray(data.divisions)) state.divisions = data.divisions;
   state.leaders = data.leaders || [];
+  state.ssidAlerts = data.ssid_alerts || [];
   state.aidStations = (data.pois || []).filter((p) => p.poi_type === 'aid_station');
 
   if (firstLoad) {
@@ -1090,6 +1193,7 @@ function applyState(data) {
   renderCourseToggles(data.courses);
   if (firstLoad) renderLayerToggles();
   document.getElementById('incident-add').hidden = !state.canWrite;
+  renderSsidAlerts();
   renderLeaders();
   renderIncidents();
   renderStations();
@@ -1111,6 +1215,10 @@ function connect() {
     try {
       message = JSON.parse(ev.data);
     } catch (e) {
+      return;
+    }
+    if (message.type === 'resync') {
+      loadState();
       return;
     }
     if (message.type === 'leaders') {

@@ -139,6 +139,17 @@ courseops roster mankato2026
 
 ### 6a. Check who is actually on the air
 
+**The app watches for this on its own.** If someone transmits on an SSID the
+roster does not name, a **Needs attention** panel appears at the top of the NCS
+view with two choices: *"This is <their label>"*, which repoints the roster at
+the SSID they are really using, or *Ignore*, for a digipeater or igate. A count
+badge shows on the Layers button so it is visible on a phone without opening the
+panel.
+
+That means nothing has to be remembered on race morning. The check below is
+still worth running beforehand, because it is better to fix this at a club
+meeting than while the net is live.
+
 **Do this at a club meeting a week out, not on race morning.**
 
 People sign up with the wrong SSID. Someone says they are `WX0MIK-1` when their

@@ -19,7 +19,8 @@ from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconn
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import access, db, hub as hub_module, incidents, leaders, progress
+from . import (access, db, hub as hub_module, incidents, leaders, progress,
+               symbols)
 from .config import Settings
 from .ingest import run_ingest
 
@@ -41,6 +42,36 @@ def _row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
 def _course_position(index: "progress.CourseIndex", lat: float, lon: float):
     located = index.locate(lat, lon)
     return located.as_dict() if located else None
+
+
+def _ssid_alerts(conn: sqlite3.Connection, event_id: int) -> list[dict[str, Any]]:
+    """Callsigns transmitting on an SSID the roster does not name.
+
+    Each alert carries the roster entries for the same callsign, so the client
+    can offer "this is really Aid 3" without a second round trip.
+    """
+    alerts = []
+    for row in db.unexpected_ssids(conn, event_id):
+        base = row["station_key"].split("-", 1)[0]
+        candidates = db.roster_entries_for_base(conn, event_id, base)
+        alerts.append({
+            "station_key": row["station_key"],
+            "packets": row["packets"],
+            "last_at": row["last_at"],
+            "symbol": symbols.describe(row["symbol_table"], row["symbol_code"]),
+            # A digipeater or igate under a rostered callsign is almost always
+            # infrastructure to dismiss, not a person to adopt.
+            "looks_like_infrastructure": symbols.is_infrastructure(
+                row["symbol_table"], row["symbol_code"]
+            ),
+            "roster_candidates": [
+                {"station_key": entry["station_key"],
+                 "display_label": entry["display_label"],
+                 "category": entry["category"]}
+                for entry in candidates
+            ],
+        })
+    return alerts
 
 
 def build_state(conn: sqlite3.Connection, event_id: int) -> dict[str, Any]:
@@ -101,6 +132,11 @@ def build_state(conn: sqlite3.Connection, event_id: int) -> dict[str, Any]:
                 entry["poi_name"] = poi["name"]
         roster.append(entry)
 
+    # Ignoring an SSID has to hide what was already stored, not merely stop
+    # future packets. Otherwise "ignore the digipeater" leaves the digipeater
+    # sitting on the map, which is not what the word promises.
+    ignored = db.excluded_station_keys(conn, event_id)
+
     positions = [
         {
             "station_key": row["station_key"],
@@ -116,6 +152,7 @@ def build_state(conn: sqlite3.Connection, event_id: int) -> dict[str, Any]:
             "course_position": _course_position(index, row["lat"], row["lon"]),
         }
         for row in db.latest_position_per_station(conn, event_id)
+        if row["station_key"] not in ignored
     ]
 
     incident_rows = []
@@ -140,6 +177,10 @@ def build_state(conn: sqlite3.Connection, event_id: int) -> dict[str, Any]:
         "pois": pois,
         "roster": roster,
         "positions": positions,
+        # Surfaced in the UI rather than left to a command someone has to
+        # remember: the failure this catches is silent, and a check that must be
+        # remembered will be forgotten.
+        "ssid_alerts": _ssid_alerts(conn, event_id),
         "leaders": [entry.as_dict() for entry in
                     leaders.for_event(conn, event_id, index)],
         "divisions": [
@@ -342,6 +383,15 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         await app.state.hub.publish(granted.event_id, payload)
         return JSONResponse(payload)
 
+    async def _publish_state_hint(event_id: int) -> None:
+        """Ask every client to reload full state.
+
+        Adopting or ignoring an SSID rewrites the roster, which is more than an
+        incremental message can express. A resync is cheap and cannot leave a
+        client half-updated.
+        """
+        await app.state.hub.publish(event_id, {"type": "resync"})
+
     async def _publish_incident(event_id: int, row, kind: str) -> None:
         conn = get_conn()
         try:
@@ -412,6 +462,41 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         conn.close()
         await _publish_incident(granted.event_id, row, "edited")
         return JSONResponse(incidents.Incident(row).as_dict())
+
+    @app.post("/api/{event_slug}/{token}/ssid/adopt")
+    async def adopt_ssid(event_slug: str, token: str, request: Request) -> JSONResponse:
+        """Point a roster entry at the SSID its operator is actually using."""
+        conn, granted = require_write(event_slug, token)
+        body = await _json_body(request, conn)
+        try:
+            row = db.change_station_key(
+                conn, granted.event_id,
+                str(body.get("from_station_key", "")),
+                str(body.get("to_station_key", "")),
+            )
+        except ValueError as exc:
+            conn.close()
+            raise HTTPException(status_code=400, detail=str(exc))
+        payload = {"station_key": row["station_key"],
+                   "display_label": row["display_label"]}
+        conn.close()
+        await _publish_state_hint(granted.event_id)
+        return JSONResponse(payload)
+
+    @app.post("/api/{event_slug}/{token}/ssid/ignore")
+    async def ignore_ssid(event_slug: str, token: str, request: Request) -> JSONResponse:
+        """Dismiss an SSID: a digipeater, igate or home station."""
+        conn, granted = require_write(event_slug, token)
+        body = await _json_body(request, conn)
+        station_key = str(body.get("station_key", "")).strip()
+        if not station_key:
+            conn.close()
+            raise HTTPException(status_code=400, detail="A station_key is required.")
+        db.exclude_station(conn, granted.event_id, station_key,
+                           body.get("reason") or "dismissed from the map")
+        conn.close()
+        await _publish_state_hint(granted.event_id)
+        return JSONResponse({"ignored": station_key.upper()})
 
     @app.get("/api/{event_slug}/{token}/station-log")
     async def station_log(

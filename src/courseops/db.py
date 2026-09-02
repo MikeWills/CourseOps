@@ -347,6 +347,92 @@ def rostered_base_callsigns(conn: sqlite3.Connection, event_id: int) -> set[str]
     }
 
 
+def unexpected_ssids(conn: sqlite3.Connection, event_id: int) -> list[sqlite3.Row]:
+    """SSIDs heard whose callsign is rostered but whose exact SSID is not.
+
+    Derived from what has actually been received, so it needs no separate
+    listening step: the app is already ingesting, so it already knows. Surfacing
+    this in the UI rather than in a command matters because the failure it
+    catches - someone signed up as -1 and beacons -5 - is silent, and a check
+    that has to be remembered will be forgotten.
+
+    Excluded SSIDs are left out; they have already been dismissed.
+    """
+    rostered = set(all_station_keys(conn, event_id))
+    bases = {key.split("-", 1)[0] for key in rostered}
+    ignored = excluded_station_keys(conn, event_id)
+    if not bases:
+        return []
+
+    rows = conn.execute(
+        """
+        SELECT p.station_key,
+               COUNT(*)                AS packets,
+               MAX(p.received_at)      AS last_at,
+               MAX(p.symbol_table)     AS symbol_table,
+               MAX(p.symbol_code)      AS symbol_code
+          FROM position p
+         WHERE p.event_id = ?
+      GROUP BY p.station_key
+      ORDER BY packets DESC
+        """,
+        (event_id,),
+    ).fetchall()
+
+    out = []
+    for row in rows:
+        key = row["station_key"]
+        if key in rostered or key in ignored:
+            continue
+        if key.split("-", 1)[0] in bases:
+            out.append(row)
+    return out
+
+
+def roster_entries_for_base(
+    conn: sqlite3.Connection, event_id: int, base: str
+) -> list[sqlite3.Row]:
+    """Roster entries sharing a callsign, whatever their SSID."""
+    return [
+        row for row in roster_for_event(conn, event_id)
+        if row["station_key"].split("-", 1)[0] == base.upper()
+    ]
+
+
+def change_station_key(
+    conn: sqlite3.Connection, event_id: int, old_key: str, new_key: str
+) -> sqlite3.Row:
+    """Point a roster entry at the SSID its operator is actually using.
+
+    Keeps the label, category and assignment; only the identity changes. Any
+    positions already stored under the new SSID are picked up immediately,
+    because the roster is what attributes them.
+    """
+    old_key, new_key = old_key.strip().upper(), new_key.strip().upper()
+    if old_key.split("-", 1)[0] != new_key.split("-", 1)[0]:
+        raise ValueError(
+            f"{new_key} is a different callsign from {old_key}; "
+            "add it as a new roster entry instead."
+        )
+    existing = conn.execute(
+        "SELECT 1 FROM roster WHERE event_id = ? AND station_key = ?",
+        (event_id, new_key),
+    ).fetchone()
+    if existing is not None:
+        raise ValueError(f"{new_key} is already on the roster.")
+
+    cur = conn.execute(
+        "UPDATE roster SET station_key = ? WHERE event_id = ? AND station_key = ?",
+        (new_key, event_id, old_key),
+    )
+    if cur.rowcount == 0:
+        raise ValueError(f"{old_key} is not on this event's roster.")
+    return conn.execute(
+        "SELECT * FROM roster WHERE event_id = ? AND station_key = ?",
+        (event_id, new_key),
+    ).fetchone()
+
+
 def op_status_log(
     conn: sqlite3.Connection, event_id: int, station_key: str | None = None
 ) -> list[sqlite3.Row]:

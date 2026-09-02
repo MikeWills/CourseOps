@@ -7,6 +7,38 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-09-02 - SSID mismatches surface themselves in the UI
+
+`courseops check-in` only helps if someone remembers to run it, and a check that
+must be remembered will be forgotten - especially on race morning. The app is
+already ingesting, so it already knows which SSIDs are transmitting. It now says
+so unprompted.
+
+#### Added
+- A **Needs attention** section at the top of the panel listing any callsign
+  transmitting on an SSID the roster does not name, with the packet count and
+  what the APRS symbol says it is.
+- One-click resolution: **"This is Aid 3"** repoints the roster entry at the SSID
+  actually in use, keeping the label, category and assignment; **Ignore**
+  dismisses a digipeater or igate. The symbol drives the wording, so equipment
+  reads "Ignore (equipment)".
+- A count badge on the collapsed sheet button, so a phone shows there is
+  something to resolve without opening the panel.
+- `POST /ssid/adopt` and `POST /ssid/ignore`, both behind `require_write()`.
+  Read-only roles see the alerts but cannot act on them.
+- A `resync` broadcast: adopting rewrites the roster, which is more than an
+  incremental message can express, so clients reload rather than risk a
+  half-updated state.
+- 8 tests (222 total).
+
+#### Fixed
+- **Ignoring an SSID now hides positions already stored, not just future ones.**
+  Found in the browser: after dismissing the digipeater it was still sitting in
+  the station list, because exclusion only gated ingest. "Ignore" has to mean
+  "off the map", which is what the word promises.
+- Adopting across different callsigns is refused, guarding a mis-click that
+  would silently reassign someone else's identity.
+
 ### 2026-09-02 - Wildcard SSID matching, exclusions, and pre-event check-in
 
 Prompted by a real case: a volunteer signed up as `WX0MIK-1` but actually

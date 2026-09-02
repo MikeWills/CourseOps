@@ -705,3 +705,154 @@ def test_the_status_log_needs_a_valid_token(setup):
     app, _, _, _ = setup
     with TestClient(app) as client:
         assert client.get("/api/m2026/nope/station-log").status_code == 404
+
+
+# --- SSID mismatch alerts ---------------------------------------------------
+#
+# The scenario: WX0MIK signs up as -1, beacons -5, and runs a digipeater on -7.
+# Surfaced in the UI rather than left to a command, because the failure is
+# silent and anything requiring memory gets forgotten on race morning.
+
+def _heard(conn, event_id, station_key, symbol=(None, None), n=1):
+    for _ in range(n):
+        conn.execute(
+            "INSERT INTO position (event_id, station_key, received_at, lat, lon,"
+            " symbol_table, symbol_code, raw) VALUES (?, ?, ?, ?, ?, ?, ?, 'x')",
+            (event_id, station_key, "2026-04-11T14:00:00Z", 34.73, -86.57,
+             symbol[0], symbol[1]),
+        )
+
+
+def test_a_wrong_ssid_raises_an_alert_with_who_it_probably_is(setup):
+    app, tokens, db_path, event_id = setup
+    conn = db.connect(db_path)
+    db.upsert_roster_entry(conn, event_id, "WX0MIK-1", "Aid 3", "aid_station")
+    _heard(conn, event_id, "WX0MIK-5", ("/", "["), n=4)     # a person
+    conn.close()
+
+    with TestClient(app) as client:
+        data = client.get(f"/api/m2026/{tokens['ncs']}/state").json()
+
+    alert = next(a for a in data["ssid_alerts"] if a["station_key"] == "WX0MIK-5")
+    assert alert["packets"] == 4
+    assert alert["looks_like_infrastructure"] is False
+    assert alert["symbol"] == "Person / jogger"
+    # It offers the roster entry it probably belongs to.
+    assert [c["display_label"] for c in alert["roster_candidates"]] == ["Aid 3"]
+
+
+def test_a_digipeater_is_flagged_as_equipment(setup):
+    """The symbol is the reliable clue: /# is a digipeater, not a person."""
+    app, tokens, db_path, event_id = setup
+    conn = db.connect(db_path)
+    db.upsert_roster_entry(conn, event_id, "WX0MIK-1", "Aid 3", "aid_station")
+    _heard(conn, event_id, "WX0MIK-7", ("/", "#"))
+    conn.close()
+
+    with TestClient(app) as client:
+        data = client.get(f"/api/m2026/{tokens['ncs']}/state").json()
+
+    alert = next(a for a in data["ssid_alerts"] if a["station_key"] == "WX0MIK-7")
+    assert alert["looks_like_infrastructure"] is True
+    assert alert["symbol"] == "Digipeater"
+
+
+def test_adopting_moves_the_roster_entry_and_clears_the_alert(setup):
+    app, tokens, db_path, event_id = setup
+    conn = db.connect(db_path)
+    db.upsert_roster_entry(conn, event_id, "WX0MIK-1", "Aid 3", "aid_station")
+    _heard(conn, event_id, "WX0MIK-5", ("/", "["))
+    conn.close()
+
+    with TestClient(app) as client:
+        response = client.post(
+            f"/api/m2026/{tokens['ncs']}/ssid/adopt",
+            json={"from_station_key": "WX0MIK-1", "to_station_key": "WX0MIK-5"},
+        )
+        data = client.get(f"/api/m2026/{tokens['ncs']}/state").json()
+
+    assert response.status_code == 200
+    assert response.json()["display_label"] == "Aid 3"
+    # The label survived the identity change, and the alert is gone.
+    entry = next(r for r in data["roster"] if r["station_key"] == "WX0MIK-5")
+    assert entry["display_label"] == "Aid 3"
+    assert data["ssid_alerts"] == []
+
+
+def test_ignoring_clears_the_alert(setup):
+    app, tokens, db_path, event_id = setup
+    conn = db.connect(db_path)
+    db.upsert_roster_entry(conn, event_id, "WX0MIK-1", "Aid 3", "aid_station")
+    _heard(conn, event_id, "WX0MIK-7", ("/", "#"))
+    conn.close()
+
+    with TestClient(app) as client:
+        client.post(f"/api/m2026/{tokens['ncs']}/ssid/ignore",
+                    json={"station_key": "WX0MIK-7", "reason": "digipeater"})
+        data = client.get(f"/api/m2026/{tokens['ncs']}/state").json()
+
+    assert data["ssid_alerts"] == []
+
+
+def test_adopting_across_callsigns_is_refused(setup):
+    """Guards a mis-click that would silently reassign someone else's identity."""
+    app, tokens, db_path, event_id = setup
+    conn = db.connect(db_path)
+    db.upsert_roster_entry(conn, event_id, "WX0MIK-1", "Aid 3", "aid_station")
+    conn.close()
+
+    with TestClient(app) as client:
+        response = client.post(
+            f"/api/m2026/{tokens['ncs']}/ssid/adopt",
+            json={"from_station_key": "WX0MIK-1", "to_station_key": "N0CALL-5"},
+        )
+    assert response.status_code == 400
+    assert "different callsign" in response.json()["detail"]
+
+
+def test_read_only_roles_see_alerts_but_cannot_resolve_them(setup):
+    app, tokens, db_path, event_id = setup
+    conn = db.connect(db_path)
+    db.upsert_roster_entry(conn, event_id, "WX0MIK-1", "Aid 3", "aid_station")
+    _heard(conn, event_id, "WX0MIK-5", ("/", "["))
+    conn.close()
+
+    with TestClient(app) as client:
+        data = client.get(f"/api/m2026/{tokens['liaison']}/state").json()
+        blocked = client.post(f"/api/m2026/{tokens['liaison']}/ssid/ignore",
+                              json={"station_key": "WX0MIK-5"})
+
+    assert len(data["ssid_alerts"]) == 1
+    assert blocked.status_code == 403
+
+
+def test_a_correctly_rostered_station_raises_no_alert(setup):
+    app, tokens, db_path, event_id = setup
+    conn = db.connect(db_path)
+    _heard(conn, event_id, "N0CALL-7", ("/", ">"))
+    conn.close()
+
+    with TestClient(app) as client:
+        data = client.get(f"/api/m2026/{tokens['ncs']}/state").json()
+    assert data["ssid_alerts"] == []
+
+
+def test_ignoring_hides_positions_already_stored(setup):
+    """"Ignore" must take it off the map, not merely stop future packets -
+    otherwise the digipeater sits there after being dismissed."""
+    app, tokens, db_path, event_id = setup
+    conn = db.connect(db_path)
+    db.upsert_roster_entry(conn, event_id, "WX0MIK-1", "Aid 3", "aid_station")
+    _heard(conn, event_id, "WX0MIK-7", ("/", "#"), n=3)
+    conn.close()
+
+    with TestClient(app) as client:
+        before = client.get(f"/api/m2026/{tokens['ncs']}/state").json()
+        assert any(p["station_key"] == "WX0MIK-7" for p in before["positions"])
+
+        client.post(f"/api/m2026/{tokens['ncs']}/ssid/ignore",
+                    json={"station_key": "WX0MIK-7"})
+        after = client.get(f"/api/m2026/{tokens['ncs']}/state").json()
+
+    assert not any(p["station_key"] == "WX0MIK-7" for p in after["positions"])
+    assert after["ssid_alerts"] == []
