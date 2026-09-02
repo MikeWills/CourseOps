@@ -31,7 +31,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 204 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 208 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -131,6 +131,9 @@ usability, not style preferences.
   aid station would plan around. Outside 3:00-30:00 per mile, show nothing.
 - **Bib colour is separate from course line colour.** The line colour is a map
   choice; the bib colour is how an operator identifies a runner in front of them.
+- **Status history is append-only and cannot be rebuilt later.** `roster.op_status`
+  is overwritten on every change; `roster_status_log` is the record. Any new
+  overwritten state needs the same treatment, decided before an event, not after.
 - **`incident.status_at` is the age of the CURRENT status**, not of the
   incident. "Requested 8 minutes ago, nobody dispatched" is the whole point;
   sorting is status rank then longest-waiting.
@@ -269,6 +272,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-02** Added `roster_status_log`: status history for handover; cannot be rebuilt later.
 - **2026-09-02** Added lead runner tracking: first male/female per race, bib colours, pace and ETA.
 - **2026-09-02** Fixed: an implausible pace from burst-entered reports is discarded, not published.
 - **2026-09-02** Phase 6: incidents — pickups by bib, status workflow, live and role-gated.
@@ -278,4 +282,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-02** Added the full icon set (iOS, Android maskable, favicons) and a per-role manifest.
 - **2026-09-02** Applied Course Ops branding: navy chrome, safety orange accent, pin logo.
 - **2026-09-02** Rejected the C.O. monogram favicon after testing at 16px; favicon derives from the pin.
-- **2026-09-02** Renamed to Course Ops: repo, package, CLI and docs.

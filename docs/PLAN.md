@@ -327,6 +327,17 @@ NCS is at a workstation.
 Pace outside 3:00-30:00 per mile is discarded as a clock artifact rather than
 shown; reports arrive in bursts and a bad ETA is worse than none.
 
+### Phase 7 - replay (backlogged, issue #2)
+
+A time slider over a finished event. Backlogged deliberately: it is the only
+phase that produces nothing on race day, and it is better designed against real
+event data than an imagined one.
+
+`position`, `raw_packet`, `incident_log`, `lead_sighting` and now
+`roster_status_log` all keep full history, so an event is reconstructable
+whether or not replay is ever built. A cheaper alternative worth weighing first
+is a post-event CSV export rather than a scrubbing UI.
+
 ## Known gaps and open threads
 
 Things discovered but not yet acted on. Each is a real constraint, not a wish.

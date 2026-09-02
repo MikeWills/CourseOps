@@ -7,6 +7,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-09-02 - Operational status history
+
+#### Added
+- `roster_status_log`: every station status change, appended and never
+  overwritten, with the transition and who made it.
+- `GET /api/{event}/{token}/station-log` (optionally `?station_key=`), readable
+  by every role.
+- 4 tests (208 total).
+
+#### Why now rather than with replay
+`roster.op_status` holds only the current value, so the sequence was being
+thrown away on every change - and it **cannot be reconstructed afterwards**. An
+event run without this loses its status timeline permanently, so the table had
+to exist before the first real event rather than when replay is built.
+
+The immediate payoff is shift handover, not replay: "Aid 4 closed at 11:32,
+reopened at 11:40 by AB" is what an incoming NCS operator needs, and the roster
+row alone could never express a reopening. Replay (issue #2) is backlogged.
+
 ### 2026-09-02 - Lead runner tracking
 
 The counterpart to the sweep. The sweep says when an aid station may close; the
