@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Runtime data and secrets — never commit
+.env
+data/
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+
+# Captured live traffic may contain positions of people who did not consent
+tests/fixtures/live_*.txt
+.pytest_cache/

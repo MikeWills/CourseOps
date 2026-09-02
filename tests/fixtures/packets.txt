@@ -1,0 +1,15 @@
+# Synthetic APRS-IS lines covering the encodings a marathon event actually sees.
+# Format: <expectation>|<raw packet>
+# expectation is either a station key (expected to parse) or a rejection reason.
+#
+# Captured live traffic belongs in live_*.txt, which is gitignored: it contains
+# the positions of people who did not consent to being in a public repo.
+
+KI4HMD-1|KI4HMD-1>APX204,TCPIP*,qAC,FOURTH:=3450.29N/08639.24W-Uncompressed position
+W1AW-9|W1AW-9>APRS,TCPIP*,qAC,T2TEST:=/5L!!<*e7> sTCompressed position
+KJ4ERJ-12|KJ4ERJ-12>APWW11,TCPIP*,qAC,T2SYDNEY:`b7ml!_j/'"4S}
+N0CALL-7|N0CALL-7>APDR16,TCPIP*,qAC,T2USA:!3444.00N/08635.00W>Half-back mobile
+no_position|N0CALL>APRS,TCPIP*,qAC,X:>Status text only
+no_position|N0CALL-1>APRS,TCPIP*,qAC,X::N0CALL-9 :Message body{01
+parse_error|this is not an aprs packet at all
+parse_error|

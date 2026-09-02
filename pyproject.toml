@@ -1,0 +1,27 @@
+[project]
+name = "aprswebtracker"
+version = "0.1.0"
+description = "Web-based APRS tracking and course map for marathon-style events"
+requires-python = ">=3.11"
+dependencies = [
+    "aprslib>=0.7.2",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+awt = "aprswebtracker.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+aprswebtracker = ["*.sql"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

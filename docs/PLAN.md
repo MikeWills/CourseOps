@@ -1,0 +1,247 @@
+# AprsWebTracker — Project Plan
+
+## Problem
+
+There is no simple web map that shows marathon course routes alongside live APRS
+tracking of the ham radio operators supporting the event. Phone apps exist, and
+full situational-awareness platforms like TAK exist, but nothing sits in between
+that a radio club can stand up without significant effort.
+
+## Goals
+
+- One map showing all race courses (Full, Half, 10K), aid stations, and live ham positions
+- Real-time position updates with no page refresh
+- Standable-up by a club with minimal technical effort
+- Possible future: hosted as a service for other clubs
+
+## Non-goals (v1)
+
+- Public/spectator access — access is restricted to event staff roles
+- Transmitting on APRS — this application is receive-only, permanently
+- Radio/TNC hardware interfacing — APRS-IS covers both phone apps and RF via igates
+- Cross-event incident history
+
+## Users and roles
+
+| Role | Access | Notes |
+|---|---|---|
+| **NCS** (Net Control) | Full read + write | Multiple operators, typically sharing one workstation |
+| **Liaison / Ops** | Read-only (v1) | Ham embedded with Public Safety / Medics; mobile phone use |
+
+Access control for v1 is a long random URL per role — a bearer token, exactly as
+secure as the group text it is pasted into, which is appropriate for this data.
+No user accounts. Deliberately chosen so a volunteer whose phone dies can be
+re-admitted by re-sending a link, with no admin intervention.
+
+## Scale
+
+Under 50 hams per event. A flat roster list; no grouping or virtualization needed.
+SQLite is nowhere near stressed.
+
+## Technology
+
+| Layer | Choice | Reason |
+|---|---|---|
+| Backend | Python + FastAPI | `aprslib` handles all four APRS position encodings |
+| Parsing | `aprslib` | Mic-E alone would be a major time sink to hand-roll |
+| Storage | SQLite | One file, no server for a club to install; free replay |
+| Frontend | Leaflet, no build step | No npm toolchain in deployment; mature touch support |
+| Packaging | Docker Compose + plain pip | One container, one volume |
+
+Deliberately **not** used: Redis, Celery, Postgres, a JS build pipeline. None earn
+their place at this scale, and each is one more thing for a club to install.
+
+## Architecture
+
+```
+APRS-IS (rotate.aprs2.net:14580)
+   |  ONE TCP connection, server-side buddy filter
+   v
+Ingest task (asyncio) -- parse --> SQLite
+   |                                 |
+   +------ in-process pub/sub -------+
+                  |
+                  v
+        WebSocket /ws/event/{id} --> N browsers
+```
+
+One APRS-IS connection for the whole server, never one per browser. This is both
+an efficiency matter and an APRS-IS etiquette matter — the network bans clients
+that open many connections or reconnect in a tight loop.
+
+## Build phases
+
+1. **Ingest** — APRS-IS connect, parse, store. No UI. *(complete)*
+2. **KML/KMZ import** — additive, with a review screen for messy organizer files
+3. **Live map** — mobile-first, WebSocket updates, layer toggles
+4. **Roster / NCS panel** — dual status axes, staleness scoped to `expects_aprs`
+5. **Course-relative position** — "Full-back at mile 14.2"
+6. **Incidents** — pin, bib, status workflow, operator initials, role-gated writes
+7. **Replay** — scrub the event afterward
+8. **Deployment** — GitHub repo, Docker image, club setup docs
+
+## Phase detail
+
+### Phase 2 — KML/KMZ import
+
+Organizers supply multiple files (full course, half course, water stops), typically
+exported from different tools with inconsistent structure. Import is therefore
+**repeatable and additive**: upload a file, unpack (KMZ is a zip containing
+`doc.kml`), extract every Placemark, then present a **review screen** where each
+LineString is assigned to a course and each Point to a POI type.
+
+Build the review screen despite it feeling like scope. Organizer KML reliably
+contains placemarks named "Untitled Path", routes split into several segments,
+and folders mixing water stops with parking. Auto-detection will be wrong often
+enough that a silent importer costs more time than the review screen does.
+
+Also needed before mile markers mean anything: stitching multi-segment routes into
+one line, and reversing a line drawn finish-to-start.
+
+### Phase 3 — Live map (mobile-first)
+
+The Ops and Shadow roles are the primary mobile case: outdoors, one-handed, on a
+phone that must survive a six-hour event.
+
+- Map is full-bleed; panels are bottom sheets in thumb reach
+- High-contrast light theme by default — thin grey-on-grey is invisible in sunlight
+- Markers differ by **shape and size**, not hue alone
+- Nothing hover-only, ever. Tap targets >= 44px
+- **Never interpolate marker movement** between fixes. A position that was never
+  reported is worse than a stale one, because someone will act on it. Discrete
+  jumps are more honest *and* easier on the battery
+- Visible reconnect state; full state resync on reconnect
+- Browser geolocation for "where am I" — local only, never transmitted or stored
+- Design at 375px first; the NCS desktop layout is the enhancement
+
+### Phase 4 — Roster / NCS panel
+
+**Two independent status axes. Do not merge them into one badge.**
+
+*Operational status* — manual, NCS-set with one tap:
+
+| State | Aid station | Sweep / SAG |
+|---|---|---|
+| `pending` | Not yet staffed | Not yet rolling |
+| `active` | On station | Rolling |
+| `closed` | Torn down | Finished |
+
+*Radio status* — automatic, derived from the feed: `fresh` / `stale` / `silent`,
+or `n/a` where `expects_aprs` is false.
+
+So "Aid 4 — W1ABC — On station — no APRS" is a healthy row, while
+"Full-back — K2XYZ — Rolling — silent 18 min" should be shouting. Collapsing these
+loses the exact distinction that makes the panel worth watching.
+
+Layer toggles, defaults by role:
+
+| Layer | NCS | Liaison |
+|---|---|---|
+| Courses, aid station locations, incidents | on | on |
+| Sweeps, SAG | on | on |
+| Aid station operators | on | **off** |
+
+Toggles persist in the browser across reconnects and phone locks.
+
+### Phase 4a — What3Words for aid stations
+
+Each aid station POI carries an optional What3Words address. Aid stations sit at
+road intersections and park entrances where a street address is useless and a
+lat/lon is painful to read over voice; three words is the format that actually
+survives a radio net.
+
+- **Maintained by NCS** — entered and edited from the NCS view, read-only to Liaison,
+  consistent with the existing role split.
+- **Manual entry. No API integration, now or later.** What3Words is a paid
+  service; we are not buying it. NCS looks the address up and types it in. This
+  also keeps club setup free of a signup and a billing relationship for a field
+  that changes once per event.
+- Consequence: we cannot verify an address or resolve it to coordinates.
+  Validation is shape-only (three dot-separated words) and advisory. The KML
+  lat/lon stays authoritative; W3W is a convenience for voice traffic.
+- Displayed prominently in the aid station popup with one-tap copy, so NCS can
+  read it out or paste it into a text message.
+- Store the words as given; validate only loosely (three dot-separated words).
+  Do not attempt to resolve or verify offline.
+
+### Phase 5 — Course-relative position
+
+Project each station onto the nearest course line: "Full-back is at mile 14.2".
+Far more actionable over a radio net than a lat/lon.
+
+This is the operational loop of the whole event: once the full-back passes mile 6,
+NCS closes Aid 1-5 and roads reopen. With most aid stations dark, the sweeps and
+SAG are nearly the entire live picture, which makes this more valuable than its
+position in the phase order suggests.
+
+### Phase 6 — Incidents
+
+Model as an **incident**, not a pin; the pin is just how it is drawn.
+
+- Bib number (identity key; may be blank initially and filled in later)
+- Location (map click, or "at Aid 4" by picking a POI)
+- Status: `reported` -> `en route` -> `picked up` -> `closed`, with timestamps
+- Short operational note; who reported, who is assigned, who closed
+- Operator initials, stored in the browser, stamped on every mutation — not
+  authentication, just a log annotation so a shift handoff can see who did what
+
+Status transitions are the point. A pin that is only "there" or "gone" will not
+survive contact with a real event; you need to see a pickup requested 8 minutes
+ago with nobody dispatched. Sort by time-in-current-status.
+
+**Keep medical detail out.** Bib, location, status and a short operational note
+("unable to continue, waiting at mile 9") are fine. Inviting narrative descriptions
+of a runner's condition would make this a system storing health information about
+identifiable people, changing both our obligations and the organizer's. The bib is
+the organizer's identifier — we will never have the bib-to-name mapping and should
+not want it.
+
+All pin mutations go through one server-side endpoint that records who and when,
+regardless of role, so granting Liaison write access later is a permission flag
+rather than a rewrite.
+
+## Key domain decisions
+
+- **Receive-only, passcode `-1`.** Grants read access and no transmit capability.
+  The club needs a callsign and no secret at all.
+- **Buddy filter, not area filter.** The roster is known in advance, so ask APRS-IS
+  for exactly those stations. Orders of magnitude less traffic, and it avoids
+  incidentally storing the location of the public.
+- **The roster is not the APRS feed.** Three separate things: the *aid station*
+  (a location from KML), the *operator assigned to it* (a callsign), and a
+  *position report* (only if they beacon). Most aid station operators never beacon.
+- **`expects_aprs` gates staleness alerting only.** If the "who has gone quiet"
+  panel lists 30 operators who were never going to beacon, it is noise and will be
+  ignored within twenty minutes. It does *not* mean "discard their packets".
+- **SSID is part of station identity.** `N0CALL-9` and `N0CALL-7` are different
+  radios on different people.
+- **Symbol table and code travel as a pair.** The table character changes the
+  meaning of the code.
+- **Store metric, display US customary.** aprslib normalizes to km/h and meters;
+  converting at ingest would make stored units depend on who ran the importer.
+- **Everything is event-scoped from day one**, even with a single event. One
+  SQLite file with `event_id` on every table. Retrofitting multi-tenancy is
+  painful; designing for it now costs nothing.
+
+## Known risks
+
+- **Sparse, irregular updates.** Phone apps beacon every 1-5 minutes and rural
+  courses have cell dead zones. "Last known, 4 minutes ago" is the *normal* state,
+  not an error state.
+- **Igate coverage is not ours to fix but is ours to explain.** A ham with no data
+  vanishes from the map; make that legible rather than mysterious.
+- **Privacy posture.** These positions are already public on APRS-IS, but a page
+  following named volunteers reads differently. The buddy filter helps: we only
+  store people who consented by being on the roster.
+- **APRS-IS etiquette.** One connection, proper filter, app name and version in the
+  login, exponential backoff with jitter on reconnect.
+
+## Resolved questions
+
+- *Does the Liaison need a subset of the station roster?* — Full set, with layer
+  toggles defaulting aid station operators off.
+- *Incidents across events?* — No. Event-scoped only.
+- *Roster size?* — Under 50.
+- *Public access?* — None beyond the two staff roles.
+- *Units?* — Store metric, display US customary.
+- *Who maintains What3Words?* — NCS.
