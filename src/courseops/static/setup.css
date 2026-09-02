@@ -152,6 +152,23 @@ button.danger { color: var(--silent); border-color: #e3a9a4; }
 
 button:disabled { opacity: 0.65; cursor: progress; }
 
+/* Shown in place of an event-scoped panel's contents when no event is picked.
+   The form underneath would post to a nonexistent event and fail with
+   something unhelpful, so it is hidden outright rather than merely warned
+   over - the banner alone left a live form sitting under it. */
+.needs-event {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  background: var(--paper);
+  color: var(--ink-soft);
+  font-size: 14px;
+}
+
 /* --- tables -------------------------------------------------------------- */
 
 table.grid { width: 100%; border-collapse: collapse; font-size: 14px; }
