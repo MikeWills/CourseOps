@@ -456,6 +456,15 @@ Things discovered but not yet acted on. Each is a real constraint, not a wish.
   actively collecting. Needs explicit, time-bounded, event-scoped consent and
   deletion afterwards. Identity would be a synthetic roster key (`MEDIC-1`)
   rather than a callsign - sayable on the net, unlike a UUID.
+
+  Both candidate apps take a custom endpoint (verified, see issue #6): Traccar
+  Client sends OsmAnd-protocol HTTP GET parameters, OwnTracks POSTs JSON and can
+  be provisioned by a QR code carrying its whole config. **Offline buffering
+  brings its own trap:** a buffered burst arriving ten minutes late is a set of
+  real positions from ten minutes ago, so staleness must key off the reported
+  timestamp and never arrival time - or a medic returning to coverage looks
+  freshly located somewhere they left. Out-of-order and duplicate points come
+  from the same mechanism.
 - **Course notes have no export** - issue #7. Their whole value is the organizer
   reading them after the event, which currently means reading them off a screen
   before the database is cleared.
