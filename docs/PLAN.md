@@ -470,11 +470,22 @@ Things discovered but not yet acted on. Each is a real constraint, not a wish.
   hands - and giving Medic 2 the wrong one makes them Medic 1 on the map,
   silently.
 
-  This flips the app choice. OwnTracks led on QR provisioning, but that edge
-  mostly disappears when the code carries only an endpoint, and its `tid` is
-  conventionally two characters, so `Medic 1` becomes `M1`. Traccar Client's
-  *Device identifier* is free text and takes `Medic 1` verbatim, and its GET
-  parameters are the simpler thing to receive - so it becomes the default.
+  One code rather than fifteen is the point: distributing per-person codes is a
+  sorting problem at 6am whose failure is silent - hand Medic 2 the wrong square
+  and they are Medic 1 on the map, confidently.
+
+  **OwnTracks is the default for the QR step.** Its
+  `owntracks:///config?inline=<base64>` is a documented, supported provisioning
+  mechanism. Traccar Client's equivalent deep link exists but is not a public
+  contract - the maintainer's guidance is to generate it from the Traccar server
+  web app, which is the server we are deliberately not running, and there are
+  unresolved iOS reports against it. The cost is that OwnTracks' `tid` is
+  conventionally two characters, so designators are `M1`, `B2` rather than
+  `Medic 1`; short is better radio practice anyway, and the roster row still
+  carries the full label. Traccar Client is still worth accepting as a second
+  option - its OsmAnd GET parameters are the easiest thing to receive and its
+  free-text *Device identifier* takes `Medic 1` verbatim - it just cannot be the
+  one a club is told to scan.
 
   Two consequences of the shared token, both handled the way this app already
   handles the equivalent APRS problems: **the roster is the allowlist** (only
