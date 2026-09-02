@@ -8,7 +8,7 @@ import logging
 import sys
 
 from . import (access, aprsis, db, discovery, importer, kml, leaders, styling,
-               units, what3words)
+               units, users, what3words)
 from .config import Settings, load_dotenv
 
 CATEGORIES = [
@@ -600,20 +600,58 @@ def cmd_serve(args: argparse.Namespace) -> int:
     conn = db.connect(settings.db_path)
     db.init_schema(conn)
 
+    # --base-url exists so shared links can carry a public domain. When it is
+    # left at the default but the port is not, the printed addresses would
+    # point at a port nothing is listening on - so derive it instead.
+    base = args.base_url.rstrip("/")
+    if base == "http://localhost:8000" and args.port != 8000:
+        host = "localhost" if args.host in ("127.0.0.1", "0.0.0.0") else args.host
+        base = f"http://{host}:{args.port}"
+
     ingest_events = []
+    lines = []
+
     if args.event:
         event = _event_or_exit(conn, args.event)
         tokens = access.ensure_tokens(conn, event["id"])
-        base = args.base_url.rstrip("/")
-        print(f"\n{event['name']}\n")
+        lines.append(f"Event: {event['name']}")
+        lines.append("")
         for role in access.ROLES:
-            print(f"  {access.ROLE_LABELS[role]:<14} {base}/e/{event['slug']}/{tokens[role]}")
-        print()
-        if not args.no_ingest:
-            ingest_events = [args.event]
+            lines.append(
+                f"  {access.ROLE_LABELS[role]:<14} "
+                f"{base}/e/{event['slug']}/{tokens[role]}"
+            )
+        if args.no_ingest:
+            lines.append("")
+            lines.append("  APRS-IS ingest disabled (--no-ingest).")
         else:
-            print("APRS-IS ingest disabled (--no-ingest).\n")
+            ingest_events = [args.event]
+            lines.append("")
+            lines.append(f"  Ingesting APRS-IS as {settings.callsign} (receive only).")
+    else:
+        # No event named: the server still runs, and this is the case that used
+        # to print nothing at all - a blank terminal with no sign it had
+        # started and no address to open.
+        lines.append("No event named, so no APRS-IS connection was opened.")
+        lines.append("Add one with:  courseops serve <event>")
+
+    needs_first_user = not users.any_users(conn)
     conn.close()
+
+    print()
+    print("  Course Ops")
+    print(f"  Setup: {base}/setup")
+    if needs_first_user:
+        print("         (first run - it will ask you to create an administrator)")
+    print()
+    for line in lines:
+        print(line if not line else f"  {line}" if not line.startswith("  ") else line)
+    print()
+    print(f"  Listening on http://{args.host}:{args.port}   Ctrl-C to stop")
+    if args.host in ("127.0.0.1", "localhost"):
+        print("  Only this machine can reach it. For a phone on the same wifi,")
+        print("  add --host 0.0.0.0 (the location dot still needs HTTPS).")
+    print()
 
     app = create_app(settings, ingest_events=ingest_events)
 
