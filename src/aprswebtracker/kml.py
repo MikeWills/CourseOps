@@ -73,6 +73,11 @@ class KmlFeature:
     geom_type: str              # linestring | point | polygon
     coords: list[LonLat]
     description: str | None = None
+    # The <styleUrl> reference, e.g. '#start_marker'. Kept because exporters
+    # routinely give several placemarks the SAME name and distinguish them only
+    # by style — MapMyRun names both the start and the finish after the route.
+    # Without this they are indistinguishable in the review list.
+    style_id: str | None = None
     warnings: list[str] = field(default_factory=list)
 
     @property
@@ -103,7 +108,14 @@ class KmlFeature:
         and have the operator classify it than to silently file a parking lot
         as an aid station.
         """
-        text = f"{self.name} {self.folder} {self.description or ''}"
+        # style_id is included because it is sometimes the ONLY thing that
+        # distinguishes two placemarks (see the field's note). Underscores and
+        # hyphens become spaces first: '_' is a word character, so a \b-anchored
+        # pattern would never match inside 'start_marker'.
+        text = " ".join(
+            filter(None, [self.name, self.folder, self.description, self.style_id])
+        )
+        text = re.sub(r"[_\-]+", " ", text)
         if self.geom_type in {"linestring", "polygon"}:
             return "course" if _COURSE_HINTS.search(text) else "unassigned"
         if _MEDICAL_HINTS.search(text):
@@ -201,6 +213,9 @@ def _features_from_placemark(
 ) -> list[KmlFeature]:
     name = _text(placemark, "name") or ""
     description = _text(placemark, "description")
+    style_id = _text(placemark, "styleurl")
+    if style_id:
+        style_id = style_id.lstrip("#").strip() or None
     folder = " / ".join(folder_path)
     features: list[KmlFeature] = []
 
@@ -225,6 +240,7 @@ def _features_from_placemark(
                 geom_type=geom_type,
                 coords=coords,
                 description=description,
+                style_id=style_id,
                 warnings=warnings,
             )
         )

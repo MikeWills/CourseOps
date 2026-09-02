@@ -29,6 +29,7 @@ _ADDED_COLUMNS: list[tuple[str, str, str]] = [
     # (table, column, DDL type/default)
     ("poi", "what3words", "TEXT"),
     ("course", "dash_pattern", "TEXT"),
+    ("import_feature", "style_id", "TEXT"),
 ]
 
 

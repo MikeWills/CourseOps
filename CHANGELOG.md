@@ -7,6 +7,39 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-09-02 - styleUrl disambiguation (found with real data)
+
+Validated the importer against a real MapMyRun export of the 2026 Mankato
+Marathon course: 1415 points, 26.40 mi measured against an official 26.22.
+
+#### Added
+- `KmlFeature.style_id` and an `import_feature.style_id` column, capturing
+  `<styleUrl>`. Exporters routinely give several placemarks the SAME name and
+  distinguish them only by style - MapMyRun names the start marker, the finish
+  marker and the route itself all after the route. Without this the start and
+  finish were indistinguishable in the review list, both falling back to
+  `unassigned`.
+- `suggest()` now considers `style_id`, correctly proposing `poi:start` and
+  `poi:finish` for those markers.
+- `review` prints the style whenever a name is not unique in the listing.
+- 5 tests covering the MapMyRun shape (87 total).
+
+#### Fixed
+- Hint patterns never matched inside `start_marker`: `_` is a word character, so
+  a ``-anchored pattern cannot match `start` there. Separators are now
+  normalized to spaces before matching.
+
+#### Verified against real data
+- Dedupe removed 157 of 1415 points - MapMyRun repeats the vertex at every
+  routing-segment join, which is what `dedupe_consecutive` exists for.
+- 13 segment gaps over 200 m (largest 1241 m) where the route builder used
+  direct/offroad mode instead of snapping to roads. The line therefore cuts
+  corners, which matters for Phase 5 mile computation.
+- Geometry extracted from the MapMyRun HTML page is byte-identical to the
+  official KML export, so either source is usable.
+- The export contains no aid stations - only the route, a start and a finish.
+  Aid station locations must come from elsewhere regardless of file format.
+
 ### 2026-09-02 - Course styling and draw order
 
 #### Added

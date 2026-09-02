@@ -132,6 +132,9 @@ CREATE TABLE IF NOT EXISTS import_feature (
     geojson     TEXT    NOT NULL,
     length_m    REAL,
     description TEXT,
+    -- <styleUrl> reference. Sometimes the only thing distinguishing two
+    -- placemarks that share a name (MapMyRun names start and finish alike).
+    style_id    TEXT,
     warnings    TEXT,
     suggestion  TEXT,               -- advisory guess; never applied on its own
     -- pending | assigned | discarded

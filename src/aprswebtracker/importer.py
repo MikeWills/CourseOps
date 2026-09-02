@@ -62,13 +62,13 @@ def stage_file(
             """
             INSERT INTO import_feature (
                 batch_id, event_id, name, folder, geom_type, geojson,
-                length_m, description, warnings, suggestion
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                length_m, description, style_id, warnings, suggestion
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 batch_id, event_id, feature.label, feature.folder,
                 feature.geom_type, json.dumps(geometry), feature.length_m,
-                feature.description,
+                feature.description, feature.style_id,
                 "\n".join(feature.warnings) or None,
                 feature.suggest(),
             ),

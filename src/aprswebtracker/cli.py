@@ -168,6 +168,10 @@ def cmd_review(args: argparse.Namespace) -> int:
         print("Nothing staged for review.")
         return 0
 
+    duplicated_names: dict[str, int] = {}
+    for row in rows:
+        duplicated_names[row["name"]] = duplicated_names.get(row["name"], 0) + 1
+
     print(f"{'ID':>4}  {'TYPE':<11} {'LENGTH':>9}  {'SUGGESTION':<18} NAME")
     for row in rows:
         length = units.format_distance(row["length_m"]) if row["length_m"] else ""
@@ -179,6 +183,10 @@ def cmd_review(args: argparse.Namespace) -> int:
         )
         if row["folder"]:
             print(f"      in: {row['folder']}")
+        # Exporters give placemarks identical names and distinguish them only by
+        # style, so show it whenever a name is not unique in this listing.
+        if row["style_id"] and duplicated_names.get(row["name"], 0) > 1:
+            print(f"      style: {row['style_id']}")
         if row["warnings"] and args.verbose:
             for line in row["warnings"].splitlines():
                 print(f"      ! {line}")

@@ -21,7 +21,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 82 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 87 tests, no network
 
 awt init-db
 awt add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -122,6 +122,12 @@ usability, not style preferences.
 - **Adding a schema column requires a migration entry.** `CREATE TABLE IF NOT
   EXISTS` skips existing tables, so a new column never reaches an existing
   database. Add it to `_ADDED_COLUMNS` in `db.py` as well as `schema.sql`.
+- **`<styleUrl>` can be the only thing distinguishing two placemarks.** MapMyRun
+  names the route, the start marker and the finish marker identically. Keep
+  `style_id` captured, fed into `suggest()`, and shown in `review` for duplicate
+  names.
+- **Hint patterns must normalize `_` and `-` to spaces first.** `_` is a word
+  character, so `start` never matches inside `start_marker`.
 - **CLI output stays ASCII.** Em dashes become mojibake in the Windows console,
   and a club laptop is the target environment.
 
@@ -141,6 +147,9 @@ usability, not style preferences.
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-02** Added `styleUrl` capture; start/finish markers sharing a name are now distinguishable.
+- **2026-09-02** Fixed: `` hint patterns never matched inside `start_marker`; separators now normalized.
+- **2026-09-02** Validated the importer against a real MapMyRun export (Mankato Marathon, 26.4 mi).
 - **2026-09-02** Added `styling.py`, adjustable course draw order, opt-in dash patterns, and `style-course`.
 - **2026-09-02** Fixed: new schema columns never reached an existing database; `init_schema` now migrates.
 - **2026-09-02** Fixed: `geo.stitch` folded a course back on itself when a middle segment was listed first.
@@ -148,6 +157,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-02** Added `defusedxml` plus KMZ decompression-bomb and size guards, with hardening tests.
 - **2026-09-02** Added `importer.py` and the `import_batch`/`import_feature` staging tables.
 - **2026-09-02** Added `kml.py`, `geo.py`, and `messy_course.kml` reproducing real organizer defects.
-- **2026-09-02** Added import CLI: `import`, `review`, `assign-course`, `assign-poi`, `discard`, `courses`.
-- **2026-09-02** Added MIT license; pushed to private repo `MikeWills/AprsWebTracker`.
-- **2026-09-02** Fixed: ingest discarded packets from rostered operators marked `expects_aprs=0`.

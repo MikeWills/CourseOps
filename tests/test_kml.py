@@ -177,3 +177,63 @@ def test_zip_bomb_is_rejected(tmp_path):
         archive.writestr("doc.kml", b"\0" * (80 * 1024 * 1024))
     with pytest.raises(kml.KmlError, match="compression ratio|limit"):
         kml.load(kmz)
+
+
+# --- styleUrl disambiguation ------------------------------------------------
+# From a real MapMyRun export: the start and finish placemarks carry the SAME
+# <name> as the route, and are distinguishable only by <styleUrl>.
+
+MAPMYRUN_SHAPE = b"""<?xml version="1.0" ?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+ <Document>
+  <Placemark>
+   <name><![CDATA[2026 NEW Mankato Marathon]]></name>
+   <styleUrl>#kmlLineStyle</styleUrl>
+   <LineString><coordinates>-93.99,44.14,0 -94.00,44.16,0</coordinates></LineString>
+  </Placemark>
+  <Placemark>
+   <styleUrl>#start_marker</styleUrl>
+   <Point><coordinates>-93.99123859,44.14257239,0</coordinates></Point>
+   <name>2026 NEW Mankato Marathon</name>
+  </Placemark>
+  <Placemark>
+   <styleUrl>#finish_marker</styleUrl>
+   <Point><coordinates>-94.006016,44.161966,0</coordinates></Point>
+   <name>2026 NEW Mankato Marathon</name>
+  </Placemark>
+ </Document>
+</kml>"""
+
+
+def test_style_url_distinguishes_identically_named_placemarks():
+    features = kml.parse_kml_bytes(MAPMYRUN_SHAPE)
+    points = [f for f in features if f.geom_type == "point"]
+
+    assert {f.name for f in points} == {"2026 NEW Mankato Marathon"}  # same name
+    assert [f.suggest() for f in points] == ["poi:start", "poi:finish"]
+
+
+def test_style_id_is_captured_without_the_hash():
+    features = kml.parse_kml_bytes(MAPMYRUN_SHAPE)
+    assert features[1].style_id == "start_marker"
+
+
+def test_underscored_style_names_match_hints():
+    """'_' is a word character, so a \b-anchored pattern needs separators
+    normalized first or 'start_marker' would never match."""
+    feature = kml.KmlFeature(
+        name="", folder="", geom_type="point", coords=[(-93.9, 44.1)],
+        style_id="start_marker",
+    )
+    assert feature.suggest() == "poi:start"
+
+
+def test_cdata_names_are_read():
+    features = kml.parse_kml_bytes(MAPMYRUN_SHAPE)
+    assert features[0].name == "2026 NEW Mankato Marathon"
+
+
+def test_name_after_geometry_is_still_found():
+    """MapMyRun puts <name> after <Point>, unlike most exporters."""
+    features = kml.parse_kml_bytes(MAPMYRUN_SHAPE)
+    assert features[1].name == "2026 NEW Mankato Marathon"
