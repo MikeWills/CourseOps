@@ -140,6 +140,18 @@ button.danger { color: var(--silent); border-color: #e3a9a4; }
 
 .error { color: var(--silent); font-size: 13px; font-weight: 650; margin: 4px 0; }
 
+.notice {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border-left: 4px solid var(--fresh);
+  background: #e7f4ec;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+button:disabled { opacity: 0.65; cursor: progress; }
+
 /* --- tables -------------------------------------------------------------- */
 
 table.grid { width: 100%; border-collapse: collapse; font-size: 14px; }

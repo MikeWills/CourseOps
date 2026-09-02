@@ -7,6 +7,39 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-09-02 - The signup screen, and why `hidden` was not hiding
+
+#### Fixed
+- **`element.hidden = true` did nothing**, anywhere in either application. Every
+  class that sets `display` - `.field{flex}`, `.gate{grid}`, `.row`, `.check` -
+  has the same specificity as the browser's `[hidden]{display:none}` and comes
+  later in the stylesheet, so it silently won. Nothing errored; the interface
+  simply contradicted itself. The reported symptom was a sign-in form showing
+  while the header said you were already signed in, and a first-run-only "Your
+  name" field appearing on the sign-in screen. One rule in `app.css`
+  (`[hidden] { display: none !important; }`) fixes every occurrence.
+- **Creating the first account looked like nothing happened.** Password hashing
+  is deliberately slow, the button gave no feedback, and the natural response
+  was to press it again - which raced, and reported the confusing "user already
+  exists" for an account that had in fact just been created. The button now
+  disables and says "Creating account...", and a losing race is reported as
+  "Setup is already complete. Sign in instead." with the person routed to the
+  sign-in form.
+
+#### Changed
+- Creating the first administrator no longer starts a session. The account is
+  created and you sign in with it, which proves the password works while you
+  still remember typing it - a credential you may not use again until the next
+  event a year later.
+
+#### Added
+- Cache busting on local scripts and stylesheets, keyed to file modification
+  time. Without it a browser runs yesterday's JavaScript against today's markup,
+  which produces an interface that contradicts itself with no error to explain
+  it - indistinguishable, from the outside, from the CSS bug above. HTML now
+  revalidates every request, since it carries the version markers. Icons stay
+  unversioned: a changing favicon makes a tab look like a different site.
+
 ### 2026-09-02 - `serve` tells you it started
 
 #### Fixed

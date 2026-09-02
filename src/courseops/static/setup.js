@@ -49,6 +49,13 @@ async function api(path, options) {
     headers: {'Content-Type': 'application/json'},
   }, options || {}));
   if (response.status === 401) { showGate(false); throw new Error('Sign in again.'); }
+  // Already signed in but still looking at the sign-in form: recover rather
+  // than leaving the header and the form contradicting each other.
+  if (response.status === 409 && S.user === null) {
+    const check = await fetch('/api/setup/session').then((r) => r.json())
+      .catch(() => ({}));
+    if (check.user) { S.user = check.user; await start(); }
+  }
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.detail || `Error ${response.status}`);
   return data;
@@ -58,11 +65,14 @@ const post = (path, body) => api(path, {method: 'POST', body: JSON.stringify(bod
 
 /* ---------- sign in ------------------------------------------------------ */
 
-function showGate(firstRun) {
+function showGate(firstRun, notice) {
   $('gate').hidden = false;
   $('app').hidden = true;
   $('whoami').hidden = true;
   $('logout').hidden = true;
+  const banner = $('gate-notice');
+  banner.textContent = notice || '';
+  banner.hidden = !notice;
   $('gate-heading').textContent = firstRun ? 'Create your account' : 'Sign in';
   $('gate-intro').textContent = firstRun
     ? 'Nobody has an account yet. This first one is a system administrator, and '
@@ -77,19 +87,55 @@ function showGate(firstRun) {
 $('gate-form').addEventListener('submit', async (ev) => {
   ev.preventDefault();
   const firstRun = $('gate-form').dataset.firstRun === 'true';
+  const submit = $('gate-submit');
+
+  // Password hashing is deliberately slow - memory-hard, a few hundred
+  // milliseconds. Without a busy state the form looks dead, and the natural
+  // response is to press the button again, which races: both requests see no
+  // users, both try to create one, and the loser reports a confusing error.
+  if (submit.disabled) return;
+  submit.disabled = true;
+  const label = submit.textContent;
+  submit.textContent = firstRun ? 'Creating account…' : 'Signing in…';
   $('gate-error').hidden = true;
+  $('gate-notice').hidden = true;
+
   try {
     const body = {
       username: $('gate-username').value,
       password: $('gate-password').value,
     };
     if (firstRun) body.display_name = $('gate-display').value;
-    const data = await post(firstRun ? '/api/setup/first-user' : '/api/setup/login', body);
-    S.user = data.user;
-    await start();
+
+    if (firstRun) {
+      await post('/api/setup/first-user', body);
+      // Sign in rather than being let straight through: typing the password
+      // once now proves it works, while it is still fresh.
+      const username = $('gate-username').value;
+      showGate(false, 'Account created. Sign in with it to continue.');
+      $('gate-username').value = username;
+      $('gate-password').value = '';
+      $('gate-password').focus();
+    } else {
+      const data = await post('/api/setup/login', body);
+      S.user = data.user;
+      await start();
+    }
   } catch (err) {
     $('gate-error').textContent = err.message;
     $('gate-error').hidden = false;
+    // A 409 means the account exists after all - most likely this person's own
+    // double submit - so put them on the sign-in form rather than leaving them
+    // staring at an error on a form that can never succeed again.
+    if (/already complete/i.test(err.message)) {
+      const username = $('gate-username').value;
+      showGate(false, 'Your account was created. Sign in with it to continue.');
+      $('gate-username').value = username;
+      $('gate-error').hidden = true;
+    }
+  } finally {
+    submit.disabled = false;
+    if (submit.textContent.endsWith('…')) submit.textContent = label;
   }
 });
 
