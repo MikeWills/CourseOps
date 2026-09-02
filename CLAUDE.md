@@ -39,7 +39,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 277 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 282 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -285,6 +285,9 @@ usability, not style preferences.
   operator's own digipeater and igate. Binding an aid station to their home
   igate parks that person on the map at their house all day - confidently, and
   wrongly. `symbols.is_infrastructure` gates it.
+- **An event's slug is immutable; it is in every link already sent.** Renaming
+  the event changes the displayed name only. Changing `/e/<slug>/<token>` would
+  404 every volunteer holding a link, silently, on the morning they need it.
 - **CLI output stays ASCII.** Em dashes become mojibake in the Windows console,
   and a club laptop is the target environment.
 
@@ -338,6 +341,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-02** Events and organizations can now be edited, not just created and deleted.
 - **2026-09-02** Roster entries may be a bare callsign; the SSID is learned from the air.
 - **2026-09-02** Operator names now shown on the map, in the popup and in the setup roster.
 - **2026-09-02** Gated Course/Aid/Roster/Links behind picking an event, instead of a banner over a live form.
@@ -347,4 +351,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-02** Added mtime-based cache busting so an edited .js/.css is never served stale.
 - **2026-09-02** Fixed: `serve` printed nothing on startup; added a banner with the setup URL.
 - **2026-09-02** Fixed: printed URLs ignored `--port` and pointed at the wrong port.
-- **2026-09-02** Tracked the remaining deployment gaps as issues #3, #4 and #5.

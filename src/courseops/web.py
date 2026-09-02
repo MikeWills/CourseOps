@@ -777,6 +777,20 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
             conn.close()
         return JSONResponse(organization, status_code=201)
 
+    @app.post("/api/setup/organizations/{organization_id}")
+    async def setup_update_organization(
+        organization_id: int, request: Request
+    ) -> JSONResponse:
+        conn, user = require_system_admin(request)
+        body = await _json_body(request, conn)
+        try:
+            organization = _guard(
+                users.update_organization, conn, organization_id, body
+            )
+        finally:
+            conn.close()
+        return JSONResponse(organization)
+
     @app.post("/api/setup/organizations/{organization_id}/delete")
     async def setup_delete_organization(
         organization_id: int, request: Request

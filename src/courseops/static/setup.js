@@ -225,10 +225,15 @@ async function loadOrgs() {
       <td>${o.event_count}</td><td>${o.admin_count}</td>
       <td>${esc(o.contact || '')}</td>
       <td class="actions">${S.user.is_system_admin
-        ? `<button class="danger" data-delo="${o.id}">Delete</button>` : ''}</td>
+        ? `<button data-edito="${o.id}">Edit</button>
+           <button class="danger" data-delo="${o.id}">Delete</button>` : ''}</td>
     </tr>`).join('') + '</tbody></table>'
     : '<p class="muted">No organizations yet.</p>';
 
+  $('org-list').querySelectorAll('[data-edito]').forEach((b) =>
+    b.addEventListener('click', () => {
+      editOrg(S.organizations.find((o) => o.id === Number(b.dataset.edito)));
+    }));
   $('org-list').querySelectorAll('[data-delo]').forEach((b) =>
     b.addEventListener('click', async () => {
       const org = S.organizations.find((o) => o.id === Number(b.dataset.delo));
@@ -245,10 +250,46 @@ async function loadOrgs() {
     }));
 }
 
+/* The short name is left alone when editing. Nothing outside this screen shows
+   it, so renaming it fixes nothing a club would notice. */
+function editOrg(org) {
+  if (!org) return;
+  S.editingOrg = org.id;
+  $('org-form-title').textContent = `Edit ${org.name}`;
+  $('og-slug').value = org.slug;
+  $('og-slug').disabled = true;
+  $('og-name').value = org.name;
+  $('og-contact').value = org.contact || '';
+  $('org-submit').textContent = 'Save changes';
+  $('org-cancel').hidden = false;
+  $('og-name').focus();
+}
+
+function resetOrgForm() {
+  S.editingOrg = null;
+  $('org-form').reset();
+  $('og-slug').disabled = false;
+  $('org-form-title').textContent = 'Add an organization';
+  $('org-submit').textContent = 'Create organization';
+  $('org-cancel').hidden = true;
+  $('org-error').hidden = true;
+}
+
+$('org-cancel').addEventListener('click', () => resetOrgForm());
+
 $('org-form').addEventListener('submit', async (ev) => {
   ev.preventDefault();
   $('org-error').hidden = true;
   try {
+    if (S.editingOrg) {
+      const saved = await post(`/api/setup/organizations/${S.editingOrg}`, {
+        name: $('og-name').value, contact: $('og-contact').value,
+      });
+      resetOrgForm();
+      banner(`Saved ${saved.name}.`);
+      loadOrgs();
+      return;
+    }
     const created = await post('/api/setup/organizations', {
       slug: $('og-slug').value, name: $('og-name').value,
       contact: $('og-contact').value,
@@ -298,12 +339,18 @@ async function loadEvents() {
         <td>${e.counts.roster}</td>
         <td class="actions">
           <button data-pick="${e.id}">${e.id === S.eventId ? 'Selected' : 'Select'}</button>
+          <button data-edite="${e.id}">Edit</button>
           ${S.user.is_system_admin
             ? `<button class="danger" data-del="${e.id}">Delete</button>` : ''}
         </td></tr>`).join('') + '</tbody></table>';
 
   host.querySelectorAll('[data-pick]').forEach((b) => b.addEventListener('click', () => {
     selectEvent(Number(b.dataset.pick));
+  }));
+  showEventContext();
+
+  host.querySelectorAll('[data-edite]').forEach((b) => b.addEventListener('click', () => {
+    editEvent(S.events.find((e) => e.id === Number(b.dataset.edite)));
   }));
   host.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', async () => {
     const event = S.events.find((e) => e.id === Number(b.dataset.del));
@@ -322,11 +369,19 @@ async function loadEvents() {
   }));
 }
 
-function selectEvent(id) {
-  S.eventId = id;
-  const event = S.events.find((e) => e.id === id);
+/* Re-read from S.events rather than remembering the name, so a rename shows up
+   here too. Otherwise the header keeps announcing the old name for the rest of
+   the session, which is the sort of quiet contradiction that makes someone
+   distrust the whole screen. */
+function showEventContext() {
+  const event = S.events.find((e) => e.id === S.eventId);
   $('event-context').textContent = event ? `Working on: ${event.name}` : '';
   $('event-context').hidden = !event;
+}
+
+function selectEvent(id) {
+  S.eventId = id;
+  showEventContext();
   document.querySelectorAll('.panel[data-needs-event]').forEach(
     (p) => gateOnEvent(p.dataset.panel));
   loadEvents();
@@ -372,10 +427,58 @@ function fillTimeZones() {
   $('ev-tz').value = zones.some(([id]) => id === here) ? here : 'America/Chicago';
 }
 
+/* The short name is NOT editable after creation. It is the /e/<slug>/<token>
+   in every link already handed out, so changing it would 404 every volunteer
+   holding one - silently, and on the morning they need it. Renaming the event
+   changes the name shown; the link keeps the old short name, which nobody but
+   the coordinator ever reads. */
+function editEvent(event) {
+  if (!event) return;
+  S.editingEvent = event.id;
+  $('event-form').hidden = false;
+  $('event-form-title').textContent = `Edit ${event.name}`;
+  $('ev-slug').value = event.slug;
+  $('ev-slug').disabled = true;
+  $('ev-slug-note').hidden = false;
+  $('ev-name').value = event.name;
+  $('ev-date').value = event.event_date || '';
+  if (event.timezone) $('ev-tz').value = event.timezone;
+  $('ev-org-field').hidden = true;
+  $('event-submit').textContent = 'Save changes';
+  $('event-cancel').hidden = false;
+  $('ev-name').focus();
+}
+
+function resetEventForm() {
+  S.editingEvent = null;
+  $('event-form').reset();
+  $('ev-slug').disabled = false;
+  $('ev-slug-note').hidden = true;
+  $('event-form-title').textContent = 'New event';
+  $('event-submit').textContent = 'Create event';
+  $('event-cancel').hidden = true;
+  $('event-error').hidden = true;
+  $('ev-org-field').hidden = !S.user.is_system_admin;
+  fillTimeZones();
+}
+
+$('event-cancel').addEventListener('click', () => resetEventForm());
+
 $('event-form').addEventListener('submit', async (ev) => {
   ev.preventDefault();
   $('event-error').hidden = true;
   try {
+    if (S.editingEvent) {
+      const saved = await post(`/api/setup/events/${S.editingEvent}`, {
+        name: $('ev-name').value,
+        event_date: $('ev-date').value,
+        timezone: $('ev-tz').value,
+      });
+      resetEventForm();
+      banner(`Saved ${saved.name}.`);
+      await loadEvents();
+      return;
+    }
     const created = await post('/api/setup/events', {
       slug: $('ev-slug').value,
       name: $('ev-name').value,
