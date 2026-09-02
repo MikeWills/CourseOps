@@ -233,7 +233,56 @@ html, body {
   cursor: pointer;
   user-select: none;
 }
-.toggle input { width: 20px; height: 20px; accent-color: var(--accent); flex: none; }
+/* Switches, not checkboxes.
+   Still a real <input type="checkbox"> underneath, so keyboard, screen readers
+   and the label association all keep working - only the painting changes.
+
+   Green for on, red for off - but the knob POSITION is the primary signal and
+   the colour only reinforces it. Red/green is the worst possible pair for the
+   commonest colour-vision deficiency, which affects roughly one man in twelve,
+   and this is read outdoors where colour washes out anyway. Position survives
+   both. Never let the colour become the only cue. */
+.toggle input {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: none;
+  position: relative;
+  width: 44px;
+  height: 26px;
+  margin: 0;
+  border: 1px solid #8f1f18;
+  border-radius: 13px;
+  background: var(--silent);          /* off */
+  cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease;
+}
+.toggle input::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  transition: transform 140ms ease;
+}
+.toggle input:checked {
+  background: var(--fresh);           /* on */
+  border-color: #14663a;
+}
+.toggle input:checked::after { transform: translateX(18px); }
+
+/* Keyboard focus must stay obvious; the switch has no other affordance. */
+.toggle input:focus-visible {
+  outline: 3px solid var(--orange);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toggle input, .toggle input::after { transition: none; }
+}
 .toggle .swatch { width: 22px; height: 4px; border-radius: 2px; flex: none; }
 .toggle .label { flex: 1; }
 .toggle .meta { color: var(--ink-soft); font-size: 13px; }

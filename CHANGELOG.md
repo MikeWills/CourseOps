@@ -7,6 +7,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-09-02 - Layer toggles are switches
+
+#### Changed
+- Course and map-layer checkboxes are now switches: green for on, red for off.
+- Still a real `<input type="checkbox">` underneath, styled with `appearance:
+  none`, so keyboard operation, screen readers and the label association keep
+  working. Only the painting changed.
+- Added a visible focus ring, since a switch has no other affordance for
+  keyboard users, and a `prefers-reduced-motion` guard on the knob transition.
+
+#### Note on the colours
+Red/green is the worst possible pair for the commonest colour-vision
+deficiency, which affects roughly one man in twelve - and this is read outdoors
+where colour washes out anyway. The knob **position** is therefore the primary
+signal and the colour only reinforces it. Do not remove the position change and
+leave colour as the only cue.
+
 ### 2026-09-02 - SSID mismatches surface themselves in the UI
 
 `courseops check-in` only helps if someone remembers to run it, and a check that
