@@ -261,10 +261,45 @@ flag (`WRITE_ROLES`) rather than a rewrite.
 
 ## Resolved questions
 
-- *Does the Liaison need a subset of the station roster?* — Full set, with layer
+- *Does the Liaison need a subset of the station roster?* - Full set, with layer
   toggles defaulting aid station operators off.
-- *Incidents across events?* — No. Event-scoped only.
-- *Roster size?* — Under 50.
-- *Public access?* — None beyond the two staff roles.
-- *Units?* — Store metric, display US customary.
-- *Who maintains What3Words?* — NCS.
+- *Incidents across events?* - No. Event-scoped only.
+- *Roster size?* - Under 50.
+- *Public access?* - None beyond the staff roles.
+- *Units?* - Store metric, display US customary.
+- *Who maintains What3Words?* - NCS, by hand. No API; it is a paid service.
+- *Liaison and Logistics: one role or two?* - Two. Different teams (Liaison with
+  Public Safety/Medics, Logistics on traffic/cones/teardown), separate links so
+  one can be revoked alone. Both read-only in v1.
+- *Multiple NCS operators?* - Yes, typically sharing one workstation. A shared
+  role link covers it; operator initials (Phase 6) handle shift handover.
+- *Overlapping courses?* - Solved by adjustable draw order, not forced dashes.
+- *Mobile?* - Mobile-first. The field roles are the primary case.
+
+## Known gaps and open threads
+
+Things discovered but not yet acted on. Each is a real constraint, not a wish.
+
+- **GPX import** - GitHub issue #1. Consumer route tools (MapMyRun, Strava,
+  Garmin) often export GPX only. Parser swap feeding the existing staging.
+- **Geolocation requires HTTPS.** Browsers block it outside a secure context,
+  localhost excepted. A club serving over plain http:// on a LAN loses the
+  "where am I" dot. Decide in Phase 8: terminate TLS, or accept the loss.
+- **OpenStreetMap tile policy.** The public tile server is fine for one club but
+  its usage policy does not cover a hosted multi-club service. That deployment
+  needs its own tile source or a commercial provider.
+- **Hand-drawn courses cut corners.** The Mankato export has 13 straight-line
+  gaps over 200 m (largest 1241 m) where the route builder used direct/offroad
+  mode. Chords are shorter than the road, so Phase 5 mile figures drift on such
+  files. GIS-sourced courses should not have this; `test_real_course.py` asserts
+  the shape of the problem.
+- **Course files carry no aid stations.** True of the MapMyRun export and likely
+  of others, so aid station locations and their What3Words addresses are a
+  manual step regardless of file format. A test asserts this so we notice if a
+  future file does include them.
+- **Point density.** A recorded GPX can carry thousands of points where a
+  GIS-drawn KML carries dozens. Simplification is a separate decision; import
+  must not silently discard fidelity.
+- **No operator runbook yet.** README covers setup; there is no event-day
+  procedure document for the club (week-before, morning-of, during, teardown).
+  Worth writing before the first real event.
