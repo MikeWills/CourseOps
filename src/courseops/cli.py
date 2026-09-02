@@ -7,7 +7,8 @@ import asyncio
 import logging
 import sys
 
-from . import access, aprsis, db, importer, kml, leaders, styling, units, what3words
+from . import (access, aprsis, db, discovery, importer, kml, leaders, styling,
+               units, what3words)
 from .config import Settings, load_dotenv
 
 CATEGORIES = [
@@ -102,6 +103,159 @@ def cmd_ingest(args: argparse.Namespace) -> int:
         asyncio.run(run_ingest(settings, args.event, max_packets=args.max_packets))
     except KeyboardInterrupt:
         print("\nStopped.")
+    return 0
+
+
+async def _run_check_in(settings, event, seconds: int):
+    """Listen wide for a few minutes and record every SSID heard."""
+    from .parser import Rejected, parse_packet
+
+    conn = db.connect(settings.db_path)
+    roster_keys = db.all_station_keys(conn, event["id"])
+    conn.close()
+    if not roster_keys:
+        raise SystemExit("Roster is empty - add stations before checking in.")
+
+    check = discovery.CheckIn(roster_keys)
+    aprs_filter = discovery.wildcard_filter(roster_keys)
+    print(f"Listening {seconds}s for every SSID of {len(check.expected_bases)} "
+          f"callsign(s)...")
+    print(f"Filter: {aprs_filter}\n")
+
+    async def listen():
+        async for line in aprsis.stream_packets(
+            settings.host, settings.port, settings.callsign,
+            settings.passcode, aprs_filter,
+        ):
+            try:
+                check.observe(parse_packet(line))
+            except Rejected:
+                pass          # status, messages, telemetry: not useful here
+
+    try:
+        await asyncio.wait_for(listen(), timeout=seconds)
+    except asyncio.TimeoutError:
+        pass                  # the timeout IS the end of the listen
+    return check
+
+
+def cmd_check_in(args: argparse.Namespace) -> int:
+    """Find out which SSIDs the roster's people are actually transmitting on.
+
+    Run this a week out, at a club meeting. It turns a silent race-morning
+    failure into something you can fix while there is still time.
+    """
+    settings = _settings()
+    logging.basicConfig(level=logging.WARNING)
+    conn = db.connect(settings.db_path)
+    event = _event_or_exit(conn, args.event)
+    conn.close()
+
+    try:
+        check = asyncio.run(_run_check_in(settings, event, args.seconds))
+    except KeyboardInterrupt:
+        print("\nStopped early.")
+        return 1
+
+    def line_for(entry):
+        where = (f"{entry.last_lat:.4f},{entry.last_lon:.4f}"
+                 if entry.last_lat is not None else "no position")
+        return (f"    {entry.station_key:<12} {entry.positions:>3} pos  "
+                f"{entry.description:<22} {where}")
+
+    confirmed = check.confirmed()
+    mismatched = check.mismatched()
+    others = check.other_ssids()
+    silent = [k for k in check.silent() if k not in mismatched]
+
+    print("=" * 68)
+    if confirmed:
+        print(f"\nHEARD, ON THE ROSTER  ({len(confirmed)})")
+        for entry in sorted(confirmed, key=lambda e: e.station_key):
+            print(line_for(entry))
+
+    if mismatched:
+        print(f"\nWRONG SSID ON THE ROSTER  ({len(mismatched)})")
+        print("  These are on the roster but silent, while another SSID of the")
+        print("  same callsign is transmitting. Almost certainly a typo at signup.")
+        for rostered, candidates in mismatched.items():
+            print(f"\n    roster says {rostered}, but heard:")
+            for entry in candidates:
+                print(line_for(entry))
+            best = candidates[0]
+            print(f"      fix:  courseops add-station {args.event} "
+                  f"{best.station_key} \"<label>\" --category <category>")
+            print(f"      then: courseops remove-station {args.event} {rostered}")
+
+    if others:
+        print(f"\nOTHER SSIDS UNDER THESE CALLSIGNS  ({len(others)})")
+        print("  Not on the roster. Usually the operator's own digipeater, igate")
+        print("  or home station - listed so it is a decision, not a surprise.")
+        for entry in sorted(others, key=lambda e: e.station_key):
+            flag = "  <- infrastructure, ignore" if entry.looks_like_infrastructure else ""
+            print(line_for(entry) + flag)
+
+    if silent:
+        print(f"\nNOT HEARD AT ALL  ({len(silent)})")
+        print("  Either not transmitting right now, or not beaconing at all.")
+        print("  Aid station operators marked --no-aprs are expected here.")
+        for key in silent:
+            print(f"    {key}")
+
+    print("\n" + "=" * 68)
+    if mismatched:
+        print("Action needed: fix the SSIDs above before race day.")
+    elif not confirmed:
+        print("Nothing heard. Check the callsigns, or listen longer with --seconds.")
+    else:
+        print("Roster looks correct.")
+    return 0
+
+
+def cmd_ignore(args: argparse.Namespace) -> int:
+    """Keep an SSID off the map: a digipeater, igate or home station."""
+    settings = _settings()
+    conn = db.connect(settings.db_path)
+    event = _event_or_exit(conn, args.event)
+    if args.remove:
+        if db.unexclude_station(conn, event["id"], args.callsign):
+            print(f"{args.callsign.upper()} will be tracked again.")
+            return 0
+        print(f"{args.callsign.upper()} was not ignored.", file=sys.stderr)
+        return 1
+    db.exclude_station(conn, event["id"], args.callsign, args.reason)
+    print(f"Ignoring {args.callsign.upper()}"
+          + (f" ({args.reason})" if args.reason else "") + ".")
+    return 0
+
+
+def cmd_ignored(args: argparse.Namespace) -> int:
+    settings = _settings()
+    conn = db.connect(settings.db_path)
+    event = _event_or_exit(conn, args.event)
+    rows = db.exclusions(conn, event["id"])
+    if not rows:
+        print("Nothing ignored. The filter asks for every SSID of each rostered")
+        print("callsign, so a digipeater or igate will appear until it is ignored.")
+        return 0
+    print(f"{'CALLSIGN':<12} REASON")
+    for row in rows:
+        print(f"{row['station_key']:<12} {row['reason'] or ''}")
+    return 0
+
+
+def cmd_remove_station(args: argparse.Namespace) -> int:
+    settings = _settings()
+    conn = db.connect(settings.db_path)
+    event = _event_or_exit(conn, args.event)
+    cur = conn.execute(
+        "DELETE FROM roster WHERE event_id = ? AND station_key = ?",
+        (event["id"], args.callsign.upper()),
+    )
+    if cur.rowcount == 0:
+        print(f"{args.callsign.upper()} is not on this roster.", file=sys.stderr)
+        return 1
+    print(f"Removed {args.callsign.upper()} from the roster.")
     return 0
 
 
@@ -513,6 +667,36 @@ def build_parser() -> argparse.ArgumentParser:
         help="stop after this many lines (for smoke tests)",
     )
     p.set_defaults(func=cmd_ingest)
+
+    p = sub.add_parser(
+        "check-in",
+        help="listen for every SSID of your rostered callsigns and find wrong ones",
+    )
+    p.add_argument("event")
+    p.add_argument(
+        "--seconds", type=int, default=300,
+        help="how long to listen; phone apps beacon every 1-5 minutes, so a "
+             "short listen will miss people (default 300)",
+    )
+    p.set_defaults(func=cmd_check_in)
+
+    p = sub.add_parser(
+        "ignore", help="keep an SSID off the map (digipeater, igate, home station)"
+    )
+    p.add_argument("event")
+    p.add_argument("callsign")
+    p.add_argument("--reason", help="why, e.g. 'digipeater'")
+    p.add_argument("--remove", action="store_true", help="stop ignoring it")
+    p.set_defaults(func=cmd_ignore)
+
+    p = sub.add_parser("ignored", help="list ignored SSIDs")
+    p.add_argument("event")
+    p.set_defaults(func=cmd_ignored)
+
+    p = sub.add_parser("remove-station", help="remove a roster entry")
+    p.add_argument("event")
+    p.add_argument("callsign")
+    p.set_defaults(func=cmd_remove_station)
 
     p = sub.add_parser("import", help="stage a KML/KMZ file for review")
     p.add_argument("event")

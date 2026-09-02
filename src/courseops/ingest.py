@@ -21,16 +21,24 @@ PositionHandler = Callable[[int, PositionReport], Awaitable[None]]
 class IngestStats:
     stored: int = 0
     not_rostered: int = 0
+    excluded: int = 0
     no_position: int = 0
     parse_errors: int = 0
     by_station: dict[str, int] = field(default_factory=dict)
+    # SSIDs kept because their callsign is rostered, though the roster names a
+    # different SSID. Almost always a signup typo worth telling the operator
+    # about rather than silently absorbing.
+    unexpected_ssid: set[str] = field(default_factory=set)
 
     def summary(self) -> str:
-        return (
+        summary = (
             f"stored={self.stored} not_rostered={self.not_rostered} "
-            f"no_position={self.no_position} parse_errors={self.parse_errors} "
-            f"stations={len(self.by_station)}"
+            f"excluded={self.excluded} no_position={self.no_position} "
+            f"parse_errors={self.parse_errors} stations={len(self.by_station)}"
         )
+        if self.unexpected_ssid:
+            summary += f" unexpected_ssid={sorted(self.unexpected_ssid)}"
+        return summary
 
 
 def handle_line(
@@ -40,6 +48,8 @@ def handle_line(
     line: str,
     stats: IngestStats,
     log_all_raw: bool = True,
+    base_callsigns: set[str] | None = None,
+    excluded: set[str] | None = None,
 ) -> PositionReport | None:
     """Parse and store one line. Returns the report if it was stored."""
     try:
@@ -56,9 +66,24 @@ def handle_line(
             )
         return None
 
-    # The server-side filter should make this rare, but a filter clause can be
-    # broader than the roster (see event.aprs_filter_extra).
-    if roster_keys and report.station_key not in roster_keys:
+    # An SSID explicitly dismissed before the event - the operator's own
+    # digipeater or igate, which the wildcard filter drags in.
+    if excluded and report.station_key in excluded:
+        stats.excluded += 1
+        if log_all_raw:
+            db.log_raw_packet(conn, event_id, report.received_at, line, "excluded")
+        return None
+
+    # Accept any SSID of a rostered callsign, not just the exact one on the
+    # roster. Without this the wildcard filter would be pointless: WX0MIK-5
+    # would arrive and then be thrown away because the roster says -1.
+    known = report.station_key in roster_keys
+    if not known and base_callsigns:
+        known = report.station_key.split("-", 1)[0] in base_callsigns
+        if known:
+            stats.unexpected_ssid.add(report.station_key)
+
+    if (roster_keys or base_callsigns) and not known:
         stats.not_rostered += 1
         if log_all_raw:
             db.log_raw_packet(conn, event_id, report.received_at, line, "not_rostered")
@@ -99,6 +124,8 @@ async def run_ingest(
     # deliver a rostered operator who was not expected to report.
     filter_keys = db.tracked_station_keys(conn, event["id"])
     roster_keys = set(db.all_station_keys(conn, event["id"]))
+    base_callsigns = db.rostered_base_callsigns(conn, event["id"])
+    excluded = db.excluded_station_keys(conn, event["id"])
     if not filter_keys and not event["aprs_filter_extra"]:
         raise SystemExit(
             f"Event {event_slug!r} has no APRS-expecting roster entries and no "
@@ -107,8 +134,8 @@ async def run_ingest(
 
     aprs_filter = aprsis.build_filter(filter_keys, event["aprs_filter_extra"])
     log.info(
-        "Ingesting event %r (%d rostered, %d expected to beacon)",
-        event_slug, len(roster_keys), len(filter_keys),
+        "Ingesting event %r (%d rostered, %d expected to beacon, %d excluded)",
+        event_slug, len(roster_keys), len(filter_keys), len(excluded),
     )
 
     stats = IngestStats()
@@ -118,7 +145,10 @@ async def run_ingest(
             settings.host, settings.port, settings.callsign,
             settings.passcode, aprs_filter,
         ):
-            report = handle_line(conn, event["id"], roster_keys, line, stats)
+            report = handle_line(
+                conn, event["id"], roster_keys, line, stats,
+                base_callsigns=base_callsigns, excluded=excluded,
+            )
             if report is not None:
                 log.info(
                     "%s  %.5f,%.5f  %s",

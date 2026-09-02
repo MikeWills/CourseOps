@@ -275,3 +275,20 @@ CREATE TABLE IF NOT EXISTS roster_status_log (
 
 CREATE INDEX IF NOT EXISTS idx_roster_status_log
     ON roster_status_log (event_id, station_key, at);
+
+-- SSIDs to keep OFF the map, under a callsign we otherwise want.
+--
+-- The live filter is a wildcard per rostered callsign by default, because a
+-- volunteer who signs up as WX0MIK-1 and beacons WX0MIK-5 would otherwise be
+-- silently invisible on race morning - and a missing person is far worse than
+-- an extra marker. The cost of that default is the operator's own digipeater,
+-- igate or home station arriving too. This is how they are dismissed: once,
+-- before the event, by name.
+CREATE TABLE IF NOT EXISTS station_exclusion (
+    id          INTEGER PRIMARY KEY,
+    event_id    INTEGER NOT NULL REFERENCES event(id) ON DELETE CASCADE,
+    station_key TEXT    NOT NULL,
+    reason      TEXT,
+    added_at    TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+    UNIQUE (event_id, station_key)
+);
