@@ -6,7 +6,7 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-APP_NAME = "AprsWebTracker"
+APP_NAME = "Course Ops"
 
 
 def load_dotenv(path: str | Path = ".env") -> None:
@@ -48,6 +48,6 @@ class Settings:
             passcode=os.environ.get("APRS_PASSCODE", "-1").strip(),
             host=os.environ.get("APRS_HOST", "rotate.aprs2.net").strip(),
             port=int(os.environ.get("APRS_PORT", "14580")),
-            db_path=Path(os.environ.get("DB_PATH", "data/aprswebtracker.sqlite3")),
+            db_path=Path(os.environ.get("DB_PATH", "data/courseops.sqlite3")),
             log_level=os.environ.get("LOG_LEVEL", "INFO").strip().upper(),
         )

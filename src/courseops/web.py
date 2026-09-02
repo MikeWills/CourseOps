@@ -143,7 +143,7 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
                     await task
 
     app = FastAPI(
-        title="AprsWebTracker", docs_url=None, redoc_url=None, lifespan=lifespan
+        title="Course Ops", docs_url=None, redoc_url=None, lifespan=lifespan
     )
     app.state.settings = settings
     app.state.hub = hub_module.Hub()

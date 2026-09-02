@@ -1,6 +1,6 @@
 """Storage is metric; presentation is US customary. Verify the seam."""
 
-from aprswebtracker import units
+from courseops import units
 
 
 def test_speed_conversion():

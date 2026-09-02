@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from aprswebtracker import db, importer, styling
+from courseops import db, importer, styling
 
 FIXTURE = Path(__file__).parent / "fixtures" / "messy_course.kml"
 

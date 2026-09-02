@@ -1,4 +1,4 @@
-from aprswebtracker import what3words as w3w
+from courseops import what3words as w3w
 
 
 def test_normalize_strips_slashes_and_case():

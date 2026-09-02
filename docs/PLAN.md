@@ -1,4 +1,4 @@
-# AprsWebTracker — Project Plan
+# Course Ops — Project Plan
 
 ## Problem
 
@@ -276,6 +276,35 @@ flag (`WRITE_ROLES`) rather than a rewrite.
 - *Overlapping courses?* - Solved by adjustable draw order, not forced dashes.
 - *Mobile?* - Mobile-first. The field roles are the primary case.
 
+## Naming
+
+The product is called **Course Ops**. `AprsWebTracker` was the working title.
+
+Renamed throughout on 2026-09-02: repository `CourseOps`, Python package
+`courseops`, CLI `courseops`. Note that "Ops" here is the product name and has
+nothing to do with the Logistics team; the roles are still NCS / Liaison /
+Logistics.
+
+## Visual design
+
+A colour specification is coming from the club and will replace the current
+placeholder palette. Two constraints must survive whatever it says, because both
+came from how the app is actually used rather than from taste:
+
+- **Daylight legibility.** The field roles read this on a phone outdoors. Pale or
+  low-saturation values disappear on light map tiles.
+- **Status must not rely on hue alone.** Radio status and station category are
+  currently distinguished by shape and lightness as well as colour, so they
+  survive a washed-out screen and colour-vision deficiency.
+
+Where colour lives today, and what a spec would touch:
+
+| Place | What it controls |
+|---|---|
+| `static/app.css` `:root` | UI tokens: ink, paper, lines, accent, and the four radio-status colours |
+| `styling.py` `DEFAULT_COLORS` | Course line palette (currently Okabe-Ito minus yellow) |
+| `static/app.css` `.stn--*`, `.poi-icon` | Marker fills and shapes |
+
 ## Known gaps and open threads
 
 Things discovered but not yet acted on. Each is a real constraint, not a wish.
@@ -300,6 +329,7 @@ Things discovered but not yet acted on. Each is a real constraint, not a wish.
 - **Point density.** A recorded GPX can carry thousands of points where a
   GIS-drawn KML carries dozens. Simplification is a separate decision; import
   must not silently discard fidelity.
+- **Colour specification pending** from the club; see Visual design above.
 - **Static asset caching.** Browsers cached `index.html` across an edit during
   Phase 4 testing. A club updating the app may need a hard refresh; consider
   cache headers or a version query string in Phase 8.

@@ -1,4 +1,4 @@
--- AprsWebTracker schema.
+-- Course Ops schema.
 -- Every domain table carries event_id so a single database file can host
 -- multiple events (and, later, multiple clubs) without restructuring.
 

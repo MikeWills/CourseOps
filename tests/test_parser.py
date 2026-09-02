@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from aprswebtracker.parser import Rejected, parse_packet
+from courseops.parser import Rejected, parse_packet
 
 FIXTURES = Path(__file__).parent / "fixtures" / "packets.txt"
 
@@ -71,8 +71,8 @@ def test_mic_e_yields_course_and_speed():
 
 def test_unexpected_beacon_from_no_aprs_operator_is_stored(tmp_path):
     """An aid station operator who turns a tracker on is still one of ours."""
-    from aprswebtracker import db
-    from aprswebtracker.ingest import IngestStats, handle_line
+    from courseops import db
+    from courseops.ingest import IngestStats, handle_line
 
     conn = db.connect(tmp_path / "t.sqlite3")
     db.init_schema(conn)
