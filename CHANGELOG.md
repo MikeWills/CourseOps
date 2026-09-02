@@ -7,6 +7,49 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-09-02 - SAG becomes a role, and a note stops pretending to be a pickup
+
+#### Added
+- **SAG is its own role with its own link.** A SAG driver's question is not
+  "where is everyone" but "who am I going to collect, and has anyone got them
+  already". They were previously holding a Liaison or Logistics link and reading
+  a view built for road clearance.
+
+- **Permission is per capability rather than one write flag.** SAG needs to work
+  the pickup queue and must not be able to rewrite the roster, dismiss an SSID,
+  log a lead runner or revoke a link. `access.ROLE_CAPABILITIES` is the whole
+  policy: NCS has everything, SAG has `incidents`, Liaison and Logistics have
+  nothing. Each endpoint names the capability it needs, so widening a role stays
+  a change to that table. A bearer link lives in a moving vehicle; the blast
+  radius of a lost phone should be one incident queue.
+
+- **"Dropped off" is now a step of its own**, between picked up and closed.
+  Picked up means the runner is in the vehicle and still SAG's responsibility;
+  dropped off means delivered. Closed still covers a request that ended without
+  a pickup - the runner carried on, or someone else collected them. The waiting
+  count treats picked-up as still outstanding for exactly this reason.
+
+- **Course notes.** A pin can now record something the organizer should know
+  afterwards - a blocked intersection, a confusing turn, a marshal who never
+  arrived - rather than only a pickup. They are drawn in their own section and
+  never enter the pickup queue: that queue is read as "who is still waiting",
+  and a note in it would make the count a lie. Notes carry no status workflow,
+  because nobody is being dispatched.
+
+- **The pickup queue can be ordered by proximity.** "Nearest me" sorts by
+  straight-line distance from the vehicle, and every row shows the distance
+  whether or not it is sorting by it. Entirely client-side: it uses the same
+  browser geolocation as the "you are here" dot, which is never sent to the
+  server. Status still leads the sort - a pickup waiting twenty minutes must not
+  be buried under one called in a moment ago, which is the failure the queue
+  exists to prevent. The control needs a location fix, so it disables itself
+  and says why on a LAN without HTTPS.
+
+#### Note
+Distance is straight-line, not driving distance: there is no routing engine, and
+on a closed course the road you would actually take is not something this app
+knows. It is labelled "away" and used to order a list, never presented as an ETA.
+
 ### 2026-09-02 - Row actions became icons
 
 #### Changed

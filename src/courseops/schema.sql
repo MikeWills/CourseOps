@@ -208,7 +208,12 @@ CREATE TABLE IF NOT EXISTS incident (
     -- The organizer's runner identifier. Often unknown when first called in, so
     -- nullable and fillable later.
     bib         TEXT,
-    -- reported | en_route | picked_up | closed
+    -- pickup | note. A pickup is a dispatch problem with a workflow; a note is
+    -- a record of something the organizer should know afterwards (a blocked
+    -- intersection, a confusing turn). Notes must never appear in the pickup
+    -- queue: that queue is read as "who is still waiting".
+    kind        TEXT    NOT NULL DEFAULT 'pickup',
+    -- reported | en_route | picked_up | dropped_off | closed
     status      TEXT    NOT NULL DEFAULT 'reported',
     lat         REAL    NOT NULL,
     lon         REAL    NOT NULL,

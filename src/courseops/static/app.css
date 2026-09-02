@@ -363,6 +363,51 @@ html, body {
 .dot--silent  { background: var(--silent); }
 .dot--no_aprs { background: transparent; border: 2px solid var(--no-aprs); }
 
+/* Which kind the next dropped pin becomes. A segmented control rather than a
+   checkbox: the choice is between two named things, and the selected one is
+   carried by position and fill, never by colour alone. */
+.pin-kind, .pickup-sort { display: flex; gap: 0; margin-bottom: 8px; }
+.sort-btn {
+  flex: 1;
+  min-height: 38px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 550;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.sort-btn:first-child { border-radius: 8px 0 0 8px; }
+.sort-btn:last-child { border-radius: 0 8px 8px 0; border-left: 0; }
+.sort-btn.is-on { background: #e7ecf3; color: var(--navy-700); border-color: #c7d2e0; }
+.sort-btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+.incident .away {
+  margin-left: 8px;
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.pin-kind-btn {
+  flex: 1;
+  min-height: 40px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  font: inherit;
+  font-weight: 550;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.pin-kind-btn:first-child { border-radius: 8px 0 0 8px; }
+.pin-kind-btn:last-child { border-radius: 0 8px 8px 0; border-left: 0; }
+.pin-kind-btn.is-on {
+  background: var(--navy-700);
+  border-color: var(--navy-700);
+  color: #fff;
+}
+
 .station .name { flex: 1; font-weight: 550; }
 /* Callsign and operator name, under the label. Kept quiet: the label is what
    is scanned for, this is what is read out once the row is found. */
@@ -499,7 +544,12 @@ html, body {
   --inc-reported:  #b3261e;
   --inc-enroute:   #a35a00;
   --inc-pickedup:  #1a5fa5;
+  --inc-dropped:   #1e7a52;
   --inc-closed:    #5a6572;
+  /* A note is not a status; it is a different kind of thing entirely, so it
+     gets its own neutral mark rather than borrowing one of the pickup
+     colours - those mean "somebody is waiting". */
+  --inc-note:      #6b5ea8;
 }
 
 #incident-add {
@@ -524,8 +574,8 @@ html, body {
 
 .incident { padding: 6px 0 8px; border-bottom: 1px solid #edf1f5; }
 .incident:last-child { border-bottom: 0; }
-/* Closed work stops competing for attention but stays readable. */
-.incident--closed { opacity: 0.5; }
+/* Finished work stops competing for attention but stays readable. */
+.incident--closed, .incident--dropped_off { opacity: 0.5; }
 
 .incident-main {
   display: flex;
@@ -555,7 +605,11 @@ html, body {
 .inc-dot--reported  { background: var(--inc-reported); }
 .inc-dot--en_route  { background: var(--inc-enroute); }
 .inc-dot--picked_up { background: var(--inc-pickedup); }
+.inc-dot--dropped_off { background: var(--inc-dropped); }
 .inc-dot--closed    { background: var(--inc-closed); }
+/* Round, where every pickup dot is square: the shape says "different kind of
+   thing" without relying on the colour, which is the rule everywhere here. */
+.inc-dot--note      { background: var(--inc-note); border-radius: 50%; }
 
 .incident-op { display: flex; gap: 5px; padding: 4px 2px 0 23px; }
 .incident-op .op-btn { font-size: 11px; padding: 4px 2px; }

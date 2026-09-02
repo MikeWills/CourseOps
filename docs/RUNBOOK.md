@@ -15,6 +15,7 @@ person setting it up and for Net Control, not for developers.
 | Role | Link | Can |
 |---|---|---|
 | **Net Control (NCS)** | NCS link | See everything, edit What3Words, set station status, manage incidents **[PHASE 6]** |
+| **SAG** | SAG link | The pickup queue: mark a runner en route, picked up and dropped off, and fill in the bib. Can order pickups by how near they are. Nothing else is editable |
 | **Liaison** | Liaison link | View only. Embedded with Public Safety / Medics |
 | **Logistics** | Logistics link | View only. Traffic control, cone placement, teardown |
 
@@ -253,7 +254,7 @@ hunting for the link in a text thread.
 - **iPhone/iPad:** open the link in Safari, then Share, then *Add to Home Screen*
 - **Android:** open the link in Chrome, then the menu, then *Add to Home screen*
 
-The icon is labelled with the **role** - "Net Control", "Liaison", "Logistics" -
+The icon is labelled with the **role** - "Net Control", "SAG", "Liaison", "Logistics" -
 so someone holding two links can tell them apart.
 
 > **If a phone is lost or stolen, revoke that role's link.** Installing saves the

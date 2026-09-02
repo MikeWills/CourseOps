@@ -37,6 +37,7 @@ _ADDED_COLUMNS: list[tuple[str, str, str]] = [
     ("roster", "op_status_at", "TEXT"),
     ("roster", "op_status_by", "TEXT"),
     ("roster", "bound_key", "TEXT"),
+    ("incident", "kind", "TEXT NOT NULL DEFAULT 'pickup'"),
 ]
 
 

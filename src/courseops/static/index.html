@@ -86,10 +86,31 @@
   </div>
 
   <div class="sheet-section" id="incident-section">
-    <h2>Incidents <span id="incident-count" class="muted"></span></h2>
-    <button id="incident-add" type="button" hidden>+ Drop a pickup pin</button>
+    <h2>Pickups <span id="incident-count" class="muted"></span></h2>
+    <div id="pin-kind" class="pin-kind" role="group"
+         aria-label="What the next dropped pin records" hidden>
+      <button type="button" class="pin-kind-btn is-on" data-kind="pickup"
+              aria-pressed="true">Pickup</button>
+      <button type="button" class="pin-kind-btn" data-kind="note"
+              aria-pressed="false">Course note</button>
+    </div>
+    <div id="pickup-sort" class="pickup-sort" role="group"
+         aria-label="Order the pickup queue" hidden>
+      <button type="button" class="sort-btn is-on" data-sort="waiting"
+              aria-pressed="true">Waiting longest</button>
+      <button type="button" class="sort-btn" data-sort="near"
+              aria-pressed="false">Nearest me</button>
+    </div>
+    <button id="incident-add" type="button" hidden>+ Drop a pin</button>
     <p id="incident-hint" class="muted" hidden>Tap the map where the runner is.</p>
     <div id="incident-list"></div>
+  </div>
+
+  <div class="sheet-section" id="note-section" hidden>
+    <h2>Course notes <span id="note-count" class="muted"></span></h2>
+    <p class="muted">Recorded for the organizer afterwards. Nobody is waiting
+      on these, so they never enter the pickup queue.</p>
+    <div id="note-list"></div>
   </div>
 
   <div class="sheet-section">

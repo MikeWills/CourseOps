@@ -39,7 +39,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 282 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 306 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -196,6 +196,9 @@ usability, not style preferences.
   names.
 - **Hint patterns must normalize `_` and `-` to spaces first.** `_` is a word
   character, so `start` never matches inside `start_marker`.
+- **SAG is a fourth role, and the only field role that writes.** They work the
+  pickup queue from a vehicle: en route, picked up, dropped off, and the bib
+  once they can read it. Nothing else.
 - **Liaison and Logistics are different teams, not one role.** Liaison is
   embedded with Public Safety and Medics; Logistics is in the field doing traffic
   control, cone placement and teardown. Separate links so one can be revoked
@@ -293,6 +296,21 @@ usability, not style preferences.
   Windows. SVG also inherits `currentColor`, so an icon reddens with its danger
   button. Every icon-only button needs `title` **and** `aria-label`, and the
   label names the row, not just the verb: "Delete Aid 3", never "Delete".
+- **Permission is per capability, not one write flag.** `ROLE_CAPABILITIES` in
+  `access.py` is the whole policy; each endpoint names what it needs via
+  `require_capability`. SAG holds `incidents` only - never widen a field role by
+  adding it to a second place.
+- **A course note is not a pickup.** `incident.kind` separates them. The pickup
+  queue and its count are read as "who is still waiting", so a note must never
+  appear there. Notes have no status workflow; their audience is the organizer
+  after the event.
+- **"Picked up" is not "dropped off".** In the vehicle still counts as
+  outstanding; delivered does not. `incidents.waiting_count` is the number NCS
+  glances at, and it treats picked-up as still waiting on us.
+- **Proximity sort never overrides status.** Sorting purely by distance buries a
+  pickup that has waited twenty minutes. Status leads; distance breaks ties
+  within it. The distance is straight-line and labelled "away" - there is no
+  routing engine, and it must never read as an ETA.
 - **CLI output stays ASCII.** Em dashes become mojibake in the Windows console,
   and a club laptop is the target environment.
 
@@ -346,6 +364,9 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-02** Added the SAG role with its own link and per-capability permissions.
+- **2026-09-02** Incidents split into pickups and course notes; added a "dropped off" step.
+- **2026-09-02** SAG can order the pickup queue by proximity, client-side only.
 - **2026-09-02** Table row actions became labelled icon buttons; fixed Delete never rendering red.
 - **2026-09-02** Events and organizations can now be edited, not just created and deleted.
 - **2026-09-02** Roster entries may be a bare callsign; the SSID is learned from the air.
@@ -353,6 +374,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-02** Gated Course/Aid/Roster/Links behind picking an event, instead of a banner over a live form.
 - **2026-09-02** Event time zone is a dropdown, browser-detected, and shown in the event list.
 - **2026-09-02** Fixed: `hidden` did nothing wherever CSS set `display`, so the UI contradicted itself.
-- **2026-09-02** Signup no longer auto-signs-in; it routes to sign-in with a confirmation.
-- **2026-09-02** Added mtime-based cache busting so an edited .js/.css is never served stale.
-- **2026-09-02** Fixed: `serve` printed nothing on startup; added a banner with the setup URL.

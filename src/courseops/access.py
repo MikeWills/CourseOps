@@ -21,22 +21,59 @@ from dataclasses import dataclass
 TOKEN_BYTES = 24
 
 ROLE_NCS = "ncs"
+ROLE_SAG = "sag"
 ROLE_LIAISON = "liaison"
 ROLE_LOGISTICS = "logistics"
-ROLES = (ROLE_NCS, ROLE_LIAISON, ROLE_LOGISTICS)
+ROLES = (ROLE_NCS, ROLE_SAG, ROLE_LIAISON, ROLE_LOGISTICS)
 
-# Liaison and Logistics are different teams doing different jobs, and each gets
-# its own link so one can be revoked without cutting off the other:
-#   Liaison   - embedded with Public Safety and Medics
-#   Logistics - out on the course: traffic control, cone placement, teardown
+# Four teams doing four different jobs, each with its own link so one can be
+# revoked without cutting off the others:
+#   Net Control - runs the net
+#   SAG         - drives the course collecting runners who cannot continue
+#   Liaison     - embedded with Public Safety and Medics
+#   Logistics   - out on the course: traffic control, cone placement, teardown
 ROLE_LABELS = {
     ROLE_NCS: "Net Control",
+    ROLE_SAG: "SAG",
     ROLE_LIAISON: "Liaison",
     ROLE_LOGISTICS: "Logistics",
 }
 
-# Only NCS writes in v1; both field roles are read-only.
-WRITE_ROLES = (ROLE_NCS,)
+# --- capabilities -----------------------------------------------------------
+#
+# Write access used to be one flag, which was fine while NCS was the only role
+# that wrote anything. SAG breaks that: a driver needs to move a pickup along
+# its workflow and must not be able to revoke a link or rewrite the roster.
+#
+# So permission is per capability rather than per role. Each mutating endpoint
+# names the capability it needs, in one place, and a role is a set of them.
+# Widening a role stays a change to this table rather than to the endpoints.
+
+CAP_INCIDENTS = "incidents"   # open a pickup, move it along, fill in the bib
+CAP_STATIONS = "stations"     # a roster entry's operational status
+CAP_SSID = "ssid"             # adopt or dismiss an unexpected SSID
+CAP_LEADERS = "leaders"       # lead runner sightings
+CAP_COURSE = "course"         # bib colours and course styling
+
+ALL_CAPABILITIES = frozenset(
+    {CAP_INCIDENTS, CAP_STATIONS, CAP_SSID, CAP_LEADERS, CAP_COURSE}
+)
+
+ROLE_CAPABILITIES = {
+    ROLE_NCS: ALL_CAPABILITIES,
+    # A SAG driver marks a pickup en route, picked up and dropped off, and
+    # fills in the bib once they have the runner in front of them. Nothing
+    # else: this is a bearer link in a moving vehicle, and the blast radius of
+    # a lost phone should be one incident queue, not the whole event.
+    ROLE_SAG: frozenset({CAP_INCIDENTS}),
+    ROLE_LIAISON: frozenset(),
+    ROLE_LOGISTICS: frozenset(),
+}
+
+# Kept for the roster filter and anything asking the old yes/no question.
+WRITE_ROLES = tuple(
+    role for role, caps in ROLE_CAPABILITIES.items() if caps
+)
 
 
 @dataclass(frozen=True)
@@ -47,14 +84,24 @@ class Access:
     token: str
 
     @property
-    def can_write(self) -> bool:
-        """Only NCS writes in v1.
+    def capabilities(self) -> frozenset[str]:
+        return ROLE_CAPABILITIES.get(self.role, frozenset())
 
-        Every mutation goes through a single server-side check regardless of
-        role, so granting Liaison write access later is a permission change
-        rather than a rewrite.
+    def can(self, capability: str) -> bool:
+        """Whether this role may perform one kind of mutation.
+
+        The single server-side check every mutating endpoint goes through.
         """
-        return self.role in WRITE_ROLES
+        return capability in self.capabilities
+
+    @property
+    def can_write(self) -> bool:
+        """Whether this role may change anything at all.
+
+        Only useful for deciding whether to show a role the write affordances
+        in general; anything specific must ask `can()` for its capability.
+        """
+        return bool(self.capabilities)
 
     @property
     def role_label(self) -> str:
