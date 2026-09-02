@@ -5,6 +5,7 @@ KML/KMZ, overlaid with live APRS positions of the ham radio operators supporting
 the event. Built to be stood up by a radio club without much effort.
 
 Full plan, phase detail, and **known gaps / open threads**: `docs/PLAN.md`.
+Event-day operating procedure: `docs/RUNBOOK.md`.
 Complete history with the reasoning behind each fix: `CHANGELOG.md`.
 Open work is also tracked as GitHub issues (issue #1: GPX import).
 
@@ -46,7 +47,7 @@ awt courses marathon2026
 awt style-course marathon2026 1 --color "#cc3333" --order 10
 awt set-w3w marathon2026 4 index.home.raft
 
-awt links marathon2026           # the two role URLs to send out
+awt links marathon2026           # the three role URLs to send out
 awt serve marathon2026           # web server + live APRS-IS ingest
 awt serve marathon2026 --no-ingest   # map only, no APRS-IS connection
 awt list-links marathon2026 / awt revoke-link marathon2026 <id>
@@ -71,7 +72,7 @@ src/aprswebtracker/
   units.py        metric storage -> US customary display
   styling.py      course colors, line styles, draw order
   what3words.py   normalize/validate W3W strings, no API
-  access.py       role tokens: ncs writes, liaison reads
+  access.py       role tokens: ncs writes; liaison + logistics read
   hub.py          per-event fan-out, bounded queues
   web.py          FastAPI: map page, state snapshot, WebSocket
   static/         Leaflet client, no build step
@@ -81,6 +82,7 @@ tests/fixtures/messy_course.kml     synthetic KML with real organizer defects
 tests/fixtures/mankato_marathon.kml REAL MapMyRun export, 26.4 mi; the only
                                     realistic course we have - use it for Phase 5
 docs/PLAN.md                        plan, decisions, known gaps
+docs/RUNBOOK.md                     event-day procedure for the club
 ```
 
 ## Domain rules that are easy to get wrong
@@ -170,6 +172,39 @@ usability, not style preferences.
 - **CLI output stays ASCII.** Em dashes become mojibake in the Windows console,
   and a club laptop is the target environment.
 
+## Documentation discipline — do this every cycle
+
+Documentation is maintained as work happens, not batched up at the end. Batched
+docs get skipped, and the reasoning behind a decision is unrecoverable a week
+later. **Before considering any change complete, update every file below that it
+touches.** This is not optional polish; it is how the next session (or the next
+person) avoids re-deriving what was already settled.
+
+| File | Update when | What goes in it |
+|---|---|---|
+| `CHANGELOG.md` | **every** change | Full entry under `## [Unreleased]`, newest first. Added / Changed / Fixed. For a fix, say what broke and **why it mattered** — not just what was edited. |
+| `CLAUDE.md` | every change | The "Recent changes" list — one line per entry, trimmed to exactly 10. Plus a new "Domain rules" bullet if the change revealed a trap. Plus the test count and status line if those moved. |
+| `docs/PLAN.md` | a *decision* changes | Phase detail, resolved questions, known gaps. If the user settles a question in conversation, it lands here — conversation is not storage. |
+| `docs/RUNBOOK.md` | operator-visible behavior changes | New command, new failure mode, new thing a volunteer must do on event day. |
+| `README.md` | user-facing behavior changes | Setup, commands, what the thing does. |
+| GitHub issues | work deferred, not done | Anything discovered but out of scope now. Reference the issue number in `docs/PLAN.md` known gaps. |
+
+Rules that keep this honest:
+
+- **A discovered constraint is documentation.** If something turns out to be
+  impossible, paid, blocked by a browser, or true only of one file format, it
+  goes in `docs/PLAN.md` known gaps immediately — even with no code change.
+- **Record why, not just what.** "Fixed stitch bug" is worthless in six months.
+  "Growing the chain only from the tail folded the course back on itself" is
+  what stops it being reintroduced.
+- **A real-data finding gets a test, not a note.** Facts about a real file
+  (distance, point count, gaps) belong in `test_real_course.py`, so a change
+  that breaks the assumption fails loudly rather than drifting.
+- **Never let CLAUDE.md hold content.** It is an index and a rule list. Detail
+  lives in `docs/`; history lives in `CHANGELOG.md`.
+- **Keep CLI output and docs in step.** If a command's flags change, the README
+  and runbook examples change in the same commit.
+
 ## Conventions
 
 - Python 3.11+, `from __future__ import annotations`, dataclasses for value types.
@@ -187,6 +222,7 @@ usability, not style preferences.
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-02** Added `docs/RUNBOOK.md` and a documentation-discipline checklist to CLAUDE.md.
 - **2026-09-02** Preserved the real Mankato course as a fixture with 8 regression tests.
 - **2026-09-02** Added "Known gaps and open threads" to `docs/PLAN.md`.
 - **2026-09-02** Split Logistics out as its own read-only role, separate from Liaison.
@@ -196,4 +232,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-02** Fixed: connection badge was hidden behind Leaflet's zoom control.
 - **2026-09-02** Fixed: `Subscription` was unhashable; `@dataclass` unset `__hash__`.
 - **2026-09-02** Added `access.py`, `hub.py`, `web.py` and the `serve`/`links` CLI commands.
-- **2026-09-02** Added `styleUrl` capture; start/finish markers sharing a name are now distinguishable.
