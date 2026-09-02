@@ -6,6 +6,9 @@ PRAGMA foreign_keys = ON;
 
 CREATE TABLE IF NOT EXISTS event (
     id                INTEGER PRIMARY KEY,
+    -- The club that owns this event. Forward reference: SQLite resolves
+    -- foreign keys lazily, so the table order here does not matter.
+    organization_id   INTEGER REFERENCES organization(id) ON DELETE CASCADE,
     slug              TEXT    NOT NULL UNIQUE,
     name              TEXT    NOT NULL,
     event_date        TEXT,
@@ -327,6 +330,9 @@ CREATE TABLE IF NOT EXISTS user (
     password_hash TEXT    NOT NULL,
     -- system_admin | event_admin
     role          TEXT    NOT NULL,
+    -- The club this administrator belongs to. NULL for a system administrator,
+    -- who is not part of any one club.
+    organization_id INTEGER REFERENCES organization(id) ON DELETE CASCADE,
     display_name  TEXT,
     is_active     INTEGER NOT NULL DEFAULT 1,
     created_at    TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
@@ -353,3 +359,17 @@ CREATE TABLE IF NOT EXISTS session (
 );
 
 CREATE INDEX IF NOT EXISTS idx_session_user ON session (user_id);
+
+-- A club or organizing body. The tenancy boundary.
+--
+-- Added so this can be hosted for several clubs: an organization creates and
+-- runs its own events without a system administrator in the loop, and cannot
+-- see anyone else's. Every event belongs to exactly one.
+CREATE TABLE IF NOT EXISTS organization (
+    id         INTEGER PRIMARY KEY,
+    slug       TEXT    NOT NULL UNIQUE,
+    name       TEXT    NOT NULL,
+    contact    TEXT,
+    is_active  INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+);

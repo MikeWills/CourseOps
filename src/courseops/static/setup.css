@@ -1,0 +1,235 @@
+/* Setup screens.
+   Desktop-first, unlike the map: this is done at a workstation before the
+   event, not one-handed on a phone in daylight. It still has to work on a
+   tablet, so nothing is narrower than it needs to be. */
+
+body.setup {
+  overflow: auto;
+  background: #f3f5f8;
+}
+
+#setup-bar {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  background: var(--navy-700);
+  color: #fff;
+  border-bottom: 3px solid var(--orange);
+}
+#setup-title { font-size: 14px; color: rgba(255, 255, 255, 0.72); flex: 1; }
+#whoami { font-size: 13px; color: rgba(255, 255, 255, 0.9); }
+#logout {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 8px;
+  background: transparent;
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+/* --- sign in ------------------------------------------------------------- */
+
+.gate {
+  display: grid;
+  place-items: center;
+  min-height: calc(100vh - 60px);
+  padding: 24px;
+}
+.gate .card { width: min(420px, 100%); }
+.gate h1 { margin: 0 0 6px; font-size: 20px; }
+
+/* --- shell --------------------------------------------------------------- */
+
+#app { max-width: 1100px; margin: 0 auto; padding: 18px 16px 60px; }
+
+#tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+.tab {
+  min-height: 42px;
+  padding: 0 14px;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: none;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.tab.is-on { color: var(--navy-700); border-bottom-color: var(--orange); }
+
+.panel h2 { font-size: 16px; margin: 18px 0 8px; }
+.panel h2:first-child { margin-top: 0; }
+.panel h3 { font-size: 14px; margin: 0 0 10px; }
+
+#event-context { margin: 0 0 12px; font-weight: 650; color: var(--navy-700); }
+
+.banner {
+  padding: 10px 12px;
+  margin: 0 0 12px;
+  border-radius: 8px;
+  border-left: 4px solid var(--fresh);
+  background: #e7f4ec;
+  font-size: 14px;
+}
+.banner.is-error { border-left-color: var(--silent); background: #fbe4e2; }
+
+/* --- cards and forms ----------------------------------------------------- */
+
+.card {
+  padding: 14px;
+  margin: 12px 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--paper);
+}
+
+.field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; flex: 1; }
+.field > span { font-size: 13px; font-weight: 650; }
+.field input, .field select {
+  min-height: 40px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 15px;
+  color: var(--ink);
+  background: var(--paper);
+}
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+.row > .field { min-width: 160px; }
+
+.check { display: flex; gap: 10px; align-items: flex-start; margin: 6px 0 12px; }
+.check input { width: 20px; height: 20px; margin-top: 2px; flex: none; }
+.check small { display: block; color: var(--ink-soft); font-weight: 400; }
+
+button.primary {
+  min-height: 42px;
+  padding: 0 16px;
+  border: 1px solid var(--navy-700);
+  border-radius: 8px;
+  background: var(--navy-700);
+  color: #fff;
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+.panel button:not(.primary):not(.tab), .gate button:not(.primary) {
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+  font: inherit;
+  color: var(--ink);
+  cursor: pointer;
+}
+button.danger { color: var(--silent); border-color: #e3a9a4; }
+
+.error { color: var(--silent); font-size: 13px; font-weight: 650; margin: 4px 0; }
+
+/* --- tables -------------------------------------------------------------- */
+
+table.grid { width: 100%; border-collapse: collapse; font-size: 14px; }
+table.grid th {
+  text-align: left;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-soft);
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line);
+}
+table.grid td { padding: 8px; border-bottom: 1px solid #eef1f5; vertical-align: middle; }
+table.grid tr:last-child td { border-bottom: 0; }
+table.grid .actions { text-align: right; white-space: nowrap; }
+table.grid button { min-height: 34px; padding: 0 10px; font-size: 13px; }
+
+.pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 650;
+  background: #e7ecf3;
+  color: var(--navy-700);
+}
+.pill.is-off { background: #fbe4e2; color: var(--silent); }
+.swatch-dot {
+  display: inline-block; width: 14px; height: 14px;
+  border-radius: 3px; border: 1px solid rgba(0,0,0,.25);
+  vertical-align: -2px; margin-right: 6px;
+}
+
+/* --- course review ------------------------------------------------------- */
+
+.upload {
+  display: block;
+  padding: 18px;
+  border: 2px dashed var(--line);
+  border-radius: 10px;
+  background: var(--paper);
+  text-align: center;
+  cursor: pointer;
+  font-weight: 650;
+}
+.upload input { display: none; }
+
+#review-map {
+  height: 380px;
+  margin: 12px 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.feature {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border-bottom: 1px solid #eef1f5;
+  cursor: pointer;
+}
+.feature:last-child { border-bottom: 0; }
+/* Selected features are outlined on the map at the same time, so the list and
+   the map always agree about what is about to be assigned. */
+.feature.is-picked { background: #eaf2fb; }
+.feature input { width: 20px; height: 20px; flex: none; }
+.feature .what { flex: 1; }
+.feature .where { font-size: 12px; color: var(--ink-soft); }
+.feature .hint { font-size: 12px; color: var(--ink-soft); white-space: nowrap; }
+
+/* --- links --------------------------------------------------------------- */
+
+.link-row { padding: 12px; border-bottom: 1px solid #eef1f5; }
+.link-row:last-child { border-bottom: 0; }
+.link-role { font-weight: 700; margin-bottom: 4px; }
+.link-url {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f7f9fc;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  word-break: break-all;
+}
+.link-actions { display: flex; gap: 8px; margin-top: 8px; }
+
+@media (max-width: 640px) {
+  .row > .field { min-width: 100%; }
+  table.grid { font-size: 13px; }
+}

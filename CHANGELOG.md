@@ -7,6 +7,46 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-09-02 - Setup UI, admin accounts and organizations
+
+The project's premise is that a club can stand this up without much effort, and
+a CLI-only setup contradicted that: a dozen terminal commands before anyone saw
+a map. Setup now lives in the browser.
+
+Only two things stay outside it, because they happen before it exists: the
+callsign in `.env`, and starting the server.
+
+#### Added
+- `/setup` - a signed-in setup application covering organizations, events,
+  course import, aid stations, roster, access links and administrators.
+- **Visual course review.** Phase 2's plan called for a review *screen*; it had
+  been built as a CLI listing. Staged features are now drawn on a map, and
+  selecting on the map and in the list stay in sync - which is the point,
+  because organizer files are wrong in ways a list of names cannot show.
+- **Organizations**, the tenancy layer, so this can be hosted for several clubs.
+  Every event belongs to one; a club cannot see another's events or admins.
+- Three admin roles: `system_admin` (the host), `org_admin` (a club officer,
+  scoped to their club) and `event_admin` (specific events within their club).
+- `admin.py`, `users.py`, `setup.html/js/css`, and 27 setup endpoints.
+- First-run flow: with no accounts, `/setup` offers to create the first system
+  administrator and closes permanently once one exists.
+- 33 tests (255 total).
+
+#### Security notes
+- Every event-scoped route goes through one `may_access_event`, so widening or
+  narrowing access is a change in one place.
+- An event assignment left behind after someone changes club grants nothing:
+  the organization check runs first. There is a test for exactly that.
+- An org admin cannot create a system administrator, nor manage another club's
+  people. The last active system administrator cannot be deleted or disabled.
+- Session cookies are HttpOnly, SameSite=Lax, and Secure when served over HTTPS.
+
+#### Fixed
+- The setup page templated `__FIRST_RUN__`, which also matched the JavaScript
+  variable of the same name - so the substitution produced `window.false =
+  false` and the flag was silently never set. Found by inspecting the served
+  HTML rather than trusting the code; the token is now `{{FIRST_RUN}}`.
+
 ### 2026-09-02 - Layer toggles are switches
 
 #### Changed

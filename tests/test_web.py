@@ -856,3 +856,22 @@ def test_ignoring_hides_positions_already_stored(setup):
 
     assert not any(p["station_key"] == "WX0MIK-7" for p in after["positions"])
     assert after["ssid_alerts"] == []
+
+
+# --- setup page templating --------------------------------------------------
+
+def test_the_first_run_flag_is_substituted_not_swallowed(setup):
+    """A placeholder equal to the variable name was replaced on both sides,
+    producing `window.false = false` and losing the flag entirely."""
+    app, _, _, _ = setup
+    with TestClient(app) as client:
+        html = client.get("/setup").text
+
+    import re
+    scripts = re.findall(r"<script>(.*?)</script>", html, re.S)
+    flag = next(s for s in scripts if "__FIRST_RUN__" in s)
+
+    assert "{{FIRST_RUN}}" not in flag
+    assert "window.false" not in flag          # the bug: both sides replaced
+    assert flag.strip() in ("window.__FIRST_RUN__ = true;",
+                            "window.__FIRST_RUN__ = false;")

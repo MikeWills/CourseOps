@@ -19,6 +19,11 @@ def conn(tmp_path):
 
 
 @pytest.fixture
+def org(conn):
+    return users.create_organization(conn, "club", "Radio Club")["id"]
+
+
+@pytest.fixture
 def admin(conn):
     return users.create_user(conn, "mike", "a-long-enough-password",
                              users.ROLE_SYSTEM_ADMIN, "Mike")
@@ -73,9 +78,10 @@ def test_the_hash_records_its_own_cost_so_it_can_be_raised_later(conn, admin):
     assert users.verify_password("another password", old)
 
 
-def test_short_passwords_are_refused(conn):
+def test_short_passwords_are_refused(conn, org):
     with pytest.raises(users.AuthError, match="at least"):
-        users.create_user(conn, "bob", "short", users.ROLE_EVENT_ADMIN)
+        users.create_user(conn, "bob", "short", users.ROLE_EVENT_ADMIN,
+                          organization_id=org)
 
 
 # --- authentication ---------------------------------------------------------
@@ -107,10 +113,10 @@ def test_a_deactivated_account_cannot_log_in(conn, admin):
         users.authenticate(conn, "mike", "a-long-enough-password")
 
 
-def test_duplicate_usernames_are_refused(conn, admin):
+def test_duplicate_usernames_are_refused(conn, admin, org):
     with pytest.raises(users.AuthError, match="already exists"):
         users.create_user(conn, "mike", "another-long-password",
-                          users.ROLE_EVENT_ADMIN)
+                          users.ROLE_EVENT_ADMIN, organization_id=org)
 
 
 # --- sessions ---------------------------------------------------------------
@@ -167,12 +173,11 @@ def test_a_system_admin_may_access_every_event(conn, admin):
     assert users.may_access_event(conn, admin, event_id) is True
 
 
-def test_an_event_admin_only_reaches_assigned_events(conn):
-    """What keeps one club's officer out of another club's event."""
-    mine = db.create_event(conn, "mine", "Mine")
-    theirs = db.create_event(conn, "theirs", "Theirs")
+def test_an_event_admin_only_reaches_assigned_events(conn, org):
+    mine = db.create_event(conn, "mine", "Mine", organization_id=org)
+    theirs = db.create_event(conn, "theirs", "Theirs", organization_id=org)
     officer = users.create_user(conn, "officer", "a-long-enough-password",
-                                users.ROLE_EVENT_ADMIN)
+                                users.ROLE_EVENT_ADMIN, organization_id=org)
 
     users.set_events(conn, officer.id, [mine])
 
@@ -180,11 +185,11 @@ def test_an_event_admin_only_reaches_assigned_events(conn):
     assert users.may_access_event(conn, officer, theirs) is False
 
 
-def test_event_assignment_can_be_replaced(conn):
-    first = db.create_event(conn, "a", "A")
-    second = db.create_event(conn, "b", "B")
+def test_event_assignment_can_be_replaced(conn, org):
+    first = db.create_event(conn, "a", "A", organization_id=org)
+    second = db.create_event(conn, "b", "B", organization_id=org)
     officer = users.create_user(conn, "officer", "a-long-enough-password",
-                                users.ROLE_EVENT_ADMIN)
+                                users.ROLE_EVENT_ADMIN, organization_id=org)
 
     users.set_events(conn, officer.id, [first])
     users.set_events(conn, officer.id, [second])
@@ -198,10 +203,10 @@ def test_the_last_system_admin_can_be_counted(conn, admin):
     assert users.count_system_admins(conn, exclude_id=admin.id) == 0
 
 
-def test_deleting_a_user_removes_their_event_assignments(conn):
-    event_id = db.create_event(conn, "e", "Event")
+def test_deleting_a_user_removes_their_event_assignments(conn, org):
+    event_id = db.create_event(conn, "e", "Event", organization_id=org)
     officer = users.create_user(conn, "officer", "a-long-enough-password",
-                                users.ROLE_EVENT_ADMIN)
+                                users.ROLE_EVENT_ADMIN, organization_id=org)
     users.set_events(conn, officer.id, [event_id])
 
     users.delete_user(conn, officer.id)
@@ -214,3 +219,107 @@ def test_first_run_has_no_users(conn):
     users.create_user(conn, "mike", "a-long-enough-password",
                       users.ROLE_SYSTEM_ADMIN)
     assert users.any_users(conn) is True
+
+
+# --- organizations: the tenancy boundary ------------------------------------
+#
+# Added so this can be hosted for several clubs. The property under test
+# throughout: one club must not see or touch another's events.
+
+def test_an_admin_outside_a_system_role_needs_an_organization(conn):
+    """Otherwise they belong to nobody and are scoped by nothing."""
+    with pytest.raises(users.AuthError, match="outside an organization"):
+        users.create_user(conn, "orphan", "a-long-enough-password",
+                          users.ROLE_ORG_ADMIN)
+
+
+def test_a_system_admin_belongs_to_no_organization(conn, admin):
+    assert admin.organization_id is None
+    assert admin.is_system_admin
+
+
+def test_an_org_admin_reaches_every_event_in_their_club(conn, org):
+    """The club is the scope; no per-event assignment needed."""
+    first = db.create_event(conn, "a", "A", organization_id=org)
+    second = db.create_event(conn, "b", "B", organization_id=org)
+    chair = users.create_user(conn, "chair", "a-long-enough-password",
+                              users.ROLE_ORG_ADMIN, organization_id=org)
+
+    assert users.may_access_event(conn, chair, first) is True
+    assert users.may_access_event(conn, chair, second) is True
+
+
+def test_an_org_admin_cannot_reach_another_clubs_event(conn, org):
+    other = users.create_organization(conn, "other", "Other Club")["id"]
+    theirs = db.create_event(conn, "theirs", "Theirs", organization_id=other)
+    chair = users.create_user(conn, "chair", "a-long-enough-password",
+                              users.ROLE_ORG_ADMIN, organization_id=org)
+
+    assert users.may_access_event(conn, chair, theirs) is False
+
+
+def test_a_stale_assignment_does_not_survive_a_club_change(conn, org):
+    """An assignment left behind must not become a way into another club."""
+    other = users.create_organization(conn, "other", "Other Club")["id"]
+    theirs = db.create_event(conn, "theirs", "Theirs", organization_id=other)
+    officer = users.create_user(conn, "officer", "a-long-enough-password",
+                                users.ROLE_EVENT_ADMIN, organization_id=org)
+
+    users.set_events(conn, officer.id, [theirs])     # assigned across clubs
+
+    # The organization check runs first, so the assignment alone is not enough.
+    assert users.may_access_event(conn, officer, theirs) is False
+
+
+def test_a_system_admin_reaches_every_club(conn, admin):
+    other = users.create_organization(conn, "other", "Other Club")["id"]
+    theirs = db.create_event(conn, "theirs", "Theirs", organization_id=other)
+    assert users.may_access_event(conn, admin, theirs) is True
+
+
+def test_an_event_with_no_organization_is_reachable_only_by_the_host(conn, org, admin):
+    orphan = db.create_event(conn, "orphan", "Orphan")
+    chair = users.create_user(conn, "chair", "a-long-enough-password",
+                              users.ROLE_ORG_ADMIN, organization_id=org)
+
+    assert users.may_access_event(conn, admin, orphan) is True
+    assert users.may_access_event(conn, chair, orphan) is False
+
+
+def test_orphan_events_are_adopted_on_upgrade(conn):
+    """Events predate organizations; an upgrade must not strand them."""
+    db.create_event(conn, "old", "Old Event")
+    conn.execute("UPDATE event SET organization_id = NULL")
+
+    db.init_schema(conn)
+
+    assert conn.execute(
+        "SELECT organization_id FROM event"
+    ).fetchone()["organization_id"] is not None
+
+
+def test_who_may_manage_whom(conn, org, admin):
+    other = users.create_organization(conn, "other", "Other Club")["id"]
+    ours = users.create_user(conn, "ours", "a-long-enough-password",
+                             users.ROLE_EVENT_ADMIN, organization_id=org)
+    theirs = users.create_user(conn, "theirs", "a-long-enough-password",
+                               users.ROLE_EVENT_ADMIN, organization_id=other)
+    chair = users.create_user(conn, "chair", "a-long-enough-password",
+                              users.ROLE_ORG_ADMIN, organization_id=org)
+
+    assert users.may_manage_user(conn, admin, theirs) is True      # host: anyone
+    assert users.may_manage_user(conn, chair, ours) is True        # own club
+    assert users.may_manage_user(conn, chair, theirs) is False     # another club
+    assert users.may_manage_user(conn, chair, admin) is False      # never the host
+    assert users.may_manage_user(conn, ours, ours) is False        # not an admin
+
+
+def test_role_capabilities(conn, org, admin):
+    chair = users.create_user(conn, "chair", "a-long-enough-password",
+                              users.ROLE_ORG_ADMIN, organization_id=org)
+    officer = users.create_user(conn, "officer", "a-long-enough-password",
+                                users.ROLE_EVENT_ADMIN, organization_id=org)
+
+    assert (admin.may_create_events, admin.may_manage_users) == (True, True)
+    assert (chair.may_create_events, chair.may_manage_users) == (True, True)
+    assert (officer.may_create_events, officer.may_manage_users) == (False, False)

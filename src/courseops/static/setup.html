@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light">
+<title>Course Ops — Setup</title>
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+<link rel="shortcut icon" href="/static/favicon.ico">
+<meta name="theme-color" content="#0B2545">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<link rel="stylesheet" href="/static/app.css">
+<link rel="stylesheet" href="/static/setup.css">
+</head>
+<body class="setup">
+
+<header id="setup-bar">
+  <div id="brand">
+    <img src="/static/logo-pin.svg" alt="">
+    <span id="brand-name">Course&nbsp;Ops</span>
+  </div>
+  <span id="setup-title">Setup</span>
+  <span id="whoami" hidden></span>
+  <button id="logout" type="button" hidden>Sign out</button>
+</header>
+
+<!-- Sign in / first run ------------------------------------------------- -->
+<main id="gate" class="gate" hidden>
+  <form id="gate-form" class="card">
+    <h1 id="gate-heading">Sign in</h1>
+    <p id="gate-intro" class="muted"></p>
+
+    <label class="field">
+      <span>Username</span>
+      <input id="gate-username" type="text" autocomplete="username" required>
+    </label>
+
+    <label class="field" id="gate-display-field" hidden>
+      <span>Your name</span>
+      <input id="gate-display" type="text" autocomplete="name">
+    </label>
+
+    <label class="field">
+      <span>Password</span>
+      <input id="gate-password" type="password" autocomplete="current-password" required>
+    </label>
+
+    <p id="gate-error" class="error" hidden></p>
+    <button id="gate-submit" class="primary" type="submit">Sign in</button>
+  </form>
+</main>
+
+<!-- Setup application ---------------------------------------------------- -->
+<main id="app" hidden>
+  <nav id="tabs">
+    <button class="tab" data-tab="orgs" type="button" hidden>Organizations</button>
+    <button class="tab is-on" data-tab="events" type="button">Events</button>
+    <button class="tab" data-tab="course" type="button">Course</button>
+    <button class="tab" data-tab="stations" type="button">Aid stations</button>
+    <button class="tab" data-tab="roster" type="button">Roster</button>
+    <button class="tab" data-tab="links" type="button">Links</button>
+    <button class="tab" data-tab="users" type="button" hidden>Users</button>
+  </nav>
+
+  <p id="event-context" class="muted" hidden></p>
+  <p id="banner" class="banner" hidden></p>
+
+  <section class="panel" data-panel="orgs" hidden>
+    <h2>Organizations</h2>
+    <p class="muted">
+      Each club owns its own events and administrators, and cannot see another's.
+    </p>
+    <div id="org-list"></div>
+    <form id="org-form" class="card">
+      <h3>Add an organization</h3>
+      <div class="row">
+        <label class="field"><span>Short name</span>
+          <input id="og-slug" type="text" placeholder="mankato-arc" required></label>
+        <label class="field"><span>Full name</span>
+          <input id="og-name" type="text" placeholder="Mankato Amateur Radio Club" required></label>
+      </div>
+      <label class="field"><span>Contact</span>
+        <input id="og-contact" type="text" placeholder="w0abc@example.org"></label>
+      <p id="org-error" class="error" hidden></p>
+      <button class="primary" type="submit">Create organization</button>
+    </form>
+  </section>
+
+  <section class="panel" data-panel="events">
+    <h2>Events</h2>
+    <div id="event-list"></div>
+    <form id="event-form" class="card" hidden>
+      <h3>New event</h3>
+      <label class="field"><span>Short name (used in links)</span>
+        <input id="ev-slug" type="text" placeholder="mankato2026" required></label>
+      <label class="field"><span>Full name</span>
+        <input id="ev-name" type="text" placeholder="2026 Mankato Marathon" required></label>
+      <label class="field" id="ev-org-field" hidden><span>Organization</span>
+        <select id="ev-org"></select></label>
+      <div class="row">
+        <label class="field"><span>Date</span>
+          <input id="ev-date" type="date"></label>
+        <label class="field"><span>Time zone</span>
+          <input id="ev-tz" type="text" value="America/Chicago"></label>
+      </div>
+      <p id="event-error" class="error" hidden></p>
+      <button class="primary" type="submit">Create event</button>
+    </form>
+  </section>
+
+  <section class="panel" data-panel="course" hidden>
+    <h2>Course files</h2>
+    <p class="muted">
+      Upload the organizer's KML or KMZ. Import is additive — the full course,
+      the half and the water stops usually arrive as separate files.
+    </p>
+    <label class="upload">
+      <input id="course-file" type="file" accept=".kml,.kmz">
+      <span>Choose a KML or KMZ file…</span>
+    </label>
+    <p id="import-status" class="muted" hidden></p>
+
+    <div id="review" hidden>
+      <h3>Review <span id="review-count" class="muted"></span></h3>
+      <p class="muted">
+        Nothing becomes a course or an aid station until you say so. Select on
+        the map or in the list, then choose what it is.
+      </p>
+      <div id="review-map"></div>
+      <div id="review-list"></div>
+      <div id="review-actions" class="card" hidden>
+        <div class="row">
+          <label class="field"><span>Name</span>
+            <input id="assign-name" type="text" placeholder="Full"></label>
+          <label class="field"><span>Type</span>
+            <select id="assign-type">
+              <option value="course">Course</option>
+              <option value="aid_station">Aid station</option>
+              <option value="start">Start</option>
+              <option value="finish">Finish</option>
+              <option value="start_finish">Start / finish</option>
+              <option value="medical">Medical</option>
+              <option value="parking">Parking</option>
+              <option value="other">Other</option>
+            </select></label>
+        </div>
+        <label class="check"><input id="assign-reverse" type="checkbox">
+          <span>Reverse direction (drawn finish to start)</span></label>
+        <div class="row">
+          <button id="assign-go" class="primary" type="button">Assign</button>
+          <button id="assign-discard" type="button">Discard</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" data-panel="stations" hidden>
+    <h2>Courses</h2>
+    <div id="course-table"></div>
+    <h2>Aid stations <span class="muted">in course order</span></h2>
+    <div id="poi-table"></div>
+  </section>
+
+  <section class="panel" data-panel="roster" hidden>
+    <h2>Roster</h2>
+    <p class="muted">
+      Use the callsign each person actually transmits with, including the SSID.
+      If they get it wrong, the app will tell you on the map.
+    </p>
+    <div id="roster-table"></div>
+    <form id="roster-form" class="card">
+      <h3 id="roster-form-title">Add a station</h3>
+      <div class="row">
+        <label class="field"><span>Callsign with SSID</span>
+          <input id="rs-call" type="text" placeholder="N0CALL-9" required></label>
+        <label class="field"><span>Label</span>
+          <input id="rs-label" type="text" placeholder="Full-back" required></label>
+      </div>
+      <div class="row">
+        <label class="field"><span>Role</span>
+          <select id="rs-category"></select></label>
+        <label class="field"><span>Operator name</span>
+          <input id="rs-operator" type="text"></label>
+      </div>
+      <div class="row">
+        <label class="field"><span>Posted at</span>
+          <select id="rs-poi"><option value="">Not posted</option></select></label>
+      </div>
+      <label class="check"><input id="rs-aprs" type="checkbox" checked>
+        <span>Expected to beacon APRS
+          <small>Leave off for aid station operators who do not transmit —
+          it keeps them out of the “gone quiet” alerts.</small></span></label>
+      <p id="roster-error" class="error" hidden></p>
+      <div class="row">
+        <button class="primary" type="submit">Save station</button>
+        <button id="roster-cancel" type="button" hidden>Cancel</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="panel" data-panel="links" hidden>
+    <h2>Access links</h2>
+    <p class="muted">
+      One link per role. Anyone holding a link has that role — send each to the
+      right group only.
+    </p>
+    <div id="link-list"></div>
+  </section>
+
+  <section class="panel" data-panel="users" hidden>
+    <h2>Administrators</h2>
+    <div id="user-list"></div>
+    <form id="user-form" class="card">
+      <h3>Add an administrator</h3>
+      <div class="row">
+        <label class="field"><span>Username</span>
+          <input id="us-name" type="text" required></label>
+        <label class="field"><span>Display name</span>
+          <input id="us-display" type="text"></label>
+      </div>
+      <div class="row">
+        <label class="field"><span>Password</span>
+          <input id="us-pass" type="password" autocomplete="new-password" required></label>
+        <label class="field"><span>Role</span>
+          <select id="us-role"></select></label>
+      </div>
+      <div class="row">
+        <label class="field" id="us-org-field" hidden><span>Organization</span>
+          <select id="us-org"></select></label>
+      </div>
+      <div id="us-events-field" class="field" hidden>
+        <span>Events they may manage</span>
+        <div id="us-events"></div>
+      </div>
+      <p id="user-error" class="error" hidden></p>
+      <button class="primary" type="submit">Create administrator</button>
+    </form>
+  </section>
+</main>
+
+<!-- The token must not collide with the property name: a plain
+     __FIRST_RUN__ placeholder was replaced on BOTH sides, producing
+     `window.false = false` and silently losing the flag. -->
+<script>window.__FIRST_RUN__ = {{FIRST_RUN}};</script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="/static/setup.js"></script>
+</body>
+</html>
