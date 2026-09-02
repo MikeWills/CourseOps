@@ -124,6 +124,9 @@ usability, not style preferences.
 - **Never interpolate marker movement.** Updates arrive every 1-5 minutes with
   gaps. Showing a position that was never reported is worse than showing a stale
   one, because someone will act on it. Sparse jumps are correct.
+- **Switch state is carried by knob POSITION, colour only reinforces it.**
+  Green/red is the worst pair for red-green deficiency and washes out in
+  sunlight. Never make colour the only cue for any state in this app.
 - **Surface silent failures in the UI, not in a command.** A wrong SSID makes
   someone invisible with no error; `ssid_alerts` puts it in front of NCS
   unprompted. Anything that depends on remembering to run a check will be
