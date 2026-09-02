@@ -7,7 +7,7 @@ import asyncio
 import logging
 import sys
 
-from . import aprsis, db, importer, kml, styling, units, what3words
+from . import access, aprsis, db, importer, kml, styling, units, what3words
 from .config import Settings, load_dotenv
 
 CATEGORIES = [
@@ -337,6 +337,94 @@ def cmd_set_w3w(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_links(args: argparse.Namespace) -> int:
+    """Show the role URLs to paste into the right group texts."""
+    settings = _settings()
+    conn = db.connect(settings.db_path)
+    db.init_schema(conn)
+    event = _event_or_exit(conn, args.event)
+
+    if args.new:
+        token = access.create_token(conn, event["id"], args.new)
+        print(f"New {access.ROLE_LABELS[args.new]} link created.\n")
+
+    tokens = access.ensure_tokens(conn, event["id"])
+    base = args.base_url.rstrip("/")
+    print(f"Access links for {event['name']!r}:\n")
+    for role in access.ROLES:
+        print(f"  {access.ROLE_LABELS[role]}")
+        print(f"    {base}/e/{event['slug']}/{tokens[role]}\n")
+    print("These are bearer links - anyone holding one has that role.")
+    print("Send each to the right group only. Revoke with:  awt revoke-link <event> <id>")
+
+    revoked = [r for r in access.tokens_for_event(conn, event["id"]) if r["revoked"]]
+    if revoked:
+        print(f"\n({len(revoked)} revoked link(s) not shown.)")
+    return 0
+
+
+def cmd_list_links(args: argparse.Namespace) -> int:
+    settings = _settings()
+    conn = db.connect(settings.db_path)
+    event = _event_or_exit(conn, args.event)
+    rows = access.tokens_for_event(conn, event["id"])
+    if not rows:
+        print("No links yet. Create them with:  awt links <event>")
+        return 0
+    print(f"{'ID':>3}  {'ROLE':<9} {'STATUS':<8} {'LAST USED':<21} TOKEN")
+    for row in rows:
+        status = "revoked" if row["revoked"] else "active"
+        print(
+            f"{row['id']:>3}  {row['role']:<9} {status:<8} "
+            f"{row['last_used'] or 'never':<21} {row['token'][:12]}..."
+        )
+    return 0
+
+
+def cmd_revoke_link(args: argparse.Namespace) -> int:
+    settings = _settings()
+    conn = db.connect(settings.db_path)
+    _event_or_exit(conn, args.event)
+    if access.revoke(conn, args.token_id):
+        print(f"Link {args.token_id} revoked. Anyone holding it now gets a 404.")
+        return 0
+    print(f"No link with id {args.token_id}.", file=sys.stderr)
+    return 1
+
+
+def cmd_serve(args: argparse.Namespace) -> int:
+    import uvicorn
+
+    from .web import create_app
+
+    settings = _settings()
+    logging.basicConfig(
+        level=getattr(logging, settings.log_level, logging.INFO),
+        format="%(asctime)s %(levelname)-7s %(name)s: %(message)s",
+    )
+    conn = db.connect(settings.db_path)
+    db.init_schema(conn)
+
+    ingest_events = []
+    if args.event:
+        event = _event_or_exit(conn, args.event)
+        tokens = access.ensure_tokens(conn, event["id"])
+        base = args.base_url.rstrip("/")
+        print(f"\n{event['name']}\n")
+        for role in access.ROLES:
+            print(f"  {access.ROLE_LABELS[role]:<14} {base}/e/{event['slug']}/{tokens[role]}")
+        print()
+        if not args.no_ingest:
+            ingest_events = [args.event]
+        else:
+            print("APRS-IS ingest disabled (--no-ingest).\n")
+    conn.close()
+
+    app = create_app(settings, ingest_events=ingest_events)
+    uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="awt", description="AprsWebTracker")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -449,6 +537,38 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("poi_id", type=int)
     p.add_argument("words", help="e.g. filled.count.soap")
     p.set_defaults(func=cmd_set_w3w)
+
+    p = sub.add_parser("links", help="show the role URLs for an event")
+    p.add_argument("event")
+    p.add_argument("--base-url", default="http://localhost:8000")
+    p.add_argument(
+        "--new", choices=access.ROLES,
+        help="issue an additional link for this role before listing",
+    )
+    p.set_defaults(func=cmd_links)
+
+    p = sub.add_parser("list-links", help="list access links and their status")
+    p.add_argument("event")
+    p.set_defaults(func=cmd_list_links)
+
+    p = sub.add_parser("revoke-link", help="revoke an access link")
+    p.add_argument("event")
+    p.add_argument("token_id", type=int)
+    p.set_defaults(func=cmd_revoke_link)
+
+    p = sub.add_parser("serve", help="run the web server")
+    p.add_argument(
+        "event", nargs="?",
+        help="event to ingest and print links for; omit to serve without ingest",
+    )
+    p.add_argument("--host", default="127.0.0.1")
+    p.add_argument("--port", type=int, default=8000)
+    p.add_argument("--base-url", default="http://localhost:8000")
+    p.add_argument(
+        "--no-ingest", action="store_true",
+        help="serve the map without opening an APRS-IS connection",
+    )
+    p.set_defaults(func=cmd_serve)
 
     p = sub.add_parser("tail", help="show stored positions")
     p.add_argument("event")

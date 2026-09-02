@@ -145,3 +145,20 @@ CREATE TABLE IF NOT EXISTS import_feature (
 
 CREATE INDEX IF NOT EXISTS idx_import_feature_event
     ON import_feature (event_id, status);
+
+-- Role-based access. v1 has no user accounts: each event gets one long random
+-- URL per role, pasted into the right group text. It is a bearer token, exactly
+-- as secure as that message - appropriate for this data, and it lets a
+-- volunteer whose phone died be re-admitted by re-sending a link.
+CREATE TABLE IF NOT EXISTS access_token (
+    id         INTEGER PRIMARY KEY,
+    event_id   INTEGER NOT NULL REFERENCES event(id) ON DELETE CASCADE,
+    token      TEXT    NOT NULL UNIQUE,
+    role       TEXT    NOT NULL,   -- ncs | liaison
+    label      TEXT,
+    revoked    INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+    last_used  TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_access_token_event ON access_token (event_id, role);

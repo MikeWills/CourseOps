@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- viewport-fit=cover + safe-area insets below: the bottom sheet must clear
+     the home indicator on a modern phone, which is where the thumb lives. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="color-scheme" content="light">
+<title>AprsWebTracker</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+
+<div id="map"></div>
+
+<header id="topbar">
+  <div id="event-name">Loading…</div>
+  <div id="conn" class="conn conn--connecting" role="status" aria-live="polite">
+    <span id="conn-text">Connecting…</span>
+  </div>
+</header>
+
+<button id="locate-btn" type="button" title="Center on me" aria-label="Center on my location">◎</button>
+
+<button id="sheet-toggle" type="button" aria-expanded="false" aria-controls="sheet">
+  <span id="sheet-toggle-label">Layers</span>
+</button>
+
+<section id="sheet" aria-label="Layers and stations">
+  <div id="sheet-grip" role="button" tabindex="0" aria-label="Collapse panel"></div>
+
+  <div class="sheet-section">
+    <h2>Courses</h2>
+    <div id="course-list" class="toggle-list"></div>
+  </div>
+
+  <div class="sheet-section">
+    <h2>Map layers</h2>
+    <div id="layer-list" class="toggle-list"></div>
+  </div>
+
+  <div class="sheet-section">
+    <h2>Stations <span id="station-count" class="muted"></span></h2>
+    <div id="station-list"></div>
+  </div>
+
+  <p id="role-note" class="muted"></p>
+</section>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="/static/app.js"></script>
+</body>
+</html>

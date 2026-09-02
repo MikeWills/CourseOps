@@ -8,10 +8,10 @@ Full plan and phase detail: **`docs/PLAN.md`**. Complete history: **`CHANGELOG.m
 
 ## Status
 
-Phases 1 (APRS-IS ingest) and 2 (KML/KMZ import) are complete, driven from the
-CLI. No web server or UI exists yet. Repo: private, `MikeWills/AprsWebTracker`.
+Phases 1-3 complete: APRS-IS ingest, KML/KMZ import, and the live map with
+role-gated access. Repo: private, `MikeWills/AprsWebTracker`.
 
-Phases: 1 ingest ✅ · 2 KML import ✅ · 3 live map · 4 roster/NCS panel ·
+Phases: 1 ingest ✅ · 2 KML import ✅ · 3 live map ✅ · 4 roster/NCS panel ·
 4a What3Words · 5 course-relative position · 6 incidents · 7 replay · 8 deployment
 
 ## Commands
@@ -21,7 +21,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 87 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 108 tests, no network
 
 awt init-db
 awt add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -39,6 +39,11 @@ awt discard marathon2026 2 8
 awt courses marathon2026
 awt style-course marathon2026 1 --color "#cc3333" --order 10
 awt set-w3w marathon2026 4 index.home.raft
+
+awt links marathon2026           # the two role URLs to send out
+awt serve marathon2026           # web server + live APRS-IS ingest
+awt serve marathon2026 --no-ingest   # map only, no APRS-IS connection
+awt list-links marathon2026 / awt revoke-link marathon2026 <id>
 ```
 
 Tests never touch the network. Run `ingest` only when you actually want a live
@@ -60,6 +65,10 @@ src/aprswebtracker/
   units.py        metric storage -> US customary display
   styling.py      course colors, line styles, draw order
   what3words.py   normalize/validate W3W strings, no API
+  access.py       role tokens: ncs writes, liaison reads
+  hub.py          per-event fan-out, bounded queues
+  web.py          FastAPI: map page, state snapshot, WebSocket
+  static/         Leaflet client, no build step
   cli.py          awt entry point
 tests/fixtures/packets.txt        packet corpus, `expectation|raw` per line
 tests/fixtures/messy_course.kml   KML reproducing real organizer defects
@@ -128,6 +137,17 @@ usability, not style preferences.
   names.
 - **Hint patterns must normalize `_` and `-` to spaces first.** `_` is a word
   character, so `start` never matches inside `start_marker`.
+- **An invalid token returns 404, never 403.** A 403 would confirm the event
+  exists. Tokens are also scoped to their event: valid elsewhere means nothing.
+- **Never interpolate marker movement in the client** (same rule as the plan).
+  `setLatLng`, not an animated transition.
+- **The connection badge must stay visible.** It is the only signal that a phone
+  is showing stale data. Leaflet's zoom control shares that corner at z-index
+  1000; the top bar reserves space for it.
+- **`Subscription` needs `eq=False`.** Subscriptions live in a set, and two
+  browsers on one event are distinct subscribers with identical fields.
+- **Client escaping goes through `escapeHtml`,** which escapes quotes too - the
+  textContent/innerHTML trick does not, and values land in attributes.
 - **CLI output stays ASCII.** Em dashes become mojibake in the Windows console,
   and a club laptop is the target environment.
 
@@ -135,8 +155,9 @@ usability, not style preferences.
 
 - Python 3.11+, `from __future__ import annotations`, dataclasses for value types.
 - Dependencies stay minimal — every added package is one more thing a club has to
-  install. Two runtime dependencies today (`aprslib`, `defusedxml`), each with a
-  stated reason; justify any third one.
+  install. Four runtime dependencies today (`aprslib`, `defusedxml`, `fastapi`,
+  `uvicorn`), each with a stated reason; justify any addition. The frontend has
+  no build step on purpose - no npm in a club's deployment.
 - Comments explain *why*, especially where a choice looks arbitrary but is
   protecting against a real event-day failure.
 - New parser edge cases get a line in `tests/fixtures/packets.txt`, not a bespoke
@@ -147,13 +168,13 @@ usability, not style preferences.
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-02** Phase 3: FastAPI server, role-gated access, WebSocket fan-out, Leaflet map client.
+- **2026-09-02** Fixed: connection badge was hidden behind Leaflet's zoom control.
+- **2026-09-02** Fixed: `Subscription` was unhashable; `@dataclass` unset `__hash__`.
+- **2026-09-02** Added `access.py`, `hub.py`, `web.py` and the `serve`/`links` CLI commands.
 - **2026-09-02** Added `styleUrl` capture; start/finish markers sharing a name are now distinguishable.
 - **2026-09-02** Fixed: `` hint patterns never matched inside `start_marker`; separators now normalized.
 - **2026-09-02** Validated the importer against a real MapMyRun export (Mankato Marathon, 26.4 mi).
 - **2026-09-02** Added `styling.py`, adjustable course draw order, opt-in dash patterns, and `style-course`.
 - **2026-09-02** Fixed: new schema columns never reached an existing database; `init_schema` now migrates.
 - **2026-09-02** Fixed: `geo.stitch` folded a course back on itself when a middle segment was listed first.
-- **2026-09-02** CLI output made ASCII-only for the Windows console.
-- **2026-09-02** Added `defusedxml` plus KMZ decompression-bomb and size guards, with hardening tests.
-- **2026-09-02** Added `importer.py` and the `import_batch`/`import_feature` staging tables.
-- **2026-09-02** Added `kml.py`, `geo.py`, and `messy_course.kml` reproducing real organizer defects.

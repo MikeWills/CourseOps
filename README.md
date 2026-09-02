@@ -8,9 +8,8 @@ There are phone apps, and there are full situational-awareness platforms like TA
 This aims at the gap between them — something a radio club can stand up for a race
 without much effort.
 
-**Status: early development.** APRS-IS ingest (Phase 1) and KML/KMZ course
-import (Phase 2) work, driven from the command line. There is no web interface
-yet. See [`docs/PLAN.md`](docs/PLAN.md) for the full plan.
+**Status: early development.** APRS-IS ingest, KML/KMZ course import, and the
+live map all work. See [`docs/PLAN.md`](docs/PLAN.md) for the full plan.
 
 ## What it will do
 
@@ -91,7 +90,32 @@ What3Words addresses are entered by hand and maintained by Net Control. There is
 no API integration: it is a paid service, so the app validates the shape of an
 address but never resolves it. The KML coordinates remain authoritative.
 
-Run the ingest and watch what arrives:
+Run the server. It opens one APRS-IS connection and pushes positions to every
+browser over a WebSocket:
+
+```bash
+awt serve m2026
+```
+
+That prints one link per role. Send each to the right group:
+
+```
+  Net Control     http://localhost:8000/e/m2026/KXPbeBeL...
+  Liaison / Ops   http://localhost:8000/e/m2026/kKUjMiR_...
+```
+
+These are bearer links - anyone holding one has that role, and there is no
+public view. Net Control can write; Liaison is read-only. Revoke a leaked link
+with `awt revoke-link m2026 <id>` and issue a fresh one with
+`awt links m2026 --new liaison`.
+
+The map is built for a phone held one-handed outdoors: full-bleed map, panels
+as bottom sheets, high contrast for daylight, and layer toggles so the Liaison
+can hide the fixed aid station operators. Station markers differ by shape as
+well as colour, and every station shows how long ago it was last heard - a
+marker never moves except when a packet actually arrives.
+
+To inspect the feed from the command line instead:
 
 ```bash
 awt ingest marathon2026 --max-packets 20    # short smoke test

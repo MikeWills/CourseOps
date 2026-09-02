@@ -7,6 +7,55 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-09-02 - Phase 3: live map
+
+#### Added
+- `web.py` - FastAPI server. Role token in the URL path gates every route; an
+  invalid token returns 404 rather than 403, so it cannot confirm that an event
+  exists. Endpoints: the map page, a full state snapshot, and a WebSocket feed.
+- `access.py` - role tokens (`ncs`, `liaison`). No user accounts: one long
+  random URL per role, pasted into the right group text. Tokens are scoped to
+  their event and can be revoked. NCS writes, Liaison is read-only.
+- `hub.py` - in-process per-event fan-out. One APRS-IS connection feeds every
+  browser. Subscribers have bounded queues: a stalled client drops messages
+  rather than stalling the ingest loop, which is safe because clients resync
+  full state on reconnect.
+- `static/` - the map client. Leaflet, no build step. Courses drawn in
+  `sort_order`, POIs with What3Words in popups, live station markers.
+- Layer toggles with role defaults - Liaison starts with aid station operators
+  hidden, keeping a phone screen readable. Preferences persist per browser.
+- Station list sorted with whatever needs attention first: silent, then stale,
+  then fresh, with non-beaconing operators last.
+- Browser geolocation for "where am I" - local only, never transmitted.
+- CLI: `serve`, `links`, `list-links`, `revoke-link`.
+- Schema: `access_token` table.
+- 21 tests (108 total) covering access control, state shape, and fan-out.
+
+#### Fixed
+- The connection badge was hidden behind Leaflet's zoom control, which sits in
+  the same corner at a higher z-index. Found by rendering the page in a real
+  browser; the top bar now reserves space for it. This mattered because the
+  badge is the only signal that a phone is showing stale data.
+- `Subscription` was unhashable: `@dataclass` generates `__eq__`, which unsets
+  `__hash__`, and subscriptions live in a set. Value equality would also have
+  collapsed two browsers on the same event into one subscriber.
+- Replaced deprecated FastAPI `on_event` handlers with a lifespan context.
+
+#### Client rules worth keeping
+- Marker positions are never interpolated. Reports arrive every 1-5 minutes;
+  animating between them would show a position that was never reported.
+- Ages redraw on a timer so "2m ago" does not sit there reading 2m forever.
+- Reconnect resyncs full state rather than replaying messages.
+
+#### Verified in a browser
+- The real 26.4 mi Mankato course renders over OSM tiles with start and finish
+  markers, correct colours, and working layer toggles.
+- Station shapes and status colours: a fresh sweep (green square) and a stale
+  SAG (amber diamond) are distinguishable by shape as well as colour.
+- The bottom sheet slides over a full-bleed map. A true 375px render could not
+  be checked - window resizing was unavailable - so the narrow layout is
+  verified by forcing the mobile stylesheet, not by a real phone viewport.
+
 ### 2026-09-02 - styleUrl disambiguation (found with real data)
 
 Validated the importer against a real MapMyRun export of the 2026 Mankato

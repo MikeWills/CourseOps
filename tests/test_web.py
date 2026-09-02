@@ -1,0 +1,190 @@
+"""Web layer: access control, state snapshot, and the live feed."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import pytest
+from fastapi.testclient import TestClient
+
+from aprswebtracker import access, db, importer
+from aprswebtracker.config import Settings
+from aprswebtracker.parser import parse_packet
+from aprswebtracker.web import create_app
+
+FIXTURE = Path(__file__).parent / "fixtures" / "messy_course.kml"
+
+
+@pytest.fixture
+def setup(tmp_path):
+    db_path = tmp_path / "t.sqlite3"
+    conn = db.connect(db_path)
+    db.init_schema(conn)
+    event_id = db.create_event(conn, "m2026", "Spring Marathon", center_lat=34.7,
+                               center_lon=-86.5)
+
+    db.upsert_roster_entry(conn, event_id, "N0CALL-7", "Half-back", "sweep")
+    db.upsert_roster_entry(conn, event_id, "W1AW-9", "SAG 1", "sag")
+    db.upsert_roster_entry(conn, event_id, "KI4HMD-1", "Aid 4", "aid_station",
+                           expects_aprs=False)
+
+    importer.stage_file(conn, event_id, FIXTURE)
+    lines = [r["id"] for r in importer.pending_features(conn, event_id)
+             if r["geom_type"] == "linestring"]
+    points = [r["id"] for r in importer.pending_features(conn, event_id)
+              if r["geom_type"] == "point"]
+    importer.assign_course(conn, event_id, [lines[0]], name="Half", color="#cc3333")
+    importer.assign_poi(conn, event_id, points[0], "aid_station",
+                        what3words="filled.count.soap")
+
+    tokens = access.ensure_tokens(conn, event_id)
+    conn.close()
+
+    settings = Settings(callsign="KI4TST", passcode="-1", host="h", port=1,
+                        db_path=db_path, log_level="WARNING")
+    app = create_app(settings)
+    return app, tokens, db_path, event_id
+
+
+# --- access control ---------------------------------------------------------
+
+def test_no_public_landing_page(setup):
+    app, _, _, _ = setup
+    with TestClient(app) as client:
+        assert client.get("/").status_code == 404
+
+
+def test_valid_token_serves_the_map(setup):
+    app, tokens, _, _ = setup
+    with TestClient(app) as client:
+        response = client.get(f"/e/m2026/{tokens['ncs']}")
+        assert response.status_code == 200
+        assert "<div id=\"map\">" in response.text
+
+
+def test_bad_token_is_404_not_403(setup):
+    """403 would confirm the event exists. It must not."""
+    app, _, _, _ = setup
+    with TestClient(app) as client:
+        assert client.get("/e/m2026/not-a-real-token").status_code == 404
+        assert client.get("/api/m2026/not-a-real-token/state").status_code == 404
+
+
+def test_token_is_scoped_to_its_event(setup):
+    """A valid token must be useless against a different event."""
+    app, tokens, db_path, _ = setup
+    conn = db.connect(db_path)
+    db.create_event(conn, "other", "Other Event")
+    conn.close()
+
+    with TestClient(app) as client:
+        assert client.get(f"/api/other/{tokens['ncs']}/state").status_code == 404
+
+
+def test_revoked_token_stops_working(setup):
+    app, tokens, db_path, event_id = setup
+    conn = db.connect(db_path)
+    row = next(r for r in access.tokens_for_event(conn, event_id)
+               if r["token"] == tokens["liaison"])
+    access.revoke(conn, row["id"])
+    conn.close()
+
+    with TestClient(app) as client:
+        assert client.get(f"/api/m2026/{tokens['liaison']}/state").status_code == 404
+        assert client.get(f"/api/m2026/{tokens['ncs']}/state").status_code == 200
+
+
+def test_roles_differ_on_write_permission(setup):
+    app, tokens, _, _ = setup
+    with TestClient(app) as client:
+        ncs = client.get(f"/api/m2026/{tokens['ncs']}/state").json()
+        liaison = client.get(f"/api/m2026/{tokens['liaison']}/state").json()
+
+    assert ncs["role"] == "ncs" and ncs["can_write"] is True
+    assert liaison["role"] == "liaison" and liaison["can_write"] is False
+
+
+# --- state snapshot ---------------------------------------------------------
+
+def test_state_carries_everything_needed_to_draw(setup):
+    app, tokens, _, _ = setup
+    with TestClient(app) as client:
+        data = client.get(f"/api/m2026/{tokens['ncs']}/state").json()
+
+    assert data["event"]["name"] == "Spring Marathon"
+    assert len(data["courses"]) == 1
+    assert data["courses"][0]["color"] == "#cc3333"
+    assert data["courses"][0]["geojson"]["type"] == "LineString"
+    assert len(data["pois"]) == 1
+    assert data["pois"][0]["what3words"] == "filled.count.soap"
+    assert len(data["roster"]) == 3
+
+
+def test_state_keeps_speed_metric_on_the_wire(setup):
+    """Storage and transport stay metric; the browser converts for display."""
+    app, tokens, db_path, event_id = setup
+    conn = db.connect(db_path)
+    report = parse_packet(
+        "N0CALL-7>APRS,TCPIP*,qAC,X:!3444.00N/08635.00W>180/030/A=001000"
+    )
+    db.insert_position(conn, event_id, report)
+    conn.close()
+
+    with TestClient(app) as client:
+        data = client.get(f"/api/m2026/{tokens['ncs']}/state").json()
+
+    position = data["positions"][0]
+    assert "speed_kmh" in position and "speed_mph" not in position
+
+
+def test_no_aprs_roster_entry_is_flagged_in_state(setup):
+    """The client needs expects_aprs to avoid alerting on a silent aid station."""
+    app, tokens, _, _ = setup
+    with TestClient(app) as client:
+        data = client.get(f"/api/m2026/{tokens['ncs']}/state").json()
+
+    aid = next(r for r in data["roster"] if r["station_key"] == "KI4HMD-1")
+    assert aid["expects_aprs"] == 0
+
+
+def test_state_exposes_staleness_thresholds(setup):
+    app, tokens, _, _ = setup
+    with TestClient(app) as client:
+        data = client.get(f"/api/m2026/{tokens['ncs']}/state").json()
+    assert data["thresholds"]["stale_after_s"] < data["thresholds"]["silent_after_s"]
+
+
+# --- live feed --------------------------------------------------------------
+
+def test_websocket_rejects_a_bad_token(setup):
+    app, _, _, _ = setup
+    with TestClient(app) as client:
+        with pytest.raises(Exception):
+            with client.websocket_connect("/ws/m2026/nope"):
+                pass
+
+
+def test_websocket_accepts_a_valid_token(setup):
+    app, tokens, _, _ = setup
+    with TestClient(app) as client:
+        with client.websocket_connect(f"/ws/m2026/{tokens['liaison']}") as ws:
+            assert app.state.hub.subscriber_count(1) == 1
+            ws.close()
+
+
+def test_websocket_subscription_is_released_on_disconnect(setup):
+    app, tokens, _, event_id = setup
+    with TestClient(app) as client:
+        with client.websocket_connect(f"/ws/m2026/{tokens['ncs']}"):
+            pass
+    assert app.state.hub.subscriber_count(event_id) == 0
+
+
+# --- static assets ----------------------------------------------------------
+
+def test_client_assets_are_served(setup):
+    app, _, _, _ = setup
+    with TestClient(app) as client:
+        assert client.get("/static/app.js").status_code == 200
+        assert client.get("/static/app.css").status_code == 200

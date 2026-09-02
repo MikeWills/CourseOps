@@ -1,0 +1,262 @@
+/* Mobile-first. The primary user is standing outdoors on a phone, one-handed,
+   for six hours. Every choice below follows from that:
+
+   - High contrast, light theme. Thin grey-on-grey is invisible in sunlight.
+   - Panels are bottom sheets, in thumb reach. No sidebars on mobile.
+   - Tap targets >= 44px. Nothing is hover-only.
+   - The desktop NCS layout is the enhancement, not the baseline. */
+
+:root {
+  --ink:        #14181d;
+  --ink-soft:   #4a5560;
+  --paper:      #ffffff;
+  --line:       #c3ccd6;
+  --accent:     #0b5fa5;
+
+  /* Radio status. Distinct in hue AND lightness so they survive a washed-out
+     screen and colour-vision deficiency. */
+  --fresh:      #1a7f47;
+  --stale:      #a35a00;
+  --silent:     #b3261e;
+  --no-aprs:    #5a6572;
+
+  --sheet-max:  62vh;
+  --safe-b:     env(safe-area-inset-bottom, 0px);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;                 /* the map scrolls, the page never does */
+  font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: var(--ink);
+  background: var(--paper);
+  -webkit-text-size-adjust: 100%;
+}
+
+#map { position: absolute; inset: 0; }   /* full-bleed */
+
+/* --- top bar ------------------------------------------------------------ */
+
+#topbar {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  /* Right padding clears Leaflet's zoom control, which sits in the same
+     corner at a higher z-index and would otherwise hide the status badge. */
+  padding: calc(6px + env(safe-area-inset-top, 0px)) 60px 6px 12px;
+  background: rgba(255, 255, 255, 0.94);
+  border-bottom: 1px solid var(--line);
+}
+
+#event-name {
+  font-weight: 650;
+  font-size: 15px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+/* Connection state is never hidden. A phone back from a dead zone must not
+   show a stale picture as if it were live. */
+.conn {
+  font-size: 12px;
+  font-weight: 650;
+  padding: 4px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.conn--live       { background: #e3f3e9; color: var(--fresh); }
+.conn--connecting { background: #fdf0dc; color: var(--stale); }
+.conn--down       { background: #fbe4e2; color: var(--silent); }
+
+/* --- buttons ------------------------------------------------------------ */
+
+#locate-btn {
+  position: absolute;
+  right: 12px;
+  bottom: calc(76px + var(--safe-b));
+  z-index: 500;
+  width: 48px; height: 48px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  color: var(--accent);
+  font-size: 22px;
+  line-height: 1;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.22);
+  cursor: pointer;
+}
+#locate-btn[aria-pressed="true"] { background: var(--accent); color: #fff; }
+
+#sheet-toggle {
+  position: absolute;
+  left: 12px; right: 72px;
+  bottom: calc(12px + var(--safe-b));
+  z-index: 600;
+  min-height: 48px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 650;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.22);
+  cursor: pointer;
+}
+
+/* --- bottom sheet ------------------------------------------------------- */
+
+#sheet {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  z-index: 700;
+  max-height: var(--sheet-max);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 4px 14px calc(18px + var(--safe-b));
+  background: var(--paper);
+  border-top: 1px solid var(--line);
+  border-radius: 14px 14px 0 0;
+  box-shadow: 0 -3px 14px rgba(0, 0, 0, 0.2);
+  transform: translateY(102%);
+  transition: transform 180ms ease-out;
+}
+#sheet.open { transform: translateY(0); }
+
+#sheet-grip {
+  width: 42px; height: 5px;
+  margin: 8px auto 10px;
+  border-radius: 3px;
+  background: var(--line);
+  cursor: pointer;
+}
+
+.sheet-section { margin-bottom: 18px; }
+.sheet-section h2 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.muted { color: var(--ink-soft); font-size: 13px; font-weight: 400; }
+
+/* --- toggles ------------------------------------------------------------ */
+
+.toggle-list { display: flex; flex-direction: column; gap: 2px; }
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;                 /* thumb-sized */
+  padding: 4px 2px;
+  cursor: pointer;
+  user-select: none;
+}
+.toggle input { width: 20px; height: 20px; accent-color: var(--accent); flex: none; }
+.toggle .swatch { width: 22px; height: 4px; border-radius: 2px; flex: none; }
+.toggle .label { flex: 1; }
+.toggle .meta { color: var(--ink-soft); font-size: 13px; }
+
+/* --- stations ----------------------------------------------------------- */
+
+.station {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 46px;
+  padding: 6px 2px;
+  border: 0;
+  border-bottom: 1px solid #edf1f5;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.station:last-child { border-bottom: 0; }
+
+.dot { width: 11px; height: 11px; border-radius: 50%; flex: none; }
+.dot--fresh   { background: var(--fresh); }
+.dot--stale   { background: var(--stale); }
+.dot--silent  { background: var(--silent); }
+.dot--no_aprs { background: transparent; border: 2px solid var(--no-aprs); }
+
+.station .name { flex: 1; font-weight: 550; }
+.station .call { color: var(--ink-soft); font-size: 13px; font-variant-numeric: tabular-nums; }
+.station .age  { font-size: 13px; font-variant-numeric: tabular-nums; }
+.age--stale  { color: var(--stale);  font-weight: 650; }
+.age--silent { color: var(--silent); font-weight: 700; }
+.age--none   { color: var(--ink-soft); }
+
+/* --- map markers -------------------------------------------------------- */
+
+/* Markers differ by SHAPE and SIZE as well as colour, so they stay
+   distinguishable on a sun-washed screen and to colour-blind viewers. */
+.stn {
+  display: grid;
+  place-items: center;
+  width: 100%; height: 100%;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+}
+.stn--sweep  { border-radius: 3px; }               /* square: course sweeps */
+.stn--sag    { transform: rotate(45deg); border-radius: 3px; }  /* diamond */
+.stn--fresh  { background: var(--fresh); }
+.stn--stale  { background: var(--stale); }
+.stn--silent { background: var(--silent); opacity: 0.75; }
+.stn--no_aprs{ background: var(--no-aprs); opacity: 0.85; }
+
+.poi-icon {
+  display: grid;
+  place-items: center;
+  width: 100%; height: 100%;
+  border: 2px solid #fff;
+  border-radius: 4px;
+  background: #35507a;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+
+.leaflet-popup-content { margin: 12px 14px; font-size: 14px; }
+.leaflet-popup-content h3 { margin: 0 0 6px; font-size: 15px; }
+.leaflet-popup-content dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; }
+.leaflet-popup-content dt { color: var(--ink-soft); }
+.leaflet-popup-content dd { margin: 0; font-variant-numeric: tabular-nums; }
+.w3w { font-weight: 700; }
+
+/* --- desktop: the sheet becomes a fixed sidebar ------------------------- */
+
+@media (min-width: 860px) {
+  #sheet-toggle { display: none; }
+  #sheet {
+    top: 0; bottom: 0; right: auto;
+    width: 360px;
+    max-height: none;
+    border-radius: 0;
+    border-top: 0;
+    border-right: 1px solid var(--line);
+    transform: none;
+    padding-top: 64px;
+  }
+  #sheet-grip { display: none; }
+  #map, #topbar { left: 360px; }
+  #locate-btn { bottom: 24px; }
+}

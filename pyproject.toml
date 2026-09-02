@@ -11,10 +11,14 @@ dependencies = [
     # untrusted third-party input. Guards entity-expansion attacks that the
     # stdlib XML parser does not.
     "defusedxml>=0.7.1",
+    # The web server. Async throughout, which matters because one APRS-IS
+    # connection feeds every browser over WebSockets from the same event loop.
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.27",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0"]
+dev = ["pytest>=8.0", "httpx>=0.27"]
 
 [project.scripts]
 awt = "aprswebtracker.cli:main"
