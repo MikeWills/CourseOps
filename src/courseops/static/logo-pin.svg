@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 80" role="img"
+     aria-label="Course Ops">
+  <title>Course Ops</title>
+  <!-- Checkpoint pin. The interior is an oscilloscope trace rather than the
+       usual plain circle: the pin says "position", the trace says "radio". -->
+  <path d="M32 2C16.5 2 4 14.4 4 29.7 4 50 32 78 32 78S60 50 60 29.7C60 14.4 47.5 2 32 2z"
+        fill="#0B2545"/>
+  <circle cx="32" cy="29" r="20" fill="#F7F9FC"/>
+  <!-- Flat line, one strong pulse, flat again: a single transmission. -->
+  <polyline points="14,29 21,29 25,29 28,16 32,42 36,22 39,29 43,29 50,29"
+            fill="none" stroke="#FF6A13" stroke-width="4"
+            stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

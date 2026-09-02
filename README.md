@@ -1,5 +1,8 @@
 # Course Ops
 
+**Ham radio event tracking and communications**
+*Track the course, run the net.*
+
 A web map for marathon-style events: race courses and aid stations from the
 organizer's KML/KMZ files, overlaid with live APRS positions of the ham radio
 operators supporting the event.
@@ -13,6 +16,7 @@ live map all work.
 
 - [`docs/PLAN.md`](docs/PLAN.md) — the plan, decisions, and known gaps
 - [`docs/RUNBOOK.md`](docs/RUNBOOK.md) — event-day procedure for operators
+- [`docs/DESIGN.md`](docs/DESIGN.md) — brand, palette and logo decisions
 
 ## What it will do
 
