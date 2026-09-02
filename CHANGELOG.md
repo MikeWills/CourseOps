@@ -7,6 +7,28 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-09-02 - Events and organizations can be edited
+
+#### Added
+- **An event can be edited.** Name, date and time zone. The server had supported
+  this since the setup UI landed; nothing ever called it, so the only way to
+  correct a typo was Delete and start again - which cascades through the course,
+  the roster and all history. The time zone dropdown made this urgent: every
+  event created before it has a zone nobody could change.
+- **An organization can be edited** - full name and contact. This had no server
+  support at all, only create, list and delete.
+
+#### Note
+The short name is deliberately not editable in either case. For an event it is
+the `/e/<slug>/<token>` in every link already handed out, so changing it would
+404 every volunteer holding one - silently, and on the morning they need it. For
+an organization it is simply never shown to anyone, so renaming it fixes nothing.
+
+#### Fixed
+- The "Working on: <event>" header kept showing the old name after a rename. It
+  remembered the name instead of re-reading it, so the header contradicted the
+  table below for the rest of the session.
+
 ### 2026-09-02 - Roster by callsign, and the operator's name where it is needed
 
 #### Added

@@ -74,7 +74,7 @@
     </p>
     <div id="org-list"></div>
     <form id="org-form" class="card">
-      <h3>Add an organization</h3>
+      <h3 id="org-form-title">Add an organization</h3>
       <div class="row">
         <label class="field"><span>Short name</span>
           <input id="og-slug" type="text" placeholder="mankato-arc" required></label>
@@ -84,7 +84,10 @@
       <label class="field"><span>Contact</span>
         <input id="og-contact" type="text" placeholder="w0abc@example.org"></label>
       <p id="org-error" class="error" hidden></p>
-      <button class="primary" type="submit">Create organization</button>
+      <div class="row">
+        <button id="org-submit" class="primary" type="submit">Create organization</button>
+        <button id="org-cancel" type="button" hidden>Cancel</button>
+      </div>
     </form>
   </section>
 
@@ -92,8 +95,10 @@
     <h2>Events</h2>
     <div id="event-list"></div>
     <form id="event-form" class="card" hidden>
-      <h3>New event</h3>
-      <label class="field"><span>Short name (used in links)</span>
+      <h3 id="event-form-title">New event</h3>
+      <label class="field"><span>Short name (used in links)
+          <small id="ev-slug-note" hidden>fixed after creation - it is in every
+          link already sent out</small></span>
         <input id="ev-slug" type="text" placeholder="mankato2026" required></label>
       <label class="field"><span>Full name</span>
         <input id="ev-name" type="text" placeholder="2026 Mankato Marathon" required></label>
@@ -106,7 +111,10 @@
           <select id="ev-tz"></select></label>
       </div>
       <p id="event-error" class="error" hidden></p>
-      <button class="primary" type="submit">Create event</button>
+      <div class="row">
+        <button id="event-submit" class="primary" type="submit">Create event</button>
+        <button id="event-cancel" type="button" hidden>Cancel</button>
+      </div>
     </form>
   </section>
 

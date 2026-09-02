@@ -323,3 +323,56 @@ def test_role_capabilities(conn, org, admin):
     assert (admin.may_create_events, admin.may_manage_users) == (True, True)
     assert (chair.may_create_events, chair.may_manage_users) == (True, True)
     assert (officer.may_create_events, officer.may_manage_users) == (False, False)
+
+
+# --- editing an organization ------------------------------------------------
+
+def _org(tmp_path):
+    from courseops import db, users
+    conn = db.connect(tmp_path / "t.sqlite3")
+    db.init_schema(conn)
+    org = users.create_organization(conn, "mankato-arc", "Mankato ARC", "w0abc@example.org")
+    return conn, org
+
+
+def test_an_organization_can_be_renamed(tmp_path):
+    from courseops import users
+
+    conn, org = _org(tmp_path)
+    saved = users.update_organization(conn, org["id"], {"name": "Mankato Amateur Radio Club"})
+
+    assert saved["name"] == "Mankato Amateur Radio Club"
+    assert saved["slug"] == "mankato-arc"
+
+
+def test_the_contact_can_be_cleared(tmp_path):
+    from courseops import users
+
+    conn, org = _org(tmp_path)
+    assert users.update_organization(conn, org["id"], {"contact": ""})["contact"] is None
+
+
+def test_the_short_name_is_not_editable(tmp_path):
+    """It is not shown to volunteers, so renaming it fixes nothing."""
+    from courseops import users
+
+    conn, org = _org(tmp_path)
+    saved = users.update_organization(conn, org["id"], {"slug": "something-else",
+                                                        "name": "Renamed"})
+    assert saved["slug"] == "mankato-arc"
+
+
+def test_an_empty_name_is_refused(tmp_path):
+    from courseops import users
+
+    conn, org = _org(tmp_path)
+    with pytest.raises(users.AuthError):
+        users.update_organization(conn, org["id"], {"name": "   "})
+
+
+def test_updating_a_missing_organization_is_an_error(tmp_path):
+    from courseops import users
+
+    conn, _ = _org(tmp_path)
+    with pytest.raises(users.AuthError):
+        users.update_organization(conn, 999, {"name": "Nobody"})

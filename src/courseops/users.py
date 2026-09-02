@@ -306,6 +306,38 @@ def set_events(conn: sqlite3.Connection, user_id: int, event_ids: list[int]) -> 
         )
 
 
+def update_organization(conn: sqlite3.Connection, organization_id: int,
+                        payload: dict) -> dict:
+    """Change a club's display name or contact.
+
+    The slug is deliberately not editable. It is not shown to volunteers and
+    changing it buys nothing, while every mistake it could fix is cosmetic.
+    """
+    fields, values = [], []
+    if "name" in payload:
+        name = (payload.get("name") or "").strip()
+        if not name:
+            raise AuthError("An organization needs a full name.")
+        fields.append("name = ?")
+        values.append(name)
+    if "contact" in payload:
+        fields.append("contact = ?")
+        values.append((payload.get("contact") or "").strip() or None)
+    if not fields:
+        raise AuthError("Nothing to change.")
+
+    values.append(organization_id)
+    cur = conn.execute(
+        f"UPDATE organization SET {', '.join(fields)} WHERE id = ?", values
+    )
+    if cur.rowcount == 0:
+        raise AuthError(f"No organization with id {organization_id}.")
+    row = conn.execute(
+        "SELECT * FROM organization WHERE id = ?", (organization_id,)
+    ).fetchone()
+    return dict(row)
+
+
 def organization_of_event(conn: sqlite3.Connection, event_id: int) -> int | None:
     row = conn.execute(
         "SELECT organization_id FROM event WHERE id = ?", (event_id,)
