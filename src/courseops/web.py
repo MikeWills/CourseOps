@@ -301,6 +301,22 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
             raise HTTPException(status_code=403, detail="Not your event.")
         return conn, user
 
+    def request_is_secure(request: Request) -> bool:
+        """Whether the browser reached us over HTTPS.
+
+        Behind a reverse proxy the application is spoken to in plain HTTP on
+        localhost, so `request.url.scheme` is "http" no matter how the browser
+        connected. Taking that at face value would mean session cookies never
+        get the Secure flag in exactly the deployment where it matters.
+
+        Uvicorn rewrites the scheme from X-Forwarded-Proto when started with
+        proxy headers enabled and the proxy's address trusted, which is what
+        `courseops serve --behind-proxy` does. The header is read here only
+        because uvicorn has already decided the peer was allowed to set it -
+        trusting it unconditionally would let any client claim HTTPS.
+        """
+        return request.url.scheme == "https"
+
     def _set_session_cookie(response, token: str, secure: bool) -> None:
         response.set_cookie(
             SESSION_COOKIE, token,
@@ -366,7 +382,7 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
             if conn:
                 conn.close()
         response = JSONResponse({"user": user.as_dict()})
-        _set_session_cookie(response, token, request.url.scheme == "https")
+        _set_session_cookie(response, token, request_is_secure(request))
         return response
 
     @app.post("/api/setup/login")
@@ -383,7 +399,7 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
             raise HTTPException(status_code=401, detail=str(exc))
         conn.close()
         response = JSONResponse({"user": user.as_dict()})
-        _set_session_cookie(response, token, request.url.scheme == "https")
+        _set_session_cookie(response, token, request_is_secure(request))
         return response
 
     @app.post("/api/setup/logout")

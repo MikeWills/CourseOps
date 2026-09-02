@@ -7,6 +7,42 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-09-02 - Phase 8: deployment behind Apache
+
+#### Fixed
+- **Session cookies were never marked Secure behind a reverse proxy.** The app
+  is spoken to in plain HTTP on localhost, so `request.url.scheme` was always
+  "http" and the flag was skipped in exactly the deployment where it matters.
+  `courseops serve --behind-proxy` now has uvicorn honour X-Forwarded-Proto,
+  with `--trusted-proxy` (default 127.0.0.1) deciding who may set it - without
+  that, any client could simply claim HTTPS.
+
+#### Added
+- `deploy/apache-courseops.conf` - vhost with TLS, the ACME challenge left
+  unproxied so renewal works, and **WebSocket proxying**, which is the part that
+  silently breaks the live map: with a plain ProxyPass the upgrade never
+  completes and the map loads correctly and then never moves. The `/ws/` rules
+  must precede the catch-all or they never match.
+- `deploy/courseops.service` - systemd unit binding 127.0.0.1 so the app cannot
+  be reached directly and TLS bypassed, with filesystem hardening.
+- `docs/DEPLOYMENT.md` - install, Apache, certbot, and a verification table
+  covering each thing that fails independently, including a curl that proves the
+  WebSocket returns 101 rather than assuming it.
+- 2 tests (257 total) pinning the cookie behaviour on plain HTTP and behind a
+  proxy claiming HTTPS.
+
+#### Note
+`serve --behind-proxy` warns if bound to anything but loopback, since that
+leaves a route around TLS.
+
+HTTPS also closes the geolocation gap from the known-gaps list: browsers block
+the Geolocation API outside a secure context, so the field roles' "where am I"
+dot only works once this is deployed properly.
+
+Still open and recorded in `docs/DEPLOYMENT.md`: OpenStreetMap's tile policy
+does not cover a service hosted for many clubs, per-organization backups, and
+static asset caching after an update.
+
 ### 2026-09-02 - Documentation caught up with the setup UI
 
 An audit before clearing session context found the docs describing the previous

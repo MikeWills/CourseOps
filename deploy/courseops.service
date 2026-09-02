@@ -1,0 +1,54 @@
+# Course Ops as a systemd service.
+#
+#   sudo cp deploy/courseops.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now courseops
+#   sudo journalctl -u courseops -f
+#
+# Edit User, WorkingDirectory and the event slug below to match your install.
+
+[Unit]
+Description=Course Ops - ham radio event tracking
+# APRS-IS is an outbound TCP connection, so do not start before the network is
+# actually usable; the client retries with backoff regardless.
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=courseops
+Group=courseops
+WorkingDirectory=/opt/courseops
+
+# --behind-proxy makes uvicorn honour X-Forwarded-Proto from Apache, which is
+# what lets admin session cookies be marked Secure. Binding 127.0.0.1 means the
+# only way in is through the proxy, so TLS cannot be bypassed by hitting the
+# port directly.
+#
+# Replace mankato2026 with the event to ingest. Omitting the event serves every
+# event's map but opens no APRS-IS connection, which is what you want outside
+# race day.
+ExecStart=/opt/courseops/.venv/bin/courseops serve mankato2026 \
+    --host 127.0.0.1 --port 8000 --behind-proxy
+
+Restart=on-failure
+RestartSec=5
+
+# The APRS-IS client reconnects on its own with backoff, so systemd restarting
+# the whole process on every blip would be worse than letting it recover.
+# on-failure only covers an actual crash.
+
+# --- hardening -------------------------------------------------------------
+# The app writes exactly one thing: its SQLite database.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/courseops/data
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target
