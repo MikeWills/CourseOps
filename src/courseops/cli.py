@@ -155,7 +155,7 @@ def cmd_import(args: argparse.Namespace) -> int:
     print(f"Staged {summary.total} features from {summary.filename} ({types}).")
     for warning in summary.warnings:
         print(f"  warning: {warning}")
-    print(f"\nReview them with:  awt review {args.event}")
+    print(f"\nReview them with:  courseops review {args.event}")
     return 0
 
 
@@ -192,9 +192,9 @@ def cmd_review(args: argparse.Namespace) -> int:
                 print(f"      ! {line}")
 
     print("\nSuggestions are advisory - confirm each one. Assign with:")
-    print(f"  awt assign-course {args.event} <id> [<id>...] --name NAME")
-    print(f"  awt assign-poi    {args.event} <id> --type aid_station")
-    print(f"  awt discard       {args.event} <id> [<id>...]")
+    print(f"  courseops assign-course {args.event} <id> [<id>...] --name NAME")
+    print(f"  courseops assign-poi    {args.event} <id> --type aid_station")
+    print(f"  courseops discard       {args.event} <id> [<id>...]")
     if any(r["warnings"] for r in rows) and not args.verbose:
         print("\n* has warnings; re-run with --verbose to see them.")
     return 0
@@ -278,9 +278,9 @@ def cmd_courses(args: argparse.Namespace) -> int:
                 f"{row['color'] or '(none)':<9} "
                 f"{styling.describe_dash(row['dash_pattern'])}"
             )
-        print("\n  Restyle:  awt style-course <event> <id> [--color #cc3333] "
+        print("\n  Restyle:  courseops style-course <event> <id> [--color #cc3333] "
               "[--dash dotted]")
-        print("  Reorder:  awt style-course <event> <id> --order N   "
+        print("  Reorder:  courseops style-course <event> <id> --order N   "
               "(higher draws on top)")
     else:
         print("No courses yet.")
@@ -355,7 +355,7 @@ def cmd_links(args: argparse.Namespace) -> int:
         print(f"  {access.ROLE_LABELS[role]}")
         print(f"    {base}/e/{event['slug']}/{tokens[role]}\n")
     print("These are bearer links - anyone holding one has that role.")
-    print("Send each to the right group only. Revoke with:  awt revoke-link <event> <id>")
+    print("Send each to the right group only. Revoke with:  courseops revoke-link <event> <id>")
 
     revoked = [r for r in access.tokens_for_event(conn, event["id"]) if r["revoked"]]
     if revoked:
@@ -369,7 +369,7 @@ def cmd_list_links(args: argparse.Namespace) -> int:
     event = _event_or_exit(conn, args.event)
     rows = access.tokens_for_event(conn, event["id"])
     if not rows:
-        print("No links yet. Create them with:  awt links <event>")
+        print("No links yet. Create them with:  courseops links <event>")
         return 0
     print(f"{'ID':>3}  {'ROLE':<9} {'STATUS':<8} {'LAST USED':<21} TOKEN")
     for row in rows:
@@ -426,7 +426,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="awt", description="AprsWebTracker")
+    parser = argparse.ArgumentParser(prog="courseops", description="Course Ops")
     sub = parser.add_subparsers(dest="command", required=True)
 
     sub.add_parser("init-db", help="create the database and schema").set_defaults(
@@ -518,7 +518,7 @@ def build_parser() -> argparse.ArgumentParser:
         "style-course", help="change a course's color, line style, name or draw order"
     )
     p.add_argument("event")
-    p.add_argument("id", type=int, help="course id from 'awt courses'")
+    p.add_argument("id", type=int, help="course id from 'courseops courses'")
     p.add_argument("--color", help="hex color, e.g. #cc3333")
     p.add_argument(
         "--dash",

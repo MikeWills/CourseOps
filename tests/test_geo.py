@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from aprswebtracker import geo
+from courseops import geo
 
 
 def test_haversine_against_a_known_distance():

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import asyncio
 
-from aprswebtracker.hub import QUEUE_MAXSIZE, Hub, position_message
-from aprswebtracker.parser import parse_packet
+from courseops.hub import QUEUE_MAXSIZE, Hub, position_message
+from courseops.parser import parse_packet
 
 PACKET = "N0CALL-7>APRS,TCPIP*,qAC,X:!3444.00N/08635.00W>180/030/A=001000Rolling"
 

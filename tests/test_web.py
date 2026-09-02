@@ -8,10 +8,10 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from aprswebtracker import access, db, importer
-from aprswebtracker.config import Settings
-from aprswebtracker.parser import parse_packet
-from aprswebtracker.web import create_app
+from courseops import access, db, importer
+from courseops.config import Settings
+from courseops.parser import parse_packet
+from courseops.web import create_app
 
 FIXTURE = Path(__file__).parent / "fixtures" / "messy_course.kml"
 

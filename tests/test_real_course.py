@@ -21,7 +21,7 @@ from pathlib import Path
 
 import pytest
 
-from aprswebtracker import db, geo, importer, kml
+from courseops import db, geo, importer, kml
 
 FIXTURE = Path(__file__).parent / "fixtures" / "mankato_marathon.kml"
 

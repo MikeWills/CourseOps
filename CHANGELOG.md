@@ -1,11 +1,32 @@
 # Changelog
 
-All notable changes to AprsWebTracker. Newest first. The ten most recent entries
+All notable changes to Course Ops. Newest first. The ten most recent entries
 are mirrored into `CLAUDE.md`; this file is the complete record.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+
+### 2026-09-02 - Renamed to Course Ops
+
+`AprsWebTracker` was a working title. Renamed now rather than later: the repo is
+private and single-author, so this is the cheapest it will ever be.
+
+#### Changed
+- Repository `AprsWebTracker` -> `CourseOps` (GitHub redirects the old URL).
+- Python package `aprswebtracker` -> `courseops`.
+- CLI `awt` -> `courseops`.
+- Product name in all documentation and the page title.
+- The SQLite database is unaffected; existing event data keeps working.
+
+#### Note
+- "Ops" in the product name has nothing to do with the Logistics team. The roles
+  remain NCS / Liaison / Logistics, and this is called out in `docs/PLAN.md`
+  because it is an easy confusion to make later.
+- A colour specification is coming from the club. `docs/PLAN.md` gains a Visual
+  design section recording where colour lives and the two constraints that must
+  survive any palette: daylight legibility, and status never relying on hue
+  alone.
 
 ### 2026-09-02 - Phase 4: NCS panel and operational status
 
@@ -308,7 +329,7 @@ Marathon course: 1415 points, 26.40 mi measured against an official 26.22.
 - `units.py` — metric storage, US customary presentation. Speed in mph, altitude in
   feet, course distance in miles.
 - `what3words.py` — normalize, shape-validate and format W3W addresses. No API calls.
-- `cli.py` — `awt init-db | add-event | add-station | roster | ingest | tail`.
+- `cli.py` — `courseops init-db | add-event | add-station | roster | ingest | tail`.
 - Test suite: 24 tests over a fixture corpus of APRS packet encodings, unit
   conversion, filter construction and roster semantics. No network required.
 - `docs/PLAN.md` — full project plan, phase detail, domain decisions and risks.

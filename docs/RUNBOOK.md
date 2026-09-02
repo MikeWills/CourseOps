@@ -1,6 +1,6 @@
 # Event Runbook
 
-Operating procedure for using AprsWebTracker at a real event. Written for the
+Operating procedure for using Course Ops at a real event. Written for the
 person setting it up and for Net Control, not for developers.
 
 > **Draft status.** Sections marked **[CLUB]** need your club's own practice
@@ -39,8 +39,8 @@ contain them — the Mankato file had none — so plan to place them by hand.
 ### 2. Create the event
 
 ```bash
-awt init-db
-awt add-event mankato2026 "2026 Mankato Marathon" \
+courseops init-db
+courseops add-event mankato2026 "2026 Mankato Marathon" \
     --date 2026-10-18 --timezone America/Chicago --lat 44.16 --lon -94.00
 ```
 
@@ -50,8 +50,8 @@ the course once one is imported.
 ### 3. Import and review the course
 
 ```bash
-awt import mankato2026 MankatoFull.kml
-awt review mankato2026 --verbose
+courseops import mankato2026 MankatoFull.kml
+courseops review mankato2026 --verbose
 ```
 
 **Review every row.** The suggestions are advisory and deliberately cautious.
@@ -63,12 +63,12 @@ Then assign each feature:
 
 ```bash
 # One course from several segments; backwards ones are reversed automatically
-awt assign-course mankato2026 1 3 --name "Full"
-awt assign-course mankato2026 4   --name "Half"
+courseops assign-course mankato2026 1 3 --name "Full"
+courseops assign-course mankato2026 4   --name "Half"
 
-awt assign-poi mankato2026 6 --type aid_station --name "Aid 1"
-awt assign-poi mankato2026 2 --type start --name "Start"
-awt discard    mankato2026 8 9        # parking, porta-johns, junk
+courseops assign-poi mankato2026 6 --type aid_station --name "Aid 1"
+courseops assign-poi mankato2026 2 --type start --name "Start"
+courseops discard    mankato2026 8 9        # parking, porta-johns, junk
 ```
 
 **Check the distance it reports.** If a course reads 3 mi when it should read
@@ -78,9 +78,9 @@ warns about a gap, look at the course on the map before the event.
 ### 4. Set colours and draw order
 
 ```bash
-awt courses mankato2026
-awt style-course mankato2026 1 --color "#cc3333"
-awt style-course mankato2026 2 --order 10     # higher draws on top
+courseops courses mankato2026
+courseops style-course mankato2026 1 --color "#cc3333"
+courseops style-course mankato2026 2 --order 10     # higher draws on top
 ```
 
 Courses share road for miles. Draw order decides which line wins where they
@@ -91,7 +91,7 @@ overlap — put the one people ask about most on top.
 NCS maintains these. Look each one up at what3words.com and type it in:
 
 ```bash
-awt set-w3w mankato2026 4 index.home.raft
+courseops set-w3w mankato2026 4 index.home.raft
 ```
 
 Worth the effort: three words survive a voice radio net far better than a
@@ -103,11 +103,11 @@ Every assigned operator, whether or not they beacon APRS:
 
 ```bash
 # Someone who beacons — a sweep following the last runner
-awt add-station mankato2026 N0CALL-7 "Full-back" --category sweep --operator "Jane"
+courseops add-station mankato2026 N0CALL-7 "Full-back" --category sweep --operator "Jane"
 
 # Assigned but not beaconing — typical for aid station operators.
 # --no-aprs keeps them off the APRS-IS filter AND out of staleness alerts.
-awt add-station mankato2026 KI4HMD-1 "Aid 4" --category aid_station --no-aprs
+courseops add-station mankato2026 KI4HMD-1 "Aid 4" --category aid_station --no-aprs
 ```
 
 Categories: `net_control`, `aid_station`, `sweep`, `sag`, `shadow`, `rover`,
@@ -121,13 +121,13 @@ because it is short.
 Confirm the roster and the filter it produces:
 
 ```bash
-awt roster mankato2026
+courseops roster mankato2026
 ```
 
 ### 7. Test it end to end
 
 ```bash
-awt serve mankato2026 --no-ingest
+courseops serve mankato2026 --no-ingest
 ```
 
 Open each link. Check the course draws, aid stations appear with their
@@ -141,7 +141,7 @@ check and when._
 ### Start the server
 
 ```bash
-awt serve mankato2026
+courseops serve mankato2026
 ```
 
 This opens **one** APRS-IS connection and prints the three role links.
@@ -256,9 +256,9 @@ when they get signal back.
 **A link leaks to the wrong people.**
 
 ```bash
-awt list-links mankato2026
-awt revoke-link mankato2026 3
-awt links mankato2026 --new logistics    # issue a replacement
+courseops list-links mankato2026
+courseops revoke-link mankato2026 3
+courseops links mankato2026 --new logistics    # issue a replacement
 ```
 
 Revoking one role's link does not affect the others.
@@ -289,7 +289,7 @@ record.
 Consider revoking all links after the event:
 
 ```bash
-awt list-links mankato2026
+courseops list-links mankato2026
 ```
 
 ---
@@ -317,12 +317,12 @@ Tell volunteers these up front; each one otherwise reads as a bug.
 ## Quick reference
 
 ```bash
-awt serve <event>                     # run it (server + APRS-IS)
-awt serve <event> --no-ingest         # map only, no APRS connection
-awt links <event>                     # show the three role links
-awt list-links <event>                # link status and last use
-awt revoke-link <event> <id>          # kill a leaked link
-awt roster <event>                    # who is assigned, and the APRS filter
-awt courses <event>                   # courses and aid stations
-awt tail <event> --latest             # newest position per station
+courseops serve <event>                     # run it (server + APRS-IS)
+courseops serve <event> --no-ingest         # map only, no APRS connection
+courseops links <event>                     # show the three role links
+courseops list-links <event>                # link status and last use
+courseops revoke-link <event> <id>          # kill a leaked link
+courseops roster <event>                    # who is assigned, and the APRS filter
+courseops courses <event>                   # courses and aid stations
+courseops tail <event> --latest             # newest position per station
 ```

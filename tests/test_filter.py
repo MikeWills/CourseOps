@@ -1,4 +1,4 @@
-from aprswebtracker.aprsis import BUDDIES_PER_CLAUSE, build_filter, build_login
+from courseops.aprsis import BUDDIES_PER_CLAUSE, build_filter, build_login
 
 
 def test_buddy_filter_for_small_roster():
@@ -26,7 +26,7 @@ def test_login_is_receive_only_by_default():
 
 def test_no_aprs_operator_is_filtered_out_but_still_rostered(tmp_path):
     """expects_aprs=0 means 'do not alert when silent', not 'discard'."""
-    from aprswebtracker import db
+    from courseops import db
 
     conn = db.connect(tmp_path / "t.sqlite3")
     db.init_schema(conn)

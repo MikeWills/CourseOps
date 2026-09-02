@@ -1,4 +1,4 @@
-# AprsWebTracker
+# Course Ops
 
 A web map for marathon-style events: race courses and aid stations from the
 organizer's KML/KMZ files, overlaid with live APRS positions of the ham radio
@@ -41,7 +41,7 @@ Python 3.11+. One runtime dependency (`aprslib`).
 ## Quick start
 
 ```bash
-git clone <repo-url> && cd AprsWebTracker
+git clone <repo-url> && cd CourseOps
 python -m venv .venv
 .venv/bin/pip install -e ".[dev]"          # Windows: .venv\Scripts\pip
 cp .env.example .env                       # set APRS_CALLSIGN to your callsign
@@ -50,26 +50,26 @@ cp .env.example .env                       # set APRS_CALLSIGN to your callsign
 Create an event and a roster:
 
 ```bash
-awt init-db
-awt add-event marathon2026 "Spring Marathon 2026" \
+courseops init-db
+courseops add-event marathon2026 "Spring Marathon 2026" \
     --date 2026-04-11 --timezone America/Chicago --lat 34.73 --lon -86.58
 
 # Someone who beacons (sweep following the last runner)
-awt add-station marathon2026 N0CALL-7 "Half-back" --category sweep
+courseops add-station marathon2026 N0CALL-7 "Half-back" --category sweep
 
 # Someone assigned but not beaconing — excluded from the APRS-IS filter and
 # from staleness alerting, which is typical for aid station operators
-awt add-station marathon2026 KI4HMD-1 "Aid 4" --category aid_station --no-aprs
+courseops add-station marathon2026 KI4HMD-1 "Aid 4" --category aid_station --no-aprs
 
-awt roster marathon2026     # shows the roster and the generated APRS-IS filter
+courseops roster marathon2026     # shows the roster and the generated APRS-IS filter
 ```
 
 Import the organizer's course files. Import is additive - the full course, the
 half course and the water stops usually arrive as separate files:
 
 ```bash
-awt import m2026 SpringMarathon-Full.kmz
-awt review m2026        # lists what was found, with advisory suggestions
+courseops import m2026 SpringMarathon-Full.kmz
+courseops review m2026        # lists what was found, with advisory suggestions
 ```
 
 Nothing becomes a course or an aid station until you say so. Organizer KML is
@@ -80,13 +80,13 @@ parking - so each feature is assigned by hand:
 ```bash
 # Stitch several segments into one course; segments drawn backwards are
 # reversed automatically, and gaps are reported rather than hidden
-awt assign-course m2026 1 3 --name "Half" --color "#cc3333"
+courseops assign-course m2026 1 3 --name "Half" --color "#cc3333"
 
-awt assign-poi m2026 6 --type aid_station --what3words filled.count.soap
-awt discard m2026 2 8 9
+courseops assign-poi m2026 6 --type aid_station --what3words filled.count.soap
+courseops discard m2026 2 8 9
 
-awt courses m2026       # what you ended up with
-awt set-w3w m2026 4 index.home.raft
+courseops courses m2026       # what you ended up with
+courseops set-w3w m2026 4 index.home.raft
 ```
 
 What3Words addresses are entered by hand and maintained by Net Control. There is
@@ -97,7 +97,7 @@ Run the server. It opens one APRS-IS connection and pushes positions to every
 browser over a WebSocket:
 
 ```bash
-awt serve m2026
+courseops serve m2026
 ```
 
 That prints one link per role. Send each to the right group:
@@ -111,8 +111,8 @@ That prints one link per role. Send each to the right group:
 These are bearer links - anyone holding one has that role, and there is no
 public view. Net Control can write; Liaison (with Public Safety and Medics) and
 Logistics (traffic control, cones, teardown) are read-only. Revoke a leaked link
-with `awt revoke-link m2026 <id>` and issue a fresh one with
-`awt links m2026 --new liaison`.
+with `courseops revoke-link m2026 <id>` and issue a fresh one with
+`courseops links m2026 --new liaison`.
 
 The map is built for a phone held one-handed outdoors: full-bleed map, panels
 as bottom sheets, high contrast for daylight, and layer toggles so the field
@@ -123,9 +123,9 @@ marker never moves except when a packet actually arrives.
 To inspect the feed from the command line instead:
 
 ```bash
-awt ingest marathon2026 --max-packets 20    # short smoke test
-awt ingest marathon2026                     # run until Ctrl-C
-awt tail marathon2026 --latest              # newest position per station
+courseops ingest marathon2026 --max-packets 20    # short smoke test
+courseops ingest marathon2026                     # run until Ctrl-C
+courseops tail marathon2026 --latest              # newest position per station
 ```
 
 Categories: `net_control`, `aid_station`, `sweep`, `sag`, `shadow`, `rover`,

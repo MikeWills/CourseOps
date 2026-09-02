@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from aprswebtracker import kml
+from courseops import kml
 
 FIXTURE = Path(__file__).parent / "fixtures" / "messy_course.kml"
 

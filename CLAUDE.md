@@ -1,4 +1,4 @@
-# AprsWebTracker
+# Course Ops
 
 Web map for marathon-style events: race courses and aid stations from organizer
 KML/KMZ, overlaid with live APRS positions of the ham radio operators supporting
@@ -16,7 +16,7 @@ below is the short list of things that cost real time when violated.
 ## Status
 
 Phases 1-4 complete: APRS-IS ingest, KML/KMZ import, the live map with
-role-gated access, and the NCS panel with operational status. Repo: private, `MikeWills/AprsWebTracker`.
+role-gated access, and the NCS panel with operational status. Repo: private, `MikeWills/CourseOps`.
 
 Phases: 1 ingest ✅ · 2 KML import ✅ · 3 live map ✅ · 4 roster/NCS panel ✅ ·
 4a What3Words ✅ · 5 course-relative position · 6 incidents · 7 replay · 8 deployment
@@ -30,27 +30,27 @@ cp .env.example .env                                    # then set APRS_CALLSIGN
 
 ./.venv/Scripts/python.exe -m pytest -q                 # 128 tests, no network
 
-awt init-db
-awt add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
-awt add-station marathon2026 N0CALL-7 "Half-back" --category sweep
-awt add-station marathon2026 KI4HMD-1 "Aid 4" --category aid_station --no-aprs
-awt roster marathon2026          # shows the generated APRS-IS filter
-awt ingest marathon2026          # live; --max-packets N for a smoke test
-awt tail marathon2026 --latest
+courseops init-db
+courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
+courseops add-station marathon2026 N0CALL-7 "Half-back" --category sweep
+courseops add-station marathon2026 KI4HMD-1 "Aid 4" --category aid_station --no-aprs
+courseops roster marathon2026          # shows the generated APRS-IS filter
+courseops ingest marathon2026          # live; --max-packets N for a smoke test
+courseops tail marathon2026 --latest
 
-awt import marathon2026 course.kmz   # stage for review; additive across files
-awt review marathon2026 --verbose    # suggestions are advisory only
-awt assign-course marathon2026 1 3 --name "Half"   # stitches segments
-awt assign-poi marathon2026 6 --type aid_station --what3words filled.count.soap
-awt discard marathon2026 2 8
-awt courses marathon2026
-awt style-course marathon2026 1 --color "#cc3333" --order 10
-awt set-w3w marathon2026 4 index.home.raft
+courseops import marathon2026 course.kmz   # stage for review; additive across files
+courseops review marathon2026 --verbose    # suggestions are advisory only
+courseops assign-course marathon2026 1 3 --name "Half"   # stitches segments
+courseops assign-poi marathon2026 6 --type aid_station --what3words filled.count.soap
+courseops discard marathon2026 2 8
+courseops courses marathon2026
+courseops style-course marathon2026 1 --color "#cc3333" --order 10
+courseops set-w3w marathon2026 4 index.home.raft
 
-awt links marathon2026           # the three role URLs to send out
-awt serve marathon2026           # web server + live APRS-IS ingest
-awt serve marathon2026 --no-ingest   # map only, no APRS-IS connection
-awt list-links marathon2026 / awt revoke-link marathon2026 <id>
+courseops links marathon2026           # the three role URLs to send out
+courseops serve marathon2026           # web server + live APRS-IS ingest
+courseops serve marathon2026 --no-ingest   # map only, no APRS-IS connection
+courseops list-links marathon2026 / courseops revoke-link marathon2026 <id>
 ```
 
 Tests never touch the network. Run `ingest` only when you actually want a live
@@ -59,7 +59,7 @@ APRS-IS connection.
 ## Layout
 
 ```
-src/aprswebtracker/
+src/courseops/
   schema.sql      full domain schema, all tables event-scoped
   config.py       env settings, tiny .env loader (no dependency)
   parser.py       raw APRS text -> PositionReport, via aprslib
@@ -76,7 +76,7 @@ src/aprswebtracker/
   hub.py          per-event fan-out, bounded queues
   web.py          FastAPI: map page, state snapshot, WebSocket
   static/         Leaflet client, no build step
-  cli.py          awt entry point
+  cli.py          courseops entry point
 tests/fixtures/packets.txt          packet corpus, `expectation|raw` per line
 tests/fixtures/messy_course.kml     synthetic KML with real organizer defects
 tests/fixtures/mankato_marathon.kml REAL MapMyRun export, 26.4 mi; the only
@@ -174,6 +174,8 @@ usability, not style preferences.
   a LAN without TLS loses the "where am I" dot. The client names the real cause.
 - **The viewer's own position is local only** - never sent to the server, never
   stored, never visible to other viewers.
+- **"Ops" in Course Ops is the product name, not the Logistics team.** Roles are
+  NCS / Liaison / Logistics.
 - **CLI output stays ASCII.** Em dashes become mojibake in the Windows console,
   and a club laptop is the target environment.
 
@@ -227,6 +229,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-02** Renamed to Course Ops: repo, package, CLI and docs.
 - **2026-09-02** Phase 4: operational status, the first write path, role-enforced and broadcast.
 - **2026-09-02** Added operator initials, stamped on status changes for shift handover.
 - **2026-09-02** Added `docs/RUNBOOK.md` and a documentation-discipline checklist to CLAUDE.md.
@@ -236,4 +239,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-02** Locate button now tracks continuously with `watchPosition`, plus an accuracy circle.
 - **2026-09-02** Added a location status line so location errors no longer overwrite the connection badge.
 - **2026-09-02** Phase 3: FastAPI server, role-gated access, WebSocket fan-out, Leaflet map client.
-- **2026-09-02** Fixed: connection badge was hidden behind Leaflet's zoom control.

@@ -1,4 +1,4 @@
-/* AprsWebTracker map client.
+/* Course Ops map client.
  *
  * Three rules drive this file, all from how the app is actually used:
  *
