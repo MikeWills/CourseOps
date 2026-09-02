@@ -271,6 +271,10 @@ usability, not style preferences.
   symptom is not an error but an interface that contradicts itself: a sign-in
   form showing while the header says you are signed in. The rule lives in
   `app.css`; never remove it, and never hide by setting `style.display`.
+- **An event-scoped tab must hide its form, not just warn over it.** A banner
+  above a live form still lets someone fill it in and post to
+  `/events/null/...`. `gateOnEvent()` hides the panel body, and restores only
+  what it hid - elements hidden for their own reasons must stay hidden.
 - **CLI output stays ASCII.** Em dashes become mojibake in the Windows console,
   and a club laptop is the target environment.
 
@@ -324,6 +328,8 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-02** Gated Course/Aid/Roster/Links behind picking an event, instead of a banner over a live form.
+- **2026-09-02** Event time zone is a dropdown, browser-detected, and shown in the event list.
 - **2026-09-02** Fixed: `hidden` did nothing wherever CSS set `display`, so the UI contradicted itself.
 - **2026-09-02** Signup no longer auto-signs-in; it routes to sign-in with a confirmation.
 - **2026-09-02** Added mtime-based cache busting so an edited .js/.css is never served stale.
@@ -332,5 +338,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-02** Tracked the remaining deployment gaps as issues #3, #4 and #5.
 - **2026-09-02** Phase 8: Apache reverse proxy, Let's Encrypt and systemd deployment.
 - **2026-09-02** Fixed: session cookies were never marked Secure behind a reverse proxy.
-- **2026-09-02** Brought README, RUNBOOK and PLAN up to date with the setup UI.
-- **2026-09-02** Added the `/setup` UI: organizations, events, visual course review, roster, links.

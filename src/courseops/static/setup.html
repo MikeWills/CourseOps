@@ -103,14 +103,17 @@
         <label class="field"><span>Date</span>
           <input id="ev-date" type="date"></label>
         <label class="field"><span>Time zone</span>
-          <input id="ev-tz" type="text" value="America/Chicago"></label>
+          <select id="ev-tz"></select></label>
       </div>
       <p id="event-error" class="error" hidden></p>
       <button class="primary" type="submit">Create event</button>
     </form>
   </section>
 
-  <section class="panel" data-panel="course" hidden>
+  <section class="panel" data-panel="course" data-needs-event hidden>
+    <p class="needs-event" hidden>Pick an event first — everything on this
+      tab belongs to one event.
+      <button data-goto="events" type="button">Go to Events</button></p>
     <h2>Course files</h2>
     <p class="muted">
       Upload the organizer's KML or KMZ. Import is additive — the full course,
@@ -156,14 +159,20 @@
     </div>
   </section>
 
-  <section class="panel" data-panel="stations" hidden>
+  <section class="panel" data-panel="stations" data-needs-event hidden>
+    <p class="needs-event" hidden>Pick an event first — everything on this
+      tab belongs to one event.
+      <button data-goto="events" type="button">Go to Events</button></p>
     <h2>Courses</h2>
     <div id="course-table"></div>
     <h2>Aid stations <span class="muted">in course order</span></h2>
     <div id="poi-table"></div>
   </section>
 
-  <section class="panel" data-panel="roster" hidden>
+  <section class="panel" data-panel="roster" data-needs-event hidden>
+    <p class="needs-event" hidden>Pick an event first — everything on this
+      tab belongs to one event.
+      <button data-goto="events" type="button">Go to Events</button></p>
     <h2>Roster</h2>
     <p class="muted">
       Use the callsign each person actually transmits with, including the SSID.
@@ -200,7 +209,10 @@
     </form>
   </section>
 
-  <section class="panel" data-panel="links" hidden>
+  <section class="panel" data-panel="links" data-needs-event hidden>
+    <p class="needs-event" hidden>Pick an event first — everything on this
+      tab belongs to one event.
+      <button data-goto="events" type="button">Go to Events</button></p>
     <h2>Access links</h2>
     <p class="muted">
       One link per role. Anyone holding a link has that role — send each to the

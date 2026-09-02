@@ -7,6 +7,33 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-09-02 - Event-scoped tabs are gated, and the time zone is a list
+
+#### Fixed
+- **The event-scoped tabs left a live form under a warning.** Course, Aid
+  stations, Roster and Links all belong to one event, but with no event picked
+  they showed a red "Pick an event first" banner over a fully interactive form.
+  The Role dropdown was empty because its options are fetched per event, and
+  Save would have posted to `/events/null/roster` and failed with something
+  unhelpful. The panels now hide their contents and offer a Go to Events button
+  instead. The gate restores only what it hid, so elements hidden for their own
+  reasons - a Cancel button, an error line, the course review section - stay
+  hidden when an event is picked.
+
+#### Changed
+- **The event time zone is a dropdown rather than free text.** Typing an IANA
+  name from memory is a way to get it subtly wrong - "US/Central" and
+  "America/Chicago" both look right, and the mistake would only show up as
+  times an hour out. North America first, with the browser's own zone detected
+  and preselected, and added to the list if it is not already there so a club
+  anywhere still finds theirs. The zone is now shown in the event list too, so
+  a wrong one is visible rather than buried.
+
+#### Note
+`event.timezone` is stored but nothing reads it yet: timestamps are UTC and
+displayed as a relative age, which needs no zone. Recorded in `docs/PLAN.md`
+known gaps - it becomes load-bearing as soon as anything shows a clock time.
+
 ### 2026-09-02 - The signup screen, and why `hidden` was not hiding
 
 #### Fixed

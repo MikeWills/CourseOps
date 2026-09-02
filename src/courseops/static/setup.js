@@ -146,14 +146,20 @@ $('logout').addEventListener('click', async () => {
 
 /* ---------- tabs --------------------------------------------------------- */
 
-document.querySelectorAll('.tab').forEach((tab) => {
-  tab.addEventListener('click', () => {
-    document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('is-on', t === tab));
-    document.querySelectorAll('.panel').forEach((p) => {
-      p.hidden = p.dataset.panel !== tab.dataset.tab;
-    });
-    refreshTab(tab.dataset.tab);
+function activateTab(name) {
+  document.querySelectorAll('.tab').forEach(
+    (t) => t.classList.toggle('is-on', t.dataset.tab === name));
+  document.querySelectorAll('.panel').forEach((p) => {
+    p.hidden = p.dataset.panel !== name;
   });
+  refreshTab(name);
+}
+
+document.querySelectorAll('.tab').forEach((tab) => {
+  tab.addEventListener('click', () => activateTab(tab.dataset.tab));
+});
+document.querySelectorAll('[data-goto]').forEach((b) => {
+  b.addEventListener('click', () => activateTab(b.dataset.goto));
 });
 
 function needEvent() {
@@ -162,12 +168,37 @@ function needEvent() {
   return false;
 }
 
+/* An event-scoped tab is meaningless without an event, and its form would post
+   to /events/null/... and fail with something unhelpful. Hide the panel's
+   contents and say what to do instead.
+
+   Only what this gate hid is put back: elements already hidden for their own
+   reasons - a Cancel button, an error line, the review section - must stay
+   that way, or picking an event would reveal half-built UI. */
+function gateOnEvent(name) {
+  const panel = document.querySelector(`.panel[data-panel="${name}"]`);
+  if (!panel || !panel.hasAttribute('data-needs-event')) return true;
+  const ok = !!S.eventId;
+  panel.querySelectorAll(':scope > *').forEach((el) => {
+    if (el.classList.contains('needs-event')) {
+      el.hidden = ok;
+    } else if (!ok && !el.hidden) {
+      el.dataset.gated = '1';
+      el.hidden = true;
+    } else if (ok && el.dataset.gated) {
+      delete el.dataset.gated;
+      el.hidden = false;
+    }
+  });
+  return ok;
+}
+
 async function refreshTab(name) {
   try {
     if (name === 'orgs') return loadOrgs();
     if (name === 'events') return loadEvents();
     if (name === 'users') return loadUsers();
-    if (!needEvent()) return;
+    if (!gateOnEvent(name)) return;
     if (name === 'course') return loadStaged();
     if (name === 'stations') return loadCourses();
     if (name === 'roster') return loadRoster();
@@ -260,7 +291,8 @@ async function loadEvents() {
     + '<th>Course</th><th>Aid</th><th>Roster</th><th></th></tr></thead><tbody>'
     + S.events.map((e) => `<tr${e.id === S.eventId ? ' style="background:#eaf2fb"' : ''}>
         <td><strong>${esc(e.name)}</strong><br><span class="muted">${esc(e.slug)}</span></td>
-        <td>${esc(e.event_date || '')}</td>
+        <td>${esc(e.event_date || '')}<br>
+          <span class="muted">${esc(e.timezone || '')}</span></td>
         <td>${e.counts.courses}</td>
         <td>${e.counts.pois}</td>
         <td>${e.counts.roster}</td>
@@ -295,7 +327,49 @@ function selectEvent(id) {
   const event = S.events.find((e) => e.id === id);
   $('event-context').textContent = event ? `Working on: ${event.name}` : '';
   $('event-context').hidden = !event;
+  document.querySelectorAll('.panel[data-needs-event]').forEach(
+    (p) => gateOnEvent(p.dataset.panel));
   loadEvents();
+}
+
+/* Typing an IANA zone name from memory is a way to get it subtly wrong -
+   "US/Central" and "America/Chicago" both look right, and the mistake shows up
+   as times an hour out on race morning. North America first, because that is
+   who runs these events; the browser's own zone is added if it is not already
+   listed, so a club anywhere still finds theirs. */
+const TIME_ZONES = [
+  ['America/New_York', 'Eastern - New York'],
+  ['America/Chicago', 'Central - Chicago'],
+  ['America/Denver', 'Mountain - Denver'],
+  ['America/Phoenix', 'Mountain, no DST - Phoenix'],
+  ['America/Los_Angeles', 'Pacific - Los Angeles'],
+  ['America/Anchorage', 'Alaska - Anchorage'],
+  ['Pacific/Honolulu', 'Hawaii - Honolulu'],
+  ['America/Puerto_Rico', 'Atlantic - Puerto Rico'],
+  ['America/St_Johns', 'Newfoundland - St. Johns'],
+  ['America/Halifax', 'Atlantic Canada - Halifax'],
+  ['America/Toronto', 'Eastern Canada - Toronto'],
+  ['America/Winnipeg', 'Central Canada - Winnipeg'],
+  ['America/Edmonton', 'Mountain Canada - Edmonton'],
+  ['America/Vancouver', 'Pacific Canada - Vancouver'],
+  ['UTC', 'UTC'],
+];
+
+function fillTimeZones() {
+  let here = '';
+  try {
+    here = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+  } catch (err) {
+    here = '';
+  }
+
+  const zones = TIME_ZONES.slice();
+  if (here && !zones.some(([id]) => id === here)) zones.unshift([here, here]);
+
+  $('ev-tz').innerHTML = zones
+    .map(([id, label]) => `<option value="${esc(id)}">${esc(label)}</option>`).join('');
+  // The event is nearly always in the zone of the person setting it up.
+  $('ev-tz').value = zones.some(([id]) => id === here) ? here : 'America/Chicago';
 }
 
 $('event-form').addEventListener('submit', async (ev) => {
@@ -770,6 +844,7 @@ async function start() {
   $('logout').hidden = false;
   document.querySelector('[data-tab="users"]').hidden = !S.user.may_manage_users;
   document.querySelector('[data-tab="orgs"]').hidden = !S.user.is_system_admin;
+  fillTimeZones();
   if (S.user.is_system_admin) await loadOrgs();
   await loadEvents();
   // One event is the normal case for a club, so select it rather than making

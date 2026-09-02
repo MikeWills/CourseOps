@@ -422,6 +422,13 @@ Things discovered but not yet acted on. Each is a real constraint, not a wish.
 - **Point density.** A recorded GPX can carry thousands of points where a
   GIS-drawn KML carries dozens. Simplification is a separate decision; import
   must not silently discard fidelity.
+- **The event time zone is stored but nothing reads it yet.** `event.timezone`
+  is set in the UI and saved, but every timestamp is stored UTC and displayed as
+  a relative age ("8 minutes ago"), which needs no zone. It becomes load-bearing
+  the moment anything shows a clock time - a start time, a lead-runner ETA as
+  wall clock, or Phase 7 replay scrubbing to "07:42". Capturing it now means
+  those do not have to guess, and means an event is not silently assumed to be
+  in the browser's zone - NCS may be running the net from another state.
 - **Colour specification pending** from the club; see Visual design above.
 - ~~**Static asset caching.**~~ Tracked in issue #5.
 - **Operator runbook is a draft.** `docs/RUNBOOK.md` exists and covers what is
