@@ -251,3 +251,27 @@ CREATE TABLE IF NOT EXISTS lead_sighting (
 
 CREATE INDEX IF NOT EXISTS idx_lead_sighting
     ON lead_sighting (event_id, course_id, division, at DESC);
+
+-- Every operational status change, never overwritten.
+--
+-- `roster.op_status` holds only the current value, so without this the sequence
+-- is lost the moment it is overwritten - and it cannot be recovered afterwards.
+-- Two reasons to keep it:
+--
+--   1. Shift handover. "Aid 4 closed at 11:32, reopened at 11:40 by AB" is
+--      exactly what an incoming NCS operator needs, and the roster row alone
+--      cannot say it.
+--   2. Any after-action question about the timeline, including replay if it is
+--      ever built (issue #2). History has to be captured while it happens.
+CREATE TABLE IF NOT EXISTS roster_status_log (
+    id          INTEGER PRIMARY KEY,
+    event_id    INTEGER NOT NULL REFERENCES event(id) ON DELETE CASCADE,
+    station_key TEXT    NOT NULL,
+    at          TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+    by          TEXT,
+    from_status TEXT,
+    to_status   TEXT    NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_roster_status_log
+    ON roster_status_log (event_id, station_key, at);

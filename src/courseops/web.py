@@ -413,6 +413,25 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         await _publish_incident(granted.event_id, row, "edited")
         return JSONResponse(incidents.Incident(row).as_dict())
 
+    @app.get("/api/{event_slug}/{token}/station-log")
+    async def station_log(
+        event_slug: str, token: str, station_key: str | None = None
+    ) -> JSONResponse:
+        """Operational status history, for shift handover and after-action.
+
+        Readable by every role: the incoming operator needs it regardless of
+        whether they can write.
+        """
+        conn, granted = require_access(event_slug, token)
+        try:
+            entries = [
+                {key: row[key] for key in row.keys()}
+                for row in db.op_status_log(conn, granted.event_id, station_key)
+            ]
+        finally:
+            conn.close()
+        return JSONResponse({"entries": entries})
+
     @app.get("/api/{event_slug}/{token}/incidents/{incident_id}/log")
     async def incident_log(
         event_slug: str, token: str, incident_id: int

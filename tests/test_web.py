@@ -652,3 +652,56 @@ def test_bad_sighting_payloads_are_rejected(setup):
         assert client.post(f"/api/m2026/{tokens['ncs']}/leaders/sighting",
                            json={"course_id": course_id, "division": "",
                                  "poi_id": 1}).status_code == 400
+
+
+# --- operational status history ---------------------------------------------
+
+def test_status_changes_are_logged_and_never_overwritten(setup):
+    """roster.op_status keeps only the current value, and that history cannot be
+    reconstructed later - so it is captured as it happens."""
+    app, tokens, _, _ = setup
+    url = f"/api/m2026/{tokens['ncs']}/station/N0CALL-7/status"
+    with TestClient(app) as client:
+        client.post(url, json={"op_status": "active", "changed_by": "MW"})
+        client.post(url, json={"op_status": "closed", "changed_by": "MW"})
+        client.post(url, json={"op_status": "active", "changed_by": "AB"})
+        entries = client.get(
+            f"/api/m2026/{tokens['ncs']}/station-log?station_key=N0CALL-7"
+        ).json()["entries"]
+
+    # The reopening is the case the roster row alone could never express.
+    assert [(e["from_status"], e["to_status"], e["by"]) for e in entries] == [
+        ("pending", "active", "MW"),
+        ("active", "closed", "MW"),
+        ("closed", "active", "AB"),
+    ]
+
+
+def test_the_whole_event_log_is_readable_for_handover(setup):
+    app, tokens, _, _ = setup
+    with TestClient(app) as client:
+        client.post(f"/api/m2026/{tokens['ncs']}/station/N0CALL-7/status",
+                    json={"op_status": "active", "changed_by": "MW"})
+        client.post(f"/api/m2026/{tokens['ncs']}/station/KI4HMD-1/status",
+                    json={"op_status": "active", "changed_by": "MW"})
+        entries = client.get(f"/api/m2026/{tokens['ncs']}/station-log").json()["entries"]
+
+    assert {e["station_key"] for e in entries} == {"N0CALL-7", "KI4HMD-1"}
+
+
+def test_the_status_log_is_readable_by_read_only_roles(setup):
+    """An incoming operator needs the handover regardless of write access."""
+    app, tokens, _, _ = setup
+    with TestClient(app) as client:
+        client.post(f"/api/m2026/{tokens['ncs']}/station/N0CALL-7/status",
+                    json={"op_status": "active", "changed_by": "MW"})
+        response = client.get(f"/api/m2026/{tokens['liaison']}/station-log")
+
+    assert response.status_code == 200
+    assert len(response.json()["entries"]) == 1
+
+
+def test_the_status_log_needs_a_valid_token(setup):
+    app, _, _, _ = setup
+    with TestClient(app) as client:
+        assert client.get("/api/m2026/nope/station-log").status_code == 404

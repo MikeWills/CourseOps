@@ -232,6 +232,13 @@ def set_op_status(
         raise ValueError(
             f"Unknown status {op_status!r}. Use one of {', '.join(OP_STATUSES)}."
         )
+    # Read the outgoing value first: the roster row is about to be overwritten,
+    # and the transition is the useful part at handover.
+    previous = conn.execute(
+        "SELECT op_status FROM roster WHERE event_id = ? AND station_key = ?",
+        (event_id, station_key.upper()),
+    ).fetchone()
+
     cur = conn.execute(
         """
         UPDATE roster
@@ -244,6 +251,16 @@ def set_op_status(
     )
     if cur.rowcount == 0:
         raise ValueError(f"{station_key} is not on this event's roster.")
+
+    # Appended, never overwritten. This history cannot be reconstructed later,
+    # so it has to be captured as it happens.
+    conn.execute(
+        "INSERT INTO roster_status_log"
+        " (event_id, station_key, by, from_status, to_status)"
+        " VALUES (?, ?, ?, ?, ?)",
+        (event_id, station_key.upper(), changed_by,
+         previous["op_status"] if previous else None, op_status),
+    )
     return conn.execute(
         "SELECT * FROM roster WHERE event_id = ? AND station_key = ?",
         (event_id, station_key.upper()),
@@ -276,6 +293,21 @@ def assign_station_to_poi(
         "SELECT * FROM roster WHERE event_id = ? AND station_key = ?",
         (event_id, station_key.upper()),
     ).fetchone()
+
+
+def op_status_log(
+    conn: sqlite3.Connection, event_id: int, station_key: str | None = None
+) -> list[sqlite3.Row]:
+    """Operational status changes, oldest first.
+
+    Omit `station_key` for the whole event, which is what a shift handover reads.
+    """
+    query = "SELECT * FROM roster_status_log WHERE event_id = ?"
+    params: list = [event_id]
+    if station_key is not None:
+        query += " AND station_key = ?"
+        params.append(station_key.upper())
+    return conn.execute(query + " ORDER BY at, id", params).fetchall()
 
 
 def all_station_keys(conn: sqlite3.Connection, event_id: int) -> list[str]:
