@@ -459,8 +459,32 @@ Things discovered but not yet acted on. Each is a real constraint, not a wish.
 
   Both candidate apps take a custom endpoint (verified, see issue #6): Traccar
   Client sends OsmAnd-protocol HTTP GET parameters, OwnTracks POSTs JSON and can
-  be provisioned by a QR code carrying its whole config. **Offline buffering
-  brings its own trap:** a buffered burst arriving ten minutes late is a set of
+  be provisioned by a QR code carrying its whole config.
+
+  **Decided (parked, not built): one URL and one QR code for the whole event,
+  and each person types their own designator** - `Medic 1`, `Medic 2` - into the
+  app's device-identifier field. One code printed once on a card or a sign,
+  prepared ahead of the event; nothing to collate and nothing to hand to the
+  wrong person. The alternative, a QR per person, needs no typing and is
+  separately revocable, but means fifteen squares that must reach the right
+  hands - and giving Medic 2 the wrong one makes them Medic 1 on the map,
+  silently.
+
+  This flips the app choice. OwnTracks led on QR provisioning, but that edge
+  mostly disappears when the code carries only an endpoint, and its `tid` is
+  conventionally two characters, so `Medic 1` becomes `M1`. Traccar Client's
+  *Device identifier* is free text and takes `Medic 1` verbatim, and its GET
+  parameters are the simpler thing to receive - so it becomes the default.
+
+  Two consequences of the shared token, both handled the way this app already
+  handles the equivalent APRS problems: **the roster is the allowlist** (only
+  known designators are stored, unknown ones surface in the UI like
+  `ssid_alerts` rather than vanishing), and **designators must be normalised**
+  for case and for `_`/`-` before matching, or `Medic1` and `Medic 1` are two
+  people and one of them is invisible while transmitting happily. Revocation
+  becomes all-or-nothing, which is an acceptable trade for a one-day event.
+
+  **Offline buffering brings its own trap:** a buffered burst arriving ten minutes late is a set of
   real positions from ten minutes ago, so staleness must key off the reported
   timestamp and never arrival time - or a medic returning to coverage looks
   freshly located somewhere they left. Out-of-order and duplicate points come
