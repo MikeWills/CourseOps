@@ -36,6 +36,16 @@
 
 * { box-sizing: border-box; }
 
+/* The `hidden` attribute must win.
+   Every class here that sets `display` - .field{flex}, .gate{grid}, .toggle,
+   .row and the rest - has the same specificity as the browser's
+   [hidden]{display:none} and comes later, so it silently overrides it. The
+   result is that setting element.hidden = true does NOTHING, and the interface
+   contradicts itself: a sign-in form showing while the header says you are
+   signed in, or a first-run-only field on the sign-in screen.
+   This one rule is what makes `hidden` mean hidden. */
+[hidden] { display: none !important; }
+
 html, body {
   margin: 0;
   height: 100%;

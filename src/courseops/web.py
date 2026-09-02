@@ -11,6 +11,7 @@ import asyncio
 import contextlib
 import json
 import logging
+import re
 import sqlite3
 import pathlib
 from pathlib import Path
@@ -31,6 +32,37 @@ log = logging.getLogger(__name__)
 STATIC_DIR = Path(__file__).with_name("static")
 
 SESSION_COOKIE = "courseops_session"
+
+# Appended to local script and stylesheet URLs so a changed file is fetched
+# rather than served from cache. Without it a browser runs yesterday's
+# JavaScript against today's markup, producing an interface that contradicts
+# itself with no error anywhere to explain it.
+#
+# The marker is the file's modification time, not the release version: it has
+# to change the moment a file is edited, and development is when files change
+# most. Icons are deliberately left unversioned - they are stable for the life
+# of the app, and a changing favicon URL makes a tab look like a different site.
+_ASSET_URL = re.compile(r'((?:src|href)=")(/static/[^"?]+\.(?:js|css))"')
+
+
+def _asset_version(name: str) -> str:
+    try:
+        return str(int((STATIC_DIR / Path(name).name).stat().st_mtime))
+    except OSError:
+        return "0"
+
+
+def _page(html: str) -> HTMLResponse:
+    """Serve a page with versioned assets and uncached HTML.
+
+    The HTML must revalidate every time, because it carries the version
+    markers; if it were cached they would be too, and nothing would update.
+    """
+    html = _ASSET_URL.sub(
+        lambda m: f'{m.group(1)}{m.group(2)}?v={_asset_version(m.group(2))}"',
+        html,
+    )
+    return HTMLResponse(html, headers={"Cache-Control": "no-cache, must-revalidate"})
 
 # How long without a packet before a station is styled as going stale / silent.
 # Phone apps beacon every 1-5 minutes, so "quiet for 4 minutes" is normal and
@@ -338,7 +370,7 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         finally:
             conn.close()
         html = (STATIC_DIR / "setup.html").read_text(encoding="utf-8")
-        return HTMLResponse(
+        return _page(
             html.replace("{{FIRST_RUN}}", "true" if needs_first_user else "false")
         )
 
@@ -361,6 +393,9 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
 
         Open only while no users exist - after that it is closed permanently,
         so it cannot be used to add an admin to a running system.
+
+        Does NOT start a session: the account is created and the person then
+        signs in with it.
         """
         conn = get_conn()
         body = await _json_body(request, conn)
@@ -374,16 +409,31 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
                 conn, body.get("username", ""), body.get("password", ""),
                 users.ROLE_SYSTEM_ADMIN, body.get("display_name"),
             )
-            token = users.start_session(conn, user.id)
         except users.AuthError as exc:
+            # Two submits can race: both see no users, both try to create, and
+            # the loser hits the unique constraint. From the person's point of
+            # view their account WAS created, so say that rather than the
+            # confusing "already exists".
             conn.close()
+            check = get_conn()
+            try:
+                exists = users.any_users(check)
+            finally:
+                check.close()
+            if "already exists" in str(exc) and exists:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Setup is already complete. Sign in instead.",
+                )
             raise HTTPException(status_code=400, detail=str(exc))
         finally:
             if conn:
                 conn.close()
-        response = JSONResponse({"user": user.as_dict()})
-        _set_session_cookie(response, token, request_is_secure(request))
-        return response
+        # Deliberately no session: they sign in with the account straight away,
+        # which proves the password works while they still remember typing it.
+        # This is a credential they may not use again until the next event.
+        return JSONResponse({"user": user.as_dict(), "created": True},
+                            status_code=201)
 
     @app.post("/api/setup/login")
     async def login(request: Request) -> JSONResponse:
@@ -849,7 +899,7 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         # to a 404.
         html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
         manifest = f"/api/{event_slug}/{token}/manifest.webmanifest"
-        return HTMLResponse(html.replace("__MANIFEST_URL__", manifest))
+        return _page(html.replace("__MANIFEST_URL__", manifest))
 
     @app.get("/api/{event_slug}/{token}/manifest.webmanifest")
     async def manifest(event_slug: str, token: str) -> JSONResponse:

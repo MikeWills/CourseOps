@@ -264,6 +264,13 @@ usability, not style preferences.
 - **Brand orange never appears inside a station row.** Amber and red mean
   something there. Status colour only ever appears on status. Use `--orange-ink`
   for orange text on white; `--orange` fails contrast at 2.87:1.
+- **`hidden` only hides if `[hidden] { display: none !important; }` is set.**
+  Any class that sets `display` - `.field{flex}`, `.gate{grid}`, `.row`,
+  `.check` - has equal specificity to the browser's `[hidden]{display:none}`
+  and comes later, so it wins and `el.hidden = true` does *nothing*. The
+  symptom is not an error but an interface that contradicts itself: a sign-in
+  form showing while the header says you are signed in. The rule lives in
+  `app.css`; never remove it, and never hide by setting `style.display`.
 - **CLI output stays ASCII.** Em dashes become mojibake in the Windows console,
   and a club laptop is the target environment.
 
@@ -317,6 +324,9 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-02** Fixed: `hidden` did nothing wherever CSS set `display`, so the UI contradicted itself.
+- **2026-09-02** Signup no longer auto-signs-in; it routes to sign-in with a confirmation.
+- **2026-09-02** Added mtime-based cache busting so an edited .js/.css is never served stale.
 - **2026-09-02** Fixed: `serve` printed nothing on startup; added a banner with the setup URL.
 - **2026-09-02** Fixed: printed URLs ignored `--port` and pointed at the wrong port.
 - **2026-09-02** Tracked the remaining deployment gaps as issues #3, #4 and #5.
@@ -324,6 +334,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-02** Fixed: session cookies were never marked Secure behind a reverse proxy.
 - **2026-09-02** Brought README, RUNBOOK and PLAN up to date with the setup UI.
 - **2026-09-02** Added the `/setup` UI: organizations, events, visual course review, roster, links.
-- **2026-09-02** Added admin accounts (scrypt, sessions) and three roles including organizations.
-- **2026-09-02** Fixed: `__FIRST_RUN__` templating replaced the variable name too, losing the flag.
-- **2026-09-02** Turned layer checkboxes into green/red switches.
