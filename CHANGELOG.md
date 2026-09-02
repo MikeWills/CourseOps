@@ -7,6 +7,28 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-09-02 - `serve` tells you it started
+
+#### Fixed
+- **`courseops serve` printed nothing at all.** With no event named it produced a
+  blank terminal: no confirmation it had started, no address to open, no way to
+  tell whether it was working. uvicorn's own startup line was suppressed by the
+  `warning` log level and nothing replaced it. Reported by the first person to
+  run it, which is exactly the audience it failed.
+- The printed URLs ignored `--port`, so on any non-default port they pointed at
+  a port nothing was listening on.
+
+#### Added
+- A startup banner: the setup URL, whether this is a first run needing an
+  administrator, the event and its role links, whether APRS-IS is connected, and
+  a note that localhost is unreachable from a phone.
+
+#### Note
+Added a rule to `CLAUDE.md`: **never modify `.env`.** During this change I
+edited the user's `.env` to exercise the callsign check and then "reverted" it
+to the placeholder, destroying their real callsign. The correct approach - used
+immediately afterwards - is a per-command environment variable.
+
 ### 2026-09-02 - Backlog captured as issues
 
 The deployment guide had grown a "still open" section that was becoming a second

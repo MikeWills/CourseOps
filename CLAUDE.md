@@ -212,6 +212,10 @@ usability, not style preferences.
   127.0.0.1 so TLS cannot be bypassed.
 - **Apache needs `mod_proxy_wstunnel` and /ws/ rules BEFORE the catch-all.**
   Otherwise the map loads and then never moves, with no visible error.
+- **NEVER modify `.env`.** It is the user's file and holds their callsign. To
+  test configuration behaviour, set the environment variable for that one
+  command (`APRS_CALLSIGN=... courseops ...`) - never edit the file, and never
+  "revert" it to the placeholder, which silently destroys a real value.
 - **Setup belongs in the UI.** The premise is that a club can stand this up
   without much effort; only `.env` and starting the server may stay in a
   terminal. The CLI is kept for scripted setup and for tests.
@@ -313,6 +317,9 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-02** Fixed: `serve` printed nothing on startup; added a banner with the setup URL.
+- **2026-09-02** Fixed: printed URLs ignored `--port` and pointed at the wrong port.
+- **2026-09-02** Tracked the remaining deployment gaps as issues #3, #4 and #5.
 - **2026-09-02** Phase 8: Apache reverse proxy, Let's Encrypt and systemd deployment.
 - **2026-09-02** Fixed: session cookies were never marked Secure behind a reverse proxy.
 - **2026-09-02** Brought README, RUNBOOK and PLAN up to date with the setup UI.
@@ -320,6 +327,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-02** Added admin accounts (scrypt, sessions) and three roles including organizations.
 - **2026-09-02** Fixed: `__FIRST_RUN__` templating replaced the variable name too, losing the flag.
 - **2026-09-02** Turned layer checkboxes into green/red switches.
-- **2026-09-02** SSID mismatches now surface in the UI with one-click adopt/ignore.
-- **2026-09-02** Filter now wildcards every SSID per callsign; a wrong SSID no longer hides someone.
-- **2026-09-02** Added `roster_status_log`: status history for handover; cannot be rebuilt later.
