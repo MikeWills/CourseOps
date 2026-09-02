@@ -321,3 +321,67 @@ def test_initials_are_truncated_not_trusted(setup):
                            json={"op_status": "active",
                                  "changed_by": "x" * 50}).json()
     assert len(body["op_status_by"]) == 12
+
+
+# --- icons and home screen install ------------------------------------------
+
+def test_icon_set_is_served(setup):
+    """iOS ignores SVG and the manifest for home screen icons, so the PNGs are
+    not redundant with favicon.svg."""
+    app, _, _, _ = setup
+    required = [
+        "favicon.svg", "favicon.ico", "favicon-16.png", "favicon-32.png",
+        "apple-touch-icon.png", "icon-192.png", "icon-512.png",
+        "icon-maskable-192.png", "icon-maskable-512.png",
+    ]
+    with TestClient(app) as client:
+        for name in required:
+            assert client.get(f"/static/{name}").status_code == 200, name
+
+
+def test_manifest_start_url_carries_the_token(setup):
+    """A static start_url would install a home screen shortcut to a 404, because
+    the app has no tokenless entry point."""
+    app, tokens, _, _ = setup
+    with TestClient(app) as client:
+        response = client.get(f"/api/m2026/{tokens['ncs']}/manifest.webmanifest")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["start_url"] == f"/e/m2026/{tokens['ncs']}"
+    assert body["display"] == "standalone"
+
+
+def test_manifest_short_name_is_the_role(setup):
+    """Home screen labels truncate; the role is the useful half when someone
+    holds links for two roles."""
+    app, tokens, _, _ = setup
+    with TestClient(app) as client:
+        ncs = client.get(f"/api/m2026/{tokens['ncs']}/manifest.webmanifest").json()
+        log = client.get(f"/api/m2026/{tokens['logistics']}/manifest.webmanifest").json()
+    assert ncs["short_name"] == "Net Control"
+    assert log["short_name"] == "Logistics"
+
+
+def test_manifest_declares_maskable_icons(setup):
+    """Android crops to a launcher-chosen shape and guarantees only the central
+    80%, so a maskable variant with a safe zone is required."""
+    app, tokens, _, _ = setup
+    with TestClient(app) as client:
+        body = client.get(f"/api/m2026/{tokens['ncs']}/manifest.webmanifest").json()
+    purposes = {icon["purpose"] for icon in body["icons"]}
+    assert purposes == {"any", "maskable"}
+
+
+def test_manifest_requires_a_valid_token(setup):
+    app, _, _, _ = setup
+    with TestClient(app) as client:
+        assert client.get("/api/m2026/nope/manifest.webmanifest").status_code == 404
+
+
+def test_map_page_injects_the_manifest_link(setup):
+    app, tokens, _, _ = setup
+    with TestClient(app) as client:
+        html = client.get(f"/e/m2026/{tokens['ncs']}").text
+    assert f'href="/api/m2026/{tokens["ncs"]}/manifest.webmanifest"' in html
+    assert "__MANIFEST_URL__" not in html
+    assert 'rel="apple-touch-icon"' in html

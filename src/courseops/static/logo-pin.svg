@@ -7,7 +7,7 @@
         fill="#0B2545"/>
   <circle cx="32" cy="29" r="20" fill="#F7F9FC"/>
   <!-- Flat line, one strong pulse, flat again: a single transmission. -->
-  <polyline points="14,29 21,29 25,29 28,16 32,42 36,22 39,29 43,29 50,29"
+  <polyline points="15,29 22,29 25,29 28,18 32,40 36,23 39,29 42,29 49,29"
             fill="none" stroke="#FF6A13" stroke-width="4"
             stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

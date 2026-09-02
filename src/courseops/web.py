@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import access, db, hub as hub_module
@@ -172,10 +172,58 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         return JSONResponse({"detail": "Not found"}, status_code=404)
 
     @app.get("/e/{event_slug}/{token}")
-    async def map_page(event_slug: str, token: str) -> FileResponse:
+    async def map_page(event_slug: str, token: str) -> HTMLResponse:
         conn, _ = require_access(event_slug, token)
         conn.close()
-        return FileResponse(STATIC_DIR / "index.html")
+        # The manifest URL carries the token, because the app has no
+        # tokenless entry point - a static start_url would install a shortcut
+        # to a 404.
+        html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+        manifest = f"/api/{event_slug}/{token}/manifest.webmanifest"
+        return HTMLResponse(html.replace("__MANIFEST_URL__", manifest))
+
+    @app.get("/api/{event_slug}/{token}/manifest.webmanifest")
+    async def manifest(event_slug: str, token: str) -> JSONResponse:
+        """Per-event, per-role manifest.
+
+        `start_url` points back at this exact role link, so "Add to Home Screen"
+        lands on the right event with the right permissions. That does mean the
+        bearer token is saved onto the phone's home screen, which is consistent
+        with the link model but worth knowing - see docs/RUNBOOK.md.
+        """
+        conn, granted = require_access(event_slug, token)
+        event = conn.execute(
+            "SELECT name FROM event WHERE id = ?", (granted.event_id,)
+        ).fetchone()
+        conn.close()
+
+        start = f"/e/{event_slug}/{token}"
+        return JSONResponse(
+            {
+                "name": f"Course Ops - {event['name']}",
+                # Home screen labels truncate around 12 characters; the role is
+                # the useful half when someone holds two links.
+                "short_name": granted.role_label,
+                "description": "Ham radio event tracking and communications",
+                "start_url": start,
+                "scope": start,
+                "display": "standalone",
+                "orientation": "any",
+                "background_color": "#0B2545",
+                "theme_color": "#0B2545",
+                "icons": [
+                    {"src": "/static/icon-192.png", "sizes": "192x192",
+                     "type": "image/png", "purpose": "any"},
+                    {"src": "/static/icon-512.png", "sizes": "512x512",
+                     "type": "image/png", "purpose": "any"},
+                    {"src": "/static/icon-maskable-192.png", "sizes": "192x192",
+                     "type": "image/png", "purpose": "maskable"},
+                    {"src": "/static/icon-maskable-512.png", "sizes": "512x512",
+                     "type": "image/png", "purpose": "maskable"},
+                ],
+            },
+            media_type="application/manifest+json",
+        )
 
     # --- api ---------------------------------------------------------------
 
