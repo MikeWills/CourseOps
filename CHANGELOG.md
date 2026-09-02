@@ -7,6 +7,28 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-09-02 - Backlog captured as issues
+
+The deployment guide had grown a "still open" section that was becoming a second
+issue tracker. Moved to GitHub so it is triaged in one place.
+
+- [#3](https://github.com/MikeWills/CourseOps/issues/3) - own map tiles before
+  hosting a second organization. Notes that the tile style is not just a URL:
+  the palette assumes light tiles legible in daylight, so a darker style needs
+  the colours rechecked, and attribution changes with the source.
+- [#4](https://github.com/MikeWills/CourseOps/issues/4) - per-organization
+  backup, export and offboarding. Flags that administrator accounts and access
+  tokens must **not** travel with an export, since both are install-scoped
+  credentials.
+- [#5](https://github.com/MikeWills/CourseOps/issues/5) - resource limits, a
+  signup path and static asset caching. Flags that there is no password reset
+  and no email capability at all, which is a real dependency decision rather
+  than a small change.
+
+`docs/DEPLOYMENT.md` now points at the issues instead of restating them, and
+records that all three are triggered by hosting a second organization rather
+than by running the first event.
+
 ### 2026-09-02 - Phase 8: deployment behind Apache
 
 #### Fixed

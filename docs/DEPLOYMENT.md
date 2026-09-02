@@ -138,32 +138,12 @@ mid-write can be inconsistent. Back up **before and after** each event.
 
 ## Still open
 
-Two things this deployment does not solve, both carried from the plan's
-known-gaps list.
+None of these block a single club's first event. All three are tracked as
+issues, and each one is triggered by **hosting a second organization**, not by
+running the first.
 
-### OpenStreetMap tile policy
-
-The map uses OSM's public tile servers. Their usage policy covers a club-scale
-deployment but **not a service hosted for many clubs** — that needs its own tile
-source or a commercial provider (Thunderforest, MapTiler, Stadia and others all
-serve this shape of traffic). It is a single URL in `static/app.js`.
-
-This becomes a real obligation the moment more than one club is on the box, not
-a nicety.
-
-### Multi-tenant hosting
-
-Organizations already isolate clubs within one install, so hosting several is
-supported. Not yet addressed:
-
-- **Backups per organization** — the current backup is all-or-nothing.
-- **Resource limits** — one club importing a very large course affects everyone
-  on the box.
-- **A signup path** — organizations are created by a system administrator by
-  hand, which is fine for a handful and not beyond that.
-
-### Static asset caching
-
-Browsers cached `index.html` across an update during development. After
-deploying a new version, a hard refresh may be needed. Worth adding a version
-query string or cache headers before this is updated often.
+| Issue | What it is | When it matters |
+|---|---|---|
+| [#3](https://github.com/MikeWills/CourseOps/issues/3) | OSM's tile policy does not cover a service hosted for many clubs. One URL to change, but the map style affects legibility, so the palette needs rechecking. | Before a second organization shares the box |
+| [#4](https://github.com/MikeWills/CourseOps/issues/4) | Backups are whole-database, so restoring one club rolls back the others, and a backup contains every club's data. | Before a second organization, or before offboarding one |
+| [#5](https://github.com/MikeWills/CourseOps/issues/5) | Resource limits, a signup path (including password reset, which needs email), and static asset caching after an update. | When it is offered rather than run |

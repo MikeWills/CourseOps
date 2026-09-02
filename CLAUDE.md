@@ -10,7 +10,9 @@ Event-day operating procedure: `docs/RUNBOOK.md`.
 Deployment behind Apache with TLS: `docs/DEPLOYMENT.md`.
 Brand, palette and logo decisions: `docs/DESIGN.md`.
 Complete history with the reasoning behind each fix: `CHANGELOG.md`.
-Open work is also tracked as GitHub issues (issue #1: GPX import).
+Open work is tracked as GitHub issues: #1 GPX import, #2 replay,
+#3 map tiles, #4 per-organization backup, #5 multi-tenant hosting.
+Issues #3-#5 are triggered by hosting a SECOND organization, not the first.
 
 **Starting a fresh session?** Read `docs/PLAN.md` first - it carries the
 decisions and the constraints discovered so far. The "Domain rules" section
