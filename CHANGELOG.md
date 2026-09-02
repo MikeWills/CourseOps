@@ -7,6 +7,31 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-09-02 - Location tracking for the viewer
+
+#### Changed
+- The locate button now TRACKS the viewer with `watchPosition` instead of
+  taking a single `getCurrentPosition` fix. Ops and Shadow are defined by
+  moving around the course; a dot frozen where they tapped five minutes ago is
+  worse than no dot, because it still looks current. A second tap turns it off
+  and removes the dot.
+- Added an accuracy circle around the dot, and a warning when the fix is worse
+  than 100 m - a 500 m "fix" is wifi triangulation, not GPS, and should not be
+  trusted as a position.
+
+#### Added
+- A dedicated location status line. Location problems previously overwrote the
+  connection badge, which would have masked whether the data feed was live.
+- Distinct messages for permission denied, no fix yet, and no location support,
+  instead of one catch-all.
+- An explicit check for a non-secure context. Browsers block geolocation outside
+  HTTPS (localhost excepted), so a club serving this over plain http:// on a LAN
+  would otherwise see a bare permission error that looks like the user's fault.
+
+#### Fixed
+- Removed a leftover branch that panned to a station marker while "following",
+  which conflicted with following the viewer's own position.
+
 ### 2026-09-02 - Phase 3: live map
 
 #### Added

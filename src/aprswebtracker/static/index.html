@@ -22,7 +22,9 @@
   </div>
 </header>
 
-<button id="locate-btn" type="button" title="Center on me" aria-label="Center on my location">◎</button>
+<button id="locate-btn" type="button" title="Show my location"
+        aria-label="Show my location" aria-pressed="false">◎</button>
+<div id="locate-status" role="status" aria-live="polite" hidden></div>
 
 <button id="sheet-toggle" type="button" aria-expanded="false" aria-controls="sheet">
   <span id="sheet-toggle-label">Layers</span>

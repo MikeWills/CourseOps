@@ -148,6 +148,11 @@ usability, not style preferences.
   browsers on one event are distinct subscribers with identical fields.
 - **Client escaping goes through `escapeHtml`,** which escapes quotes too - the
   textContent/innerHTML trick does not, and values land in attributes.
+- **Geolocation needs a secure context.** Browsers block it over plain http://
+  except on localhost. This constrains deployment (Phase 8): a club serving over
+  a LAN without TLS loses the "where am I" dot. The client names the real cause.
+- **The viewer's own position is local only** - never sent to the server, never
+  stored, never visible to other viewers.
 - **CLI output stays ASCII.** Em dashes become mojibake in the Windows console,
   and a club laptop is the target environment.
 
@@ -168,13 +173,13 @@ usability, not style preferences.
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-02** Locate button now tracks continuously with `watchPosition`, plus an accuracy circle.
+- **2026-09-02** Added a location status line so location errors no longer overwrite the connection badge.
 - **2026-09-02** Phase 3: FastAPI server, role-gated access, WebSocket fan-out, Leaflet map client.
 - **2026-09-02** Fixed: connection badge was hidden behind Leaflet's zoom control.
 - **2026-09-02** Fixed: `Subscription` was unhashable; `@dataclass` unset `__hash__`.
 - **2026-09-02** Added `access.py`, `hub.py`, `web.py` and the `serve`/`links` CLI commands.
 - **2026-09-02** Added `styleUrl` capture; start/finish markers sharing a name are now distinguishable.
-- **2026-09-02** Fixed: `` hint patterns never matched inside `start_marker`; separators now normalized.
+- **2026-09-02** Fixed: word-boundary hint patterns never matched inside `start_marker`.
 - **2026-09-02** Validated the importer against a real MapMyRun export (Mankato Marathon, 26.4 mi).
 - **2026-09-02** Added `styling.py`, adjustable course draw order, opt-in dash patterns, and `style-course`.
-- **2026-09-02** Fixed: new schema columns never reached an existing database; `init_schema` now migrates.
-- **2026-09-02** Fixed: `geo.stitch` folded a course back on itself when a middle segment was listed first.

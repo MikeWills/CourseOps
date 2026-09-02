@@ -37,6 +37,8 @@ const state = {
   reconnectDelay: 1000,
   following: false,
   meMarker: null,
+  meAccuracy: null,
+  geoWatchId: null,
 };
 
 /* ---------- preferences (per browser, survive a reload or phone lock) ---- */
@@ -505,10 +507,6 @@ function connect() {
       state.positions.set(message.station_key, message);
       upsertStationMarker(message.station_key);
       renderStations();
-      if (state.following && state.meMarker === null) {
-        const marker = state.markers.get(message.station_key);
-        if (marker) map.panTo(marker.getLatLng());
-      }
     }
   });
 
@@ -544,29 +542,95 @@ setInterval(() => {
 
 /* ---------- geolocation ------------------------------------------------- */
 
+/* The viewer's own position, from the browser. Entirely local: it is never
+   sent to the server, never stored, and no other viewer can see it. Ops and
+   Shadow are moving around the course, so this TRACKS rather than taking a
+   single fix - a dot frozen where you tapped five minutes ago is worse than
+   no dot, because it looks current. */
+
 function setFollowing(on) {
   state.following = on;
   document.getElementById('locate-btn').setAttribute('aria-pressed', String(on));
 }
 
+function setLocateStatus(text) {
+  // Deliberately NOT the connection badge: that reports the data feed, and
+  // masking it with a location problem would hide a stale map.
+  const el = document.getElementById('locate-status');
+  el.textContent = text || '';
+  el.hidden = !text;
+}
+
+function stopWatching() {
+  if (state.geoWatchId != null) {
+    navigator.geolocation.clearWatch(state.geoWatchId);
+    state.geoWatchId = null;
+  }
+  setFollowing(false);
+  if (state.meMarker) { map.removeLayer(state.meMarker); state.meMarker = null; }
+  if (state.meAccuracy) { map.removeLayer(state.meAccuracy); state.meAccuracy = null; }
+  setLocateStatus('');
+}
+
+function onPosition(pos) {
+  const latlng = [pos.coords.latitude, pos.coords.longitude];
+  const accuracy = pos.coords.accuracy;
+
+  if (!state.meMarker) {
+    // Accuracy circle first so the dot draws on top of it.
+    state.meAccuracy = L.circle(latlng, {
+      radius: accuracy, color: '#0b5fa5', weight: 1,
+      fillColor: '#0b5fa5', fillOpacity: 0.12, interactive: false,
+    }).addTo(map);
+    state.meMarker = L.circleMarker(latlng, {
+      radius: 8, color: '#ffffff', weight: 3,
+      fillColor: '#0b5fa5', fillOpacity: 1,
+    }).addTo(map).bindPopup('You are here');
+    map.setView(latlng, Math.max(map.getZoom(), 15));
+  } else {
+    state.meMarker.setLatLng(latlng);
+    state.meAccuracy.setLatLng(latlng).setRadius(accuracy);
+    if (state.following) map.panTo(latlng);
+  }
+
+  // A 500 m "fix" is wifi triangulation, not GPS. Say so rather than letting
+  // someone trust a dot that could be anywhere in the neighbourhood.
+  setLocateStatus(accuracy > 100 ? `Location approximate (±${Math.round(accuracy)} m)` : '');
+}
+
+function onPositionError(err) {
+  if (err.code === err.PERMISSION_DENIED) {
+    setLocateStatus('Location permission denied');
+  } else if (err.code === err.TIMEOUT) {
+    setLocateStatus('No GPS fix yet');
+  } else {
+    setLocateStatus('Location unavailable');
+  }
+  setFollowing(false);
+}
+
 document.getElementById('locate-btn').addEventListener('click', () => {
-  if (!navigator.geolocation) return;
-  // Purely local: the browser's own position, never transmitted or stored.
-  navigator.geolocation.getCurrentPosition(
-    (pos) => {
-      const latlng = [pos.coords.latitude, pos.coords.longitude];
-      if (!state.meMarker) {
-        state.meMarker = L.circleMarker(latlng, {
-          radius: 8, color: '#0b5fa5', fillColor: '#0b5fa5', fillOpacity: 0.9, weight: 3,
-        }).addTo(map).bindPopup('You are here');
-      } else {
-        state.meMarker.setLatLng(latlng);
-      }
-      map.setView(latlng, Math.max(map.getZoom(), 15));
-      setFollowing(true);
-    },
-    () => setConnection('down', 'Location unavailable'),
-    { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
+  if (state.geoWatchId != null) {           // second tap turns it off
+    stopWatching();
+    return;
+  }
+  if (!navigator.geolocation) {
+    setLocateStatus('This browser has no location support');
+    return;
+  }
+  // Browsers block geolocation outside a secure context. On a club LAN served
+  // over plain http:// this fails with a bare permission error that looks like
+  // the user's fault, so name the real cause.
+  if (!window.isSecureContext) {
+    setLocateStatus('Location needs HTTPS (or localhost)');
+    return;
+  }
+
+  setLocateStatus('Locating…');
+  setFollowing(true);
+  state.geoWatchId = navigator.geolocation.watchPosition(
+    onPosition, onPositionError,
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
   );
 });
 
