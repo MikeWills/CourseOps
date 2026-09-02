@@ -70,13 +70,18 @@ def build_state(conn: sqlite3.Connection, event_id: int) -> dict[str, Any]:
         ).fetchall()
     ]
 
-    pois = [
-        _row_to_dict(row)
-        for row in conn.execute(
-            "SELECT * FROM poi WHERE event_id = ? ORDER BY poi_type, name",
-            (event_id,),
-        ).fetchall()
-    ]
+    index = progress.CourseIndex.for_event(conn, event_id)
+
+    # Aid stations are listed in COURSE order, not by name: see
+    # CourseIndex.order_along_course for why name ordering cannot work.
+    poi_rows = conn.execute(
+        "SELECT * FROM poi WHERE event_id = ?", (event_id,)
+    ).fetchall()
+    pois = []
+    for row in index.order_along_course(poi_rows):
+        entry = _row_to_dict(row)
+        entry["course_position"] = _course_position(index, row["lat"], row["lon"])
+        pois.append(entry)
 
     roster = []
     for row in conn.execute(
@@ -87,11 +92,14 @@ def build_state(conn: sqlite3.Connection, event_id: int) -> dict[str, Any]:
         # Wording differs by category: an aid station is "Torn down", a sweep is
         # "Finished". The client should not have to know that mapping.
         entry["op_status_label"] = db.op_status_label(row["category"], row["op_status"])
+        # An operator posted at an aid station inherits that station's place on
+        # the course, so the roster can be read in course order too.
+        if row["poi_id"] is not None:
+            poi = next((p for p in pois if p["id"] == row["poi_id"]), None)
+            if poi is not None:
+                entry["course_position"] = poi["course_position"]
+                entry["poi_name"] = poi["name"]
         roster.append(entry)
-
-    # Built once per snapshot: cumulative course lengths are the expensive part
-    # and every station reuses them.
-    index = progress.CourseIndex.for_event(conn, event_id)
 
     positions = [
         {

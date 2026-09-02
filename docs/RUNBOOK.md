@@ -113,6 +113,19 @@ courseops add-station mankato2026 KI4HMD-1 "Aid 4" --category aid_station --no-a
 Categories: `net_control`, `aid_station`, `sweep`, `sag`, `shadow`, `rover`,
 `start_finish`.
 
+**Post aid station operators at their station.** Most never beacon, so this is
+the only way the app knows where they are:
+
+```bash
+courseops courses mankato2026            # find the aid station's id
+courseops post mankato2026 KI4HMD-1 4    # post that operator at it
+```
+
+**Name aid stations however your club does** - Alpha/Beta/Gamma, NATO phonetic,
+numbers, or place names. Lists are ordered by position along the course, not
+alphabetically, so the naming scheme does not matter and the order always
+matches the direction of travel.
+
 **Get `--no-aprs` right.** If operators who were never going to beacon are
 listed as APRS-tracked, the "who has gone quiet" panel fills with false alarms
 and people stop reading it within twenty minutes. That panel is only useful

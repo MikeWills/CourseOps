@@ -31,7 +31,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 147 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 153 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -48,6 +48,7 @@ courseops assign-poi marathon2026 6 --type aid_station --what3words filled.count
 courseops discard marathon2026 2 8
 courseops courses marathon2026
 courseops style-course marathon2026 1 --color "#cc3333" --order 10
+courseops post marathon2026 KI4HMD-1 4   # post an operator at aid station 4
 courseops set-w3w marathon2026 4 index.home.raft
 
 courseops links marathon2026           # the three role URLs to send out
@@ -185,6 +186,9 @@ usability, not style preferences.
 - **No mile figure beats a wrong one.** A station further than
   `progress.DEFAULT_MAX_OFFSET_M` from every course reports `None`, and the
   client shows the callsign instead. Someone acts on this number.
+- **Order aid stations by course position, never by name.** Greek letters sort
+  Alpha, Beta, Delta, Epsilon, Gamma; "Aid 10" sorts before "Aid 2"; place names
+  do not sort at all. `CourseIndex.order_along_course()`.
 - **The course name always travels with the mile.** Routes share road, so the
   snap is a coin flip there; "mile 14.2" alone would mislead.
 - **Mile figures inherit the course geometry's accuracy.** A hand-drawn route
@@ -251,6 +255,8 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-02** Aid stations now order by course position, not by name (Greek/numeric sort bug).
+- **2026-09-02** Added `courseops post` to station an operator at an aid station.
 - **2026-09-02** Phase 5: course-relative position — "Full-back at mile 14.2".
 - **2026-09-02** Added the full icon set (iOS, Android maskable, favicons) and a per-role manifest.
 - **2026-09-02** Applied Course Ops branding: navy chrome, safety orange accent, pin logo.
@@ -259,5 +265,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-02** Phase 4: operational status, the first write path, role-enforced and broadcast.
 - **2026-09-02** Added operator initials, stamped on status changes for shift handover.
 - **2026-09-02** Added `docs/RUNBOOK.md` and a documentation-discipline checklist to CLAUDE.md.
-- **2026-09-02** Preserved the real Mankato course as a fixture with 8 regression tests.
-- **2026-09-02** Added "Known gaps and open threads" to `docs/PLAN.md`.

@@ -153,3 +153,115 @@ def test_no_courses_means_no_position(tmp_path):
     index = progress.CourseIndex.for_event(conn, event_id)
     assert len(index) == 0
     assert index.locate(44.15, -93.99) is None
+
+
+# --- ordering by course position --------------------------------------------
+#
+# Aid stations get named however a club likes: numbers, Greek letters, NATO
+# phonetic, place names. None of those sort correctly by name, so they are
+# ordered by where they sit on the course instead.
+
+def aid_stations_at_miles(conn, event_id, index, plan):
+    """Place named aid stations at real points along the course."""
+    course = index._courses[0]
+
+    def at_mile(mile):
+        target = mile * MILE
+        for i, total in enumerate(course.totals):
+            if total >= target:
+                return course.coords[i]
+        return course.coords[-1]
+
+    for name, mile in plan:
+        lon, lat = at_mile(mile)
+        conn.execute(
+            "INSERT INTO poi (event_id, name, poi_type, lat, lon)"
+            " VALUES (?, ?, 'aid_station', ?, ?)",
+            (event_id, name, lat, lon),
+        )
+    return conn.execute(
+        "SELECT * FROM poi WHERE event_id = ?", (event_id,)
+    ).fetchall()
+
+
+def test_greek_letters_sort_wrong_by_name_but_right_by_course(mankato):
+    conn, event_id = mankato
+    index = progress.CourseIndex.for_event(conn, event_id)
+    rows = aid_stations_at_miles(conn, event_id, index, [
+        ("Alpha", 2.5), ("Beta", 5.0), ("Gamma", 8.5),
+        ("Delta", 12.0), ("Epsilon", 17.0),
+    ])
+
+    by_name = [r["name"] for r in sorted(rows, key=lambda r: r["name"])]
+    by_course = [r["name"] for r in index.order_along_course(rows)]
+
+    # The bug this exists to avoid: Gamma is third on the course, fifth by name.
+    assert by_name == ["Alpha", "Beta", "Delta", "Epsilon", "Gamma"]
+    assert by_course == ["Alpha", "Beta", "Gamma", "Delta", "Epsilon"]
+
+
+def test_numbered_stations_sort_wrong_by_name_but_right_by_course(mankato):
+    """'Aid 10' sorts before 'Aid 2' as a string."""
+    conn, event_id = mankato
+    index = progress.CourseIndex.for_event(conn, event_id)
+    rows = aid_stations_at_miles(conn, event_id, index, [
+        ("Aid 2", 4.0), ("Aid 10", 20.0),
+    ])
+
+    assert [r["name"] for r in sorted(rows, key=lambda r: r["name"])] == \
+        ["Aid 10", "Aid 2"]
+    assert [r["name"] for r in index.order_along_course(rows)] == \
+        ["Aid 2", "Aid 10"]
+
+
+def test_places_off_the_course_sink_to_the_end(mankato):
+    conn, event_id = mankato
+    index = progress.CourseIndex.for_event(conn, event_id)
+    aid_stations_at_miles(conn, event_id, index, [("Alpha", 2.5), ("Beta", 9.0)])
+    conn.execute(
+        "INSERT INTO poi (event_id, name, poi_type, lat, lon)"
+        " VALUES (?, 'Overflow Parking', 'parking', 44.30, -93.60)",
+        (event_id,),
+    )
+    rows = conn.execute(
+        "SELECT * FROM poi WHERE event_id = ?", (event_id,)
+    ).fetchall()
+
+    ordered = [r["name"] for r in index.order_along_course(rows)]
+
+    assert ordered == ["Alpha", "Beta", "Overflow Parking"]
+
+
+def test_posting_a_station_at_an_aid_station_gives_it_a_position(mankato):
+    """Most aid station operators never beacon, so their only position is the
+    station they are posted at."""
+    conn, event_id = mankato
+    index = progress.CourseIndex.for_event(conn, event_id)
+    rows = aid_stations_at_miles(conn, event_id, index, [("Alpha", 6.0)])
+    db.upsert_roster_entry(conn, event_id, "N0AAA-1", "Aid Alpha",
+                           "aid_station", expects_aprs=False)
+
+    updated = db.assign_station_to_poi(conn, event_id, "N0AAA-1", rows[0]["id"])
+
+    assert updated["poi_id"] == rows[0]["id"]
+    located = index.locate(rows[0]["lat"], rows[0]["lon"])
+    assert located.distance_along_m / MILE == pytest.approx(6.0, abs=0.1)
+
+
+def test_posting_to_an_unknown_poi_is_rejected(mankato):
+    conn, event_id = mankato
+    db.upsert_roster_entry(conn, event_id, "N0AAA-1", "Aid Alpha", "aid_station")
+    with pytest.raises(ValueError, match="No POI with id"):
+        db.assign_station_to_poi(conn, event_id, "N0AAA-1", 9999)
+
+
+def test_posting_can_be_cleared(mankato):
+    conn, event_id = mankato
+    index = progress.CourseIndex.for_event(conn, event_id)
+    rows = aid_stations_at_miles(conn, event_id, index, [("Alpha", 6.0)])
+    db.upsert_roster_entry(conn, event_id, "N0AAA-1", "Aid Alpha", "aid_station")
+
+    db.assign_station_to_poi(conn, event_id, "N0AAA-1", rows[0]["id"])
+    cleared = db.assign_station_to_poi(conn, event_id, "N0AAA-1", None)
+
+    assert cleared["poi_id"] is None

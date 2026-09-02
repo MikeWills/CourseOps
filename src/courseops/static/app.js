@@ -130,7 +130,11 @@ function formatMile(meters) {
 
 function coursePositionOf(stationKey) {
   const position = state.positions.get(stationKey);
-  return position ? (position.course_position || null) : null;
+  if (position && position.course_position) return position.course_position;
+  // An operator posted at an aid station has no packets of their own - most
+  // never beacon - so their position comes from the station they are posted at.
+  const entry = state.roster.get(stationKey);
+  return entry ? (entry.course_position || null) : null;
 }
 
 function formatAge(seconds) {
@@ -317,6 +321,11 @@ function drawPois(pois) {
       title: poi.name,
     });
     const rows = [['Type', poi.poi_type.replace(/_/g, ' ')]];
+    if (poi.course_position) {
+      rows.push(['Course position',
+        `${formatMile(poi.course_position.distance_along_m)} of ` +
+        `${poi.course_position.course_name}`]);
+    }
     if (poi.what3words) rows.push(['what3words', `///${poi.what3words}`]);
     if (poi.notes) rows.push(['Notes', poi.notes]);
     rows.push(['Position', `${poi.lat.toFixed(5)}, ${poi.lon.toFixed(5)}`]);
@@ -492,6 +501,14 @@ function renderStations() {
       if (byOp !== 0) return byOp;
       const byStatus = STATUS_RANK[radioStatus(a)] - STATUS_RANK[radioStatus(b)];
       if (byStatus !== 0) return byStatus;
+      // Course order beats alphabetical: "Aid 10" sorts before "Aid 2" by name,
+      // and Greek letters come out Alpha, Beta, Delta, Epsilon, Gamma. Course
+      // order is also how NCS works through them, behind the sweep.
+      const pa = coursePositionOf(a);
+      const pb = coursePositionOf(b);
+      if (pa && pb) return pa.distance_along_m - pb.distance_along_m;
+      if (pa) return -1;
+      if (pb) return 1;
       return labelOf(a).localeCompare(labelOf(b));
     });
 
