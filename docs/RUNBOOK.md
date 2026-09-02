@@ -177,10 +177,16 @@ meeting than while the net is live.
 
 **Do this at a club meeting a week out, not on race morning.**
 
-People sign up with the wrong SSID. Someone says they are `WX0MIK-1` when their
-phone actually beacons `WX0MIK-5`. The app asks for every SSID of each rostered
-callsign, so they will still show up — but the roster label will be wrong, and
-their own digipeater may appear as well.
+**Collect callsigns, not SSIDs.** Enter `WX0MIK` on the roster and leave the
+SSID off. The app binds the entry to the first SSID it hears that looks like a
+person rather than a digipeater, and the Roster tab then shows *heard as
+WX0MIK-5* beside the callsign. This is the recommended way to build a roster:
+volunteers know their callsign, but the SSID belongs to whichever radio or phone
+app they bring on the day, so SSIDs collected weeks in advance include some
+wrong ones. Enter an SSID yourself only when you know it and want to pin it.
+
+The check below is still worth running, because it tells you what is on the air
+before the event rather than during it.
 
 ```bash
 courseops check-in mankato2026 --seconds 300
@@ -354,8 +360,10 @@ If it does not work, the message says why:
 ### Common situations
 
 **A station never appears.** In order: are they beaconing at all (check
-aprs.fi)? Is the callsign on the roster with the exact SSID — `N0CALL-9` and
-`N0CALL-7` are different radios? Do they have cell data where they are?
+aprs.fi)? Is the callsign on the roster, spelled right? Do they have cell data
+where they are? If the roster names an exact SSID, check it is the one they are
+really using - `N0CALL-9` and `N0CALL-7` are different radios. Removing the SSID
+from the roster entry lets the app find it on its own.
 
 **Everyone goes silent at once.** That is the server's connection, not the
 field. Check the status badge; if it says Reconnecting, the app is already

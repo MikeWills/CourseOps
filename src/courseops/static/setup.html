@@ -175,23 +175,26 @@
       <button data-goto="events" type="button">Go to Events</button></p>
     <h2>Roster</h2>
     <p class="muted">
-      Use the callsign each person actually transmits with, including the SSID.
-      If they get it wrong, the app will tell you on the map.
+      Enter the callsign alone. The SSID belongs to whichever radio or app they
+      bring on the day, so the app works it out from the first position it hears
+      and shows it here. Add one yourself only if you know it and want to pin it.
     </p>
     <div id="roster-table"></div>
     <form id="roster-form" class="card">
       <h3 id="roster-form-title">Add a station</h3>
       <div class="row">
-        <label class="field"><span>Callsign with SSID</span>
-          <input id="rs-call" type="text" placeholder="N0CALL-9" required></label>
+        <label class="field"><span>Callsign
+            <small>SSID optional - the app learns it from the air</small></span>
+          <input id="rs-call" type="text" placeholder="N0CALL" required></label>
         <label class="field"><span>Label</span>
           <input id="rs-label" type="text" placeholder="Full-back" required></label>
       </div>
       <div class="row">
         <label class="field"><span>Role</span>
           <select id="rs-category"></select></label>
-        <label class="field"><span>Operator name</span>
-          <input id="rs-operator" type="text"></label>
+        <label class="field"><span>Operator name
+            <small>read out with the callsign to get their attention</small></span>
+          <input id="rs-operator" type="text" placeholder="Alaric"></label>
       </div>
       <div class="row">
         <label class="field"><span>Posted at</span>

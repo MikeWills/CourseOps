@@ -68,6 +68,16 @@ CREATE TABLE IF NOT EXISTS roster (
     -- SSID-qualified identity. 'N0CALL-9' and 'N0CALL-7' are different radios
     -- on different people and must never be merged.
     station_key   TEXT    NOT NULL,
+    -- The SSID actually heard on the air, when station_key names only a
+    -- callsign. Volunteers know their callsign; the SSID is a property of
+    -- whichever radio or phone app they bring on the day, and asking a
+    -- coordinator to collect it in advance is asking to be told the wrong one.
+    -- So the roster may hold a bare callsign and this is filled in from the
+    -- first packet that looks like a person rather than infrastructure.
+    -- NULL means either nothing heard yet, or the roster named the SSID
+    -- outright. Kept separate from station_key so what a human typed is never
+    -- silently rewritten, and so a mis-bind can be undone.
+    bound_key     TEXT,
     operator_name TEXT,
     display_label TEXT    NOT NULL,
     -- net_control | aid_station | sweep | sag | shadow | rover | start_finish

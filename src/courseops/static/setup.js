@@ -629,11 +629,13 @@ async function loadRoster() {
     data.pois.map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join('');
 
   $('roster-table').innerHTML = S.roster.length ? `
-    <table class="grid"><thead><tr><th>Callsign</th><th>Label</th><th>Role</th>
-      <th>APRS</th><th>Posted at</th><th></th></tr></thead><tbody>` +
+    <table class="grid"><thead><tr><th>Callsign</th><th>Label</th><th>Operator</th>
+      <th>Role</th><th>APRS</th><th>Posted at</th><th></th></tr></thead><tbody>` +
     S.roster.map((r) => `<tr>
-      <td><strong>${esc(r.station_key)}</strong></td>
+      <td><strong>${esc(r.station_key)}</strong>${r.bound_key
+        ? `<br><span class="muted">heard as ${esc(r.bound_key)}</span>` : ''}</td>
       <td>${esc(r.display_label)}</td>
+      <td>${esc(r.operator_name || '')}</td>
       <td>${esc(CATEGORY_LABELS[r.category] || r.category)}</td>
       <td>${r.expects_aprs
         ? '<span class="pill">tracked</span>'
