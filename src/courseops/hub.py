@@ -72,7 +72,7 @@ class Hub:
                     )
 
 
-def position_message(report, roster_row=None) -> dict[str, Any]:
+def position_message(report, roster_row=None, course_position=None) -> dict[str, Any]:
     """Wire format for one live position.
 
     Speed stays metric on the wire; the browser converts for display, keeping
@@ -94,4 +94,7 @@ def position_message(report, roster_row=None) -> dict[str, Any]:
     if roster_row is not None:
         message["label"] = roster_row["display_label"]
         message["category"] = roster_row["category"]
+    # None means "not near any course" - the client shows nothing rather than a
+    # plausible wrong mile figure.
+    message["course_position"] = course_position
     return message

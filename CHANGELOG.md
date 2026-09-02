@@ -7,6 +7,53 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-09-02 - Phase 5: course-relative position
+
+"Full-back at mile 14.2" - the number the net actually speaks, and the signal
+that says a road segment is clear so aid stations can tear down and Logistics
+can pull cones.
+
+#### Added
+- `geo.project_onto_line()` and `geo.cumulative_lengths()` - snap a point to the
+  nearest place on a polyline, returning distance along, lateral offset and the
+  snapped point. Distance along uses haversine so it agrees with
+  `line_length_m`; the perpendicular projection uses local planar maths, which
+  is accurate to well under a metre at these distances.
+- `progress.py` with `CourseIndex` - course geometry prepared once and reused
+  for every station. Cumulative lengths are the expensive part (1200+ haversines
+  for a marathon), so they are not recomputed per packet.
+- Course position on every position in the state snapshot and on every live
+  WebSocket update: distance along, remaining, fraction, offset and course name.
+- Station rows show the mile figure in place of the callsign when one is
+  available; the popup adds "mile 14.2 of Full", remaining distance, and how far
+  off the line the station is when that exceeds 60 m.
+- `units.format_mile()`.
+- 13 tests (147 total), including every-vertex checks against the real Mankato
+  course.
+
+#### Deliberate choices
+- **A station further than 250 m from any course gets no mile figure**, rather
+  than a plausible wrong one - someone acts on this number. The tolerance is
+  generous on purpose: GPS is good to tens of metres, but the course line runs
+  down the middle of the road while a sweep is on the shoulder, and a hand-drawn
+  course can cut a corner by hundreds of metres. Worth revisiting against a
+  GIS-produced course.
+- **The course name always travels with the mile.** Where routes share road the
+  station snaps to whichever line is nearest, which is a coin flip on shared
+  pavement, so "mile 14.2" alone would be misleading.
+- **One decimal place.** The geometry is not accurate to better than that, and
+  more digits would imply precision we do not have.
+- **The projection clamps at both ends**, so a station past the finish reports
+  the finish rather than an extrapolation beyond it.
+- Course geometry is loaded once per ingest task, not per packet. Re-importing a
+  course mid-event needs a server restart; courses are set up beforehand.
+
+#### Verified against the real course
+- Stations placed at genuine mile 6.0 / 14.2 / 22.5 on the Mankato route report
+  6.03 / 14.21 / 22.52 at 0.0 m offset.
+- Sampled vertices across the whole route snap to under 1 m offset and agree
+  with the precomputed cumulative distance to within a metre.
+
 ### 2026-09-02 - Full icon set and home screen install
 
 #### Added

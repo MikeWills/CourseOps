@@ -48,3 +48,17 @@ def format_distance(meters: float | None, imperial: bool = True) -> str:
     if meters is None:
         return "--"
     return f"{meters_to_miles(meters):.1f} mi" if imperial else f"{meters / 1000:.1f} km"
+
+
+def format_mile(meters: float | None, imperial: bool = True) -> str:
+    """Course position as the net says it: "mile 14.2".
+
+    One decimal on purpose. The underlying course geometry is not accurate to
+    better than that - a hand-drawn route cuts corners - and "mile 14.23" would
+    imply a precision we do not have.
+    """
+    if meters is None:
+        return "--"
+    if imperial:
+        return f"mile {meters / METERS_PER_MILE:.1f}"
+    return f"km {meters / 1000:.1f}"

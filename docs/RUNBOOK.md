@@ -231,6 +231,29 @@ fault. A marker only moves when a packet actually arrives, so it will sit still
 and then jump — that is deliberate. The app never guesses a position between
 reports.
 
+### Reading course position
+
+Where a station is along the route is shown as **mile 14.2** in its row, in
+place of the callsign, and in full in its popup: *"mile 14.2 of Full"* plus how
+far it has left to run.
+
+This is the number to read on the net, and it is what closes the event down: as
+the sweep passes each aid station, that station can tear down and Logistics can
+start pulling cones behind it.
+
+Three things to know:
+
+- **The course name is always shown with the mile.** Where the Full, Half and
+  10K share road, a station is matched to whichever line it happens to be
+  nearest — so trust the pair, not the number alone.
+- **A station well off the route shows its callsign instead of a mile.** That is
+  deliberate: no figure is better than a wrong one. It usually means they have
+  genuinely left the course.
+- **Accuracy follows the course file.** A route hand-drawn in a consumer tool
+  cuts corners with straight-line shortcuts, so it measures short and the mile
+  figures drift. A course from a GIS system does not have this problem. If mile
+  figures look consistently off, suspect the course file before the app.
+
 ### What the field roles see
 
 Aid station operators and net control are hidden by default on the Liaison and
