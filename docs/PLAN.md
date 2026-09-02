@@ -404,9 +404,12 @@ Things discovered but not yet acted on. Each is a real constraint, not a wish.
 - ~~**Geolocation requires HTTPS.**~~ Resolved by Phase 8: Apache terminates
   TLS with a Let's Encrypt certificate, so the field roles' location dot works.
   A club running on a LAN without TLS still loses it.
-- **OpenStreetMap tile policy.** The public tile server is fine for one club but
-  its usage policy does not cover a hosted multi-club service. That deployment
-  needs its own tile source or a commercial provider.
+- **OpenStreetMap tile policy** — issue #3. Fine for one club; not for a hosted
+  multi-club service.
+- **Per-organization backup and export** — issue #4. The current backup is
+  whole-database.
+- **Multi-tenant rough edges** — issue #5. Resource limits, a signup path with
+  password reset, and static asset caching.
 - **Hand-drawn courses cut corners.** The Mankato export has 13 straight-line
   gaps over 200 m (largest 1241 m) where the route builder used direct/offroad
   mode. Chords are shorter than the road, so Phase 5 mile figures drift on such
@@ -420,9 +423,7 @@ Things discovered but not yet acted on. Each is a real constraint, not a wish.
   GIS-drawn KML carries dozens. Simplification is a separate decision; import
   must not silently discard fidelity.
 - **Colour specification pending** from the club; see Visual design above.
-- **Static asset caching.** Browsers cached `index.html` across an edit during
-  Phase 4 testing. A club updating the app may need a hard refresh; consider
-  cache headers or a version query string in Phase 8.
+- ~~**Static asset caching.**~~ Tracked in issue #5.
 - **Operator runbook is a draft.** `docs/RUNBOOK.md` exists and covers what is
   built. Sections marked **[CLUB]** need the club's own practice filled in (who
   runs the pre-event check, how links are distributed, where backups go), and
