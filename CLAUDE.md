@@ -4,7 +4,13 @@ Web map for marathon-style events: race courses and aid stations from organizer
 KML/KMZ, overlaid with live APRS positions of the ham radio operators supporting
 the event. Built to be stood up by a radio club without much effort.
 
-Full plan and phase detail: **`docs/PLAN.md`**. Complete history: **`CHANGELOG.md`**.
+Full plan, phase detail, and **known gaps / open threads**: `docs/PLAN.md`.
+Complete history with the reasoning behind each fix: `CHANGELOG.md`.
+Open work is also tracked as GitHub issues (issue #1: GPX import).
+
+**Starting a fresh session?** Read `docs/PLAN.md` first - it carries the
+decisions and the constraints discovered so far. The "Domain rules" section
+below is the short list of things that cost real time when violated.
 
 ## Status
 
@@ -21,7 +27,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 111 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 119 tests, no network
 
 awt init-db
 awt add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -70,9 +76,11 @@ src/aprswebtracker/
   web.py          FastAPI: map page, state snapshot, WebSocket
   static/         Leaflet client, no build step
   cli.py          awt entry point
-tests/fixtures/packets.txt        packet corpus, `expectation|raw` per line
-tests/fixtures/messy_course.kml   KML reproducing real organizer defects
-docs/PLAN.md                      the plan
+tests/fixtures/packets.txt          packet corpus, `expectation|raw` per line
+tests/fixtures/messy_course.kml     synthetic KML with real organizer defects
+tests/fixtures/mankato_marathon.kml REAL MapMyRun export, 26.4 mi; the only
+                                    realistic course we have - use it for Phase 5
+docs/PLAN.md                        plan, decisions, known gaps
 ```
 
 ## Domain rules that are easy to get wrong
@@ -179,6 +187,8 @@ usability, not style preferences.
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-02** Preserved the real Mankato course as a fixture with 8 regression tests.
+- **2026-09-02** Added "Known gaps and open threads" to `docs/PLAN.md`.
 - **2026-09-02** Split Logistics out as its own read-only role, separate from Liaison.
 - **2026-09-02** Locate button now tracks continuously with `watchPosition`, plus an accuracy circle.
 - **2026-09-02** Added a location status line so location errors no longer overwrite the connection badge.
@@ -187,5 +197,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-02** Fixed: `Subscription` was unhashable; `@dataclass` unset `__hash__`.
 - **2026-09-02** Added `access.py`, `hub.py`, `web.py` and the `serve`/`links` CLI commands.
 - **2026-09-02** Added `styleUrl` capture; start/finish markers sharing a name are now distinguishable.
-- **2026-09-02** Fixed: word-boundary hint patterns never matched inside `start_marker`.
-- **2026-09-02** Validated the importer against a real MapMyRun export (Mankato Marathon, 26.4 mi).

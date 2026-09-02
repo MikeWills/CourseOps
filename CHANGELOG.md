@@ -7,6 +7,35 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-09-02 - Session continuity pass
+
+Captured what existed only in conversation, so a fresh session loses nothing.
+
+#### Added
+- `tests/fixtures/mankato_marathon.kml` - the real MapMyRun export of the 2026
+  Mankato Marathon, plus `test_real_course.py` (8 tests). It is the only
+  realistic course available and is the baseline for Phase 5. Synthetic fixtures
+  did not reproduce what this file does: it has already caught identically-named
+  placemarks separated only by `<styleUrl>`, and hint patterns that could not
+  match inside `start_marker`. Tests assert the measured distance, the 157
+  duplicate vertices, the 13 straight-line gaps, and that the file carries no
+  aid stations - so a future export that differs is noticed rather than assumed.
+- `docs/PLAN.md` gains a **Known gaps and open threads** section: GPX import
+  (issue #1), the HTTPS requirement for geolocation, OpenStreetMap tile policy
+  for hosted use, corner-cutting in hand-drawn courses and its effect on Phase 5
+  mile figures, the absence of aid stations in course files, GPX point density,
+  and the missing operator runbook.
+- `docs/PLAN.md` resolved-questions list extended with the decisions made since
+  it was written: the Liaison/Logistics split, multiple NCS operators sharing a
+  workstation, draw order for overlapping courses, mobile-first, and no W3W API.
+- `CLAUDE.md` now points a fresh session at `docs/PLAN.md` first and notes that
+  open work is also tracked as GitHub issues.
+
+#### Note
+- The Mankato fixture is the organizer's course data from a publicly shared
+  MapMyRun route. Flagged in the test module: decide before making the
+  repository public whether to keep it, synthesize a replacement, or ask.
+
 ### 2026-09-02 - Logistics is its own role
 
 Terminology correction from the field: what earlier entries called "Ops" is the
