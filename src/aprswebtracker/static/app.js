@@ -62,17 +62,22 @@ function savePrefs() {
   } catch (e) { /* not worth bothering the user about */ }
 }
 
-/* Liaison defaults: the moving pieces and the incidents, without 30 fixed
-   markers cluttering a phone screen. NCS sees everything. */
+/* Per-role layer defaults. NCS sees everything; the field roles start with the
+   30-odd fixed aid station operators hidden, which is the difference between a
+   readable phone screen and an unreadable one.
+
+   Both field roles keep SWEEPS on, and for Logistics that is the whole point:
+   the sweep is the back of the pack, so its position is what says a road
+   segment is clear and the cones can come up. */
 function defaultLayers(role) {
-  const liaison = role === 'liaison';
+  const field = role === 'liaison' || role === 'logistics';
   return {
-    aid_station_ops: !liaison,
+    aid_station_ops: !field,
     sweep: true,
     sag: true,
     shadow: true,
     rover: true,
-    net_control: !liaison,
+    net_control: !field,
     start_finish: true,
     pois: true,
   };
@@ -543,8 +548,8 @@ setInterval(() => {
 /* ---------- geolocation ------------------------------------------------- */
 
 /* The viewer's own position, from the browser. Entirely local: it is never
-   sent to the server, never stored, and no other viewer can see it. Ops and
-   Shadow are moving around the course, so this TRACKS rather than taking a
+   sent to the server, never stored, and no other viewer can see it. Logistics
+   and Shadow are moving around the course, so this TRACKS rather than taking a
    single fix - a dot frozen where you tapped five minutes ago is worse than
    no dot, because it looks current. */
 

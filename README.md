@@ -100,18 +100,20 @@ awt serve m2026
 That prints one link per role. Send each to the right group:
 
 ```
-  Net Control     http://localhost:8000/e/m2026/KXPbeBeL...
-  Liaison / Ops   http://localhost:8000/e/m2026/kKUjMiR_...
+  Net Control   http://localhost:8000/e/m2026/KXPbeBeL...
+  Liaison       http://localhost:8000/e/m2026/kKUjMiR_...
+  Logistics     http://localhost:8000/e/m2026/9fQ2xLmT...
 ```
 
 These are bearer links - anyone holding one has that role, and there is no
-public view. Net Control can write; Liaison is read-only. Revoke a leaked link
+public view. Net Control can write; Liaison (with Public Safety and Medics) and
+Logistics (traffic control, cones, teardown) are read-only. Revoke a leaked link
 with `awt revoke-link m2026 <id>` and issue a fresh one with
 `awt links m2026 --new liaison`.
 
 The map is built for a phone held one-handed outdoors: full-bleed map, panels
-as bottom sheets, high contrast for daylight, and layer toggles so the Liaison
-can hide the fixed aid station operators. Station markers differ by shape as
+as bottom sheets, high contrast for daylight, and layer toggles so the field
+roles can hide the fixed aid station operators. Station markers differ by shape as
 well as colour, and every station shows how long ago it was last heard - a
 marker never moves except when a packet actually arrives.
 

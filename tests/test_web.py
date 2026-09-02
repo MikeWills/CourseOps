@@ -188,3 +188,35 @@ def test_client_assets_are_served(setup):
     with TestClient(app) as client:
         assert client.get("/static/app.js").status_code == 200
         assert client.get("/static/app.css").status_code == 200
+
+
+# --- roles ------------------------------------------------------------------
+
+def test_three_roles_each_get_their_own_link(setup):
+    """Liaison and Logistics are different teams, so one can be revoked
+    without cutting off the other."""
+    _, tokens, _, _ = setup
+    assert set(tokens) == {"ncs", "liaison", "logistics"}
+    assert len(set(tokens.values())) == 3
+
+
+def test_logistics_is_read_only(setup):
+    app, tokens, _, _ = setup
+    with TestClient(app) as client:
+        data = client.get(f"/api/m2026/{tokens['logistics']}/state").json()
+    assert data["role"] == "logistics"
+    assert data["role_label"] == "Logistics"
+    assert data["can_write"] is False
+
+
+def test_revoking_one_field_role_leaves_the_other_working(setup):
+    app, tokens, db_path, event_id = setup
+    conn = db.connect(db_path)
+    row = next(r for r in access.tokens_for_event(conn, event_id)
+               if r["token"] == tokens["logistics"])
+    access.revoke(conn, row["id"])
+    conn.close()
+
+    with TestClient(app) as client:
+        assert client.get(f"/api/m2026/{tokens['logistics']}/state").status_code == 404
+        assert client.get(f"/api/m2026/{tokens['liaison']}/state").status_code == 200

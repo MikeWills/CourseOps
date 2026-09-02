@@ -21,7 +21,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 108 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 111 tests, no network
 
 awt init-db
 awt add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -137,6 +137,12 @@ usability, not style preferences.
   names.
 - **Hint patterns must normalize `_` and `-` to spaces first.** `_` is a word
   character, so `start` never matches inside `start_marker`.
+- **Liaison and Logistics are different teams, not one role.** Liaison is
+  embedded with Public Safety and Medics; Logistics is in the field doing traffic
+  control, cone placement and teardown. Separate links so one can be revoked
+  alone. Both read-only in v1 (`WRITE_ROLES`).
+- **Sweeps stay visible to Logistics.** The sweep is the back of the pack, so its
+  position is what says a road is clear and the cones can come up.
 - **An invalid token returns 404, never 403.** A 403 would confirm the event
   exists. Tokens are also scoped to their event: valid elsewhere means nothing.
 - **Never interpolate marker movement in the client** (same rule as the plan).
@@ -173,6 +179,7 @@ usability, not style preferences.
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-02** Split Logistics out as its own read-only role, separate from Liaison.
 - **2026-09-02** Locate button now tracks continuously with `watchPosition`, plus an accuracy circle.
 - **2026-09-02** Added a location status line so location errors no longer overwrite the connection badge.
 - **2026-09-02** Phase 3: FastAPI server, role-gated access, WebSocket fan-out, Leaflet map client.
@@ -182,4 +189,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-02** Added `styleUrl` capture; start/finish markers sharing a name are now distinguishable.
 - **2026-09-02** Fixed: word-boundary hint patterns never matched inside `start_marker`.
 - **2026-09-02** Validated the importer against a real MapMyRun export (Mankato Marathon, 26.4 mi).
-- **2026-09-02** Added `styling.py`, adjustable course draw order, opt-in dash patterns, and `style-course`.

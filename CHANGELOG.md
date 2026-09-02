@@ -7,6 +7,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-09-02 - Logistics is its own role
+
+Terminology correction from the field: what earlier entries called "Ops" is the
+**Logistics** team, and it is a different group from the Liaison - Liaison is
+embedded with Public Safety and Medics, Logistics is out on the course handling
+traffic control, cone placement and teardown.
+
+#### Changed
+- `logistics` added as a third role with its own access link, so one field team's
+  link can be revoked without cutting off the other. Both field roles are
+  read-only; write access is now a `WRITE_ROLES` tuple rather than a hardcoded
+  comparison, keeping the "grant it later" path a one-line change.
+- Layer defaults apply to both field roles: aid station operators and net control
+  hidden, everything else on. Sweeps stay on deliberately - the sweep marks the
+  back of the pack, which is what tells Logistics a road segment is clear and the
+  cones can come up.
+- The `liaison` role key and its existing links are unchanged.
+
 ### 2026-09-02 - Location tracking for the viewer
 
 #### Changed

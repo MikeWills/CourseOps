@@ -22,12 +22,21 @@ TOKEN_BYTES = 24
 
 ROLE_NCS = "ncs"
 ROLE_LIAISON = "liaison"
-ROLES = (ROLE_NCS, ROLE_LIAISON)
+ROLE_LOGISTICS = "logistics"
+ROLES = (ROLE_NCS, ROLE_LIAISON, ROLE_LOGISTICS)
 
+# Liaison and Logistics are different teams doing different jobs, and each gets
+# its own link so one can be revoked without cutting off the other:
+#   Liaison   - embedded with Public Safety and Medics
+#   Logistics - out on the course: traffic control, cone placement, teardown
 ROLE_LABELS = {
     ROLE_NCS: "Net Control",
-    ROLE_LIAISON: "Liaison / Ops",
+    ROLE_LIAISON: "Liaison",
+    ROLE_LOGISTICS: "Logistics",
 }
+
+# Only NCS writes in v1; both field roles are read-only.
+WRITE_ROLES = (ROLE_NCS,)
 
 
 @dataclass(frozen=True)
@@ -45,7 +54,7 @@ class Access:
         role, so granting Liaison write access later is a permission change
         rather than a rewrite.
         """
-        return self.role == ROLE_NCS
+        return self.role in WRITE_ROLES
 
     @property
     def role_label(self) -> str:

@@ -26,7 +26,8 @@ that a radio club can stand up without significant effort.
 | Role | Access | Notes |
 |---|---|---|
 | **NCS** (Net Control) | Full read + write | Multiple operators, typically sharing one workstation |
-| **Liaison / Ops** | Read-only (v1) | Ham embedded with Public Safety / Medics; mobile phone use |
+| **Liaison** | Read-only (v1) | Ham embedded with Public Safety / Medics; mobile phone use |
+| **Logistics** | Read-only (v1) | Field team: traffic control, cone placement, teardown; mobile phone use |
 
 Access control for v1 is a long random URL per role — a bearer token, exactly as
 secure as the group text it is pasted into, which is appropriate for this data.
@@ -100,8 +101,8 @@ one line, and reversing a line drawn finish-to-start.
 
 ### Phase 3 — Live map (mobile-first)
 
-The Ops and Shadow roles are the primary mobile case: outdoors, one-handed, on a
-phone that must survive a six-hour event.
+The Liaison, Logistics and Shadow roles are the primary mobile case: outdoors,
+one-handed, on a phone that must survive a six-hour event.
 
 - Map is full-bleed; panels are bottom sheets in thumb reach
 - High-contrast light theme by default — thin grey-on-grey is invisible in sunlight
@@ -135,11 +136,16 @@ loses the exact distinction that makes the panel worth watching.
 
 Layer toggles, defaults by role:
 
-| Layer | NCS | Liaison |
-|---|---|---|
-| Courses, aid station locations, incidents | on | on |
-| Sweeps, SAG | on | on |
-| Aid station operators | on | **off** |
+| Layer | NCS | Liaison | Logistics |
+|---|---|---|---|
+| Courses, aid station locations, incidents | on | on | on |
+| Sweeps, SAG | on | on | on |
+| Aid station operators | on | **off** | **off** |
+
+Sweeps stay on for both field roles, and for Logistics that is the whole point:
+the sweep is the back of the pack, so its position is what says a road segment
+is clear and the cones can come up. This is the same signal that lets NCS close
+aid stations, which is why Phase 5 (course-relative position) serves both.
 
 Toggles persist in the browser across reconnects and phone locks.
 
@@ -150,8 +156,8 @@ road intersections and park entrances where a street address is useless and a
 lat/lon is painful to read over voice; three words is the format that actually
 survives a radio net.
 
-- **Maintained by NCS** — entered and edited from the NCS view, read-only to Liaison,
-  consistent with the existing role split.
+- **Maintained by NCS** — entered and edited from the NCS view, read-only to the
+  field roles, consistent with the existing role split.
 - **Manual entry. No API integration, now or later.** What3Words is a paid
   service; we are not buying it. NCS looks the address up and types it in. This
   also keeps club setup free of a signup and a billing relationship for a field
@@ -214,8 +220,8 @@ the organizer's identifier — we will never have the bib-to-name mapping and sh
 not want it.
 
 All pin mutations go through one server-side endpoint that records who and when,
-regardless of role, so granting Liaison write access later is a permission flag
-rather than a rewrite.
+regardless of role, so granting a field role write access later is a permission
+flag (`WRITE_ROLES`) rather than a rewrite.
 
 ## Key domain decisions
 
