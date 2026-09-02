@@ -39,7 +39,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 257 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 277 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -275,6 +275,16 @@ usability, not style preferences.
   above a live form still lets someone fill it in and post to
   `/events/null/...`. `gateOnEvent()` hides the panel body, and restores only
   what it hid - elements hidden for their own reasons must stay hidden.
+- **A roster entry may be a bare callsign; `bound_key` is the SSID heard.**
+  Anything joining a roster row to a position must go through
+  `db.tracking_key()`, or a bare entry and its own packets show as two stations
+  - one silent forever, one unattributed. Writes accept either key via
+  `db.resolve_station_key()`. Never rewrite `station_key` to the heard SSID:
+  what a human typed has to survive, and the status log must stay on one key.
+- **Bind only to symbols that say person.** The wildcard filter drags in the
+  operator's own digipeater and igate. Binding an aid station to their home
+  igate parks that person on the map at their house all day - confidently, and
+  wrongly. `symbols.is_infrastructure` gates it.
 - **CLI output stays ASCII.** Em dashes become mojibake in the Windows console,
   and a club laptop is the target environment.
 
@@ -328,6 +338,8 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-02** Roster entries may be a bare callsign; the SSID is learned from the air.
+- **2026-09-02** Operator names now shown on the map, in the popup and in the setup roster.
 - **2026-09-02** Gated Course/Aid/Roster/Links behind picking an event, instead of a banner over a live form.
 - **2026-09-02** Event time zone is a dropdown, browser-detected, and shown in the event list.
 - **2026-09-02** Fixed: `hidden` did nothing wherever CSS set `display`, so the UI contradicted itself.
@@ -336,5 +348,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-02** Fixed: `serve` printed nothing on startup; added a banner with the setup URL.
 - **2026-09-02** Fixed: printed URLs ignored `--port` and pointed at the wrong port.
 - **2026-09-02** Tracked the remaining deployment gaps as issues #3, #4 and #5.
-- **2026-09-02** Phase 8: Apache reverse proxy, Let's Encrypt and systemd deployment.
-- **2026-09-02** Fixed: session cookies were never marked Secure behind a reverse proxy.

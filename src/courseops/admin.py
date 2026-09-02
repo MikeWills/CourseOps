@@ -15,6 +15,7 @@ is how the test suite drives the same code paths.
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from typing import Any
 
@@ -23,6 +24,12 @@ from . import access, db, geo, importer, leaders, progress, styling, what3words
 
 def _row(row: sqlite3.Row) -> dict[str, Any]:
     return {key: row[key] for key in row.keys()}
+
+
+# Loose on purpose: this is a sanity check against a typed label or a pasted
+# name, not an attempt to validate every callsign format in the world. Special
+# event and foreign calls take shapes a strict pattern would reject.
+_CALLSIGN = re.compile(r"^[A-Z0-9]{3,10}(-[A-Z0-9]{1,2})?$")
 
 
 # --- events -----------------------------------------------------------------
@@ -273,13 +280,17 @@ def save_roster_entry(conn: sqlite3.Connection, event_id: int, payload: dict) ->
     label = (payload.get("display_label") or "").strip()
     if not station_key or not label:
         raise ValueError("A roster entry needs a callsign and a label.")
-    if "-" not in station_key:
-        # Not fatal, but almost always a mistake: the SSID is part of the
-        # identity, and a bare callsign usually means the home station.
+    if not _CALLSIGN.match(station_key):
         raise ValueError(
-            f"{station_key} has no SSID. Use the full callsign they transmit "
-            "with, such as {}-9.".format(station_key)
+            f"{station_key} does not look like a callsign. Use the callsign "
+            "alone, such as N0CALL, or with its SSID, such as N0CALL-9."
         )
+    # A bare callsign is deliberately allowed, and is the better answer.
+    # Volunteers know their callsign; the SSID belongs to whichever radio or
+    # phone app they bring on the day, and a coordinator collecting SSIDs weeks
+    # in advance collects some wrong ones. The filter is a wildcard per callsign
+    # already, so a bare entry is tracked from the first packet that looks like
+    # a person - see db.bind_heard_ssid.
 
     original = (payload.get("original_station_key") or "").strip().upper()
     if original and original != station_key:

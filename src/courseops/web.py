@@ -159,6 +159,10 @@ def build_state(conn: sqlite3.Connection, event_id: int) -> dict[str, Any]:
         # Wording differs by category: an aid station is "Torn down", a sweep is
         # "Finished". The client should not have to know that mapping.
         entry["op_status_label"] = db.op_status_label(row["category"], row["op_status"])
+        # What this station's packets arrive under. Equal to station_key unless
+        # the roster named a bare callsign and an SSID has been heard for it.
+        # The client joins positions on this; writes still name station_key.
+        entry["tracking_key"] = db.tracking_key(row)
         # An operator posted at an aid station inherits that station's place on
         # the course, so the roster can be read in course order too.
         if row["poi_id"] is not None:

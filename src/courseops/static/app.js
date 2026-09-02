@@ -183,6 +183,18 @@ function labelOf(stationKey) {
   return entry ? entry.display_label : stationKey;
 }
 
+/* The operator's name, for calling them by it on the air.
+
+   "K0JZP, Alaric" gets attention that "K0JZP" alone does not - someone half
+   listening, or hard of hearing, catches their own name when they miss a
+   callsign. So the name is shown wherever a station is identified, never on
+   its own: the callsign is what is legally required and what other stations
+   are listening for. */
+function operatorOf(stationKey) {
+  const entry = state.roster.get(stationKey);
+  return entry && entry.operator_name ? entry.operator_name : '';
+}
+
 function initials(text) {
   const words = String(text || '').replace(/[^\w\s-]/g, ' ').trim().split(/[\s-]+/);
   if (!words[0]) return '?';
@@ -222,6 +234,8 @@ function stationPopup(stationKey) {
   const rows = [];
 
   if (entry) rows.push(['Callsign', stationKey]);
+  // Directly under the callsign, because the two are read out together.
+  if (entry && entry.operator_name) rows.push(['Operator', entry.operator_name]);
   if (status === 'no_aprs') {
     rows.push(['Radio', 'not tracked by APRS']);
   } else if (position) {
@@ -561,9 +575,18 @@ function renderStations() {
         `${escapeHtml(formatMile(located.distance_along_m))}</span>`
       : `<span class="call">${escapeHtml(stationKey)}</span>`;
 
+    // The operator's name earns a second line only when there is one, so an
+    // event that never fills them in looks exactly as it did before.
+    const who = operatorOf(stationKey);
+    const nameCell = who
+      ? `<span class="name">${escapeHtml(labelOf(stationKey))}` +
+        `<span class="who">${escapeHtml(stationKey)} · ${escapeHtml(who)}</span>` +
+        `</span>`
+      : `<span class="name">${escapeHtml(labelOf(stationKey))}</span>`;
+
     locate.innerHTML =
       `<span class="dot dot--${status}"></span>` +
-      `<span class="name">${escapeHtml(labelOf(stationKey))}</span>` +
+      nameCell +
       middle +
       `<span class="age ${ageClass}">${escapeHtml(ageText)}</span>`;
     locate.addEventListener('click', () => {
@@ -1175,7 +1198,10 @@ function applyState(data) {
 
   document.getElementById('event-name').textContent = data.event.name;
 
-  state.roster = new Map(data.roster.map((r) => [r.station_key, r]));
+  // Keyed by what we actually hear, not by what the roster says: a bare
+  // callsign entry bound to WX0MIK-5 must meet its own packets, or it shows as
+  // a station that never reports beside an unattributed marker.
+  state.roster = new Map(data.roster.map((r) => [r.tracking_key || r.station_key, r]));
   state.positions = new Map(data.positions.map((p) => [p.station_key, p]));
 
   state.incidentMarkers.forEach((marker) => map.removeLayer(marker));

@@ -7,7 +7,7 @@ import sqlite3
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 
-from . import aprsis, db
+from . import aprsis, db, symbols
 from .config import Settings
 from .parser import PositionReport, Rejected, parse_packet
 
@@ -29,6 +29,9 @@ class IngestStats:
     # different SSID. Almost always a signup typo worth telling the operator
     # about rather than silently absorbing.
     unexpected_ssid: set[str] = field(default_factory=set)
+    # Bare-callsign roster entries that learned their SSID this run:
+    # heard key -> the label it was attached to.
+    bound: dict[str, str] = field(default_factory=dict)
 
     def summary(self) -> str:
         summary = (
@@ -38,6 +41,8 @@ class IngestStats:
         )
         if self.unexpected_ssid:
             summary += f" unexpected_ssid={sorted(self.unexpected_ssid)}"
+        if self.bound:
+            summary += f" bound={sorted(self.bound)}"
         return summary
 
 
@@ -90,6 +95,17 @@ def handle_line(
         return None
 
     db.insert_position(conn, event_id, report)
+
+    # A roster entry naming a bare callsign is waiting to learn its SSID.
+    # Infrastructure is skipped deliberately: the wildcard filter drags in the
+    # operator's own digipeater or igate, and binding an aid station to their
+    # home igate would park that person on the map at their house all day -
+    # confidently, and wrongly.
+    if not symbols.is_infrastructure(report.symbol_table, report.symbol_code):
+        bound = db.bind_heard_ssid(conn, event_id, report.station_key)
+        if bound is not None:
+            stats.bound[report.station_key] = bound["display_label"]
+
     if log_all_raw:
         db.log_raw_packet(conn, event_id, report.received_at, line, "stored")
     stats.stored += 1

@@ -36,6 +36,7 @@ _ADDED_COLUMNS: list[tuple[str, str, str]] = [
     ("course", "bib_color_name", "TEXT"),
     ("roster", "op_status_at", "TEXT"),
     ("roster", "op_status_by", "TEXT"),
+    ("roster", "bound_key", "TEXT"),
 ]
 
 
@@ -144,6 +145,110 @@ def upsert_roster_entry(
         (event_id, station_key.upper(), display_label, category,
          int(expects_aprs), operator_name),
     )
+
+
+def tracking_key(row: sqlite3.Row) -> str:
+    """The key a roster entry's packets actually arrive under.
+
+    A roster entry naming a bare callsign is tracked under whatever SSID was
+    heard for it. Everything that joins a roster row to a position must go
+    through this, or a bare entry and its own packets appear as two separate
+    stations - the roster row silent forever, the position unattributed.
+    """
+    try:
+        bound = row["bound_key"]
+    except (IndexError, KeyError):
+        bound = None
+    return bound or row["station_key"]
+
+
+def has_ssid(station_key: str) -> bool:
+    """`WX0MIK-9` yes, `WX0MIK` no. An SSID is the part after the hyphen."""
+    return "-" in station_key.strip()
+
+
+def resolve_station_key(
+    conn: sqlite3.Connection, event_id: int, key: str
+) -> str:
+    """Map any key a client might hold back to the roster's own station_key.
+
+    The map keys stations by what it hears, which for a bare-callsign entry is
+    the bound SSID. Writes still have to land on the roster row, so accept
+    either and let the caller stay ignorant of the distinction.
+    """
+    key = key.strip().upper()
+    row = conn.execute(
+        "SELECT station_key FROM roster"
+        " WHERE event_id = ? AND (station_key = ? OR bound_key = ?)",
+        (event_id, key, key),
+    ).fetchone()
+    return row["station_key"] if row else key
+
+
+def bind_heard_ssid(
+    conn: sqlite3.Connection, event_id: int, heard_key: str
+) -> sqlite3.Row | None:
+    """Attach a heard SSID to the bare-callsign roster entry that expects it.
+
+    Deliberately conservative. It binds only when there is exactly one unbound
+    bare entry for that callsign: if a club has two roster rows under one
+    callsign, guessing which radio is which would put a person in the wrong
+    place on the map, and a wrong position is worse than a missing one.
+
+    Returns the bound row, or None when nothing was bound.
+    """
+    heard_key = heard_key.strip().upper()
+    base = heard_key.split("-", 1)[0]
+
+    # Already spoken for, either as a roster entry in its own right or as
+    # another entry's binding.
+    taken = conn.execute(
+        "SELECT 1 FROM roster"
+        " WHERE event_id = ? AND (station_key = ? OR bound_key = ?)",
+        (event_id, heard_key, heard_key),
+    ).fetchone()
+    if taken is not None:
+        return None
+
+    candidates = [
+        row for row in conn.execute(
+            "SELECT * FROM roster WHERE event_id = ? AND station_key = ?"
+            " AND bound_key IS NULL",
+            (event_id, base),
+        ).fetchall()
+    ]
+    if len(candidates) != 1:
+        return None
+
+    conn.execute(
+        "UPDATE roster SET bound_key = ? WHERE event_id = ? AND station_key = ?",
+        (heard_key, event_id, base),
+    )
+    return conn.execute(
+        "SELECT * FROM roster WHERE event_id = ? AND station_key = ?",
+        (event_id, base),
+    ).fetchone()
+
+
+def unbind_station(conn: sqlite3.Connection, event_id: int, station_key: str) -> None:
+    """Forget a binding, so the next SSID heard can take it.
+
+    The undo for a wrong bind - an operator who arrives on their handheld, is
+    bound to it, then switches to the mobile rig.
+    """
+    conn.execute(
+        "UPDATE roster SET bound_key = NULL WHERE event_id = ? AND station_key = ?",
+        (event_id, station_key.strip().upper()),
+    )
+
+
+def bound_station_keys(conn: sqlite3.Connection, event_id: int) -> set[str]:
+    """SSIDs already attributed to a bare-callsign roster entry."""
+    rows = conn.execute(
+        "SELECT bound_key FROM roster WHERE event_id = ? AND bound_key IS NOT NULL",
+        (event_id,),
+    ).fetchall()
+    return {row["bound_key"] for row in rows}
 
 
 def roster_for_event(conn: sqlite3.Connection, event_id: int) -> list[sqlite3.Row]:
@@ -264,6 +369,10 @@ def set_op_status(
         raise ValueError(
             f"Unknown status {op_status!r}. Use one of {', '.join(OP_STATUSES)}."
         )
+    # The client holds the key it sees on the map, which for a bare-callsign
+    # entry is the bound SSID rather than the roster's own key.
+    station_key = resolve_station_key(conn, event_id, station_key)
+
     # Read the outgoing value first: the roster row is about to be overwritten,
     # and the transition is the useful part at handover.
     previous = conn.execute(
@@ -391,6 +500,9 @@ def unexpected_ssids(conn: sqlite3.Connection, event_id: int) -> list[sqlite3.Ro
     Excluded SSIDs are left out; they have already been dismissed.
     """
     rostered = set(all_station_keys(conn, event_id))
+    # A bound SSID is the answer to this question, not an instance of it: the
+    # roster named a callsign, we heard an SSID, and it has been attributed.
+    rostered |= bound_station_keys(conn, event_id)
     bases = {key.split("-", 1)[0] for key in rostered}
     ignored = excluded_station_keys(conn, event_id)
     if not bases:
@@ -441,6 +553,24 @@ def change_station_key(
     because the roster is what attributes them.
     """
     old_key, new_key = old_key.strip().upper(), new_key.strip().upper()
+
+    # A roster entry that names a bare callsign is re-pointed by rebinding, not
+    # by renaming. Renaming would overwrite what a human typed and split the
+    # status log across two names for one station; rebinding leaves both intact
+    # and stays undoable.
+    if not has_ssid(old_key) and new_key.split("-", 1)[0] == old_key:
+        conn.execute(
+            "UPDATE roster SET bound_key = ? WHERE event_id = ? AND station_key = ?",
+            (new_key, event_id, old_key),
+        )
+        row = conn.execute(
+            "SELECT * FROM roster WHERE event_id = ? AND station_key = ?",
+            (event_id, old_key),
+        ).fetchone()
+        if row is None:
+            raise ValueError(f"{old_key} is not on this event's roster.")
+        return row
+
     if old_key.split("-", 1)[0] != new_key.split("-", 1)[0]:
         raise ValueError(
             f"{new_key} is a different callsign from {old_key}; "

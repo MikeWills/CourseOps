@@ -7,6 +7,42 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-09-02 - Roster by callsign, and the operator's name where it is needed
+
+#### Added
+- **A roster entry may name a bare callsign; the SSID is learned from the air.**
+  Volunteers know their callsign, but the SSID belongs to whichever radio or
+  phone app they bring on the day - so SSIDs collected weeks in advance include
+  some wrong ones, and a wrong SSID is exactly the silent failure that makes
+  someone invisible on race morning. Entering `K0JZP` now binds to the first
+  SSID heard under that callsign whose symbol says person rather than
+  digipeater, and the Roster tab shows *heard as K0JZP-9*.
+
+  Binding is deliberately conservative. Infrastructure is skipped, because
+  binding an aid station to the operator's home igate would park that person on
+  the map at their house all day - confidently, and wrongly. An SSID already
+  named by another roster entry is not stolen. Once bound it does not re-bind on
+  its own: a marker that moves between two radios mid-event is worse than one on
+  the wrong radio. NCS pressing "This is <label>" rebinds it.
+
+  The bare callsign is never rewritten. `bound_key` is a separate column, so
+  what a human typed survives, the status log stays on one key, and a wrong bind
+  is undoable. Writes may name either key - `db.resolve_station_key`.
+
+- **The operator's name is shown wherever a station is identified.** It was
+  already stored and settable, and displayed nowhere at all - not on the map,
+  not in the NCS panel, not even in the setup roster list. "K0JZP, Alaric" gets
+  attention that "K0JZP" alone does not: someone half listening, or hard of
+  hearing, catches their own name when they miss a callsign. It now appears
+  under the label in the station list, in the marker popup under the callsign,
+  and as a column in the setup roster table. The station row only grows a second
+  line when a name is set, so an event that never fills them in looks unchanged.
+
+#### Changed
+- Setup used to **reject** a callsign with no SSID ("Use the full callsign they
+  transmit with"). That validation is now a callsign shape check, and a bare
+  callsign is the recommended form.
+
 ### 2026-09-02 - Event-scoped tabs are gated, and the time zone is a list
 
 #### Fixed

@@ -364,6 +364,14 @@ html, body {
 .dot--no_aprs { background: transparent; border: 2px solid var(--no-aprs); }
 
 .station .name { flex: 1; font-weight: 550; }
+/* Callsign and operator name, under the label. Kept quiet: the label is what
+   is scanned for, this is what is read out once the row is found. */
+.station .who {
+  display: block;
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--ink-soft);
+}
 .station .call { color: var(--ink-soft); font-size: 13px; font-variant-numeric: tabular-nums; }
 /* The mile figure is the number read aloud on the net, so it is set stronger
    than the callsign it replaces - but in ink, not in a status colour. */

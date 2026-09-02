@@ -429,6 +429,13 @@ Things discovered but not yet acted on. Each is a real constraint, not a wish.
   wall clock, or Phase 7 replay scrubbing to "07:42". Capturing it now means
   those do not have to guess, and means an event is not silently assumed to be
   in the browser's zone - NCS may be running the net from another state.
+- **Binding picks one SSID and keeps it.** A bare-callsign roster entry binds
+  to the first non-infrastructure SSID heard and does not re-bind on its own,
+  because a marker that moves between two radios mid-event is worse than one
+  that is merely on the wrong radio. Someone who genuinely switches rigs needs
+  NCS to press "This is <label>" on the new SSID, which rebinds. There is no UI
+  for unbinding without a new SSID to point at; `db.unbind_station` exists for
+  when that turns out to be needed.
 - **Colour specification pending** from the club; see Visual design above.
 - ~~**Static asset caching.**~~ Tracked in issue #5.
 - **Operator runbook is a draft.** `docs/RUNBOOK.md` exists and covers what is
