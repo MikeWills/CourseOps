@@ -338,6 +338,62 @@ event data than an imagined one.
 whether or not replay is ever built. A cheaper alternative worth weighing first
 is a post-event CSV export rather than a scrubbing UI.
 
+## Setup application and tenancy
+
+Added after Phase 6, when it became clear the CLI-only setup contradicted the
+project's own premise: a club was facing a dozen terminal commands before seeing
+a map. `/setup` covers organizations, events, course import and review, aid
+stations, roster, access links and administrators.
+
+Only two things stay outside the browser, because they happen before it exists:
+
+- the callsign in `.env`
+- `courseops serve`
+
+The CLI is kept, not replaced - it is better for repeat or scripted setup, and
+it is how the test suite drives the same code paths.
+
+### Organizations are the tenancy boundary
+
+Added so this can be hosted for several clubs. Every event belongs to exactly
+one organization, and a club sees nothing of another's events, admins or race
+calendar.
+
+```
+system_admin (the host)
+  +-- organization  (a club)
+        +-- org_admin    runs the club's events, manages its people
+        +-- event        -> event_admin, assigned events only
+```
+
+`users.may_access_event()` is the single place access is decided. It checks the
+**organization first**, before any per-event assignment, so an assignment left
+behind after someone changes club grants nothing. There is a test for exactly
+that case.
+
+Events created before organizations existed are adopted into a default
+organization on upgrade, rather than being stranded and invisible.
+
+### Accounts for admins, links for volunteers
+
+Deliberately split. Volunteers on the day keep bearer role links: a link can be
+re-sent to someone whose phone died, at 6am, by anyone holding it, with no
+account recovery and no admin awake to do it. Setup is different work - it
+happens beforehand, by a named person, and needs to be attributable, so it uses
+accounts.
+
+Passwords use scrypt from the standard library. Each hash carries its own salt
+and cost parameters, so the cost can be raised later without invalidating
+existing passwords. Sessions live in the database so they can actually be
+revoked - on logout, password change, or deactivation.
+
+### The course review became a screen
+
+Phase 2's plan called for a review *screen*; it was first built as a CLI
+listing, which was exactly the friction the plan was trying to avoid. Staged
+features are now drawn on a map, with list and map selection in sync, because
+organizer files are wrong in ways a list of names cannot reveal.
+
 ## Known gaps and open threads
 
 Things discovered but not yet acted on. Each is a real constraint, not a wish.

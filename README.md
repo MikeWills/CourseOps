@@ -11,8 +11,9 @@ There are phone apps, and there are full situational-awareness platforms like TA
 This aims at the gap between them — something a radio club can stand up for a race
 without much effort.
 
-**Status: early development.** APRS-IS ingest, KML/KMZ course import, and the
-live map all work.
+**Status: early development.** APRS-IS ingest, KML/KMZ course import, the live
+map, incidents, lead runner tracking and a browser setup application all work.
+Not yet deployed anywhere — it runs locally.
 
 - [`docs/PLAN.md`](docs/PLAN.md) — the plan, decisions, and known gaps
 - [`docs/RUNBOOK.md`](docs/RUNBOOK.md) — event-day procedure for operators
@@ -50,6 +51,27 @@ python -m venv .venv
 .venv/bin/pip install -e ".[dev]"          # Windows: .venv\Scripts\pip
 cp .env.example .env                       # set APRS_CALLSIGN to your callsign
 ```
+
+### Set it up in the browser
+
+```bash
+courseops serve
+```
+
+Then open **http://localhost:8000/setup**. The first visit asks you to create a
+system administrator; after that you sign in.
+
+Everything else is forms: create an organization and an event, upload the
+organizer's KML or KMZ and assign each feature by looking at it on a map, name
+the aid stations and add their What3Words, build the roster, set bib colours,
+and copy the access links to send out.
+
+Only two things stay in a terminal, because they happen before the page exists:
+the callsign in `.env`, and starting the server.
+
+### Or set it up from the command line
+
+The CLI does the same things and is better for repeat or scripted setup.
 
 Create an event and a roster:
 

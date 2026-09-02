@@ -7,6 +7,7 @@ the event. Built to be stood up by a radio club without much effort.
 Full plan, phase detail, and **known gaps / open threads**: `docs/PLAN.md`.
 Brand, palette and logo decisions: `docs/DESIGN.md`.
 Event-day operating procedure: `docs/RUNBOOK.md`.
+Brand, palette and logo decisions: `docs/DESIGN.md`.
 Complete history with the reasoning behind each fix: `CHANGELOG.md`.
 Open work is also tracked as GitHub issues (issue #1: GPX import).
 
@@ -16,9 +17,13 @@ below is the short list of things that cost real time when violated.
 
 ## Status
 
-Phases 1-6 complete: APRS-IS ingest, KML/KMZ import, the live map with
-role-gated access, the NCS panel with operational status, course-relative
-position, and incidents. Repo: private, `MikeWills/CourseOps`.
+Phases 1-6 complete, plus a browser setup application. APRS-IS ingest,
+KML/KMZ import, the live map with role-gated access, the NCS panel, course-relative
+position, incidents, lead runners, and `/setup` for organizations, events,
+courses, roster, links and administrators. Repo: private, `MikeWills/CourseOps`.
+
+**Setup is done in the browser**, not the CLI. Only two things stay in a
+terminal: the callsign in `.env`, and `courseops serve`.
 
 Phases: 1 ingest ✅ · 2 KML import ✅ · 3 live map ✅ · 4 roster/NCS panel ✅ ·
 4a What3Words ✅ · 5 course-relative position ✅ · 6 incidents ✅ · 7 replay ·

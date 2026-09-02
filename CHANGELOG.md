@@ -7,6 +7,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-09-02 - Documentation caught up with the setup UI
+
+An audit before clearing session context found the docs describing the previous
+shape of the project: `docs/PLAN.md` had no mention of the setup application or
+organizations at all, and both `README.md` and `docs/RUNBOOK.md` still told a
+club to configure everything from a terminal.
+
+#### Changed
+- `docs/PLAN.md` gains a **Setup application and tenancy** section: why the
+  CLI-only setup contradicted the project's premise, the organization boundary
+  and the rule that `may_access_event` checks the club before any per-event
+  assignment, why admins get accounts while volunteers keep links, and the note
+  that the course review finally became the screen Phase 2 asked for.
+- `README.md` and `docs/RUNBOOK.md` lead with the browser now, keeping the CLI
+  equivalents in collapsed sections since it is still quicker for a repeat
+  setup.
+- `CLAUDE.md` status names the setup application and states that only `.env` and
+  `courseops serve` stay in a terminal.
+
 ### 2026-09-02 - Setup UI, admin accounts and organizations
 
 The project's premise is that a club can stand this up without much effort, and
