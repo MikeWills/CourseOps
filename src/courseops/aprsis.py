@@ -31,19 +31,38 @@ MAX_BACKOFF_SECONDS = 300.0
 BUDDIES_PER_CLAUSE = 20
 
 
-def build_filter(station_keys: list[str], extra: str | None = None) -> str:
+def build_filter(
+    station_keys: list[str],
+    extra: str | None = None,
+    wildcard: bool = True,
+) -> str:
     """Server-side filter for a known roster.
 
-    A buddy filter is the right tool here: the club knows its callsigns in
-    advance, so we ask APRS-IS for exactly those stations. That cuts inbound
-    traffic by orders of magnitude versus filtering client-side, and it avoids
-    incidentally storing the location of the public.
+    A buddy filter is the right tool: the club knows its callsigns in advance,
+    so we ask APRS-IS for exactly those people. That cuts inbound traffic by
+    orders of magnitude versus filtering client-side, and avoids incidentally
+    storing the location of the public.
+
+    **Wildcard by default**, asking for every SSID of each rostered callsign.
+    A volunteer who signs up as WX0MIK-1 but beacons WX0MIK-5 would otherwise
+    never appear, with no error to notice - and a missing person on race morning
+    is far worse than an extra marker on the map. The cost is that the
+    operator's own digipeater or igate arrives too; those are dismissed once, by
+    name, via the exclusion list.
+
+    Pass `wildcard=False` for exact SSID matching where a callsign is noisy.
     """
-    clauses = []
     keys = [k.strip().upper() for k in station_keys if k and k.strip()]
-    for i in range(0, len(keys), BUDDIES_PER_CLAUSE):
-        chunk = keys[i:i + BUDDIES_PER_CLAUSE]
-        clauses.append("b/" + "/".join(chunk))
+    if wildcard:
+        # One entry per callsign rather than per SSID, which also keeps the
+        # filter shorter.
+        targets = sorted({f"{k.split('-', 1)[0]}*" for k in keys})
+    else:
+        targets = keys
+
+    clauses = []
+    for i in range(0, len(targets), BUDDIES_PER_CLAUSE):
+        clauses.append("b/" + "/".join(targets[i:i + BUDDIES_PER_CLAUSE]))
     if extra and extra.strip():
         clauses.append(extra.strip())
     return " ".join(clauses)

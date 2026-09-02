@@ -31,7 +31,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 208 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 214 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -83,6 +83,8 @@ src/courseops/
   hub.py          per-event fan-out, bounded queues
   web.py          FastAPI: map page, state snapshot, WebSocket
   static/         Leaflet client, no build step, plus the icon set
+  discovery.py    pre-event check-in: which SSIDs are actually on the air
+  symbols.py      APRS symbols: is this a person or a digipeater?
   cli.py          courseops entry point
 tests/fixtures/packets.txt          packet corpus, `expectation|raw` per line
 tests/fixtures/messy_course.kml     synthetic KML with real organizer defects
@@ -122,6 +124,11 @@ usability, not style preferences.
 - **Never interpolate marker movement.** Updates arrive every 1-5 minutes with
   gaps. Showing a position that was never reported is worse than showing a stale
   one, because someone will act on it. Sparse jumps are correct.
+- **The filter is a WILDCARD per callsign (`b/WX0MIK*`), not per SSID.** A
+  volunteer who signs up as `-1` and beacons `-5` would otherwise be silently
+  invisible. Ingest therefore matches on the base callsign too - both halves are
+  needed or the wildcard is pointless. The cost is the operator's digipeater
+  arriving; `station_exclusion` is how it is dismissed.
 - **Buddy filter, not area filter.** We know the roster in advance. This avoids
   incidentally storing the public's location.
 - **Lead runner sightings are reports, not measurements.** There is no tracker
@@ -272,6 +279,9 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-02** Filter now wildcards every SSID per callsign; a wrong SSID no longer hides someone.
+- **2026-09-02** Added `station_exclusion` and `courseops ignore` for digipeaters and igates.
+- **2026-09-02** Added `courseops check-in` and `symbols.py` to find wrong SSIDs before race day.
 - **2026-09-02** Added `roster_status_log`: status history for handover; cannot be rebuilt later.
 - **2026-09-02** Added lead runner tracking: first male/female per race, bib colours, pace and ETA.
 - **2026-09-02** Fixed: an implausible pace from burst-entered reports is discarded, not published.
@@ -279,6 +289,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-02** Aid stations now order by course position, not by name (Greek/numeric sort bug).
 - **2026-09-02** Added `courseops post` to station an operator at an aid station.
 - **2026-09-02** Phase 5: course-relative position — "Full-back at mile 14.2".
-- **2026-09-02** Added the full icon set (iOS, Android maskable, favicons) and a per-role manifest.
-- **2026-09-02** Applied Course Ops branding: navy chrome, safety orange accent, pin logo.
-- **2026-09-02** Rejected the C.O. monogram favicon after testing at 16px; favicon derives from the pin.

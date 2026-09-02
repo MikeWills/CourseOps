@@ -137,6 +137,30 @@ Confirm the roster and the filter it produces:
 courseops roster mankato2026
 ```
 
+### 6a. Check who is actually on the air
+
+**Do this at a club meeting a week out, not on race morning.**
+
+People sign up with the wrong SSID. Someone says they are `WX0MIK-1` when their
+phone actually beacons `WX0MIK-5`. The app asks for every SSID of each rostered
+callsign, so they will still show up — but the roster label will be wrong, and
+their own digipeater may appear as well.
+
+```bash
+courseops check-in mankato2026 --seconds 300
+```
+
+It listens for five minutes and reports every SSID heard under each rostered
+callsign, telling you which look like people and which look like digipeaters or
+igates. Fix any wrong SSIDs it finds, then dismiss the infrastructure:
+
+```bash
+courseops ignore mankato2026 WX0MIK-7 --reason digipeater
+courseops ignored mankato2026
+```
+
+Ignoring is permanent for that event and takes effect immediately.
+
 ### 7. Test it end to end
 
 ```bash

@@ -7,6 +7,41 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-09-02 - Wildcard SSID matching, exclusions, and pre-event check-in
+
+Prompted by a real case: a volunteer signed up as `WX0MIK-1` but actually
+beacons `WX0MIK-5`, and the same callsign runs a digipeater on `-7`.
+
+#### Changed
+- **The APRS-IS filter now asks for every SSID of each rostered callsign**
+  (`b/WX0MIK*`), not the exact SSID. A wrong SSID at signup previously made
+  someone silently invisible on race morning - no error, just an empty row - and
+  a missing person is far worse than an extra marker. `build_filter(...,
+  wildcard=False)` restores exact matching for a noisy callsign.
+- Ingest keeps a packet whose **base callsign** is rostered, so `WX0MIK-5` is
+  tracked even though the roster names `-1`. Without this the wildcard would
+  have been pointless: the packet would arrive and then be discarded.
+  Unexpected SSIDs are reported in the ingest summary rather than silently
+  absorbed, since they are almost always a signup typo worth correcting.
+
+#### Added
+- `station_exclusion` and `courseops ignore` / `ignored`: dismiss an SSID by
+  name once, before the event. This is the cost of the wildcard default - the
+  operator's own digipeater or igate arrives too - and this is how it is paid.
+- `courseops check-in <event>`: listen wide for a few minutes and report every
+  SSID heard under each rostered callsign, flagging wrong-SSID roster entries
+  with the command to fix them. Run it at a club meeting a week out; it turns a
+  silent race-morning failure into a checklist item.
+- `symbols.py`: APRS symbol interpretation, used by check-in to tell a
+  digipeater or igate from a person. The symbol is the most reliable
+  machine-readable clue to what a station actually is.
+- `courseops remove-station`.
+- 6 tests (214 total).
+
+#### Note
+Two filter tests asserted the old exact-SSID default and were rewritten. They
+now state the reasoning, so the default is not quietly reverted later.
+
 ### 2026-09-02 - Operational status history
 
 #### Added

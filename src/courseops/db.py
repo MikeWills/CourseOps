@@ -295,6 +295,58 @@ def assign_station_to_poi(
     ).fetchone()
 
 
+def excluded_station_keys(conn: sqlite3.Connection, event_id: int) -> set[str]:
+    """SSIDs to keep off the map despite their callsign being rostered."""
+    return {
+        row["station_key"]
+        for row in conn.execute(
+            "SELECT station_key FROM station_exclusion WHERE event_id = ?",
+            (event_id,),
+        ).fetchall()
+    }
+
+
+def exclude_station(
+    conn: sqlite3.Connection, event_id: int, station_key: str, reason: str | None = None
+) -> None:
+    conn.execute(
+        "INSERT INTO station_exclusion (event_id, station_key, reason)"
+        " VALUES (?, ?, ?)"
+        " ON CONFLICT (event_id, station_key) DO UPDATE SET reason = excluded.reason",
+        (event_id, station_key.strip().upper(), (reason or "").strip() or None),
+    )
+
+
+def unexclude_station(
+    conn: sqlite3.Connection, event_id: int, station_key: str
+) -> bool:
+    cur = conn.execute(
+        "DELETE FROM station_exclusion WHERE event_id = ? AND station_key = ?",
+        (event_id, station_key.strip().upper()),
+    )
+    return cur.rowcount > 0
+
+
+def exclusions(conn: sqlite3.Connection, event_id: int) -> list[sqlite3.Row]:
+    return conn.execute(
+        "SELECT * FROM station_exclusion WHERE event_id = ? ORDER BY station_key",
+        (event_id,),
+    ).fetchall()
+
+
+def rostered_base_callsigns(conn: sqlite3.Connection, event_id: int) -> set[str]:
+    """`WX0MIK-1` on the roster means WX0MIK is one of ours, whatever the SSID.
+
+    This is what makes the wildcard filter useful: a packet from WX0MIK-5 is
+    kept even though the roster names -1, so a wrong SSID at signup does not
+    make someone invisible.
+    """
+    return {
+        key.split("-", 1)[0]
+        for key in all_station_keys(conn, event_id)
+    }
+
+
 def op_status_log(
     conn: sqlite3.Connection, event_id: int, station_key: str | None = None
 ) -> list[sqlite3.Row]:
