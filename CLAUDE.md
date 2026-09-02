@@ -11,7 +11,8 @@ Deployment behind Apache with TLS: `docs/DEPLOYMENT.md`.
 Brand, palette and logo decisions: `docs/DESIGN.md`.
 Complete history with the reasoning behind each fix: `CHANGELOG.md`.
 Open work is tracked as GitHub issues: #1 GPX import, #2 replay,
-#3 map tiles, #4 per-organization backup, #5 multi-tenant hosting.
+#3 map tiles, #4 per-organization backup, #5 multi-tenant hosting,
+#6 tracking non-ham volunteers, #7 incident and course-note export.
 Issues #3-#5 are triggered by hosting a SECOND organization, not the first.
 
 **Starting a fresh session?** Read `docs/PLAN.md` first - it carries the
