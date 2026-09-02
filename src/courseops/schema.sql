@@ -292,3 +292,64 @@ CREATE TABLE IF NOT EXISTS station_exclusion (
     added_at    TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
     UNIQUE (event_id, station_key)
 );
+
+-- Server-wide setup access.
+--
+-- Separate from access_token, which is scoped to one event: creating the FIRST
+-- event needs a token that cannot belong to an event yet. Printed when the
+-- server starts.
+--
+-- This is the most powerful credential the app has - it can read and change
+-- every event - so it is deliberately not something a club circulates. One
+-- person sets up; everyone else gets a role link.
+CREATE TABLE IF NOT EXISTS admin_token (
+    id         INTEGER PRIMARY KEY,
+    token      TEXT    NOT NULL UNIQUE,
+    label      TEXT,
+    revoked    INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+    last_used  TEXT
+);
+
+-- Administrator accounts.
+--
+-- Only administrators have accounts. Volunteers on the day still use role
+-- links, deliberately: a link can be re-sent to someone whose phone died, at
+-- 6am, by anyone holding it - no account recovery, no admin awake to do it.
+-- Setup is different work: it happens beforehand, by a named person, and needs
+-- to be attributable.
+CREATE TABLE IF NOT EXISTS user (
+    id            INTEGER PRIMARY KEY,
+    username      TEXT    NOT NULL UNIQUE,
+    -- scrypt, self-describing: `scrypt$n$r$p$salt$hash`. The cost parameters
+    -- travel with each hash so they can be raised without invalidating
+    -- existing passwords.
+    password_hash TEXT    NOT NULL,
+    -- system_admin | event_admin
+    role          TEXT    NOT NULL,
+    display_name  TEXT,
+    is_active     INTEGER NOT NULL DEFAULT 1,
+    created_at    TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+    last_login    TEXT
+);
+
+-- Which events an event_admin may manage. System admins ignore this table.
+-- This is what keeps one club's officer out of another club's event once this
+-- is hosted for more than one club.
+CREATE TABLE IF NOT EXISTS user_event (
+    user_id  INTEGER NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+    event_id INTEGER NOT NULL REFERENCES event(id) ON DELETE CASCADE,
+    PRIMARY KEY (user_id, event_id)
+);
+
+-- Login sessions. Kept in the database rather than a signed cookie so they can
+-- actually be revoked - on password change, on deactivation, on logout.
+CREATE TABLE IF NOT EXISTS session (
+    token      TEXT    PRIMARY KEY,
+    user_id    INTEGER NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+    created_at TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+    expires_at TEXT    NOT NULL,
+    last_used  TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_session_user ON session (user_id);
