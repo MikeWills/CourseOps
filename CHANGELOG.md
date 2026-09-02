@@ -7,6 +7,30 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-09-02 - Operator runbook and documentation discipline
+
+#### Added
+- `docs/RUNBOOK.md` - event-day operating procedure for the club, not for
+  developers: what to do one to two weeks out (get files, import, review, colours,
+  What3Words, roster), race morning (start, verify, distribute links), during the
+  event (what NCS watches, what the field roles see, common situations, revoking
+  a leaked link), and afterwards. Includes a known-limitations list to set
+  expectations, since each item otherwise reads as a bug: the HTTPS requirement
+  for location, invisibility without cell coverage, non-continuous updates, and
+  receive-only operation. Sections needing the club's own practice are marked
+  **[CLUB]**; features not yet built are marked **[PHASE n]** rather than
+  described as if they work.
+- A **Documentation discipline** section in `CLAUDE.md`: a per-file table of what
+  to update on every change, and the rules that keep it honest - a discovered
+  constraint is documentation even with no code change; record why rather than
+  what; a real-data finding becomes a test rather than a note; CLAUDE.md stays an
+  index and never holds content.
+
+#### Why
+Documentation batched to the end gets skipped, and the reasoning behind a
+decision is unrecoverable a week later. Making the checklist part of the repo
+means it survives a cleared session rather than depending on being asked.
+
 ### 2026-09-02 - Session continuity pass
 
 Captured what existed only in conversation, so a fresh session loses nothing.

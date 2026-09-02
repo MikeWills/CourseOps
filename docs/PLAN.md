@@ -300,6 +300,7 @@ Things discovered but not yet acted on. Each is a real constraint, not a wish.
 - **Point density.** A recorded GPX can carry thousands of points where a
   GIS-drawn KML carries dozens. Simplification is a separate decision; import
   must not silently discard fidelity.
-- **No operator runbook yet.** README covers setup; there is no event-day
-  procedure document for the club (week-before, morning-of, during, teardown).
-  Worth writing before the first real event.
+- **Operator runbook is a draft.** `docs/RUNBOOK.md` exists and covers what is
+  built. Sections marked **[CLUB]** need the club's own practice filled in (who
+  runs the pre-event check, how links are distributed, where backups go), and
+  **[PHASE n]** sections fill in as those phases land.

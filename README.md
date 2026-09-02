@@ -9,7 +9,10 @@ This aims at the gap between them — something a radio club can stand up for a 
 without much effort.
 
 **Status: early development.** APRS-IS ingest, KML/KMZ course import, and the
-live map all work. See [`docs/PLAN.md`](docs/PLAN.md) for the full plan.
+live map all work.
+
+- [`docs/PLAN.md`](docs/PLAN.md) — the plan, decisions, and known gaps
+- [`docs/RUNBOOK.md`](docs/RUNBOOK.md) — event-day procedure for operators
 
 ## What it will do
 
