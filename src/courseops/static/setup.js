@@ -206,6 +206,46 @@ async function refreshTab(name) {
   } catch (err) { banner(err.message, true); }
 }
 
+/* ---------- icon buttons -------------------------------------------------- */
+
+/* Row actions repeat on every line, and spelled out they crowd the table more
+   than the data does.
+
+   Inline SVG rather than glyphs or an icon font. Glyphs were tried first and
+   are not dependable: U+270E with the U+FE0E text-presentation selector still
+   came out as a full-colour emoji pencil in Chrome on Windows, which reads as
+   decoration and fights the status colours that mean something in this app.
+   An icon font is one more file to ship and to fail to load, and the frontend
+   deliberately has no build step. SVG paths inherit currentColor, so a danger
+   button's icon turns red with its text, and stay crisp at any zoom. */
+const ICONS = {
+  edit: ['<path d="M11.6 2.6a1.6 1.6 0 0 1 2.3 2.3l-7.4 7.4-3 .7.7-3z"/>', 'Edit'],
+  save: ['<path d="M3 8.4l3.6 3.6L13.4 5"/>', 'Save'],
+  remove: ['<path d="M4.2 4.2l7.6 7.6M11.8 4.2l-7.6 7.6"/>', 'Remove'],
+  copy: ['<rect x="6" y="6" width="7.4" height="7.4" rx="1.4"/>'
+       + '<path d="M10.6 3.6H4.2a1.6 1.6 0 0 0-1.6 1.6v6.4"/>', 'Copy link'],
+  password: ['<circle cx="6.2" cy="9.8" r="2.6"/>'
+           + '<path d="M8.1 8L13.4 2.7M11.4 4.7l1.5 1.5"/>', 'Set a password'],
+};
+
+/* Icon-only buttons are invisible to a screen reader and to anyone who does not
+   recognise the shape, so every one carries both an aria-label and a title -
+   the first for assistive technology, the second as a hover tooltip. The label
+   names the row as well as the verb ("Delete Aid 3"), because in a table of
+   near-identical rows "Delete" alone does not say which one. */
+function iconBtn(kind, attrs, label) {
+  const [path, fallback] = ICONS[kind];
+  const text = label || fallback;
+  const danger = kind === 'remove' ? ' danger' : '';
+  const pairs = Object.entries(attrs)
+    .map(([k, v]) => `${k}="${esc(String(v))}"`).join(' ');
+  return `<button type="button" class="icon-btn${danger}" ${pairs} `
+    + `title="${esc(text)}" aria-label="${esc(text)}">`
+    + '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" '
+    + 'fill="none" stroke="currentColor" stroke-width="1.5" '
+    + `stroke-linecap="round" stroke-linejoin="round">${path}</svg></button>`;
+}
+
 /* ---------- organizations ------------------------------------------------ */
 
 /* The tenancy boundary. Only the host adds clubs; a club officer works inside
@@ -225,8 +265,8 @@ async function loadOrgs() {
       <td>${o.event_count}</td><td>${o.admin_count}</td>
       <td>${esc(o.contact || '')}</td>
       <td class="actions">${S.user.is_system_admin
-        ? `<button data-edito="${o.id}">Edit</button>
-           <button class="danger" data-delo="${o.id}">Delete</button>` : ''}</td>
+        ? iconBtn('edit', {'data-edito': o.id}, `Edit ${o.name}`)
+          + iconBtn('remove', {'data-delo': o.id}, `Delete ${o.name}`) : ''}</td>
     </tr>`).join('') + '</tbody></table>'
     : '<p class="muted">No organizations yet.</p>';
 
@@ -338,10 +378,11 @@ async function loadEvents() {
         <td>${e.counts.pois}</td>
         <td>${e.counts.roster}</td>
         <td class="actions">
-          <button data-pick="${e.id}">${e.id === S.eventId ? 'Selected' : 'Select'}</button>
-          <button data-edite="${e.id}">Edit</button>
+          <button type="button" data-pick="${e.id}" aria-pressed="${e.id === S.eventId}"
+            >${e.id === S.eventId ? 'Selected' : 'Select'}</button>
+          ${iconBtn('edit', {'data-edite': e.id}, `Edit ${e.name}`)}
           ${S.user.is_system_admin
-            ? `<button class="danger" data-del="${e.id}">Delete</button>` : ''}
+            ? iconBtn('remove', {'data-del': e.id}, `Delete ${e.name}`) : ''}
         </td></tr>`).join('') + '</tbody></table>';
 
   host.querySelectorAll('[data-pick]').forEach((b) => b.addEventListener('click', () => {
@@ -653,8 +694,8 @@ async function loadCourses() {
             data-bib="${c.id}">
           <input placeholder="Yellow" value="${esc(c.bib_color_name || '')}"
             data-bibname="${c.id}" style="width:90px"></td>
-      <td class="actions"><button data-savec="${c.id}">Save</button>
-        <button class="danger" data-delc="${c.id}">Delete</button></td>
+      <td class="actions">${iconBtn('save', {'data-savec': c.id}, `Save ${c.name}`)
+        + iconBtn('remove', {'data-delc': c.id}, `Delete ${c.name}`)}</td>
     </tr>`).join('') + '</tbody></table>'
     : '<p class="muted">No courses yet — import a KML on the Course tab.</p>';
 
@@ -688,8 +729,8 @@ async function loadCourses() {
       <td>${esc(p.poi_type.replace(/_/g, ' '))}</td>
       <td><input value="${esc(p.what3words || '')}" data-w3w="${p.id}"
             placeholder="filled.count.soap" style="width:170px"></td>
-      <td class="actions"><button data-savep="${p.id}">Save</button>
-        <button class="danger" data-delp="${p.id}">Delete</button></td>
+      <td class="actions">${iconBtn('save', {'data-savep': p.id}, `Save ${p.name}`)
+        + iconBtn('remove', {'data-delp': p.id}, `Delete ${p.name}`)}</td>
     </tr>`).join('') + '</tbody></table>'
     : '<p class="muted">No aid stations yet.</p>';
 
@@ -744,8 +785,10 @@ async function loadRoster() {
         ? '<span class="pill">tracked</span>'
         : '<span class="pill is-off">no APRS</span>'}</td>
       <td>${esc(r.poi_name || '')}</td>
-      <td class="actions"><button data-edit="${esc(r.station_key)}">Edit</button>
-        <button class="danger" data-delr="${esc(r.station_key)}">Remove</button></td>
+      <td class="actions">${iconBtn('edit', {'data-edit': r.station_key},
+          `Edit ${r.station_key}`)
+        + iconBtn('remove', {'data-delr': r.station_key},
+          `Remove ${r.station_key}`)}</td>
     </tr>`).join('') + '</tbody></table>'
     : '<p class="muted">Nobody on the roster yet.</p>';
 
@@ -818,8 +861,9 @@ async function loadLinks() {
       <div class="link-role">${esc(l.role_label)}</div>
       <input class="link-url" readonly value="${esc(url)}">
       <div class="link-actions">
-        <button data-copy="${esc(url)}">Copy</button>
-        <button class="danger" data-reissue="${esc(l.role)}">Revoke &amp; reissue</button>
+        ${iconBtn('copy', {'data-copy': url}, `Copy the ${l.role_label} link`)}
+        <button type="button" class="danger" data-reissue="${esc(l.role)}"
+          >Revoke &amp; reissue</button>
       </div>
       <p class="muted">${l.last_used ? 'Last used ' + esc(l.last_used) : 'Never used'}</p>
     </div>`;
@@ -869,10 +913,11 @@ async function loadUsers() {
       <td>${u.is_active ? '<span class="pill">active</span>'
         : '<span class="pill is-off">disabled</span>'}</td>
       <td class="actions">
-        <button data-pw="${u.id}">Password</button>
-        <button data-toggle="${u.id}" data-active="${u.is_active ? '1' : '0'}">
-          ${u.is_active ? 'Disable' : 'Enable'}</button>
-        <button class="danger" data-delu="${u.id}">Delete</button>
+        ${iconBtn('password', {'data-pw': u.id}, `Set a password for ${u.username}`)}
+        <button type="button" data-toggle="${u.id}"
+          data-active="${u.is_active ? '1' : '0'}"
+          >${u.is_active ? 'Disable' : 'Enable'}</button>
+        ${iconBtn('remove', {'data-delu': u.id}, `Delete ${u.username}`)}
       </td></tr>`).join('') + '</tbody></table>';
 
   $('user-list').querySelectorAll('[data-pw]').forEach((b) =>

@@ -288,6 +288,11 @@ usability, not style preferences.
 - **An event's slug is immutable; it is in every link already sent.** Renaming
   the event changes the displayed name only. Changing `/e/<slug>/<token>` would
   404 every volunteer holding a link, silently, on the morning they need it.
+- **Icons are inline SVG, never glyphs or an icon font.** U+270E plus the
+  U+FE0E text-presentation selector still renders as a colour emoji in Chrome on
+  Windows. SVG also inherits `currentColor`, so an icon reddens with its danger
+  button. Every icon-only button needs `title` **and** `aria-label`, and the
+  label names the row, not just the verb: "Delete Aid 3", never "Delete".
 - **CLI output stays ASCII.** Em dashes become mojibake in the Windows console,
   and a club laptop is the target environment.
 
@@ -341,6 +346,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-02** Table row actions became labelled icon buttons; fixed Delete never rendering red.
 - **2026-09-02** Events and organizations can now be edited, not just created and deleted.
 - **2026-09-02** Roster entries may be a bare callsign; the SSID is learned from the air.
 - **2026-09-02** Operator names now shown on the map, in the popup and in the setup roster.
@@ -350,4 +356,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-02** Signup no longer auto-signs-in; it routes to sign-in with a confirmation.
 - **2026-09-02** Added mtime-based cache busting so an edited .js/.css is never served stale.
 - **2026-09-02** Fixed: `serve` printed nothing on startup; added a banner with the setup URL.
-- **2026-09-02** Fixed: printed URLs ignored `--port` and pointed at the wrong port.

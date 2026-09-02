@@ -7,6 +7,38 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-09-02 - Row actions became icons
+
+#### Changed
+- **Table row actions are icon buttons.** Edit, Save, Remove, Copy and Password
+  repeated on every row and, spelled out, crowded the tables more than the data
+  did. They are now 34px squares with the label in `title` and `aria-label`.
+
+  Inline SVG, not glyphs and not an icon font. Glyphs were tried first and are
+  not dependable: U+270E with the U+FE0E text-presentation selector still came
+  out as a full-colour emoji pencil in Chrome on Windows, which reads as
+  decoration and fights the status colours that mean something here. An icon
+  font is another file to ship and to fail to load, and the frontend has no
+  build step on purpose. SVG paths inherit `currentColor`, so a danger button's
+  icon turns red along with its border.
+
+  Every icon button's label names the row as well as the verb - "Delete Aid 3",
+  not "Delete" - because in a table of near-identical rows the verb alone does
+  not say which one is about to go.
+
+- **Select / Selected and "Revoke & reissue" keep their words.** Select carries
+  state rather than an action, and reads as state. Revoke invalidates a link
+  volunteers are already holding; there is no glyph for that which is not
+  guessable as "refresh", and it is the one control on the screen where being
+  guessed wrong costs someone their access.
+
+#### Fixed
+- **Delete buttons were never actually red.** `button.danger` is one class and
+  one element; the generic panel-button rule that sets `color` is three classes
+  and one element, so it silently won and every destructive button rendered in
+  plain ink. Found while checking that the new icons inherited the danger
+  colour. Colour remains reinforcement only - the word, or the X, carries it.
+
 ### 2026-09-02 - Events and organizations can be edited
 
 #### Added

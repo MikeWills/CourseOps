@@ -186,6 +186,38 @@ table.grid tr:last-child td { border-bottom: 0; }
 table.grid .actions { text-align: right; white-space: nowrap; }
 table.grid button { min-height: 34px; padding: 0 10px; font-size: 13px; }
 
+/* Square, so a row of them reads as a group of controls rather than a wall of
+   words. 34px is the smallest that stays comfortably tappable on the tablet
+   this screen is sometimes used on; the setup UI is desktop-first, but not
+   desktop-only. */
+.icon-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  min-height: 34px;
+  padding: 0;
+  font-size: 15px;
+  line-height: 1;
+  vertical-align: middle;
+}
+.icon-btn + .icon-btn, .icon-btn + button, button + .icon-btn { margin-left: 4px; }
+/* The glyph alone would be a thin grey mark on hover with nothing to aim at. */
+.icon-btn svg { display: block; }
+.icon-btn:hover { background: #eef2f7; }
+.icon-btn.danger:hover { background: #fbe4e2; }
+.icon-btn:focus-visible { outline: 2px solid var(--navy-700); outline-offset: 1px; }
+
+/* `button.danger` above is one class and one element; the generic panel-button
+   rule is three classes and one element, so it silently won and every Delete
+   button has been rendering in plain ink rather than red. Matched here at equal
+   specificity and placed later so the danger colour actually applies. Colour is
+   reinforcement, never the only cue - the label and the X shape carry it. */
+.panel button.danger:not(.tab), .gate button.danger:not(.tab) {
+  color: var(--silent);
+  border-color: #e3a9a4;
+}
+
 .pill {
   display: inline-block;
   padding: 2px 8px;
