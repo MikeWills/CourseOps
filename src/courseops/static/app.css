@@ -613,3 +613,58 @@ html, body {
   color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
+
+/* --- SSID mismatch alerts ------------------------------------------------ */
+
+/* Amber, not red: this is "decide something", not "someone is in trouble". The
+   incident colours have to stay unambiguous. */
+#ssid-section h2 { color: var(--inc-enroute); }
+
+.ssid-alert {
+  padding: 10px;
+  margin-bottom: 8px;
+  border: 1px solid #e8c48a;
+  border-left: 4px solid var(--inc-enroute);
+  border-radius: 8px;
+  background: #fff8ee;
+}
+.ssid-head { display: flex; align-items: baseline; gap: 8px; }
+.ssid-key { font-weight: 700; font-variant-numeric: tabular-nums; }
+.ssid-meta { font-size: 12px; color: var(--ink-soft); }
+.ssid-why { margin: 4px 0 8px; font-size: 13px; color: var(--ink); }
+
+.ssid-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.ssid-adopt, .ssid-ignore {
+  min-height: 38px;
+  padding: 0 10px;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.ssid-adopt {
+  flex: 1;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+.ssid-ignore {
+  border: 1px solid var(--line);
+  background: var(--paper);
+  color: var(--ink-soft);
+}
+
+/* Count on the collapsed sheet button, so a phone shows it without opening. */
+#sheet-badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px; height: 22px;
+  margin-left: 8px;
+  padding: 0 6px;
+  border-radius: 11px;
+  background: var(--inc-enroute);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}

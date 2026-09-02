@@ -31,7 +31,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 214 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 222 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -124,6 +124,12 @@ usability, not style preferences.
 - **Never interpolate marker movement.** Updates arrive every 1-5 minutes with
   gaps. Showing a position that was never reported is worse than showing a stale
   one, because someone will act on it. Sparse jumps are correct.
+- **Surface silent failures in the UI, not in a command.** A wrong SSID makes
+  someone invisible with no error; `ssid_alerts` puts it in front of NCS
+  unprompted. Anything that depends on remembering to run a check will be
+  forgotten on race morning.
+- **`station_exclusion` must hide stored positions too**, not just gate ingest -
+  otherwise "ignore" leaves the thing on the map.
 - **The filter is a WILDCARD per callsign (`b/WX0MIK*`), not per SSID.** A
   volunteer who signs up as `-1` and beacons `-5` would otherwise be silently
   invisible. Ingest therefore matches on the base callsign too - both halves are
@@ -279,6 +285,8 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-02** SSID mismatches now surface in the UI with one-click adopt/ignore.
+- **2026-09-02** Fixed: ignoring an SSID now hides positions already stored, not just future ones.
 - **2026-09-02** Filter now wildcards every SSID per callsign; a wrong SSID no longer hides someone.
 - **2026-09-02** Added `station_exclusion` and `courseops ignore` for digipeaters and igates.
 - **2026-09-02** Added `courseops check-in` and `symbols.py` to find wrong SSIDs before race day.
@@ -287,5 +295,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-02** Fixed: an implausible pace from burst-entered reports is discarded, not published.
 - **2026-09-02** Phase 6: incidents — pickups by bib, status workflow, live and role-gated.
 - **2026-09-02** Aid stations now order by course position, not by name (Greek/numeric sort bug).
-- **2026-09-02** Added `courseops post` to station an operator at an aid station.
-- **2026-09-02** Phase 5: course-relative position — "Full-back at mile 14.2".

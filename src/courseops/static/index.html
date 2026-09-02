@@ -51,6 +51,7 @@
 
 <button id="sheet-toggle" type="button" aria-expanded="false" aria-controls="sheet">
   <span id="sheet-toggle-label">Layers</span>
+  <span id="sheet-badge" hidden></span>
 </button>
 
 <section id="sheet" aria-label="Layers and stations">
@@ -72,6 +73,11 @@
   <div class="sheet-section">
     <h2>Map layers</h2>
     <div id="layer-list" class="toggle-list"></div>
+  </div>
+
+  <div class="sheet-section" id="ssid-section" hidden>
+    <h2>Needs attention</h2>
+    <div id="ssid-alerts"></div>
   </div>
 
   <div class="sheet-section" id="leader-section">
