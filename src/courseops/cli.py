@@ -262,10 +262,11 @@ def cmd_courses(args: argparse.Namespace) -> int:
         "SELECT * FROM course WHERE event_id = ? ORDER BY sort_order, id",
         (event["id"],),
     ).fetchall()
-    pois = conn.execute(
-        "SELECT * FROM poi WHERE event_id = ? ORDER BY poi_type, name",
-        (event["id"],),
-    ).fetchall()
+    from . import progress
+    index = progress.CourseIndex.for_event(conn, event["id"])
+    pois = index.order_along_course(
+        conn.execute("SELECT * FROM poi WHERE event_id = ?", (event["id"],)).fetchall()
+    )
 
     if courses:
         print("COURSES  (listed in draw order: last is on top)")
@@ -286,11 +287,34 @@ def cmd_courses(args: argparse.Namespace) -> int:
         print("No courses yet.")
 
     if pois:
-        print("\nPOINTS OF INTEREST")
+        print("\nPOINTS OF INTEREST  (in course order, not by name)")
+        print(f"  {'ID':>3}  {'NAME':<24} {'TYPE':<13} {'MILE':>8}  WHAT3WORDS")
         for row in pois:
+            located = index.locate(row["lat"], row["lon"])
+            mile = f"{located.distance_along_m / 1609.344:.1f}" if located else "--"
             w3w = what3words.format_for_display(row["what3words"])
             print(f"  {row['id']:>3}  {row['name']:<24} {row['poi_type']:<13} "
-                  f"{row['lat']:>9.5f},{row['lon']:>11.5f}  {w3w}")
+                  f"{mile:>8}  {w3w}")
+    return 0
+
+
+def cmd_post(args: argparse.Namespace) -> int:
+    """Post a roster entry at an aid station."""
+    settings = _settings()
+    conn = db.connect(settings.db_path)
+    event = _event_or_exit(conn, args.event)
+    try:
+        row = db.assign_station_to_poi(
+            conn, event["id"], args.callsign, None if args.clear else args.poi_id
+        )
+    except ValueError as exc:
+        print(f"Could not post station: {exc}", file=sys.stderr)
+        return 1
+    if row["poi_id"] is None:
+        print(f"{row['station_key']} is no longer posted at an aid station.")
+        return 0
+    poi = conn.execute("SELECT name FROM poi WHERE id = ?", (row["poi_id"],)).fetchone()
+    print(f"{row['station_key']} ({row['display_label']}) posted at {poi['name']}.")
     return 0
 
 
@@ -531,6 +555,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="draw order; higher draws on top where courses share road",
     )
     p.set_defaults(func=cmd_style_course)
+
+    p = sub.add_parser(
+        "post", help="post a roster entry at an aid station (gives it a position)"
+    )
+    p.add_argument("event")
+    p.add_argument("callsign")
+    p.add_argument("poi_id", type=int, nargs="?", help="POI id from 'courseops courses'")
+    p.add_argument("--clear", action="store_true", help="un-post the station")
+    p.set_defaults(func=cmd_post)
 
     p = sub.add_parser("set-w3w", help="set a POI's What3Words address (NCS)")
     p.add_argument("event")

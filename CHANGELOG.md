@@ -7,6 +7,35 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-09-02 - Aid stations ordered by course position, not by name
+
+Aid station names were already free text - Greek letters, NATO phonetic, numbers
+or place names all worked. The **ordering** did not.
+
+#### Fixed
+- Aid stations were listed alphabetically, which is wrong for every naming
+  scheme a club actually uses:
+  - Greek letters come out Alpha, Beta, **Delta, Epsilon, Gamma** - Gamma is
+    third on the course but fifth by name.
+  - `Aid 10` sorts before `Aid 2` as a string.
+  - Place names ("Riverside", "Cemetery Hill") have no meaningful name order.
+  A natural sort would fix only the numbers; a lookup table only the Greek.
+  Ordering by **position along the course** is scheme-independent, and it is
+  also the order NCS works in - aid stations close one after another behind the
+  sweep.
+
+#### Added
+- `CourseIndex.order_along_course()`; places not near any course sink to the end
+  rather than being dropped.
+- Course position on every POI in the state snapshot, and in POI popups.
+- `roster.poi_id` is now settable: `courseops post <event> <callsign> <poi_id>`
+  posts an operator at an aid station. Most aid station operators never beacon,
+  so the station they are posted at is their only source of position - and it
+  lets the roster be read in course order too.
+- `courseops courses` lists POIs in course order with their mile.
+- Client sorts stations by course position before falling back to the label.
+- 6 tests (153 total), including both mis-sorting cases as explicit regressions.
+
 ### 2026-09-02 - Phase 5: course-relative position
 
 "Full-back at mile 14.2" - the number the net actually speaks, and the signal

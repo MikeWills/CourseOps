@@ -109,6 +109,26 @@ class CourseIndex:
             )
         return cls(courses, max_offset_m)
 
+    def order_along_course(self, rows: list) -> list:
+        """Sort places by where they sit on the course, nearest the start first.
+
+        This is the only ordering that works regardless of what a club calls its
+        aid stations. Sorting by name breaks in two ways that both show up in
+        practice: "Aid 10" sorts before "Aid 2", and Greek letters come out
+        Alpha, Beta, Delta, Epsilon, Gamma. NATO phonetic happens to sort
+        correctly, and place names do not sort meaningfully at all.
+
+        Course order is also the order NCS works in - aid stations close one
+        after another behind the sweep - so it is what the list should show
+        anyway. Anything not near a course sinks to the end rather than being
+        dropped.
+        """
+        def key(row):
+            located = self.locate(row["lat"], row["lon"])
+            return (0, located.distance_along_m) if located else (1, 0.0)
+
+        return sorted(rows, key=key)
+
     def locate(self, lat: float, lon: float) -> CoursePosition | None:
         """Nearest point on the nearest course, or None if not near any.
 

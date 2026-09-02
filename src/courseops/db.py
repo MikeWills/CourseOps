@@ -248,6 +248,34 @@ def set_op_status(
     ).fetchone()
 
 
+def assign_station_to_poi(
+    conn: sqlite3.Connection, event_id: int, station_key: str, poi_id: int | None
+) -> sqlite3.Row:
+    """Post a roster entry at an aid station.
+
+    This is what lets a non-beaconing operator be drawn in the right place and
+    sorted into course order - most aid station operators never transmit, so
+    their position can only come from the station they are posted at.
+    """
+    if poi_id is not None:
+        exists = conn.execute(
+            "SELECT 1 FROM poi WHERE id = ? AND event_id = ?", (poi_id, event_id)
+        ).fetchone()
+        if exists is None:
+            raise ValueError(f"No POI with id {poi_id} in this event.")
+
+    cur = conn.execute(
+        "UPDATE roster SET poi_id = ? WHERE event_id = ? AND station_key = ?",
+        (poi_id, event_id, station_key.upper()),
+    )
+    if cur.rowcount == 0:
+        raise ValueError(f"{station_key} is not on this event's roster.")
+    return conn.execute(
+        "SELECT * FROM roster WHERE event_id = ? AND station_key = ?",
+        (event_id, station_key.upper()),
+    ).fetchone()
+
+
 def all_station_keys(conn: sqlite3.Connection, event_id: int) -> list[str]:
     """Every rostered station, beaconing or not.
 
