@@ -35,6 +35,8 @@ const state = {
   layerPrefs: {},
   socket: null,
   reconnectDelay: 1000,
+  opStatuses: ['pending', 'active', 'closed'],
+  operatorInitials: '',
   following: false,
   meMarker: null,
   meAccuracy: null,
@@ -58,6 +60,7 @@ function savePrefs() {
     localStorage.setItem(PREF_KEY, JSON.stringify({
       layers: state.layerPrefs,
       courses: [...state.visibleCourses],
+      initials: state.operatorInitials,
     }));
   } catch (e) { /* not worth bothering the user about */ }
 }
@@ -385,11 +388,81 @@ function applyLayerVisibility() {
    station operator is not news. */
 const STATUS_RANK = { silent: 0, stale: 1, fresh: 2, no_aprs: 3 };
 
+/* Operational status is NCS's manual state and is NEVER merged with radio
+   status. "On station, no APRS" is a healthy row; "Rolling, silent 18 min" is an
+   alarm. Collapsing them into one badge loses exactly the distinction that makes
+   this panel worth watching. */
+const OP_RANK = { active: 0, pending: 1, closed: 2 };
+
+function opStatusOf(stationKey) {
+  const entry = state.roster.get(stationKey);
+  return entry ? (entry.op_status || 'pending') : 'pending';
+}
+
+function opLabelOf(stationKey) {
+  const entry = state.roster.get(stationKey);
+  return entry ? (entry.op_status_label || entry.op_status || '') : '';
+}
+
+/* Category-specific wording: an aid station is "Torn down", a sweep "Finished".
+   The server sends the label for the CURRENT status; this table covers the
+   other buttons. */
+const OP_LABELS_BY_CATEGORY = {
+  aid_station:  { pending: 'Not staffed', active: 'On station', closed: 'Torn down' },
+  sweep:        { pending: 'Not started', active: 'Rolling',    closed: 'Finished' },
+  sag:          { pending: 'Not started', active: 'Rolling',    closed: 'Finished' },
+  rover:        { pending: 'Not started', active: 'Rolling',    closed: 'Finished' },
+  shadow:       { pending: 'Not started', active: 'Assigned',   closed: 'Released' },
+  net_control:  { pending: 'Not open',    active: 'Open',       closed: 'Closed' },
+  start_finish: { pending: 'Not staffed', active: 'Staffed',    closed: 'Closed' },
+};
+const GENERIC_OP_LABELS = { pending: 'Pending', active: 'Active', closed: 'Closed' };
+
+function opLabelFor(stationKey, value) {
+  const table = OP_LABELS_BY_CATEGORY[categoryOf(stationKey)] || GENERIC_OP_LABELS;
+  return table[value] || GENERIC_OP_LABELS[value];
+}
+
+async function setStationStatus(stationKey, opStatus) {
+  const entry = state.roster.get(stationKey);
+  if (!entry) return;
+  const previous = entry.op_status;
+  const previousLabel = entry.op_status_label;
+
+  // Optimistic: on a race-morning link the round trip is visible otherwise.
+  entry.op_status = opStatus;
+  entry.op_status_label = opLabelFor(stationKey, opStatus);
+  renderStations();
+
+  try {
+    const response = await fetch(
+      `/api/${M.slug}/${M.token}/station/${encodeURIComponent(stationKey)}/status`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ op_status: opStatus, changed_by: state.operatorInitials }),
+      }
+    );
+    if (!response.ok) throw new Error(String(response.status));
+  } catch (err) {
+    // Roll back. Leaving NCS believing an aid station was marked torn down when
+    // the server never got it is worse than showing the failure.
+    entry.op_status = previous;
+    entry.op_status_label = previousLabel;
+    renderStations();
+    setLocateStatus('Could not save status - check the connection');
+  }
+}
+
 function renderStations() {
   const host = document.getElementById('station-list');
   const keys = [...new Set([...state.roster.keys(), ...state.positions.keys()])]
     .filter(stationVisible)
     .sort((a, b) => {
+      // Closed sinks: a torn-down aid station going silent is not news, and
+      // leaving it near the top would bury the rows that matter.
+      const byOp = OP_RANK[opStatusOf(a)] - OP_RANK[opStatusOf(b)];
+      if (byOp !== 0) return byOp;
       const byStatus = STATUS_RANK[radioStatus(a)] - STATUS_RANK[radioStatus(b)];
       if (byStatus !== 0) return byStatus;
       return labelOf(a).localeCompare(labelOf(b));
@@ -414,15 +487,19 @@ function renderStations() {
     const ageText = status === 'no_aprs' ? 'no APRS'
                   : position ? formatAge(age) : 'never';
 
-    const row = document.createElement('button');
-    row.type = 'button';
-    row.className = 'station';
-    row.innerHTML =
+    const op = opStatusOf(stationKey);
+    const row = document.createElement('div');
+    row.className = `station station--op-${op}`;
+
+    const locate = document.createElement('button');
+    locate.type = 'button';
+    locate.className = 'station-main';
+    locate.innerHTML =
       `<span class="dot dot--${status}"></span>` +
       `<span class="name">${escapeHtml(labelOf(stationKey))}</span>` +
       `<span class="call">${escapeHtml(stationKey)}</span>` +
       `<span class="age ${ageClass}">${escapeHtml(ageText)}</span>`;
-    row.addEventListener('click', () => {
+    locate.addEventListener('click', () => {
       const marker = state.markers.get(stationKey);
       if (marker) {
         setFollowing(false);
@@ -430,6 +507,29 @@ function renderStations() {
         marker.openPopup();
       }
     });
+    row.appendChild(locate);
+
+    // Second axis on its own line, so it can never be misread as radio status.
+    const opRow = document.createElement('div');
+    opRow.className = 'station-op';
+    if (state.canWrite) {
+      state.opStatuses.forEach((value) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `op-btn${value === op ? ' op-btn--on' : ''}`;
+        btn.textContent = opLabelFor(stationKey, value);
+        btn.setAttribute('aria-pressed', String(value === op));
+        btn.addEventListener('click', () => setStationStatus(stationKey, value));
+        opRow.appendChild(btn);
+      });
+    } else {
+      const span = document.createElement('span');
+      span.className = 'op-readonly';
+      span.textContent = opLabelOf(stationKey);
+      opRow.appendChild(span);
+    }
+    row.appendChild(opRow);
+
     host.appendChild(row);
   });
 }
@@ -460,13 +560,16 @@ function applyState(data) {
   state.role = data.role;
   state.canWrite = data.can_write;
   state.thresholds = data.thresholds;
+  if (Array.isArray(data.op_statuses)) state.opStatuses = data.op_statuses;
 
   if (firstLoad) {
     const prefs = loadPrefs();
+    state.operatorInitials = prefs.initials || '';
     state.layerPrefs = Object.assign(defaultLayers(data.role), prefs.layers || {});
     state.visibleCourses = new Set(
       prefs.courses || data.courses.map((c) => c.id)
     );
+    showOperatorBox();
     document.getElementById('role-note').textContent =
       data.can_write
         ? `Signed in as ${data.role_label}.`
@@ -506,6 +609,17 @@ function connect() {
     try {
       message = JSON.parse(ev.data);
     } catch (e) {
+      return;
+    }
+    if (message.type === 'station_status') {
+      const entry = state.roster.get(message.station_key);
+      if (entry) {
+        entry.op_status = message.op_status;
+        entry.op_status_at = message.op_status_at;
+        entry.op_status_by = message.op_status_by;
+        entry.op_status_label = message.op_status_label;
+        renderStations();
+      }
       return;
     }
     if (message.type === 'position') {
@@ -638,6 +752,23 @@ document.getElementById('locate-btn').addEventListener('click', () => {
     { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
   );
 });
+
+/* ---------- operator initials ------------------------------------------- */
+
+/* Typed once per shift and kept in this browser. It annotates who changed a
+   status so a handover can see what happened; it is NOT authentication and
+   nothing should ever start trusting it as identity. */
+const initialsInput = document.getElementById('operator-initials');
+
+initialsInput.addEventListener('input', () => {
+  state.operatorInitials = initialsInput.value.trim().toUpperCase().slice(0, 12);
+  savePrefs();
+});
+
+function showOperatorBox() {
+  document.getElementById('operator-box').hidden = !state.canWrite;
+  initialsInput.value = state.operatorInitials || '';
+}
 
 /* ---------- sheet ------------------------------------------------------- */
 

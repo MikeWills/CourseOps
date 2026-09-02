@@ -7,6 +7,47 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-09-02 - Phase 4: NCS panel and operational status
+
+The app's first write path, and the second of the two status axes.
+
+#### Added
+- Operational status per roster entry (`pending` / `active` / `closed`), set by
+  NCS and **kept strictly separate from radio status**. "Aid 1, no APRS, On
+  station" is a healthy row; "SAG 1, silent 16 min, Not started" is an alarm. A
+  single merged badge could not say both.
+- Category-specific wording for the same three states: an aid station is
+  "Not staffed / On station / Torn down", a sweep "Not started / Rolling /
+  Finished". Reading the wrong word on a radio net costs a clarifying exchange.
+- `POST /api/{slug}/{token}/station/{key}/status` - the first mutation endpoint.
+  It goes through `require_write()`, which is the single place role permission is
+  enforced, so granting a field role write access later is a `WRITE_ROLES` change
+  rather than an endpoint rewrite.
+- Status changes broadcast over the WebSocket, so the read-only roles see NCS's
+  changes immediately without reloading.
+- `roster.op_status_at` / `op_status_by` columns (with migrations) and an
+  operator-initials field, shown only to roles that can write. Typed once per
+  shift, kept in the browser, stamped on each change so a handover can see who
+  did what. Explicitly not authentication.
+- Station rows sort by operational status first: closed sinks, because a
+  torn-down aid station going silent is not news and would otherwise bury the
+  rows that matter.
+- 9 tests (128 total) covering the write path, role enforcement and broadcast.
+
+#### Verified in a browser
+- NCS sees three status buttons per station with category-correct wording;
+  Liaison sees a read-only label.
+- A **forged** POST from the Liaison view returns 403, so enforcement is
+  server-side rather than hidden UI.
+- Marking a sweep Finished moved it below a stale-but-pending SAG, confirming
+  the sort.
+- Initials and timestamp are recorded: `op_status_by: "MW"`.
+
+#### Note
+- Browsers cached `index.html` across an edit during testing. Harmless in
+  development, but a club updating the app may need a hard refresh; worth
+  revisiting with cache headers in Phase 8.
+
 ### 2026-09-02 - Operator runbook and documentation discipline
 
 #### Added

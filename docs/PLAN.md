@@ -73,9 +73,9 @@ that open many connections or reconnect in a tight loop.
 ## Build phases
 
 1. **Ingest** — APRS-IS connect, parse, store. No UI. *(complete)*
-2. **KML/KMZ import** — additive, with a review screen for messy organizer files
-3. **Live map** — mobile-first, WebSocket updates, layer toggles
-4. **Roster / NCS panel** — dual status axes, staleness scoped to `expects_aprs`
+2. **KML/KMZ import** — additive, with a review screen for messy organizer files *(complete)*
+3. **Live map** — mobile-first, WebSocket updates, layer toggles *(complete)*
+4. **Roster / NCS panel** — dual status axes, staleness scoped to `expects_aprs` *(complete)*
 5. **Course-relative position** — "Full-back at mile 14.2"
 6. **Incidents** — pin, bib, status workflow, operator initials, role-gated writes
 7. **Replay** — scrub the event afterward
@@ -300,6 +300,9 @@ Things discovered but not yet acted on. Each is a real constraint, not a wish.
 - **Point density.** A recorded GPX can carry thousands of points where a
   GIS-drawn KML carries dozens. Simplification is a separate decision; import
   must not silently discard fidelity.
+- **Static asset caching.** Browsers cached `index.html` across an edit during
+  Phase 4 testing. A club updating the app may need a hard refresh; consider
+  cache headers or a version query string in Phase 8.
 - **Operator runbook is a draft.** `docs/RUNBOOK.md` exists and covers what is
   built. Sections marked **[CLUB]** need the club's own practice filled in (who
   runs the pre-event check, how links are distributed, where backups go), and
