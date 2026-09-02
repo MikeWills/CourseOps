@@ -7,6 +7,44 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-09-02 - Phase 2: KML/KMZ import
+
+#### Added
+- MIT license.
+- `geo.py` - haversine distance, polyline length, consecutive-point dedupe, and
+  segment stitching. Coordinates are (lon, lat) throughout, matching GeoJSON/KML.
+- `kml.py` - KML/KMZ parsing built around the defects organizer files actually
+  have: namespace variation, deep Document/Folder nesting, MultiGeometry,
+  meaningless placemark names, coordinates with newlines and altitudes. Folder
+  path is retained because it is often the only clue to what a feature is.
+  Classification is advisory only.
+- `importer.py` - two-phase import. Files stage into `import_feature` as
+  `pending`; a human assigns each to a course or POI. Additive across files.
+- Schema: `import_batch` and `import_feature` staging tables.
+- CLI: `import`, `review`, `assign-course`, `assign-poi`, `discard`, `courses`,
+  `set-w3w`.
+- `tests/fixtures/messy_course.kml` - fixture reproducing real-world defects:
+  a course split across segments with one drawn backwards, an "Untitled Path",
+  a folder mixing aid stations with parking, a MultiGeometry, and a point with
+  no altitude.
+- 41 new tests (65 total), including hardening tests for entity expansion, XXE
+  and zip bombs.
+
+#### Changed
+- Added `defusedxml` as a second runtime dependency. KML arrives from race
+  organizers and will be uploaded through the web UI, making it untrusted
+  third-party input; the stdlib XML parser does not guard entity expansion.
+- KMZ archives are checked for decompression bombs and size-capped, which
+  defusedxml does not cover since it only protects the XML parse.
+- CLI output is ASCII-only. Em dashes rendered as mojibake in the Windows
+  console, and a club laptop is the target environment.
+
+#### Fixed
+- `geo.stitch` grew the chain only from the tail, so a file listing a middle
+  segment first got the front piece reversed onto the back, folding the course
+  over itself. It now grows at both ends. This was a silent, plausible-looking
+  corruption of a real course.
+
 ### 2026-09-02 — Phase 1: APRS-IS ingest
 
 #### Added

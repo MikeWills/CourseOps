@@ -8,8 +8,9 @@ There are phone apps, and there are full situational-awareness platforms like TA
 This aims at the gap between them — something a radio club can stand up for a race
 without much effort.
 
-**Status: early development.** Phase 1 (APRS-IS ingest) works. There is no web
-interface yet. See [`docs/PLAN.md`](docs/PLAN.md) for the full plan.
+**Status: early development.** APRS-IS ingest (Phase 1) and KML/KMZ course
+import (Phase 2) work, driven from the command line. There is no web interface
+yet. See [`docs/PLAN.md`](docs/PLAN.md) for the full plan.
 
 ## What it will do
 
@@ -61,6 +62,35 @@ awt add-station marathon2026 KI4HMD-1 "Aid 4" --category aid_station --no-aprs
 awt roster marathon2026     # shows the roster and the generated APRS-IS filter
 ```
 
+Import the organizer's course files. Import is additive - the full course, the
+half course and the water stops usually arrive as separate files:
+
+```bash
+awt import m2026 SpringMarathon-Full.kmz
+awt review m2026        # lists what was found, with advisory suggestions
+```
+
+Nothing becomes a course or an aid station until you say so. Organizer KML is
+reliably messy - placemarks named "Untitled Path", routes split across several
+segments in arbitrary order and direction, folders mixing water stops with
+parking - so each feature is assigned by hand:
+
+```bash
+# Stitch several segments into one course; segments drawn backwards are
+# reversed automatically, and gaps are reported rather than hidden
+awt assign-course m2026 1 3 --name "Half" --color "#cc3333"
+
+awt assign-poi m2026 6 --type aid_station --what3words filled.count.soap
+awt discard m2026 2 8 9
+
+awt courses m2026       # what you ended up with
+awt set-w3w m2026 4 index.home.raft
+```
+
+What3Words addresses are entered by hand and maintained by Net Control. There is
+no API integration: it is a paid service, so the app validates the shape of an
+address but never resolves it. The KML coordinates remain authoritative.
+
 Run the ingest and watch what arrives:
 
 ```bash
@@ -85,6 +115,6 @@ packet that parses wrongly, add the line to that file.
 Captured live traffic belongs in `tests/fixtures/live_*.txt`, which is gitignored:
 it contains the positions of people who did not consent to being in a public repo.
 
-## Licensing note
+## License
 
-Not yet licensed. Pick one before making the repository public.
+[MIT](LICENSE)

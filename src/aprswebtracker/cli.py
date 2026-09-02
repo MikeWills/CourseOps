@@ -1,4 +1,4 @@
-"""Command-line entry point. Phase 1 is ingest only; no web server yet."""
+"""Command-line entry point. No web server yet; that arrives in Phase 3."""
 
 from __future__ import annotations
 
@@ -7,11 +7,15 @@ import asyncio
 import logging
 import sys
 
-from . import aprsis, db, units
+from . import aprsis, db, importer, kml, units, what3words
 from .config import Settings, load_dotenv
 
 CATEGORIES = [
     "net_control", "aid_station", "sweep", "sag", "shadow", "rover", "start_finish",
+]
+
+POI_TYPES = [
+    "aid_station", "start", "finish", "start_finish", "medical", "parking", "other",
 ]
 
 
@@ -127,6 +131,173 @@ def cmd_tail(args: argparse.Namespace) -> int:
     return 0
 
 
+def _event_or_exit(conn, slug: str):
+    event = db.get_event(conn, slug)
+    if event is None:
+        print(f"No event with slug {slug!r}", file=sys.stderr)
+        raise SystemExit(1)
+    return event
+
+
+def cmd_import(args: argparse.Namespace) -> int:
+    settings = _settings()
+    conn = db.connect(settings.db_path)
+    db.init_schema(conn)
+    event = _event_or_exit(conn, args.event)
+
+    try:
+        summary = importer.stage_file(conn, event["id"], args.file)
+    except kml.KmlError as exc:
+        print(f"Could not import {args.file}: {exc}", file=sys.stderr)
+        return 1
+
+    types = ", ".join(f"{n} {t}" for t, n in sorted(summary.by_type.items()))
+    print(f"Staged {summary.total} features from {summary.filename} ({types}).")
+    for warning in summary.warnings:
+        print(f"  warning: {warning}")
+    print(f"\nReview them with:  awt review {args.event}")
+    return 0
+
+
+def cmd_review(args: argparse.Namespace) -> int:
+    settings = _settings()
+    conn = db.connect(settings.db_path)
+    event = _event_or_exit(conn, args.event)
+    rows = importer.pending_features(conn, event["id"], include_all=args.all)
+    if not rows:
+        print("Nothing staged for review.")
+        return 0
+
+    print(f"{'ID':>4}  {'TYPE':<11} {'LENGTH':>9}  {'SUGGESTION':<18} NAME")
+    for row in rows:
+        length = units.format_distance(row["length_m"]) if row["length_m"] else ""
+        flag = " *" if row["warnings"] else ""
+        status = "" if row["status"] == "pending" else f" [{row['status']}]"
+        print(
+            f"{row['id']:>4}  {row['geom_type']:<11} {length:>9}  "
+            f"{row['suggestion'] or 'unassigned':<18} {row['name']}{status}{flag}"
+        )
+        if row["folder"]:
+            print(f"      in: {row['folder']}")
+        if row["warnings"] and args.verbose:
+            for line in row["warnings"].splitlines():
+                print(f"      ! {line}")
+
+    print("\nSuggestions are advisory - confirm each one. Assign with:")
+    print(f"  awt assign-course {args.event} <id> [<id>...] --name NAME")
+    print(f"  awt assign-poi    {args.event} <id> --type aid_station")
+    print(f"  awt discard       {args.event} <id> [<id>...]")
+    if any(r["warnings"] for r in rows) and not args.verbose:
+        print("\n* has warnings; re-run with --verbose to see them.")
+    return 0
+
+
+def cmd_assign_course(args: argparse.Namespace) -> int:
+    settings = _settings()
+    conn = db.connect(settings.db_path)
+    event = _event_or_exit(conn, args.event)
+    try:
+        course_id, distance_m, warnings = importer.assign_course(
+            conn, event["id"], args.ids, args.name, args.color, args.reverse
+        )
+    except ValueError as exc:
+        print(f"Could not build course: {exc}", file=sys.stderr)
+        return 1
+
+    print(f"Course {args.name!r} (id={course_id}): {units.format_distance(distance_m)}")
+    for warning in warnings:
+        print(f"  warning: {warning}")
+    if warnings:
+        print("  Check the stitched course on the map before the event.")
+    return 0
+
+
+def cmd_assign_poi(args: argparse.Namespace) -> int:
+    settings = _settings()
+    conn = db.connect(settings.db_path)
+    event = _event_or_exit(conn, args.event)
+
+    if args.what3words and not what3words.is_plausible(args.what3words):
+        print(
+            f"{args.what3words!r} does not look like a What3Words address "
+            "(expected three dot-separated words).",
+            file=sys.stderr,
+        )
+        return 1
+    try:
+        poi_id = importer.assign_poi(
+            conn, event["id"], args.id, args.type, args.name,
+            what3words.normalize(args.what3words),
+        )
+    except ValueError as exc:
+        print(f"Could not create POI: {exc}", file=sys.stderr)
+        return 1
+    print(f"POI created (id={poi_id}, type={args.type}).")
+    return 0
+
+
+def cmd_discard(args: argparse.Namespace) -> int:
+    settings = _settings()
+    conn = db.connect(settings.db_path)
+    _event_or_exit(conn, args.event)
+    count = importer.discard(conn, args.ids)
+    print(f"Discarded {count} feature(s).")
+    return 0
+
+
+def cmd_courses(args: argparse.Namespace) -> int:
+    settings = _settings()
+    conn = db.connect(settings.db_path)
+    event = _event_or_exit(conn, args.event)
+    courses = conn.execute(
+        "SELECT * FROM course WHERE event_id = ? ORDER BY sort_order, id",
+        (event["id"],),
+    ).fetchall()
+    pois = conn.execute(
+        "SELECT * FROM poi WHERE event_id = ? ORDER BY poi_type, name",
+        (event["id"],),
+    ).fetchall()
+
+    if courses:
+        print("COURSES")
+        for row in courses:
+            print(f"  {row['id']:>3}  {row['name']:<20} "
+                  f"{units.format_distance(row['distance_m'])}")
+    else:
+        print("No courses yet.")
+
+    if pois:
+        print("\nPOINTS OF INTEREST")
+        for row in pois:
+            w3w = what3words.format_for_display(row["what3words"])
+            print(f"  {row['id']:>3}  {row['name']:<24} {row['poi_type']:<13} "
+                  f"{row['lat']:>9.5f},{row['lon']:>11.5f}  {w3w}")
+    return 0
+
+
+def cmd_set_w3w(args: argparse.Namespace) -> int:
+    """What3Words is an NCS-maintained field, entered by hand."""
+    settings = _settings()
+    conn = db.connect(settings.db_path)
+    event = _event_or_exit(conn, args.event)
+    if not what3words.is_plausible(args.words):
+        print(
+            f"{args.words!r} does not look like a What3Words address "
+            "(expected three dot-separated words).",
+            file=sys.stderr,
+        )
+        return 1
+    cur = conn.execute(
+        "UPDATE poi SET what3words = ? WHERE id = ? AND event_id = ?",
+        (what3words.normalize(args.words), args.poi_id, event["id"]),
+    )
+    if cur.rowcount == 0:
+        print(f"No POI with id {args.poi_id} in this event.", file=sys.stderr)
+        return 1
+    print(f"POI {args.poi_id}: {what3words.format_for_display(args.words)}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="awt", description="AprsWebTracker")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -174,6 +345,52 @@ def build_parser() -> argparse.ArgumentParser:
         help="stop after this many lines (for smoke tests)",
     )
     p.set_defaults(func=cmd_ingest)
+
+    p = sub.add_parser("import", help="stage a KML/KMZ file for review")
+    p.add_argument("event")
+    p.add_argument("file", help="path to a .kml or .kmz file")
+    p.set_defaults(func=cmd_import)
+
+    p = sub.add_parser("review", help="list staged features awaiting assignment")
+    p.add_argument("event")
+    p.add_argument("--all", action="store_true", help="include assigned/discarded")
+    p.add_argument("--verbose", action="store_true", help="show parser warnings")
+    p.set_defaults(func=cmd_review)
+
+    p = sub.add_parser(
+        "assign-course", help="build a course from one or more staged line features"
+    )
+    p.add_argument("event")
+    p.add_argument("ids", type=int, nargs="+", help="staged feature ids to stitch")
+    p.add_argument("--name", required=True, help="e.g. 'Half'")
+    p.add_argument("--color", help="hex color for the map")
+    p.add_argument(
+        "--reverse", action="store_true", help="flip a line drawn finish-to-start"
+    )
+    p.set_defaults(func=cmd_assign_course)
+
+    p = sub.add_parser("assign-poi", help="turn a staged point into a POI")
+    p.add_argument("event")
+    p.add_argument("id", type=int)
+    p.add_argument("--type", choices=POI_TYPES, default="aid_station")
+    p.add_argument("--name", help="override the imported name")
+    p.add_argument("--what3words", help="e.g. filled.count.soap")
+    p.set_defaults(func=cmd_assign_poi)
+
+    p = sub.add_parser("discard", help="mark staged features as not needed")
+    p.add_argument("event")
+    p.add_argument("ids", type=int, nargs="+")
+    p.set_defaults(func=cmd_discard)
+
+    p = sub.add_parser("courses", help="show imported courses and POIs")
+    p.add_argument("event")
+    p.set_defaults(func=cmd_courses)
+
+    p = sub.add_parser("set-w3w", help="set a POI's What3Words address (NCS)")
+    p.add_argument("event")
+    p.add_argument("poi_id", type=int)
+    p.add_argument("words", help="e.g. filled.count.soap")
+    p.set_defaults(func=cmd_set_w3w)
 
     p = sub.add_parser("tail", help="show stored positions")
     p.add_argument("event")

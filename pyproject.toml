@@ -3,8 +3,14 @@ name = "aprswebtracker"
 version = "0.1.0"
 description = "Web-based APRS tracking and course map for marathon-style events"
 requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
 dependencies = [
     "aprslib>=0.7.2",
+    # KML/KMZ arrives from race organizers and is uploaded through the web UI:
+    # untrusted third-party input. Guards entity-expansion attacks that the
+    # stdlib XML parser does not.
+    "defusedxml>=0.7.1",
 ]
 
 [project.optional-dependencies]

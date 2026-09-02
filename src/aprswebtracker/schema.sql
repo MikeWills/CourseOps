@@ -108,3 +108,36 @@ CREATE TABLE IF NOT EXISTS raw_packet (
 );
 
 CREATE INDEX IF NOT EXISTS idx_raw_packet_time ON raw_packet (received_at DESC);
+
+-- KML/KMZ import staging. Parsed features land here unassigned; a human
+-- classifies each one before it becomes a course or a POI. Organizer files are
+-- messy enough that a silent importer costs more time than the review step does,
+-- so nothing reaches `course` or `poi` without being confirmed.
+CREATE TABLE IF NOT EXISTS import_batch (
+    id          INTEGER PRIMARY KEY,
+    event_id    INTEGER NOT NULL REFERENCES event(id) ON DELETE CASCADE,
+    filename    TEXT    NOT NULL,
+    source_kind TEXT    NOT NULL,  -- kml | kmz
+    imported_at TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+);
+
+CREATE TABLE IF NOT EXISTS import_feature (
+    id          INTEGER PRIMARY KEY,
+    batch_id    INTEGER NOT NULL REFERENCES import_batch(id) ON DELETE CASCADE,
+    event_id    INTEGER NOT NULL REFERENCES event(id) ON DELETE CASCADE,
+    name        TEXT    NOT NULL,
+    folder      TEXT,
+    geom_type   TEXT    NOT NULL,  -- linestring | point | polygon
+    geojson     TEXT    NOT NULL,
+    length_m    REAL,
+    description TEXT,
+    warnings    TEXT,
+    suggestion  TEXT,               -- advisory guess; never applied on its own
+    -- pending | assigned | discarded
+    status      TEXT    NOT NULL DEFAULT 'pending',
+    course_id   INTEGER REFERENCES course(id) ON DELETE SET NULL,
+    poi_id      INTEGER REFERENCES poi(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_import_feature_event
+    ON import_feature (event_id, status);

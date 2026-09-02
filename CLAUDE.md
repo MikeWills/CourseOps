@@ -8,9 +8,10 @@ Full plan and phase detail: **`docs/PLAN.md`**. Complete history: **`CHANGELOG.m
 
 ## Status
 
-Phase 1 (APRS-IS ingest) is complete. No web server or UI exists yet.
+Phases 1 (APRS-IS ingest) and 2 (KML/KMZ import) are complete, driven from the
+CLI. No web server or UI exists yet. Repo: private, `MikeWills/AprsWebTracker`.
 
-Phases: 1 ingest ✅ · 2 KML import · 3 live map · 4 roster/NCS panel ·
+Phases: 1 ingest ✅ · 2 KML import ✅ · 3 live map · 4 roster/NCS panel ·
 4a What3Words · 5 course-relative position · 6 incidents · 7 replay · 8 deployment
 
 ## Commands
@@ -29,6 +30,14 @@ awt add-station marathon2026 KI4HMD-1 "Aid 4" --category aid_station --no-aprs
 awt roster marathon2026          # shows the generated APRS-IS filter
 awt ingest marathon2026          # live; --max-packets N for a smoke test
 awt tail marathon2026 --latest
+
+awt import marathon2026 course.kmz   # stage for review; additive across files
+awt review marathon2026 --verbose    # suggestions are advisory only
+awt assign-course marathon2026 1 3 --name "Half"   # stitches segments
+awt assign-poi marathon2026 6 --type aid_station --what3words filled.count.soap
+awt discard marathon2026 2 8
+awt courses marathon2026
+awt set-w3w marathon2026 4 index.home.raft
 ```
 
 Tests never touch the network. Run `ingest` only when you actually want a live
@@ -44,11 +53,15 @@ src/aprswebtracker/
   aprsis.py       async APRS-IS client: filter, login, backoff
   db.py           SQLite access
   ingest.py       feed -> parse -> store; on_position hook for Phase 3 WebSocket
+  geo.py          haversine, line length, segment stitching; (lon, lat) order
+  kml.py          KML/KMZ parsing, hardened; classification is advisory only
+  importer.py     two-phase import: stage for review, then commit assignments
   units.py        metric storage -> US customary display
   what3words.py   normalize/validate W3W strings, no API
   cli.py          awt entry point
-tests/fixtures/packets.txt   packet corpus, `expectation|raw` per line
-docs/PLAN.md                 the plan
+tests/fixtures/packets.txt        packet corpus, `expectation|raw` per line
+tests/fixtures/messy_course.kml   KML reproducing real organizer defects
+docs/PLAN.md                      the plan
 ```
 
 ## Domain rules that are easy to get wrong
@@ -89,6 +102,19 @@ usability, not style preferences.
 - **Everything is event-scoped**, even with one event. `event_id` on every table.
 - **No What3Words API.** Paid service, deliberately not integrated. Manual entry,
   shape validation only, KML lat/lon stays authoritative.
+- **Import never writes directly to `course` or `poi`.** Files stage as `pending`
+  in `import_feature`; a human assigns each one. `suggest()` is advisory and must
+  stay conservative — better unassigned than a parking lot filed as an aid station.
+- **KML is untrusted third-party input.** It comes from the race organizer and
+  will arrive by web upload. Parse with `defusedxml`, keep the KMZ decompression
+  and size guards, and never swap back to stdlib `ElementTree.fromstring`.
+- **Coordinates are (lon, lat)** in `geo.py`, `kml.py` and GeoJSON — the reverse
+  of how everyone speaks. The database stores `lat`/`lon` as named columns.
+- **`geo.stitch` must grow the chain at both ends.** Growing only from the tail
+  silently folds a course back on itself when the file lists a middle segment
+  first. This was a real bug; there is a regression test.
+- **CLI output stays ASCII.** Em dashes become mojibake in the Windows console,
+  and a club laptop is the target environment.
 
 ## Conventions
 
@@ -105,21 +131,21 @@ usability, not style preferences.
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-02** Fixed: `geo.stitch` folded a course back on itself when the file
+  listed a middle segment first; the chain now grows at both ends.
+- **2026-09-02** CLI output made ASCII-only for the Windows console.
+- **2026-09-02** Added `defusedxml`; KMZ decompression-bomb and size guards, with
+  entity-expansion, XXE and zip-bomb tests.
+- **2026-09-02** Added `importer.py` and the `import_batch`/`import_feature`
+  staging tables — two-phase import, additive across files.
+- **2026-09-02** Added `kml.py` and `geo.py`, plus `messy_course.kml` reproducing
+  real organizer defects.
+- **2026-09-02** Added import CLI: `import`, `review`, `assign-course`,
+  `assign-poi`, `discard`, `courses`, `set-w3w`.
+- **2026-09-02** Added MIT license; pushed to private repo `MikeWills/AprsWebTracker`.
 - **2026-09-02** Fixed: ingest discarded packets from rostered operators marked
   `expects_aprs=0`; filter and membership are now separate queries.
 - **2026-09-02** Added `what3words.py` and a `poi.what3words` column, NCS-maintained,
   manual entry, no API.
-- **2026-09-02** Added `docs/PLAN.md` with full phase detail and domain decisions.
-- **2026-09-02** Added `cli.py`: `init-db`, `add-event`, `add-station`, `roster`,
-  `ingest`, `tail`.
-- **2026-09-02** Added test suite (24 tests) over a packet fixture corpus; no
-  network required.
-- **2026-09-02** Added `units.py` — metric storage, US customary presentation.
-- **2026-09-02** Added `ingest.py` with the `on_position` hook for the Phase 3
-  WebSocket fan-out.
-- **2026-09-02** Added `aprsis.py` — async client, receive-only login, buddy filter,
-  backoff with jitter.
-- **2026-09-02** Added `parser.py` and `db.py`; verified aprslib handles Mic-E,
-  compressed and uncompressed on Python 3.13.
-- **2026-09-02** Added project scaffold and `schema.sql` with the full event-scoped
-  domain model.
+- **2026-09-02** Phase 1 complete: `parser.py`, `aprsis.py`, `db.py`, `ingest.py`,
+  `units.py`, `cli.py`, `schema.sql`, and `docs/PLAN.md`.

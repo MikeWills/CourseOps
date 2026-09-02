@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  A deliberately messy organizer KML, reproducing the defects these files
+  actually have. Every oddity below has a reason to be here:
+
+    - the Half course split into two segments, the second drawn BACKWARDS
+      and listed out of order (stitching must reverse and reorder it)
+    - a placemark named "Untitled Path" (the folder is the only clue)
+    - a folder mixing aid stations with parking and a porta-potty
+    - a MultiGeometry holding two lines in one placemark
+    - coordinates with newlines, indentation and altitude values
+    - a Point with only two coordinate components (no altitude)
+    - an extensions element that must be ignored
+-->
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>Spring Marathon 2026</name>
+
+    <Folder>
+      <name>Courses</name>
+
+      <Placemark>
+        <name>Half Marathon - Part 1</name>
+        <description>Start line to the river crossing</description>
+        <LineString>
+          <tessellate>1</tessellate>
+          <coordinates>
+            -86.58000,34.73000,180
+            -86.57500,34.73200,181
+            -86.57000,34.73500,182
+          </coordinates>
+        </LineString>
+      </Placemark>
+
+      <Placemark>
+        <name>Untitled Path</name>
+        <LineString>
+          <coordinates>-86.60000,34.74500,0 -86.59500,34.74200,0 -86.59000,34.74000,0</coordinates>
+        </LineString>
+      </Placemark>
+
+      <!-- Part 2 drawn finish-to-start: its first point is the far end -->
+      <Placemark>
+        <name>Half Marathon - Part 2</name>
+        <LineString>
+          <coordinates>
+            -86.56000,34.74100,190
+            -86.56500,34.73800,188
+            -86.57000,34.73500,185
+          </coordinates>
+        </LineString>
+      </Placemark>
+
+      <Placemark>
+        <name>10K Route</name>
+        <MultiGeometry>
+          <LineString>
+            <coordinates>-86.58000,34.73000 -86.58400,34.72800</coordinates>
+          </LineString>
+          <LineString>
+            <coordinates>-86.58400,34.72800 -86.58900,34.72600</coordinates>
+          </LineString>
+        </MultiGeometry>
+      </Placemark>
+    </Folder>
+
+    <Folder>
+      <name>Course Support</name>
+
+      <Placemark>
+        <name>Water Stop 1</name>
+        <description>Corner of Oak and 3rd</description>
+        <Point><coordinates>-86.57500,34.73200,0</coordinates></Point>
+      </Placemark>
+
+      <Placemark>
+        <name>Aid Station 2</name>
+        <Point><coordinates>-86.57000,34.73500</coordinates></Point>
+      </Placemark>
+
+      <Placemark>
+        <name>Volunteer Parking</name>
+        <Point><coordinates>-86.58200,34.72900,0</coordinates></Point>
+      </Placemark>
+
+      <Placemark>
+        <name>Porta-John Bank</name>
+        <Point><coordinates>-86.57900,34.73100,0</coordinates></Point>
+      </Placemark>
+
+      <Placemark>
+        <name>Start / Finish</name>
+        <ExtendedData>
+          <Data name="ignore-me"><value>should not break parsing</value></Data>
+        </ExtendedData>
+        <Point><coordinates>-86.58000,34.73000,0</coordinates></Point>
+      </Placemark>
+
+      <Placemark>
+        <name>Medical Tent</name>
+        <Point><coordinates>-86.58050,34.73020,0</coordinates></Point>
+      </Placemark>
+    </Folder>
+  </Document>
+</kml>
