@@ -31,7 +31,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 179 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 204 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -76,6 +76,7 @@ src/courseops/
   units.py        metric storage -> US customary display
   progress.py     snap a station onto a course: "mile 14.2 of Full"
   incidents.py    pickups by bib, status workflow, change log
+  leaders.py      first male/female per race, from aid station reports
   styling.py      course colors, line styles, draw order
   what3words.py   normalize/validate W3W strings, no API
   access.py       role tokens: ncs writes; liaison + logistics read
@@ -123,6 +124,13 @@ usability, not style preferences.
   one, because someone will act on it. Sparse jumps are correct.
 - **Buddy filter, not area filter.** We know the roster in advance. This avoids
   incidentally storing the public's location.
+- **Lead runner sightings are reports, not measurements.** There is no tracker
+  on the front runner. Store the sighting; derive position, pace and ETA from it.
+- **Reject an implausible pace rather than publishing it.** NCS enters reports in
+  bursts, and two sightings seconds apart yields a 120 mph "pace" and an ETA an
+  aid station would plan around. Outside 3:00-30:00 per mile, show nothing.
+- **Bib colour is separate from course line colour.** The line colour is a map
+  choice; the bib colour is how an operator identifies a runner in front of them.
 - **`incident.status_at` is the age of the CURRENT status**, not of the
   incident. "Requested 8 minutes ago, nobody dispatched" is the whole point;
   sorting is status rank then longest-waiting.
@@ -261,6 +269,8 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-02** Added lead runner tracking: first male/female per race, bib colours, pace and ETA.
+- **2026-09-02** Fixed: an implausible pace from burst-entered reports is discarded, not published.
 - **2026-09-02** Phase 6: incidents — pickups by bib, status workflow, live and role-gated.
 - **2026-09-02** Aid stations now order by course position, not by name (Greek/numeric sort bug).
 - **2026-09-02** Added `courseops post` to station an operator at an aid station.
@@ -269,5 +279,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-02** Applied Course Ops branding: navy chrome, safety orange accent, pin logo.
 - **2026-09-02** Rejected the C.O. monogram favicon after testing at 16px; favicon derives from the pin.
 - **2026-09-02** Renamed to Course Ops: repo, package, CLI and docs.
-- **2026-09-02** Phase 4: operational status, the first write path, role-enforced and broadcast.
-- **2026-09-02** Added operator initials, stamped on status changes for shift handover.

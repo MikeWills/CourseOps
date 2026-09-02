@@ -28,12 +28,14 @@ import re
 
 # Okabe-Ito, ordered for maximum separation between the first few courses and
 # filtered for legibility on light raster tiles.
+# Lowercase, because normalize_color() lowercases everything a user supplies
+# and stored colours must compare equal regardless of where they came from.
 DEFAULT_COLORS = [
-    "#D55E00",  # vermillion
-    "#0072B2",  # blue
-    "#009E73",  # bluish green
-    "#CC79A7",  # reddish purple
-    "#E69F00",  # orange
+    "#d55e00",  # vermillion
+    "#0072b2",  # blue
+    "#009e73",  # bluish green
+    "#cc79a7",  # reddish purple
+    "#e69f00",  # orange
     "#000000",  # black
 ]
 

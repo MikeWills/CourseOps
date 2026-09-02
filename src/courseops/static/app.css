@@ -531,3 +531,85 @@ html, body {
   font-size: 13px;
   color: var(--ink-soft);
 }
+
+/* --- lead runners -------------------------------------------------------- */
+
+.leader-course {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0 4px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.leader-course:first-child { margin-top: 0; }
+/* The bib colour, not the map line colour: an operator identifies a runner by
+   the bib in front of them. */
+.leader-swatch {
+  width: 14px; height: 14px;
+  border-radius: 3px;
+  border: 1px solid rgba(0, 0, 0, 0.25);
+  flex: none;
+}
+
+.leader { padding: 4px 0 8px 22px; border-bottom: 1px solid #edf1f5; }
+.leader:last-child { border-bottom: 0; }
+
+.leader-main { display: flex; align-items: baseline; gap: 8px; min-height: 26px; }
+.leader-div { font-weight: 650; flex: none; }
+.leader-at { flex: 1; font-size: 13px; color: var(--ink-soft); }
+.leader-pace {
+  font-size: 12px; font-weight: 650; color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.leader-next { font-size: 12px; color: var(--ink-soft); }
+
+.leader-controls { display: flex; gap: 6px; margin-top: 6px; }
+/* The one-tap path is the wide one. On race day this is pressed while holding
+   a microphone, so it gets the space. */
+.leader-passed {
+  flex: 1;
+  min-height: 40px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.leader-picker, .leader-undo {
+  min-height: 40px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.leader-picker { max-width: 88px; }
+
+/* The bib arrives in the same radio call as the station, so it is entered in
+   the same row rather than in a separate step. */
+.leader-bib-input {
+  width: 72px;
+  flex: none;
+  min-height: 40px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 16px;          /* 16px stops iOS zooming the page on focus */
+  color: var(--ink);
+  background: var(--paper);
+}
+.leader-bib {
+  flex: none;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}

@@ -30,6 +30,8 @@ _ADDED_COLUMNS: list[tuple[str, str, str]] = [
     ("poi", "what3words", "TEXT"),
     ("course", "dash_pattern", "TEXT"),
     ("import_feature", "style_id", "TEXT"),
+    ("course", "bib_color", "TEXT"),
+    ("course", "bib_color_name", "TEXT"),
     ("roster", "op_status_at", "TEXT"),
     ("roster", "op_status_by", "TEXT"),
 ]

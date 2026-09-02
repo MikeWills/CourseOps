@@ -19,7 +19,7 @@ from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconn
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import access, db, hub as hub_module, incidents, progress
+from . import access, db, hub as hub_module, incidents, leaders, progress
 from .config import Settings
 from .ingest import run_ingest
 
@@ -140,6 +140,12 @@ def build_state(conn: sqlite3.Connection, event_id: int) -> dict[str, Any]:
         "pois": pois,
         "roster": roster,
         "positions": positions,
+        "leaders": [entry.as_dict() for entry in
+                    leaders.for_event(conn, event_id, index)],
+        "divisions": [
+            {"value": value, "label": leaders.division_label(value)}
+            for value in leaders.DIVISIONS
+        ],
         "incidents": incident_rows,
         "incident_statuses": [
             {"value": value, "label": incidents.STATUS_LABELS[value]}
@@ -424,6 +430,86 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         finally:
             conn.close()
         return JSONResponse({"entries": entries})
+
+    async def _publish_leaders(event_id: int) -> None:
+        conn = get_conn()
+        try:
+            index = progress.CourseIndex.for_event(conn, event_id)
+            payload = {
+                "type": "leaders",
+                "leaders": [e.as_dict() for e in leaders.for_event(conn, event_id, index)],
+            }
+        finally:
+            conn.close()
+        await app.state.hub.publish(event_id, payload)
+
+    @app.post("/api/{event_slug}/{token}/leaders/sighting")
+    async def record_leader(
+        event_slug: str, token: str, request: Request
+    ) -> JSONResponse:
+        """Log that a division's leader passed an aid station.
+
+        This only ever comes from an operator reporting on the net - there is no
+        tracker on the front runner - so it is a report, not a measurement.
+        """
+        conn, granted = require_write(event_slug, token)
+        body = await _json_body(request, conn)
+        try:
+            leaders.record_sighting(
+                conn, granted.event_id,
+                course_id=int(body.get("course_id")),
+                division=str(body.get("division", "")),
+                poi_id=int(body.get("poi_id")),
+                bib=body.get("bib"),
+                by=body.get("changed_by"),
+            )
+        except (ValueError, TypeError) as exc:
+            conn.close()
+            raise HTTPException(status_code=400, detail=str(exc))
+        conn.close()
+        await _publish_leaders(granted.event_id)
+        return JSONResponse({"ok": True}, status_code=201)
+
+    @app.post("/api/{event_slug}/{token}/leaders/undo")
+    async def undo_leader(event_slug: str, token: str, request: Request) -> JSONResponse:
+        """Remove the most recent sighting. Mis-taps happen on race day."""
+        conn, granted = require_write(event_slug, token)
+        body = await _json_body(request, conn)
+        try:
+            removed = leaders.undo_last_sighting(
+                conn, granted.event_id,
+                int(body.get("course_id")), str(body.get("division", "")),
+            )
+        except (ValueError, TypeError) as exc:
+            conn.close()
+            raise HTTPException(status_code=400, detail=str(exc))
+        conn.close()
+        if removed:
+            await _publish_leaders(granted.event_id)
+        return JSONResponse({"removed": removed})
+
+    @app.post("/api/{event_slug}/{token}/course/{course_id}/bib-color")
+    async def set_bib_color(
+        event_slug: str, token: str, course_id: int, request: Request
+    ) -> JSONResponse:
+        conn, granted = require_write(event_slug, token)
+        body = await _json_body(request, conn)
+        try:
+            row = leaders.set_bib_color(
+                conn, granted.event_id, course_id,
+                body.get("bib_color"), body.get("bib_color_name"),
+            )
+        except ValueError as exc:
+            conn.close()
+            raise HTTPException(status_code=400, detail=str(exc))
+        payload = {
+            "course_id": row["id"],
+            "bib_color": row["bib_color"],
+            "bib_color_name": row["bib_color_name"],
+        }
+        conn.close()
+        await _publish_leaders(granted.event_id)
+        return JSONResponse(payload)
 
     # --- live feed ---------------------------------------------------------
 

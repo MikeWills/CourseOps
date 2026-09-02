@@ -7,7 +7,7 @@ import asyncio
 import logging
 import sys
 
-from . import access, aprsis, db, importer, kml, styling, units, what3words
+from . import access, aprsis, db, importer, kml, leaders, styling, units, what3words
 from .config import Settings, load_dotenv
 
 CATEGORIES = [
@@ -338,6 +338,23 @@ def cmd_style_course(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_bib_color(args: argparse.Namespace) -> int:
+    """Pre-set the bib colour for a race, so race day is one tap."""
+    settings = _settings()
+    conn = db.connect(settings.db_path)
+    event = _event_or_exit(conn, args.event)
+    try:
+        row = leaders.set_bib_color(
+            conn, event["id"], args.course_id, args.color, args.name
+        )
+    except ValueError as exc:
+        print(f"Could not set bib colour: {exc}", file=sys.stderr)
+        return 1
+    label = row["bib_color_name"] or row["bib_color"]
+    print(f"{row['name']}: bibs are {label} ({row['bib_color']})")
+    return 0
+
+
 def cmd_set_w3w(args: argparse.Namespace) -> int:
     """What3Words is an NCS-maintained field, entered by hand."""
     settings = _settings()
@@ -564,6 +581,15 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("poi_id", type=int, nargs="?", help="POI id from 'courseops courses'")
     p.add_argument("--clear", action="store_true", help="un-post the station")
     p.set_defaults(func=cmd_post)
+
+    p = sub.add_parser(
+        "bib-color", help="set a race's bib colour (defaults to the course colour)"
+    )
+    p.add_argument("event")
+    p.add_argument("course_id", type=int)
+    p.add_argument("--color", help="hex colour; omit to copy the course line colour")
+    p.add_argument("--name", help="what people call it, e.g. Yellow")
+    p.set_defaults(func=cmd_bib_color)
 
     p = sub.add_parser("set-w3w", help="set a POI's What3Words address (NCS)")
     p.add_argument("event")

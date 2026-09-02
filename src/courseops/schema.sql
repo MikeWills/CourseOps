@@ -27,6 +27,13 @@ CREATE TABLE IF NOT EXISTS course (
     name       TEXT    NOT NULL,
     color        TEXT,
     dash_pattern TEXT,
+    -- The colour of this race's bibs. Usually matches the course line colour,
+    -- which is why it defaults to it - but it is a separate field because the
+    -- two answer different questions: the line colour is a map choice, the bib
+    -- colour is how an aid station operator identifies a runner in front of
+    -- them and says "first yellow male just went through".
+    bib_color    TEXT,
+    bib_color_name TEXT,
     geojson    TEXT    NOT NULL,
     distance_m REAL,
     sort_order INTEGER NOT NULL DEFAULT 0
@@ -219,3 +226,28 @@ CREATE TABLE IF NOT EXISTS incident_log (
 );
 
 CREATE INDEX IF NOT EXISTS idx_incident_log ON incident_log (incident_id, at);
+
+
+-- Lead runner sightings, called in from aid stations.
+--
+-- The counterpart to the sweep: the sweep says when an aid station can close,
+-- the leader says when it has to be ready. We only ever learn this when a
+-- runner physically passes an operator who reports it on the net, so this is a
+-- log of reports, not a track. Current position is derived from the latest
+-- sighting rather than stored, which keeps the two from disagreeing and gives
+-- pace for free.
+CREATE TABLE IF NOT EXISTS lead_sighting (
+    id        INTEGER PRIMARY KEY,
+    event_id  INTEGER NOT NULL REFERENCES event(id) ON DELETE CASCADE,
+    course_id INTEGER NOT NULL REFERENCES course(id) ON DELETE CASCADE,
+    -- male | female | any other division a race tracks. Stored as text so a
+    -- club can add wheelchair or non-binary without a migration.
+    division  TEXT    NOT NULL,
+    poi_id    INTEGER NOT NULL REFERENCES poi(id) ON DELETE CASCADE,
+    bib       TEXT,
+    at        TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+    by        TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_lead_sighting
+    ON lead_sighting (event_id, course_id, division, at DESC);
