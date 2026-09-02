@@ -436,6 +436,29 @@ Things discovered but not yet acted on. Each is a real constraint, not a wish.
   NCS to press "This is <label>" on the new SSID, which rebinds. There is no UI
   for unbinding without a new SSID to point at; `db.unbind_station` exists for
   when that turns out to be needed.
+- **Non-ham volunteers cannot be tracked today** - issue #6. Bike medics, race
+  staff and non-licensed drivers have no callsign, and APRS is the only tracking
+  mechanism. The medic is often the person NCS most wants to locate.
+
+  The finding that decides the design: **a web page cannot track a phone
+  reliably in the background.** iOS Safari suspends JavaScript when the tab is
+  not foreground or the phone locks, and Android Chrome throttles it hard. So
+  "open this link and we will track you" stops the moment the phone is pocketed,
+  and stops *silently* - leaving a dot that looks live. That is the same failure
+  this project already refuses elsewhere: a stale position someone will act on
+  is worse than none. A dedicated app holding real background-location
+  permission (OwnTracks, Traccar Client - both free and open source) posting to
+  an ingest endpoint is the reliable route; a browser link is only reliable in a
+  mounted, charged vehicle.
+
+  Privacy posture differs from a ham's: an APRS beacon is already public and we
+  only receive it, whereas a medic's phone position is private data we would be
+  actively collecting. Needs explicit, time-bounded, event-scoped consent and
+  deletion afterwards. Identity would be a synthetic roster key (`MEDIC-1`)
+  rather than a callsign - sayable on the net, unlike a UUID.
+- **Course notes have no export** - issue #7. Their whole value is the organizer
+  reading them after the event, which currently means reading them off a screen
+  before the database is cleared.
 - **Colour specification pending** from the club; see Visual design above.
 - ~~**Static asset caching.**~~ Tracked in issue #5.
 - **Operator runbook is a draft.** `docs/RUNBOOK.md` exists and covers what is
