@@ -30,6 +30,8 @@ _ADDED_COLUMNS: list[tuple[str, str, str]] = [
     ("poi", "what3words", "TEXT"),
     ("course", "dash_pattern", "TEXT"),
     ("import_feature", "style_id", "TEXT"),
+    ("event", "organization_id", "INTEGER REFERENCES organization(id) ON DELETE CASCADE"),
+    ("user", "organization_id", "INTEGER REFERENCES organization(id) ON DELETE CASCADE"),
     ("course", "bib_color", "TEXT"),
     ("course", "bib_color_name", "TEXT"),
     ("roster", "op_status_at", "TEXT"),
@@ -62,7 +64,37 @@ def _apply_migrations(conn: sqlite3.Connection) -> list[str]:
 
 def init_schema(conn: sqlite3.Connection) -> list[str]:
     conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
-    return _apply_migrations(conn)
+    applied = _apply_migrations(conn)
+    _adopt_orphan_events(conn)
+    return applied
+
+
+def _adopt_orphan_events(conn: sqlite3.Connection) -> None:
+    """Give events created before organizations existed a home.
+
+    Events predate the tenancy layer, so an upgrade would otherwise leave them
+    belonging to nobody and invisible to every admin. They are adopted into a
+    single default organization, which a system administrator can rename.
+    """
+    orphans = conn.execute(
+        "SELECT COUNT(*) FROM event WHERE organization_id IS NULL"
+    ).fetchone()[0]
+    if not orphans:
+        return
+    row = conn.execute(
+        "SELECT id FROM organization ORDER BY id LIMIT 1"
+    ).fetchone()
+    if row is None:
+        cur = conn.execute(
+            "INSERT INTO organization (slug, name) VALUES ('default', 'Default')"
+        )
+        org_id = int(cur.lastrowid)
+    else:
+        org_id = row["id"]
+    conn.execute(
+        "UPDATE event SET organization_id = ? WHERE organization_id IS NULL",
+        (org_id,),
+    )
 
 
 # --- events ---------------------------------------------------------------

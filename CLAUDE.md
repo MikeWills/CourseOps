@@ -31,7 +31,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 222 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 255 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -85,6 +85,9 @@ src/courseops/
   static/         Leaflet client, no build step, plus the icon set
   discovery.py    pre-event check-in: which SSIDs are actually on the air
   symbols.py      APRS symbols: is this a person or a digipeater?
+  admin.py        setup API: events, import, roster, links
+  users.py        admin accounts, scrypt passwords, sessions, roles
+  static/setup.*  the setup application
   cli.py          courseops entry point
 tests/fixtures/packets.txt          packet corpus, `expectation|raw` per line
 tests/fixtures/messy_course.kml     synthetic KML with real organizer defects
@@ -196,6 +199,15 @@ usability, not style preferences.
   A valid token in a read-only role gets 403; an invalid token still gets 404.
 - **Operator initials are a log annotation, never identity.** Free text, kept in
   the browser, truncated server-side. Nothing may start trusting it as auth.
+- **Setup belongs in the UI.** The premise is that a club can stand this up
+  without much effort; only `.env` and starting the server may stay in a
+  terminal. The CLI is kept for scripted setup and for tests.
+- **Organizations are the tenancy boundary.** Every event belongs to one, and
+  `may_access_event` is the single place access is decided. It checks the
+  organization BEFORE any per-event assignment, so a stale assignment after a
+  club change grants nothing.
+- **Volunteers keep bearer links; only admins get accounts.** A link can be
+  re-sent to someone whose phone died at 6am by anyone holding it.
 - **An invalid token returns 404, never 403.** A 403 would confirm the event
   exists. Tokens are also scoped to their event: valid elsewhere means nothing.
 - **Never interpolate marker movement in the client** (same rule as the plan).
@@ -288,13 +300,13 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-02** Added the `/setup` UI: organizations, events, visual course review, roster, links.
+- **2026-09-02** Added admin accounts (scrypt, sessions) and three roles including organizations.
+- **2026-09-02** Fixed: `__FIRST_RUN__` templating replaced the variable name too, losing the flag.
+- **2026-09-02** Turned layer checkboxes into green/red switches.
 - **2026-09-02** SSID mismatches now surface in the UI with one-click adopt/ignore.
-- **2026-09-02** Fixed: ignoring an SSID now hides positions already stored, not just future ones.
 - **2026-09-02** Filter now wildcards every SSID per callsign; a wrong SSID no longer hides someone.
-- **2026-09-02** Added `station_exclusion` and `courseops ignore` for digipeaters and igates.
-- **2026-09-02** Added `courseops check-in` and `symbols.py` to find wrong SSIDs before race day.
 - **2026-09-02** Added `roster_status_log`: status history for handover; cannot be rebuilt later.
 - **2026-09-02** Added lead runner tracking: first male/female per race, bib colours, pace and ETA.
-- **2026-09-02** Fixed: an implausible pace from burst-entered reports is discarded, not published.
 - **2026-09-02** Phase 6: incidents — pickups by bib, status workflow, live and role-gated.
-- **2026-09-02** Aid stations now order by course position, not by name (Greek/numeric sort bug).
+- **2026-09-02** Phase 5: course-relative position — "Full-back at mile 14.2".

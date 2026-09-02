@@ -12,21 +12,25 @@ import contextlib
 import json
 import logging
 import sqlite3
+import pathlib
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi import (FastAPI, File, Form, HTTPException, Request, UploadFile,
+                     WebSocket, WebSocketDisconnect)
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import (access, db, hub as hub_module, incidents, leaders, progress,
-               symbols)
+from . import (access, admin, db, hub as hub_module, importer, incidents,
+               kml, leaders, progress, symbols, users)
 from .config import Settings
 from .ingest import run_ingest
 
 log = logging.getLogger(__name__)
 
 STATIC_DIR = Path(__file__).with_name("static")
+
+SESSION_COOKIE = "courseops_session"
 
 # How long without a packet before a station is styled as going stale / silent.
 # Phone apps beacon every 1-5 minutes, so "quiet for 4 minutes" is normal and
@@ -241,6 +245,577 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
             # 404, not 403: an invalid token must not confirm the event exists.
             raise HTTPException(status_code=404, detail="Not found")
         return conn, granted
+
+    # --- administrator sessions --------------------------------------------
+
+    def current_user(request: Request, conn) -> users.User | None:
+        return users.resolve_session(conn, request.cookies.get(SESSION_COOKIE, ""))
+
+    def require_user(request: Request) -> tuple[Any, users.User]:
+        conn = get_conn()
+        user = current_user(request, conn)
+        if user is None:
+            conn.close()
+            raise HTTPException(status_code=401, detail="Sign in to continue.")
+        return conn, user
+
+    def require_user_manager(request: Request):
+        """System admins and org admins both manage people, at different scopes."""
+        conn, user = require_user(request)
+        if not user.may_manage_users:
+            conn.close()
+            raise HTTPException(
+                status_code=403, detail="You cannot manage administrators."
+            )
+        return conn, user
+
+    def require_event_creator(request: Request):
+        conn, user = require_user(request)
+        if not user.may_create_events:
+            conn.close()
+            raise HTTPException(
+                status_code=403, detail="You cannot create events."
+            )
+        return conn, user
+
+    def require_system_admin(request: Request):
+        conn, user = require_user(request)
+        if not user.is_system_admin:
+            conn.close()
+            raise HTTPException(
+                status_code=403,
+                detail="Only a system administrator can do that.",
+            )
+        return conn, user
+
+    def require_event_admin(request: Request, event_id: int):
+        """Every event-scoped setup route goes through here.
+
+        One place decides whether a user may touch an event, so widening or
+        narrowing access later is a change to may_access_event rather than to
+        every endpoint.
+        """
+        conn, user = require_user(request)
+        if not users.may_access_event(conn, user, event_id):
+            conn.close()
+            raise HTTPException(status_code=403, detail="Not your event.")
+        return conn, user
+
+    def _set_session_cookie(response, token: str, secure: bool) -> None:
+        response.set_cookie(
+            SESSION_COOKIE, token,
+            httponly=True,          # unreadable from JavaScript
+            samesite="lax",         # not sent on cross-site POSTs
+            secure=secure,          # HTTPS only, when we are on HTTPS
+            max_age=users.SESSION_DAYS * 24 * 3600,
+            path="/",
+        )
+
+    @app.get("/setup")
+    async def setup_page(request: Request) -> HTMLResponse:
+        conn = get_conn()
+        try:
+            # First run: nobody exists yet, so the page offers to create the
+            # first system administrator instead of asking for a login that
+            # could never succeed.
+            needs_first_user = not users.any_users(conn)
+        finally:
+            conn.close()
+        html = (STATIC_DIR / "setup.html").read_text(encoding="utf-8")
+        return HTMLResponse(
+            html.replace("{{FIRST_RUN}}", "true" if needs_first_user else "false")
+        )
+
+    @app.get("/api/setup/session")
+    async def whoami(request: Request) -> JSONResponse:
+        conn = get_conn()
+        try:
+            user = current_user(request, conn)
+            first_run = not users.any_users(conn)
+        finally:
+            conn.close()
+        return JSONResponse({
+            "user": user.as_dict() if user else None,
+            "first_run": first_run,
+        })
+
+    @app.post("/api/setup/first-user")
+    async def create_first_user(request: Request) -> JSONResponse:
+        """Create the first system administrator, once.
+
+        Open only while no users exist - after that it is closed permanently,
+        so it cannot be used to add an admin to a running system.
+        """
+        conn = get_conn()
+        body = await _json_body(request, conn)
+        try:
+            if users.any_users(conn):
+                raise HTTPException(
+                    status_code=409,
+                    detail="Setup is already complete. Sign in instead.",
+                )
+            user = users.create_user(
+                conn, body.get("username", ""), body.get("password", ""),
+                users.ROLE_SYSTEM_ADMIN, body.get("display_name"),
+            )
+            token = users.start_session(conn, user.id)
+        except users.AuthError as exc:
+            conn.close()
+            raise HTTPException(status_code=400, detail=str(exc))
+        finally:
+            if conn:
+                conn.close()
+        response = JSONResponse({"user": user.as_dict()})
+        _set_session_cookie(response, token, request.url.scheme == "https")
+        return response
+
+    @app.post("/api/setup/login")
+    async def login(request: Request) -> JSONResponse:
+        conn = get_conn()
+        body = await _json_body(request, conn)
+        try:
+            user = users.authenticate(
+                conn, body.get("username", ""), body.get("password", "")
+            )
+            token = users.start_session(conn, user.id)
+        except users.AuthError as exc:
+            conn.close()
+            raise HTTPException(status_code=401, detail=str(exc))
+        conn.close()
+        response = JSONResponse({"user": user.as_dict()})
+        _set_session_cookie(response, token, request.url.scheme == "https")
+        return response
+
+    @app.post("/api/setup/logout")
+    async def logout(request: Request) -> JSONResponse:
+        conn = get_conn()
+        try:
+            users.end_session(conn, request.cookies.get(SESSION_COOKIE, ""))
+        finally:
+            conn.close()
+        response = JSONResponse({"ok": True})
+        response.delete_cookie(SESSION_COOKIE, path="/")
+        return response
+
+    @app.post("/api/setup/password")
+    async def change_own_password(request: Request) -> JSONResponse:
+        conn, user = require_user(request)
+        body = await _json_body(request, conn)
+        try:
+            # Re-authenticate first: a borrowed unlocked laptop must not be
+            # enough to lock the real owner out.
+            users.authenticate(conn, user.username, body.get("current_password", ""))
+            users.set_password(conn, user.id, body.get("new_password", ""))
+        except users.AuthError as exc:
+            conn.close()
+            raise HTTPException(status_code=400, detail=str(exc))
+        conn.close()
+        response = JSONResponse({"ok": True})
+        response.delete_cookie(SESSION_COOKIE, path="/")   # sessions were cleared
+        return response
+
+    # --- setup: events -----------------------------------------------------
+
+    def _guard(fn, *args):
+        """Turn a domain error into a 400 with its message, closing the conn."""
+        try:
+            return fn(*args)
+        except (ValueError, users.AuthError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+    @app.get("/api/setup/events")
+    async def setup_events(request: Request) -> JSONResponse:
+        conn, user = require_user(request)
+        try:
+            if user.is_system_admin:
+                events = admin.list_events(conn)
+            else:
+                # Scoped to the club first, so another club's race calendar is
+                # never sent at all - not even to be filtered out here.
+                events = admin.list_events(conn, user.organization_id)
+                if not user.is_org_admin:
+                    allowed = set(users.events_for(conn, user.id))
+                    events = [e for e in events if e["id"] in allowed]
+            organizations = (users.list_organizations(conn)
+                             if user.is_system_admin else [])
+        finally:
+            conn.close()
+        return JSONResponse({"events": events, "organizations": organizations})
+
+    @app.post("/api/setup/events")
+    async def setup_create_event(request: Request) -> JSONResponse:
+        conn, user = require_event_creator(request)
+        body = await _json_body(request, conn)
+        try:
+            # A system admin says which club; anyone else gets their own, so a
+            # club admin cannot create an event inside someone else's.
+            if user.is_system_admin:
+                organization_id = body.get("organization_id")
+                if not organization_id:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Choose which organization this event belongs to.",
+                    )
+            else:
+                organization_id = user.organization_id
+            event = _guard(admin.create_event, conn, body, int(organization_id))
+        finally:
+            conn.close()
+        return JSONResponse(event, status_code=201)
+
+    @app.post("/api/setup/events/{event_id}")
+    async def setup_update_event(event_id: int, request: Request) -> JSONResponse:
+        conn, user = require_event_admin(request, event_id)
+        body = await _json_body(request, conn)
+        try:
+            event = _guard(admin.update_event, conn, event_id, body)
+        finally:
+            conn.close()
+        return JSONResponse(event)
+
+    @app.post("/api/setup/events/{event_id}/delete")
+    async def setup_delete_event(event_id: int, request: Request) -> JSONResponse:
+        # Deleting destroys the whole history and cascades through courses,
+        # roster, positions and incidents - so it needs more than event-level
+        # access, but a club must still be able to remove its own events.
+        conn, user = require_event_admin(request, event_id)
+        if not user.may_create_events:
+            conn.close()
+            raise HTTPException(
+                status_code=403,
+                detail="Only an organization or system administrator can delete an event.",
+            )
+        try:
+            admin.delete_event(conn, event_id)
+        finally:
+            conn.close()
+        return JSONResponse({"deleted": event_id})
+
+    # --- setup: course import ----------------------------------------------
+
+    @app.post("/api/setup/events/{event_id}/import")
+    async def setup_import(
+        event_id: int, request: Request, file: UploadFile = File(...)
+    ) -> JSONResponse:
+        conn, user = require_event_admin(request, event_id)
+        payload = await file.read()
+        # Written to a temp file because the parser takes a path: it has to
+        # detect KMZ by reading the zip header, not by trusting the extension.
+        import tempfile
+        suffix = ".kmz" if (file.filename or "").lower().endswith(".kmz") else ".kml"
+        tmp = pathlib.Path(tempfile.mkdtemp()) / f"upload{suffix}"
+        tmp.write_bytes(payload)
+        try:
+            summary = importer.stage_file(conn, event_id, tmp)
+        except kml.KmlError as exc:
+            conn.close()
+            raise HTTPException(status_code=400, detail=str(exc))
+        finally:
+            tmp.unlink(missing_ok=True)
+        result = {
+            "filename": file.filename,
+            "total": summary.total,
+            "by_type": summary.by_type,
+            "warnings": summary.warnings,
+            "features": admin.staged_features(conn, event_id),
+        }
+        conn.close()
+        return JSONResponse(result, status_code=201)
+
+    @app.get("/api/setup/events/{event_id}/staged")
+    async def setup_staged(event_id: int, request: Request) -> JSONResponse:
+        conn, user = require_event_admin(request, event_id)
+        try:
+            return JSONResponse({"features": admin.staged_features(conn, event_id)})
+        finally:
+            conn.close()
+
+    @app.post("/api/setup/events/{event_id}/assign")
+    async def setup_assign(event_id: int, request: Request) -> JSONResponse:
+        conn, user = require_event_admin(request, event_id)
+        body = await _json_body(request, conn)
+        try:
+            result = _guard(admin.assign_features, conn, event_id, body)
+        finally:
+            conn.close()
+        return JSONResponse(result)
+
+    # --- setup: courses and aid stations -----------------------------------
+
+    @app.get("/api/setup/events/{event_id}/courses")
+    async def setup_courses(event_id: int, request: Request) -> JSONResponse:
+        conn, user = require_event_admin(request, event_id)
+        try:
+            return JSONResponse({
+                "courses": admin.list_courses(conn, event_id),
+                "pois": admin.list_pois(conn, event_id),
+            })
+        finally:
+            conn.close()
+
+    @app.post("/api/setup/events/{event_id}/courses/{course_id}")
+    async def setup_update_course(
+        event_id: int, course_id: int, request: Request
+    ) -> JSONResponse:
+        conn, user = require_event_admin(request, event_id)
+        body = await _json_body(request, conn)
+        try:
+            return JSONResponse(
+                _guard(admin.update_course, conn, event_id, course_id, body)
+            )
+        finally:
+            conn.close()
+
+    @app.post("/api/setup/events/{event_id}/courses/{course_id}/delete")
+    async def setup_delete_course(
+        event_id: int, course_id: int, request: Request
+    ) -> JSONResponse:
+        conn, user = require_event_admin(request, event_id)
+        try:
+            admin.delete_course(conn, event_id, course_id)
+        finally:
+            conn.close()
+        return JSONResponse({"deleted": course_id})
+
+    @app.post("/api/setup/events/{event_id}/pois/{poi_id}")
+    async def setup_update_poi(
+        event_id: int, poi_id: int, request: Request
+    ) -> JSONResponse:
+        conn, user = require_event_admin(request, event_id)
+        body = await _json_body(request, conn)
+        try:
+            return JSONResponse(
+                _guard(admin.update_poi, conn, event_id, poi_id, body)
+            )
+        finally:
+            conn.close()
+
+    @app.post("/api/setup/events/{event_id}/pois/{poi_id}/delete")
+    async def setup_delete_poi(
+        event_id: int, poi_id: int, request: Request
+    ) -> JSONResponse:
+        conn, user = require_event_admin(request, event_id)
+        try:
+            admin.delete_poi(conn, event_id, poi_id)
+        finally:
+            conn.close()
+        return JSONResponse({"deleted": poi_id})
+
+    # --- setup: roster ------------------------------------------------------
+
+    @app.get("/api/setup/events/{event_id}/roster")
+    async def setup_roster(event_id: int, request: Request) -> JSONResponse:
+        conn, user = require_event_admin(request, event_id)
+        try:
+            return JSONResponse({
+                "roster": admin.list_roster(conn, event_id),
+                "categories": list(db.OP_STATUS_LABELS.keys()),
+                "pois": admin.list_pois(conn, event_id),
+                "ignored": sorted(db.excluded_station_keys(conn, event_id)),
+            })
+        finally:
+            conn.close()
+
+    @app.post("/api/setup/events/{event_id}/roster")
+    async def setup_save_roster(event_id: int, request: Request) -> JSONResponse:
+        conn, user = require_event_admin(request, event_id)
+        body = await _json_body(request, conn)
+        try:
+            return JSONResponse(
+                _guard(admin.save_roster_entry, conn, event_id, body)
+            )
+        finally:
+            conn.close()
+
+    @app.post("/api/setup/events/{event_id}/roster/delete")
+    async def setup_delete_roster(event_id: int, request: Request) -> JSONResponse:
+        conn, user = require_event_admin(request, event_id)
+        body = await _json_body(request, conn)
+        try:
+            admin.delete_roster_entry(conn, event_id, body.get("station_key", ""))
+        finally:
+            conn.close()
+        return JSONResponse({"ok": True})
+
+    # --- setup: access links ------------------------------------------------
+
+    @app.get("/api/setup/events/{event_id}/links")
+    async def setup_links(event_id: int, request: Request) -> JSONResponse:
+        conn, user = require_event_admin(request, event_id)
+        try:
+            access.ensure_tokens(conn, event_id)
+            event = conn.execute(
+                "SELECT slug FROM event WHERE id = ?", (event_id,)
+            ).fetchone()
+            return JSONResponse({
+                "slug": event["slug"],
+                "links": admin.list_links(conn, event_id),
+            })
+        finally:
+            conn.close()
+
+    @app.post("/api/setup/events/{event_id}/links")
+    async def setup_link_action(event_id: int, request: Request) -> JSONResponse:
+        conn, user = require_event_admin(request, event_id)
+        body = await _json_body(request, conn)
+        action = (body.get("action") or "").strip()
+        try:
+            if action == "revoke":
+                access.revoke(conn, int(body.get("token_id")))
+            elif action == "reissue":
+                role = str(body.get("role", ""))
+                if role not in access.ROLES:
+                    raise HTTPException(status_code=400, detail=f"Unknown role {role!r}")
+                # Revoke the old one in the same step: reissuing without
+                # revoking would quietly leave the leaked link working.
+                for row in access.tokens_for_event(conn, event_id):
+                    if row["role"] == role and not row["revoked"]:
+                        access.revoke(conn, row["id"])
+                access.create_token(conn, event_id, role)
+            else:
+                raise HTTPException(status_code=400, detail="Unknown action.")
+            links = admin.list_links(conn, event_id)
+        finally:
+            conn.close()
+        return JSONResponse({"links": links})
+
+    # --- setup: organizations -----------------------------------------------
+
+    @app.get("/api/setup/organizations")
+    async def setup_organizations(request: Request) -> JSONResponse:
+        conn, user = require_user(request)
+        try:
+            organizations = users.list_organizations(conn)
+            if not user.is_system_admin:
+                organizations = [o for o in organizations
+                                 if o["id"] == user.organization_id]
+        finally:
+            conn.close()
+        return JSONResponse({"organizations": organizations})
+
+    @app.post("/api/setup/organizations")
+    async def setup_create_organization(request: Request) -> JSONResponse:
+        # Only the host adds clubs: this is the tenancy boundary itself.
+        conn, user = require_system_admin(request)
+        body = await _json_body(request, conn)
+        try:
+            organization = _guard(
+                users.create_organization, conn,
+                body.get("slug", ""), body.get("name", ""), body.get("contact"),
+            )
+        finally:
+            conn.close()
+        return JSONResponse(organization, status_code=201)
+
+    @app.post("/api/setup/organizations/{organization_id}/delete")
+    async def setup_delete_organization(
+        organization_id: int, request: Request
+    ) -> JSONResponse:
+        conn, user = require_system_admin(request)
+        try:
+            conn.execute("DELETE FROM organization WHERE id = ?", (organization_id,))
+        finally:
+            conn.close()
+        return JSONResponse({"deleted": organization_id})
+
+    # --- setup: users -------------------------------------------------------
+
+    @app.get("/api/setup/users")
+    async def setup_users(request: Request) -> JSONResponse:
+        conn, user = require_user_manager(request)
+        try:
+            people = users.list_users(conn)
+            roles = list(users.ROLES)
+            if not user.is_system_admin:
+                # An org admin sees and creates only within their own club, and
+                # cannot mint system administrators.
+                people = [p for p in people
+                          if p["organization_id"] == user.organization_id]
+                roles = [r for r in roles if r != users.ROLE_SYSTEM_ADMIN]
+            return JSONResponse({
+                "users": people,
+                "roles": [{"value": r, "label": users.ROLE_LABELS[r]} for r in roles],
+                "organizations": (users.list_organizations(conn)
+                                  if user.is_system_admin else []),
+            })
+        finally:
+            conn.close()
+
+    @app.post("/api/setup/users")
+    async def setup_create_user(request: Request) -> JSONResponse:
+        conn, actor = require_user_manager(request)
+        body = await _json_body(request, conn)
+        role = body.get("role", "")
+        try:
+            if actor.is_system_admin:
+                organization_id = body.get("organization_id")
+            else:
+                # Their own club, always - and never a system administrator.
+                organization_id = actor.organization_id
+                if role == users.ROLE_SYSTEM_ADMIN:
+                    raise HTTPException(
+                        status_code=403,
+                        detail="Only a system administrator can create one.",
+                    )
+            created = _guard(
+                users.create_user, conn, body.get("username", ""),
+                body.get("password", ""), role, body.get("display_name"),
+                int(organization_id) if organization_id else None,
+            )
+            users.set_events(conn, created.id,
+                             [int(i) for i in body.get("event_ids", [])])
+        finally:
+            conn.close()
+        return JSONResponse(created.as_dict(), status_code=201)
+
+    @app.post("/api/setup/users/{user_id}")
+    async def setup_update_user(user_id: int, request: Request) -> JSONResponse:
+        conn, actor = require_user_manager(request)
+        body = await _json_body(request, conn)
+        try:
+            target = users.get_user(conn, user_id)
+            if not users.may_manage_user(conn, actor, target):
+                raise HTTPException(status_code=403, detail="Not your administrator.")
+            if "password" in body:
+                _guard(users.set_password, conn, user_id, body["password"])
+            if "is_active" in body:
+                active = bool(body["is_active"])
+                # Refuse to deactivate the last system admin: it would lock
+                # everyone out of the system with no way back in.
+                if not active and users.count_system_admins(conn, user_id) == 0:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="This is the only system administrator.",
+                    )
+                users.set_active(conn, user_id, active)
+            if "event_ids" in body:
+                users.set_events(conn, user_id,
+                                 [int(i) for i in body["event_ids"]])
+            result = users.get_user(conn, user_id).as_dict()
+        finally:
+            conn.close()
+        return JSONResponse(result)
+
+    @app.post("/api/setup/users/{user_id}/delete")
+    async def setup_delete_user(user_id: int, request: Request) -> JSONResponse:
+        conn, actor = require_user_manager(request)
+        try:
+            target = users.get_user(conn, user_id)
+            if not users.may_manage_user(conn, actor, target):
+                raise HTTPException(status_code=403, detail="Not your administrator.")
+            if user_id == actor.id:
+                raise HTTPException(
+                    status_code=400, detail="You cannot delete your own account."
+                )
+            if users.count_system_admins(conn, user_id) == 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail="This is the only system administrator.",
+                )
+            users.delete_user(conn, user_id)
+        finally:
+            conn.close()
+        return JSONResponse({"deleted": user_id})
 
     # --- pages -------------------------------------------------------------
 

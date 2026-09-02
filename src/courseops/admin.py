@@ -27,9 +27,21 @@ def _row(row: sqlite3.Row) -> dict[str, Any]:
 
 # --- events -----------------------------------------------------------------
 
-def list_events(conn: sqlite3.Connection) -> list[dict[str, Any]]:
+def list_events(conn: sqlite3.Connection,
+                organization_id: int | None = None) -> list[dict[str, Any]]:
+    """Events, optionally limited to one organization.
+
+    Filtering here rather than in the caller means a club never receives another
+    club's event names, not even to discard - which would otherwise leak their
+    race calendar.
+    """
+    query = "SELECT * FROM event"
+    params: list = []
+    if organization_id is not None:
+        query += " WHERE organization_id = ?"
+        params.append(organization_id)
     out = []
-    for row in conn.execute("SELECT * FROM event ORDER BY id DESC").fetchall():
+    for row in conn.execute(query + " ORDER BY id DESC", params).fetchall():
         entry = _row(row)
         entry["counts"] = {
             "courses": conn.execute(
@@ -50,7 +62,8 @@ def list_events(conn: sqlite3.Connection) -> list[dict[str, Any]]:
     return out
 
 
-def create_event(conn: sqlite3.Connection, payload: dict) -> dict[str, Any]:
+def create_event(conn: sqlite3.Connection, payload: dict,
+                 organization_id: int | None = None) -> dict[str, Any]:
     slug = (payload.get("slug") or "").strip().lower()
     name = (payload.get("name") or "").strip()
     if not slug or not name:
@@ -63,8 +76,12 @@ def create_event(conn: sqlite3.Connection, payload: dict) -> dict[str, Any]:
     if db.get_event(conn, slug) is not None:
         raise ValueError(f"An event called {slug!r} already exists.")
 
+    if organization_id is None:
+        raise ValueError("An event must belong to an organization.")
+
     event_id = db.create_event(
         conn, slug, name,
+        organization_id=organization_id,
         event_date=(payload.get("event_date") or "").strip() or None,
         timezone=(payload.get("timezone") or "UTC").strip(),
         center_lat=payload.get("center_lat"),
