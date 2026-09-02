@@ -80,7 +80,9 @@ def test_the_workflow_runs_forward(event):
     conn, event_id = event
     row = open_one(conn, event_id)
 
-    for expected in ("en_route", "picked_up", "closed"):
+    # "Dropped off" is its own step: picked up means the runner is in the
+    # vehicle and still SAG's responsibility, dropped off means delivered.
+    for expected in ("en_route", "picked_up", "dropped_off", "closed"):
         assert incidents.next_status(row["status"]) == expected
         row = incidents.set_status(conn, event_id, row["id"], expected, by="MW")
         assert row["status"] == expected

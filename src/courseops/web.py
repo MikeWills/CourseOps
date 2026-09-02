@@ -232,6 +232,13 @@ def build_state(conn: sqlite3.Connection, event_id: int) -> dict[str, Any]:
             {"value": value, "label": incidents.STATUS_LABELS[value]}
             for value in incidents.STATUSES
         ],
+        "incident_kinds": [
+            {"value": value, "label": incidents.KIND_LABELS[value]}
+            for value in incidents.KINDS
+        ],
+        # The number that means "still waiting". Notes are excluded by
+        # construction - see incidents.waiting_count.
+        "pickups_waiting": incidents.waiting_count(conn, event_id),
         "op_statuses": list(db.OP_STATUSES),
         "thresholds": {
             "stale_after_s": STALE_AFTER_SECONDS,
@@ -973,14 +980,19 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
             conn.close()
         payload["role"] = granted.role
         payload["role_label"] = granted.role_label
+        payload["role"] = granted.role
         payload["can_write"] = granted.can_write
+        # Per capability, so the client shows exactly the controls this role can
+        # actually use. A button the server would refuse is worse than no button.
+        payload["capabilities"] = sorted(granted.capabilities)
         return JSONResponse(payload)
 
     # --- writes ------------------------------------------------------------
     #
-    # Every mutation goes through require_write() regardless of role, so
-    # granting a field role write access later is a change to WRITE_ROLES
-    # rather than a rewrite of each endpoint.
+    # Every mutation names the capability it needs and goes through one check,
+    # so widening a role is a change to access.ROLE_CAPABILITIES rather than a
+    # rewrite of each endpoint. It used to be a single yes/no; SAG needs to work
+    # its pickup queue without being able to revoke a link or edit the roster.
 
     async def _json_body(request: Request, conn) -> dict:
         try:
@@ -993,23 +1005,25 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
             raise HTTPException(status_code=400, detail="Expected a JSON object.")
         return body
 
-    def require_write(event_slug: str, token: str):
+    def require_capability(event_slug: str, token: str, capability: str):
         conn, granted = require_access(event_slug, token)
-        if not granted.can_write:
+        if not granted.can(capability):
             conn.close()
             # 403 here, not 404: the token is valid and its holder knows the
             # event exists. Hiding the reason would just be confusing.
-            raise HTTPException(
-                status_code=403,
-                detail=f"{granted.role_label} is read-only.",
+            detail = (
+                f"{granted.role_label} is read-only."
+                if not granted.can_write
+                else f"{granted.role_label} cannot change that."
             )
+            raise HTTPException(status_code=403, detail=detail)
         return conn, granted
 
     @app.post("/api/{event_slug}/{token}/station/{station_key}/status")
     async def set_station_status(
         event_slug: str, token: str, station_key: str, request: Request
     ) -> JSONResponse:
-        conn, granted = require_write(event_slug, token)
+        conn, granted = require_capability(event_slug, token, access.CAP_STATIONS)
         try:
             body = await request.json()
         except Exception:
@@ -1067,7 +1081,7 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     async def create_incident(
         event_slug: str, token: str, request: Request
     ) -> JSONResponse:
-        conn, granted = require_write(event_slug, token)
+        conn, granted = require_capability(event_slug, token, access.CAP_INCIDENTS)
         body = await _json_body(request, conn)
         try:
             row = incidents.create(
@@ -1075,6 +1089,7 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
                 lat=float(body.get("lat")), lon=float(body.get("lon")),
                 bib=body.get("bib"), note=body.get("note"),
                 poi_id=body.get("poi_id"), by=body.get("changed_by"),
+                kind=(body.get("kind") or incidents.KIND_PICKUP),
             )
         except (incidents.IncidentError, TypeError, ValueError) as exc:
             conn.close()
@@ -1087,7 +1102,7 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     async def set_incident_status(
         event_slug: str, token: str, incident_id: int, request: Request
     ) -> JSONResponse:
-        conn, granted = require_write(event_slug, token)
+        conn, granted = require_capability(event_slug, token, access.CAP_INCIDENTS)
         body = await _json_body(request, conn)
         try:
             row = incidents.set_status(
@@ -1106,7 +1121,7 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     async def update_incident(
         event_slug: str, token: str, incident_id: int, request: Request
     ) -> JSONResponse:
-        conn, granted = require_write(event_slug, token)
+        conn, granted = require_capability(event_slug, token, access.CAP_INCIDENTS)
         body = await _json_body(request, conn)
         fields = {k: v for k, v in body.items()
                   if k in {"bib", "note", "assigned_to", "lat", "lon"}}
@@ -1125,7 +1140,7 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     @app.post("/api/{event_slug}/{token}/ssid/adopt")
     async def adopt_ssid(event_slug: str, token: str, request: Request) -> JSONResponse:
         """Point a roster entry at the SSID its operator is actually using."""
-        conn, granted = require_write(event_slug, token)
+        conn, granted = require_capability(event_slug, token, access.CAP_SSID)
         body = await _json_body(request, conn)
         try:
             row = db.change_station_key(
@@ -1145,7 +1160,7 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     @app.post("/api/{event_slug}/{token}/ssid/ignore")
     async def ignore_ssid(event_slug: str, token: str, request: Request) -> JSONResponse:
         """Dismiss an SSID: a digipeater, igate or home station."""
-        conn, granted = require_write(event_slug, token)
+        conn, granted = require_capability(event_slug, token, access.CAP_SSID)
         body = await _json_body(request, conn)
         station_key = str(body.get("station_key", "")).strip()
         if not station_key:
@@ -1215,7 +1230,7 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         This only ever comes from an operator reporting on the net - there is no
         tracker on the front runner - so it is a report, not a measurement.
         """
-        conn, granted = require_write(event_slug, token)
+        conn, granted = require_capability(event_slug, token, access.CAP_LEADERS)
         body = await _json_body(request, conn)
         try:
             leaders.record_sighting(
@@ -1236,7 +1251,7 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     @app.post("/api/{event_slug}/{token}/leaders/undo")
     async def undo_leader(event_slug: str, token: str, request: Request) -> JSONResponse:
         """Remove the most recent sighting. Mis-taps happen on race day."""
-        conn, granted = require_write(event_slug, token)
+        conn, granted = require_capability(event_slug, token, access.CAP_LEADERS)
         body = await _json_body(request, conn)
         try:
             removed = leaders.undo_last_sighting(
@@ -1255,7 +1270,7 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     async def set_bib_color(
         event_slug: str, token: str, course_id: int, request: Request
     ) -> JSONResponse:
-        conn, granted = require_write(event_slug, token)
+        conn, granted = require_capability(event_slug, token, access.CAP_COURSE)
         body = await _json_body(request, conn)
         try:
             row = leaders.set_bib_color(

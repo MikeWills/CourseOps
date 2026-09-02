@@ -25,6 +25,19 @@ const state = {
   event: null,
   role: null,
   canWrite: false,
+  // What this role may actually change, from the server. A button the server
+  // would refuse is worse than no button at all.
+  can: new Set(),
+  incidentKinds: [
+    {value: 'pickup', label: 'Pickup'},
+    {value: 'note', label: 'Course note'},
+  ],
+  // Which kind the next dropped pin becomes.
+  pinKind: 'pickup',
+  // Where we are, for ordering the pickup queue by proximity. Local only.
+  mePosition: null,
+  // 'waiting' (longest unanswered first) or 'near' (closest first).
+  sortPickupsBy: 'waiting',
   thresholds: { stale_after_s: 600, silent_after_s: 1200 },
   roster: new Map(),          // station_key -> roster row
   positions: new Map(),       // station_key -> latest position
@@ -75,6 +88,7 @@ function savePrefs() {
       layers: state.layerPrefs,
       courses: [...state.visibleCourses],
       initials: state.operatorInitials,
+      sortPickupsBy: state.sortPickupsBy,
     }));
   } catch (e) { /* not worth bothering the user about */ }
 }
@@ -176,6 +190,34 @@ function radioStatus(stationKey) {
 function categoryOf(stationKey) {
   const entry = state.roster.get(stationKey);
   return entry ? entry.category : 'rover';
+}
+
+/* Permission is per capability rather than one write flag, because SAG can
+   work the pickup queue and must not be able to rewrite the roster or revoke a
+   link. The server enforces the same table; this only decides what to draw. */
+/* Straight-line distance in metres. Deliberately not driving distance: we have
+   no routing engine, and on a closed course the road you would actually take is
+   not something this app knows. So the figure is labelled "away" rather than
+   presented as a drive, and it orders the list rather than promising an ETA. */
+function metresBetween(a, b) {
+  const R = 6371000;
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLon = toRad(b.lon - a.lon);
+  const lat1 = toRad(a.lat);
+  const lat2 = toRad(b.lat);
+  const h = Math.sin(dLat / 2) ** 2
+    + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+function distanceToMe(incident) {
+  if (!state.mePosition) return null;
+  return metresBetween(state.mePosition, {lat: incident.lat, lon: incident.lon});
+}
+
+function can(capability) {
+  return state.can.has(capability);
 }
 
 function labelOf(stationKey) {
@@ -602,7 +644,7 @@ function renderStations() {
     // Second axis on its own line, so it can never be misread as radio status.
     const opRow = document.createElement('div');
     opRow.className = 'station-op';
-    if (state.canWrite) {
+    if (can('stations')) {
       state.opStatuses.forEach((value) => {
         const btn = document.createElement('button');
         btn.type = 'button';
@@ -682,7 +724,7 @@ function renderSsidAlerts() {
       : 'Transmitting under a rostered callsign, but this SSID is not on the roster.';
     box.appendChild(why);
 
-    if (!state.canWrite) {
+    if (!can('ssid')) {
       const note = document.createElement('p');
       note.className = 'muted';
       note.textContent = 'Net Control can resolve this.';
@@ -833,7 +875,7 @@ function renderLeaders() {
       row.appendChild(hint);
     }
 
-    if (state.canWrite) {
+    if (can('leaders')) {
       const controls = document.createElement('div');
       controls.className = 'leader-controls';
 
@@ -897,7 +939,11 @@ function renderLeaders() {
 /* An unanswered report outranks everything: the failure this list exists to
    prevent is a pickup sitting undispatched while nobody notices. Within a
    status the longest-waiting comes first. */
-const INCIDENT_RANK = {reported: 0, en_route: 1, picked_up: 2, closed: 3};
+// Mirrors incidents.STATUS_RANK on the server. "Dropped off" is delivered and
+// done; "closed" also covers a request that ended without a pickup.
+const INCIDENT_RANK = {
+  reported: 0, en_route: 1, picked_up: 2, dropped_off: 3, closed: 4,
+};
 
 function incidentIcon(incident) {
   // Square, so it can never be mistaken for a station (circle/diamond) or an
@@ -987,15 +1033,20 @@ async function createIncident(latlng) {
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
         lat: latlng.lat, lon: latlng.lng,
+        kind: state.pinKind,
         changed_by: state.operatorInitials,
       }),
     });
     if (!response.ok) throw new Error(String(response.status));
     const created = await response.json();
     setSheet(true);
-    // Put the cursor straight in the bib box for the new incident.
+    // Straight into the field that will be filled in next: the bib for a
+    // pickup, the text for a note. A pickup is called in before the bib is
+    // known, so this is a convenience and never a requirement.
     window.setTimeout(() => {
-      const field = document.querySelector(`[data-bib-for="${created.id}"]`);
+      const selector = created.kind === 'note'
+        ? `[data-note-for="${created.id}"]` : `[data-bib-for="${created.id}"]`;
+      const field = document.querySelector(selector);
       if (field) { field.focus(); field.select(); }
     }, 60);
   } catch (err) {
@@ -1018,19 +1069,62 @@ async function editIncident(id, fields) {
   }
 }
 
+/* Pickups and notes are different problems and are drawn separately.
+
+   A pickup is a dispatch question - is anyone coming - so the queue is ordered
+   by urgency and the count means "still waiting". A note is a record for the
+   organizer afterwards; nobody is waiting on it, so putting it in that queue
+   would make the count lie about how many people are still out there. */
 function renderIncidents() {
-  const host = document.getElementById('incident-list');
-  const list = [...state.incidents.values()].sort((a, b) => {
+  const all = [...state.incidents.values()];
+  const pickups = all.filter((i) => (i.kind || 'pickup') === 'pickup');
+  const notes = all.filter((i) => i.kind === 'note');
+
+  renderPickups(pickups);
+  renderNotes(notes);
+}
+
+function sortPickups(list) {
+  const byNear = state.sortPickupsBy === 'near' && state.mePosition;
+  return list.sort((a, b) => {
+    // Status always leads, whichever ordering is chosen. Sorting purely by
+    // distance would bury a pickup that has been waiting twenty minutes behind
+    // one called in a moment ago, and an unanswered report sitting undispatched
+    // is the exact failure this list exists to prevent.
     const byStatus = INCIDENT_RANK[a.status] - INCIDENT_RANK[b.status];
     if (byStatus !== 0) return byStatus;
+    if (byNear) {
+      const da = distanceToMe(a);
+      const db = distanceToMe(b);
+      if (da != null && db != null && da !== db) return da - db;
+    }
     return String(a.status_at).localeCompare(String(b.status_at));
   });
+}
 
-  const live = list.filter((i) => i.status !== 'closed').length;
-  document.getElementById('incident-count').textContent = live ? `(${live} open)` : '';
+function renderPickups(pickups) {
+  const host = document.getElementById('incident-list');
+  const list = sortPickups(pickups);
+
+  // "Open" means somebody is still waiting: delivered and closed are done.
+  const live = list.filter(
+    (i) => i.status !== 'closed' && i.status !== 'dropped_off').length;
+  document.getElementById('incident-count').textContent = live ? `(${live} waiting)` : '';
+
+  // Nearest is only meaningful once the browser knows where we are, which
+  // needs a secure context - so on a club LAN over plain http it stays off,
+  // and says why rather than silently doing nothing.
+  const nearBtn = document.querySelector('.sort-btn[data-sort="near"]');
+  if (nearBtn) {
+    nearBtn.disabled = !state.mePosition;
+    nearBtn.title = state.mePosition
+      ? 'Closest to you first, within each status'
+      : 'Needs your location - press the locate button first';
+  }
+  document.getElementById('pickup-sort').hidden = list.length < 2;
 
   if (!list.length) {
-    host.innerHTML = '<p class="muted">No incidents.</p>';
+    host.innerHTML = '<p class="muted">No pickups.</p>';
     return;
   }
 
@@ -1046,9 +1140,19 @@ function renderIncidents() {
       ? formatMile(incident.course_position.distance_along_m) : '';
     // Time in the CURRENT status, not since it was reported: "waiting 8
     // minutes with nobody dispatched" is the thing worth seeing.
+    // Shown whenever we know it, not only while sorting by it: a driver
+    // deciding which to take next wants the number, and hiding it behind the
+    // sort would mean the list reorders with nothing on screen explaining why.
+    const away = distanceToMe(incident);
+    const awayText = away == null ? ''
+      : away < 1609.344 ? `${Math.round(away / 0.9144)} yd away`
+      : `${(away / 1609.344).toFixed(1)} mi away`;
+
     main.innerHTML =
       `<span class="inc-dot inc-dot--${incident.status}"></span>` +
-      `<span class="name">${escapeHtml(incident.bib ? 'Bib ' + incident.bib : 'Bib unknown')}</span>` +
+      `<span class="name">${escapeHtml(incident.bib ? 'Bib ' + incident.bib : 'Bib unknown')}` +
+      (awayText ? `<span class="away">${escapeHtml(awayText)}</span>` : '') +
+      `</span>` +
       `<span class="mile">${escapeHtml(mile)}</span>` +
       `<span class="age">${escapeHtml(formatAge(ageSeconds(incident.status_at)))}</span>`;
     main.addEventListener('click', () => {
@@ -1061,7 +1165,7 @@ function renderIncidents() {
     });
     row.appendChild(main);
 
-    if (state.canWrite) {
+    if (can('incidents')) {
       // Bib and note edited in place. The bib is usually unknown when the
       // incident is opened, and the note stays short by design - see the
       // schema comment on why medical detail is kept out.
@@ -1108,7 +1212,7 @@ function renderIncidents() {
 
     const controls = document.createElement('div');
     controls.className = 'incident-op';
-    if (state.canWrite) {
+    if (can('incidents')) {
       state.incidentStatuses.forEach((option) => {
         const btn = document.createElement('button');
         btn.type = 'button';
@@ -1129,14 +1233,113 @@ function renderIncidents() {
   });
 }
 
+/* Course notes: a blocked intersection, a confusing turn, a marshal who never
+   arrived. Newest first, because the recent one is the one being discussed on
+   the net; there is no urgency ordering because nobody is waiting.
+
+   Their real audience is the organizer after the event, so the text matters
+   more than the workflow and there is no status row at all. */
+function renderNotes(notes) {
+  const section = document.getElementById('note-section');
+  const host = document.getElementById('note-list');
+  section.hidden = !notes.length;
+  document.getElementById('note-count').textContent =
+    notes.length ? `(${notes.length})` : '';
+  if (!notes.length) return;
+
+  const list = notes.slice().sort(
+    (a, b) => String(b.reported_at).localeCompare(String(a.reported_at)));
+
+  host.innerHTML = '';
+  list.forEach((incident) => {
+    const row = document.createElement('div');
+    row.className = 'incident incident--note';
+
+    const main = document.createElement('button');
+    main.type = 'button';
+    main.className = 'incident-main';
+    const mile = incident.course_position
+      ? formatMile(incident.course_position.distance_along_m) : '';
+    main.innerHTML =
+      '<span class="inc-dot inc-dot--note"></span>' +
+      `<span class="name">${escapeHtml(incident.note || 'Course note')}</span>` +
+      `<span class="mile">${escapeHtml(mile)}</span>` +
+      `<span class="age">${escapeHtml(formatAge(ageSeconds(incident.reported_at)))}</span>`;
+    main.addEventListener('click', () => {
+      const marker = state.incidentMarkers.get(incident.id);
+      if (marker && map.hasLayer(marker)) {
+        setFollowing(false);
+        map.setView(marker.getLatLng(), Math.max(map.getZoom(), 15));
+        marker.openPopup();
+      }
+    });
+    row.appendChild(main);
+
+    if (can('incidents')) {
+      const field = document.createElement('input');
+      field.type = 'text';
+      field.className = 'incident-note';
+      field.placeholder = 'What happened here';
+      field.maxLength = 200;
+      field.value = incident.note || '';
+      field.setAttribute('aria-label', 'Course note');
+      field.dataset.noteFor = incident.id;
+      field.addEventListener('change', () => {
+        const value = field.value.trim();
+        if (value === (incident.note || '')) return;
+        incident.note = value || null;
+        editIncident(incident.id, {note: value || null});
+      });
+      field.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter') field.blur();
+      });
+      const fields = document.createElement('div');
+      fields.className = 'incident-fields';
+      fields.appendChild(field);
+      row.appendChild(fields);
+    }
+
+    host.appendChild(row);
+  });
+}
+
 function setDroppingPin(on) {
   state.droppingPin = on;
   document.getElementById('incident-hint').hidden = !on;
   const button = document.getElementById('incident-add');
-  button.textContent = on ? 'Cancel' : '+ Drop a pickup pin';
+  button.textContent = on ? 'Cancel'
+    : state.pinKind === 'note' ? '+ Drop a course note' : '+ Drop a pickup pin';
   button.classList.toggle('is-active', on);
   document.getElementById('map').style.cursor = on ? 'crosshair' : '';
 }
+
+document.querySelectorAll('.sort-btn').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    state.sortPickupsBy = btn.dataset.sort;
+    document.querySelectorAll('.sort-btn').forEach((b) => {
+      const on = b === btn;
+      b.classList.toggle('is-on', on);
+      b.setAttribute('aria-pressed', String(on));
+    });
+    savePrefs();
+    renderIncidents();
+  });
+});
+
+document.querySelectorAll('.pin-kind-btn').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    state.pinKind = btn.dataset.kind;
+    document.querySelectorAll('.pin-kind-btn').forEach((b) => {
+      const on = b === btn;
+      b.classList.toggle('is-on', on);
+      b.setAttribute('aria-pressed', String(on));
+    });
+    document.getElementById('incident-hint').textContent = state.pinKind === 'note'
+      ? 'Tap the map where it happened.'
+      : 'Tap the map where the runner is.';
+    setDroppingPin(state.droppingPin);
+  });
+});
 
 document.getElementById('incident-add').addEventListener('click', () => {
   setDroppingPin(!state.droppingPin);
@@ -1174,9 +1377,12 @@ function applyState(data) {
   state.event = data.event;
   state.role = data.role;
   state.canWrite = data.can_write;
+  state.can = new Set(data.capabilities || (data.can_write ? ['incidents',
+    'stations', 'ssid', 'leaders', 'course'] : []));
   state.thresholds = data.thresholds;
   if (Array.isArray(data.op_statuses)) state.opStatuses = data.op_statuses;
   if (Array.isArray(data.incident_statuses)) state.incidentStatuses = data.incident_statuses;
+  if (Array.isArray(data.incident_kinds)) state.incidentKinds = data.incident_kinds;
   if (Array.isArray(data.divisions)) state.divisions = data.divisions;
   state.leaders = data.leaders || [];
   state.ssidAlerts = data.ssid_alerts || [];
@@ -1185,6 +1391,7 @@ function applyState(data) {
   if (firstLoad) {
     const prefs = loadPrefs();
     state.operatorInitials = prefs.initials || '';
+    if (prefs.sortPickupsBy) state.sortPickupsBy = prefs.sortPickupsBy;
     state.layerPrefs = Object.assign(defaultLayers(data.role), prefs.layers || {});
     state.visibleCourses = new Set(
       prefs.courses || data.courses.map((c) => c.id)
@@ -1218,7 +1425,8 @@ function applyState(data) {
 
   renderCourseToggles(data.courses);
   if (firstLoad) renderLayerToggles();
-  document.getElementById('incident-add').hidden = !state.canWrite;
+  document.getElementById('incident-add').hidden = !can('incidents');
+  document.getElementById('pin-kind').hidden = !can('incidents');
   renderSsidAlerts();
   renderLeaders();
   renderIncidents();
@@ -1335,6 +1543,8 @@ function stopWatching() {
     state.geoWatchId = null;
   }
   setFollowing(false);
+  state.mePosition = null;
+  if (state.sortPickupsBy === 'near') renderIncidents();
   if (state.meMarker) { map.removeLayer(state.meMarker); state.meMarker = null; }
   if (state.meAccuracy) { map.removeLayer(state.meAccuracy); state.meAccuracy = null; }
   setLocateStatus('');
@@ -1343,6 +1553,11 @@ function stopWatching() {
 function onPosition(pos) {
   const latlng = [pos.coords.latitude, pos.coords.longitude];
   const accuracy = pos.coords.accuracy;
+
+  // Kept so the pickup queue can be ordered by how near each one is. Still
+  // local: this never leaves the browser, exactly as the dot does not.
+  state.mePosition = {lat: latlng[0], lon: latlng[1]};
+  if (state.sortPickupsBy === 'near') renderIncidents();
 
   if (!state.meMarker) {
     // Accuracy circle first so the dot draws on top of it.

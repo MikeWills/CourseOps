@@ -192,12 +192,12 @@ def test_client_assets_are_served(setup):
 
 # --- roles ------------------------------------------------------------------
 
-def test_three_roles_each_get_their_own_link(setup):
-    """Liaison and Logistics are different teams, so one can be revoked
-    without cutting off the other."""
+def test_each_role_gets_its_own_link(setup):
+    """Four different teams, so any one link can be revoked without cutting
+    off the others."""
     _, tokens, _, _ = setup
-    assert set(tokens) == {"ncs", "liaison", "logistics"}
-    assert len(set(tokens.values())) == 3
+    assert set(tokens) == {"ncs", "sag", "liaison", "logistics"}
+    assert len(set(tokens.values())) == 4
 
 
 def test_logistics_is_read_only(setup):
@@ -917,3 +917,86 @@ def test_session_cookie_is_secure_when_the_proxy_says_https(setup, tmp_path):
     # And the other protections travel with it.
     assert "httponly" in cookie
     assert "samesite=lax" in cookie
+
+
+# --- SAG: scoped write access -----------------------------------------------
+
+def test_sag_can_work_the_pickup_queue(setup):
+    """The reason SAG exists as a role: a driver marks a runner en route,
+    picked up and dropped off from the vehicle instead of relaying it all."""
+    app, tokens, _, _ = setup
+    with TestClient(app) as client:
+        created = client.post(
+            f"/api/m2026/{tokens['sag']}/incidents",
+            json={"lat": 44.1, "lon": -93.9, "changed_by": "MW"},
+        )
+        assert created.status_code == 201
+        incident_id = created.json()["id"]
+
+        for status in ("en_route", "picked_up", "dropped_off"):
+            moved = client.post(
+                f"/api/m2026/{tokens['sag']}/incidents/{incident_id}/status",
+                json={"status": status, "changed_by": "MW"},
+            )
+            assert moved.status_code == 200, moved.text
+            assert moved.json()["status"] == status
+
+        # The bib is usually unknown until the runner is in front of them.
+        filled = client.post(
+            f"/api/m2026/{tokens['sag']}/incidents/{incident_id}",
+            json={"bib": "1432", "changed_by": "MW"},
+        )
+        assert filled.status_code == 200
+        assert filled.json()["bib"] == "1432"
+
+
+def test_sag_cannot_touch_anything_else(setup):
+    """A bearer link in a moving vehicle. Losing the phone must not cost the
+    roster, the lead runner log or the SSID exclusions."""
+    app, tokens, _, _ = setup
+    sag = tokens["sag"]
+    with TestClient(app) as client:
+        forbidden = [
+            client.post(f"/api/m2026/{sag}/station/N0CALL-9/status",
+                        json={"op_status": "active"}),
+            client.post(f"/api/m2026/{sag}/ssid/ignore",
+                        json={"station_key": "N0CALL-7"}),
+            client.post(f"/api/m2026/{sag}/ssid/adopt",
+                        json={"from_station_key": "N0CALL-9",
+                              "to_station_key": "N0CALL-5"}),
+            client.post(f"/api/m2026/{sag}/leaders/sighting",
+                        json={"division": "male", "poi_id": 1}),
+            client.post(f"/api/m2026/{sag}/course/1/bib-color",
+                        json={"bib_color": "#ffffff"}),
+        ]
+    assert [r.status_code for r in forbidden] == [403] * 5
+
+
+def test_a_read_only_role_still_cannot_open_an_incident(setup):
+    app, tokens, _, _ = setup
+    with TestClient(app) as client:
+        refused = client.post(
+            f"/api/m2026/{tokens['liaison']}/incidents",
+            json={"lat": 44.1, "lon": -93.9},
+        )
+    assert refused.status_code == 403
+
+
+def test_the_state_payload_names_the_capabilities(setup):
+    app, tokens, _, _ = setup
+    with TestClient(app) as client:
+        sag = client.get(f"/api/m2026/{tokens['sag']}/state").json()
+        liaison = client.get(f"/api/m2026/{tokens['liaison']}/state").json()
+
+    assert sag["capabilities"] == ["incidents"]
+    assert sag["can_write"] is True
+    assert liaison["capabilities"] == []
+
+
+def test_an_invalid_sag_token_is_still_a_404(setup):
+    """Scoped write access must not become a way to probe for events."""
+    app, _, _, _ = setup
+    with TestClient(app) as client:
+        refused = client.post("/api/m2026/not-a-real-token/incidents",
+                              json={"lat": 44.1, "lon": -93.9})
+    assert refused.status_code == 404
