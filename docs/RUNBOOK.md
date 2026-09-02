@@ -25,6 +25,14 @@ them like door keys. Send each to the right group and no other.
 
 ## One to two weeks before
 
+> **Setup is done in the browser.** Start the server with `courseops serve`,
+> then open **/setup** and sign in. The steps below name the equivalent CLI
+> command in each case, because the command line is still there and is quicker
+> if you are repeating a setup you have done before.
+>
+> On the very first run, `/setup` asks you to create a system administrator.
+> After that: create an organization for your club, then an event inside it.
+
 ### 1. Get the course files from the organizer
 
 Ask for **KML or KMZ**. If they can only send GPX, that is not supported yet
@@ -38,21 +46,38 @@ contain them — the Mankato file had none — so plan to place them by hand.
 
 ### 2. Create the event
 
+**In the browser:** Organizations → create one for your club, then Events →
+New event.
+
+<details><summary>Same thing from the command line</summary>
+
 ```bash
 courseops init-db
 courseops add-event mankato2026 "2026 Mankato Marathon" \
     --date 2026-10-18 --timezone America/Chicago --lat 44.16 --lon -94.00
 ```
+</details>
 
 `--lat/--lon` set the default map centre. Roughly right is fine; the map fits to
 the course once one is imported.
 
 ### 3. Import and review the course
 
+**In the browser:** the Course tab. Choose the KML or KMZ, and every feature it
+found is drawn on a map. Click a line or a pin — on the map or in the list — and
+say what it is.
+
+Look at the map before assigning anything. This is where a course split into
+five pieces, a stray line miles from the route, or a folder mixing water stops
+with parking becomes obvious, and none of it is visible from the names alone.
+
+<details><summary>Same thing from the command line</summary>
+
 ```bash
 courseops import mankato2026 MankatoFull.kml
 courseops review mankato2026 --verbose
 ```
+</details>
 
 **Review every row.** The suggestions are advisory and deliberately cautious.
 Organizer files routinely contain placemarks named "Untitled Path", routes split
