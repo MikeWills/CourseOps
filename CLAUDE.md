@@ -16,12 +16,12 @@ below is the short list of things that cost real time when violated.
 
 ## Status
 
-Phases 1-5 complete: APRS-IS ingest, KML/KMZ import, the live map with
-role-gated access, the NCS panel with operational status, and
-course-relative position. Repo: private, `MikeWills/CourseOps`.
+Phases 1-6 complete: APRS-IS ingest, KML/KMZ import, the live map with
+role-gated access, the NCS panel with operational status, course-relative
+position, and incidents. Repo: private, `MikeWills/CourseOps`.
 
 Phases: 1 ingest ✅ · 2 KML import ✅ · 3 live map ✅ · 4 roster/NCS panel ✅ ·
-4a What3Words ✅ · 5 course-relative position ✅ · 6 incidents · 7 replay ·
+4a What3Words ✅ · 5 course-relative position ✅ · 6 incidents ✅ · 7 replay ·
 8 deployment
 
 ## Commands
@@ -31,7 +31,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 153 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 179 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -75,6 +75,7 @@ src/courseops/
   importer.py     two-phase import: stage for review, then commit assignments
   units.py        metric storage -> US customary display
   progress.py     snap a station onto a course: "mile 14.2 of Full"
+  incidents.py    pickups by bib, status workflow, change log
   styling.py      course colors, line styles, draw order
   what3words.py   normalize/validate W3W strings, no API
   access.py       role tokens: ncs writes; liaison + logistics read
@@ -122,6 +123,11 @@ usability, not style preferences.
   one, because someone will act on it. Sparse jumps are correct.
 - **Buddy filter, not area filter.** We know the roster in advance. This avoids
   incidentally storing the public's location.
+- **`incident.status_at` is the age of the CURRENT status**, not of the
+  incident. "Requested 8 minutes ago, nobody dispatched" is the whole point;
+  sorting is status rank then longest-waiting.
+- **Never block incident creation on a dialog.** A pickup is called in before
+  the bib is known. Create first, fill the bib in after.
 - **Keep medical detail out of incidents.** Bib, location, status, short
   operational note. Narrative descriptions of a runner's condition would make this
   a system storing health information about identifiable people.
@@ -255,6 +261,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-02** Phase 6: incidents — pickups by bib, status workflow, live and role-gated.
 - **2026-09-02** Aid stations now order by course position, not by name (Greek/numeric sort bug).
 - **2026-09-02** Added `courseops post` to station an operator at an aid station.
 - **2026-09-02** Phase 5: course-relative position — "Full-back at mile 14.2".
@@ -264,4 +271,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-02** Renamed to Course Ops: repo, package, CLI and docs.
 - **2026-09-02** Phase 4: operational status, the first write path, role-enforced and broadcast.
 - **2026-09-02** Added operator initials, stamped on status changes for shift handover.
-- **2026-09-02** Added `docs/RUNBOOK.md` and a documentation-discipline checklist to CLAUDE.md.

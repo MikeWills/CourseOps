@@ -168,3 +168,54 @@ CREATE TABLE IF NOT EXISTS access_token (
 );
 
 CREATE INDEX IF NOT EXISTS idx_access_token_event ON access_token (event_id, role);
+
+-- Runner pickups and other incidents NCS is tracking.
+--
+-- Modelled as an incident, not a pin: the pin is only how it is drawn. A pin
+-- that can be only "there" or "gone" does not survive a real event, because the
+-- question that matters is "this was requested eight minutes ago and nobody has
+-- been dispatched" - which needs a status and a clock, not a marker.
+--
+-- Deliberately NOT stored: any description of a runner's condition. Bib,
+-- location, status and a short operational note are enough to run the net.
+-- Inviting narrative medical detail would make this a system holding health
+-- information about identifiable people, which changes our obligations and the
+-- organizer's. The bib is the organizer's identifier; we never hold the
+-- bib-to-name mapping and should not want it.
+CREATE TABLE IF NOT EXISTS incident (
+    id          INTEGER PRIMARY KEY,
+    event_id    INTEGER NOT NULL REFERENCES event(id) ON DELETE CASCADE,
+    -- The organizer's runner identifier. Often unknown when first called in, so
+    -- nullable and fillable later.
+    bib         TEXT,
+    -- reported | en_route | picked_up | closed
+    status      TEXT    NOT NULL DEFAULT 'reported',
+    lat         REAL    NOT NULL,
+    lon         REAL    NOT NULL,
+    -- Set when reported "at Aid 4" rather than by dropping a pin.
+    poi_id      INTEGER REFERENCES poi(id) ON DELETE SET NULL,
+    note        TEXT,
+    assigned_to TEXT,
+    reported_at TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+    reported_by TEXT,
+    -- When the CURRENT status began. This is what "waiting 8 minutes" is
+    -- measured from, and what the list sorts on.
+    status_at   TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+    status_by   TEXT,
+    closed_at   TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_incident_event ON incident (event_id, status, status_at);
+
+-- Every change, for the after-action review and for shift handover. Answers
+-- "who marked this picked up, and when".
+CREATE TABLE IF NOT EXISTS incident_log (
+    id          INTEGER PRIMARY KEY,
+    incident_id INTEGER NOT NULL REFERENCES incident(id) ON DELETE CASCADE,
+    at          TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+    by          TEXT,
+    action      TEXT    NOT NULL,   -- created | status | edited
+    detail      TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_incident_log ON incident_log (incident_id, at);

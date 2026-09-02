@@ -7,6 +7,54 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-09-02 - Phase 6: incidents
+
+Runner pickups tracked by bib, with a status workflow. The first write that
+creates something rather than flipping a flag.
+
+#### Added
+- `incidents.py` and the `incident` / `incident_log` tables. Status workflow
+  `reported -> en_route -> picked_up -> closed`, with `status_at` reset on every
+  change.
+- Endpoints to open, restatus and edit an incident, plus a log readable by every
+  role. All writes go through the existing `require_write()`, so the role gate
+  did not need touching.
+- Incidents in the state snapshot and broadcast live, each with its course
+  position: "bib 1432, mile 9.1 of Full" is what gets said on the radio.
+- Incident list and square bib-labelled map markers, coloured by status. NCS
+  gets a pin-drop mode and inline bib/note fields; read-only roles see the same
+  incidents without controls.
+- 26 tests (179 total).
+
+#### Deliberate choices
+- **`status_at` is the age of the current status, not of the incident.** The
+  thing NCS must see is "requested eight minutes ago and nobody dispatched", so
+  the list sorts by status then by longest-waiting, and an unanswered report
+  rises to the top on its own.
+- **Dropping a pin does not ask for the bib.** A pickup is called in over the
+  radio before anyone has read the number off the runner. The incident opens
+  immediately with the bib blank and the field auto-focused, matching the model
+  the schema documents. This also removed a `window.prompt`, which blocked
+  automated testing and would have put a modal between NCS and the map at the
+  worst moment.
+- **Notes are capped at 200 characters and named "short note".** Bib, location,
+  status and a brief operational note are enough to run the net; an open-ended
+  field invites a medical narrative about an identifiable person, which would
+  change our obligations and the organizer's. The cap is the guardrail, and
+  there is a test asserting it.
+- **Closed incidents leave the map but stay in the list**, so the map shows only
+  live work while the record stays complete.
+- Incident status uses its own colour scale, distinct from radio status, and
+  square markers so they can never be confused with stations or aid stations.
+
+#### Verified in a browser
+- An untouched report showing 8m sorted above everything, in red.
+- Dispatching it moved it below an incident that had been en route longer -
+  longest-waiting-first working.
+- Pin drop, auto-focused bib entry, save, and course position (16.2 mi of Full).
+- Closing recorded `closed_at`, stamped the operator initials, removed the
+  marker from the map and dropped the open count.
+
 ### 2026-09-02 - Aid stations ordered by course position, not by name
 
 Aid station names were already free text - Greek letters, NATO phonetic, numbers

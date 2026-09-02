@@ -36,6 +36,15 @@ const state = {
   socket: null,
   reconnectDelay: 1000,
   opStatuses: ['pending', 'active', 'closed'],
+  incidents: new Map(),       // id -> incident
+  incidentMarkers: new Map(), // id -> L.Marker
+  incidentStatuses: [
+    {value: 'reported', label: 'Reported'},
+    {value: 'en_route', label: 'En route'},
+    {value: 'picked_up', label: 'Picked up'},
+    {value: 'closed', label: 'Closed'},
+  ],
+  droppingPin: false,
   operatorInitials: '',
   following: false,
   meMarker: null,
@@ -587,6 +596,263 @@ function renderStations() {
   });
 }
 
+/* ---------- incidents ---------------------------------------------------- */
+
+/* An unanswered report outranks everything: the failure this list exists to
+   prevent is a pickup sitting undispatched while nobody notices. Within a
+   status the longest-waiting comes first. */
+const INCIDENT_RANK = {reported: 0, en_route: 1, picked_up: 2, closed: 3};
+
+function incidentIcon(incident) {
+  // Square, so it can never be mistaken for a station (circle/diamond) or an
+  // aid station (rounded rect). The bib is the label because that is what gets
+  // said on the radio.
+  const label = incident.bib ? escapeHtml(incident.bib) : '!';
+  return L.divIcon({
+    className: '',
+    html: `<div class="inc inc--${incident.status}">${label}</div>`,
+    iconSize: [30, 30],
+    iconAnchor: [15, 15],
+  });
+}
+
+function incidentPopup(incident) {
+  const rows = [['Status', incident.status_label]];
+  if (incident.assigned_to) rows.push(['Assigned', incident.assigned_to]);
+  if (incident.course_position) {
+    rows.push(['Course position',
+      `${formatMile(incident.course_position.distance_along_m)} of ` +
+      `${incident.course_position.course_name}`]);
+  }
+  if (incident.note) rows.push(['Note', incident.note]);
+  rows.push(['In this status', `${formatAge(ageSeconds(incident.status_at))}`]);
+  rows.push(['Reported', `${formatAge(ageSeconds(incident.reported_at))} ago` +
+    (incident.reported_by ? ` by ${incident.reported_by}` : '')]);
+
+  const title = incident.bib ? `Bib ${incident.bib}` : 'Pickup (bib unknown)';
+  return `<h3>${escapeHtml(title)}</h3><dl>` +
+    rows.map(([k, v]) => `<dt>${escapeHtml(k)}</dt><dd>${escapeHtml(String(v))}</dd>`)
+      .join('') + '</dl>';
+}
+
+function upsertIncidentMarker(incident) {
+  let marker = state.incidentMarkers.get(incident.id);
+  if (!marker) {
+    marker = L.marker([incident.lat, incident.lon], {icon: incidentIcon(incident)});
+    marker.bindPopup(() => incidentPopup(state.incidents.get(incident.id)));
+    state.incidentMarkers.set(incident.id, marker);
+  } else {
+    marker.setLatLng([incident.lat, incident.lon]);
+    marker.setIcon(incidentIcon(incident));
+  }
+  // A closed incident leaves the map but stays in the list, so the map shows
+  // only what is still live.
+  if (incident.status === 'closed') {
+    if (map.hasLayer(marker)) map.removeLayer(marker);
+  } else if (!map.hasLayer(marker)) {
+    marker.addTo(map);
+  }
+}
+
+async function setIncidentStatus(id, status) {
+  const incident = state.incidents.get(id);
+  if (!incident) return;
+  const previous = {status: incident.status, status_label: incident.status_label};
+  incident.status = status;
+  incident.status_label =
+    (state.incidentStatuses.find((s) => s.value === status) || {}).label || status;
+  renderIncidents();
+
+  try {
+    const response = await fetch(
+      `/api/${M.slug}/${M.token}/incidents/${id}/status`,
+      {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({status, changed_by: state.operatorInitials}),
+      }
+    );
+    if (!response.ok) throw new Error(String(response.status));
+  } catch (err) {
+    Object.assign(incident, previous);   // never leave NCS believing a false save
+    renderIncidents();
+    setLocateStatus('Could not save incident - check the connection');
+  }
+}
+
+/* Create first, ask questions after. A pickup is called in over the radio
+   before anyone has read the bib off the runner, so blocking on a dialog would
+   put a modal between NCS and the map at the worst moment. The incident is
+   opened immediately and the bib field is filled in when it is known. */
+async function createIncident(latlng) {
+  try {
+    const response = await fetch(`/api/${M.slug}/${M.token}/incidents`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        lat: latlng.lat, lon: latlng.lng,
+        changed_by: state.operatorInitials,
+      }),
+    });
+    if (!response.ok) throw new Error(String(response.status));
+    const created = await response.json();
+    setSheet(true);
+    // Put the cursor straight in the bib box for the new incident.
+    window.setTimeout(() => {
+      const field = document.querySelector(`[data-bib-for="${created.id}"]`);
+      if (field) { field.focus(); field.select(); }
+    }, 60);
+  } catch (err) {
+    setLocateStatus('Could not create the incident');
+  }
+}
+
+async function editIncident(id, fields) {
+  try {
+    const response = await fetch(`/api/${M.slug}/${M.token}/incidents/${id}`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({...fields, changed_by: state.operatorInitials}),
+    });
+    if (!response.ok) throw new Error(String(response.status));
+    return true;
+  } catch (err) {
+    setLocateStatus('Could not save - check the connection');
+    return false;
+  }
+}
+
+function renderIncidents() {
+  const host = document.getElementById('incident-list');
+  const list = [...state.incidents.values()].sort((a, b) => {
+    const byStatus = INCIDENT_RANK[a.status] - INCIDENT_RANK[b.status];
+    if (byStatus !== 0) return byStatus;
+    return String(a.status_at).localeCompare(String(b.status_at));
+  });
+
+  const live = list.filter((i) => i.status !== 'closed').length;
+  document.getElementById('incident-count').textContent = live ? `(${live} open)` : '';
+
+  if (!list.length) {
+    host.innerHTML = '<p class="muted">No incidents.</p>';
+    return;
+  }
+
+  host.innerHTML = '';
+  list.forEach((incident) => {
+    const row = document.createElement('div');
+    row.className = `incident incident--${incident.status}`;
+
+    const main = document.createElement('button');
+    main.type = 'button';
+    main.className = 'incident-main';
+    const mile = incident.course_position
+      ? formatMile(incident.course_position.distance_along_m) : '';
+    // Time in the CURRENT status, not since it was reported: "waiting 8
+    // minutes with nobody dispatched" is the thing worth seeing.
+    main.innerHTML =
+      `<span class="inc-dot inc-dot--${incident.status}"></span>` +
+      `<span class="name">${escapeHtml(incident.bib ? 'Bib ' + incident.bib : 'Bib unknown')}</span>` +
+      `<span class="mile">${escapeHtml(mile)}</span>` +
+      `<span class="age">${escapeHtml(formatAge(ageSeconds(incident.status_at)))}</span>`;
+    main.addEventListener('click', () => {
+      const marker = state.incidentMarkers.get(incident.id);
+      if (marker && map.hasLayer(marker)) {
+        setFollowing(false);
+        map.setView(marker.getLatLng(), Math.max(map.getZoom(), 15));
+        marker.openPopup();
+      }
+    });
+    row.appendChild(main);
+
+    if (state.canWrite) {
+      // Bib and note edited in place. The bib is usually unknown when the
+      // incident is opened, and the note stays short by design - see the
+      // schema comment on why medical detail is kept out.
+      const fields = document.createElement('div');
+      fields.className = 'incident-fields';
+
+      const bib = document.createElement('input');
+      bib.type = 'text';
+      bib.className = 'incident-bib';
+      bib.placeholder = 'Bib';
+      bib.maxLength = 16;
+      bib.value = incident.bib || '';
+      bib.setAttribute('aria-label', 'Bib number');
+      bib.dataset.bibFor = incident.id;
+
+      const note = document.createElement('input');
+      note.type = 'text';
+      note.className = 'incident-note';
+      note.placeholder = 'Short note';
+      note.maxLength = 200;
+      note.value = incident.note || '';
+      note.setAttribute('aria-label', 'Operational note');
+
+      const commit = (field, name) => {
+        const value = field.value.trim();
+        if (value === (incident[name] || '')) return;
+        incident[name] = value || null;
+        editIncident(incident.id, {[name]: value || null});
+      };
+      bib.addEventListener('change', () => commit(bib, 'bib'));
+      note.addEventListener('change', () => commit(note, 'note'));
+      [bib, note].forEach((field) => field.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter') field.blur();
+      }));
+
+      fields.append(bib, note);
+      row.appendChild(fields);
+    } else if (incident.note) {
+      const note = document.createElement('p');
+      note.className = 'incident-readonly-note';
+      note.textContent = incident.note;
+      row.appendChild(note);
+    }
+
+    const controls = document.createElement('div');
+    controls.className = 'incident-op';
+    if (state.canWrite) {
+      state.incidentStatuses.forEach((option) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `op-btn${option.value === incident.status ? ' op-btn--on' : ''}`;
+        btn.textContent = option.label;
+        btn.setAttribute('aria-pressed', String(option.value === incident.status));
+        btn.addEventListener('click', () => setIncidentStatus(incident.id, option.value));
+        controls.appendChild(btn);
+      });
+    } else {
+      const span = document.createElement('span');
+      span.className = 'op-readonly';
+      span.textContent = incident.status_label;
+      controls.appendChild(span);
+    }
+    row.appendChild(controls);
+    host.appendChild(row);
+  });
+}
+
+function setDroppingPin(on) {
+  state.droppingPin = on;
+  document.getElementById('incident-hint').hidden = !on;
+  const button = document.getElementById('incident-add');
+  button.textContent = on ? 'Cancel' : '+ Drop a pickup pin';
+  button.classList.toggle('is-active', on);
+  document.getElementById('map').style.cursor = on ? 'crosshair' : '';
+}
+
+document.getElementById('incident-add').addEventListener('click', () => {
+  setDroppingPin(!state.droppingPin);
+  if (state.droppingPin) setSheet(false);   // get the panel out of the way
+});
+
+map.on('click', (ev) => {
+  if (!state.droppingPin) return;
+  setDroppingPin(false);
+  createIncident(ev.latlng);
+});
+
 /* ---------- connection -------------------------------------------------- */
 
 function setConnection(kind, text) {
@@ -614,6 +880,7 @@ function applyState(data) {
   state.canWrite = data.can_write;
   state.thresholds = data.thresholds;
   if (Array.isArray(data.op_statuses)) state.opStatuses = data.op_statuses;
+  if (Array.isArray(data.incident_statuses)) state.incidentStatuses = data.incident_statuses;
 
   if (firstLoad) {
     const prefs = loadPrefs();
@@ -634,6 +901,11 @@ function applyState(data) {
   state.roster = new Map(data.roster.map((r) => [r.station_key, r]));
   state.positions = new Map(data.positions.map((p) => [p.station_key, p]));
 
+  state.incidentMarkers.forEach((marker) => map.removeLayer(marker));
+  state.incidentMarkers.clear();
+  state.incidents = new Map((data.incidents || []).map((i) => [i.id, i]));
+  state.incidents.forEach((incident) => upsertIncidentMarker(incident));
+
   drawCourses(data.courses);
   drawPois(data.pois);
 
@@ -643,6 +915,8 @@ function applyState(data) {
 
   renderCourseToggles(data.courses);
   if (firstLoad) renderLayerToggles();
+  document.getElementById('incident-add').hidden = !state.canWrite;
+  renderIncidents();
   renderStations();
   if (firstLoad) fitToContent();
 }
@@ -662,6 +936,12 @@ function connect() {
     try {
       message = JSON.parse(ev.data);
     } catch (e) {
+      return;
+    }
+    if (message.type === 'incident') {
+      state.incidents.set(message.id, message);
+      upsertIncidentMarker(message);
+      renderIncidents();
       return;
     }
     if (message.type === 'station_status') {
@@ -706,6 +986,7 @@ function scheduleReconnect() {
    otherwise "2m ago" would sit there reading 2m forever. */
 setInterval(() => {
   renderStations();
+  renderIncidents();
   state.markers.forEach((_, stationKey) => {
     const marker = state.markers.get(stationKey);
     if (marker) marker.setIcon(stationIcon(stationKey));

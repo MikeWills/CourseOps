@@ -429,3 +429,122 @@ def test_station_far_from_any_course_reports_none(setup):
 
     far = next(p for p in data["positions"] if p["station_key"] == "W1AW-9")
     assert far["course_position"] is None
+
+
+# --- incidents (Phase 6) ----------------------------------------------------
+
+def incidents_url(token):
+    return f"/api/m2026/{token}/incidents"
+
+
+def test_ncs_can_open_an_incident(setup):
+    app, tokens, _, _ = setup
+    with TestClient(app) as client:
+        response = client.post(incidents_url(tokens["ncs"]), json={
+            "lat": 34.732, "lon": -86.575, "bib": "1432",
+            "note": "unable to continue", "changed_by": "MW",
+        })
+    assert response.status_code == 201
+    body = response.json()
+    assert body["status"] == "reported"
+    assert body["status_label"] == "Reported"
+    assert body["bib"] == "1432"
+
+
+def test_read_only_roles_cannot_open_or_change_incidents(setup):
+    """Liaison and Logistics see incidents but cannot touch them in v1."""
+    app, tokens, _, _ = setup
+    with TestClient(app) as client:
+        created = client.post(incidents_url(tokens["ncs"]),
+                              json={"lat": 34.73, "lon": -86.57}).json()
+        for role in ("liaison", "logistics"):
+            assert client.post(incidents_url(tokens[role]),
+                               json={"lat": 34.73, "lon": -86.57}).status_code == 403
+            assert client.post(
+                f"{incidents_url(tokens[role])}/{created['id']}/status",
+                json={"status": "closed"},
+            ).status_code == 403
+
+
+def test_incident_appears_in_state_with_a_course_position(setup):
+    """"bib 1432, mile 0.4 of Half" is what gets said on the radio."""
+    app, tokens, _, _ = setup
+    with TestClient(app) as client:
+        client.post(incidents_url(tokens["ncs"]),
+                    json={"lat": 34.732, "lon": -86.575, "bib": "1432"})
+        data = client.get(f"/api/m2026/{tokens['ncs']}/state").json()
+
+    assert len(data["incidents"]) == 1
+    entry = data["incidents"][0]
+    assert entry["bib"] == "1432"
+    assert entry["course_position"]["course_name"] == "Half"
+
+
+def test_incidents_are_visible_to_read_only_roles(setup):
+    app, tokens, _, _ = setup
+    with TestClient(app) as client:
+        client.post(incidents_url(tokens["ncs"]),
+                    json={"lat": 34.732, "lon": -86.575, "bib": "1432"})
+        data = client.get(f"/api/m2026/{tokens['logistics']}/state").json()
+    assert len(data["incidents"]) == 1
+
+
+def test_status_change_is_broadcast(setup):
+    app, tokens, _, _ = setup
+    with TestClient(app) as client:
+        created = client.post(incidents_url(tokens["ncs"]),
+                              json={"lat": 34.732, "lon": -86.575}).json()
+        with client.websocket_connect(f"/ws/m2026/{tokens['liaison']}") as ws:
+            client.post(f"{incidents_url(tokens['ncs'])}/{created['id']}/status",
+                        json={"status": "en_route", "changed_by": "MW"})
+            message = ws.receive_json()
+
+    assert message["type"] == "incident"
+    assert message["change"] == "status"
+    assert message["status"] == "en_route"
+
+
+def test_incident_log_is_readable_by_every_role(setup):
+    """The log is what a shift handover reads."""
+    app, tokens, _, _ = setup
+    with TestClient(app) as client:
+        created = client.post(incidents_url(tokens["ncs"]),
+                              json={"lat": 34.732, "lon": -86.575,
+                                    "changed_by": "MW"}).json()
+        client.post(f"{incidents_url(tokens['ncs'])}/{created['id']}/status",
+                    json={"status": "picked_up", "changed_by": "AB"})
+        entries = client.get(
+            f"{incidents_url(tokens['liaison'])}/{created['id']}/log"
+        ).json()["entries"]
+
+    assert [e["action"] for e in entries] == ["created", "status"]
+    assert [e["by"] for e in entries] == ["MW", "AB"]
+
+
+def test_bad_incident_payloads_are_rejected(setup):
+    app, tokens, _, _ = setup
+    with TestClient(app) as client:
+        assert client.post(incidents_url(tokens["ncs"]),
+                           json={"lat": 91.0, "lon": 0.0}).status_code == 400
+        assert client.post(incidents_url(tokens["ncs"]),
+                           json={"lon": 0.0}).status_code == 400
+        created = client.post(incidents_url(tokens["ncs"]),
+                              json={"lat": 34.73, "lon": -86.57}).json()
+        assert client.post(
+            f"{incidents_url(tokens['ncs'])}/{created['id']}/status",
+            json={"status": "banana"},
+        ).status_code == 400
+
+
+def test_editing_an_incident_updates_and_logs(setup):
+    app, tokens, _, _ = setup
+    with TestClient(app) as client:
+        created = client.post(incidents_url(tokens["ncs"]),
+                              json={"lat": 34.73, "lon": -86.57}).json()
+        updated = client.post(
+            f"{incidents_url(tokens['ncs'])}/{created['id']}",
+            json={"bib": "0917", "assigned_to": "SAG 1", "changed_by": "MW"},
+        ).json()
+
+    assert updated["bib"] == "0917"
+    assert updated["assigned_to"] == "SAG 1"
