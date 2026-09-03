@@ -13,7 +13,7 @@ without much effort.
 
 **Status: early development.** APRS-IS ingest, KML/KMZ course import, the live
 map, incidents, lead runner tracking and a browser setup application all work.
-Not yet deployed anywhere — it runs locally.
+v0.1.0 is the first release; see [releases](../../releases/latest) for the Windows download. Not yet run at a live event.
 
 - [`docs/PLAN.md`](docs/PLAN.md) — the plan, decisions, and known gaps
 - [`docs/RUNBOOK.md`](docs/RUNBOOK.md) — event-day procedure for operators

@@ -7,6 +7,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.1.0] - 2026-09-03
+
+First release. Everything below shipped in it: APRS-IS ingest, KML/KMZ import,
+the live map with role-gated access, the NCS panel, course-relative position,
+incidents and course notes, lead runners, the SAG role, per-event place layers,
+the browser setup application, and deployment behind Apache or a tunnel.
+
 ### 2026-09-03 - A download for Windows, and pip for everyone else
 
 #### Added
