@@ -25,6 +25,9 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "httpx>=0.27"]
+# Only for producing the Windows download; nothing at runtime needs it, and
+# Linux and macOS never build one.
+build-exe = ["pyinstaller>=6.0"]
 
 [project.scripts]
 courseops = "courseops.cli:main"

@@ -58,8 +58,32 @@ never transmits.
 
 ## Getting started
 
-Six commands from nothing to a running server. These are the exact steps, run
-against a clean clone and an empty virtualenv.
+### Windows: download and run
+
+Grab **CourseOps.exe** from the
+[latest release](../../releases/latest) and double-click it. One file, nothing
+to install, no Python. It prints a setup address, opens no windows of its own,
+and keeps its database in `%LOCALAPPDATA%\CourseOps` so nothing is scattered
+next to your download.
+
+Windows may warn that the publisher is unknown - the build is not code-signed.
+
+To track people live you also need your callsign in a file named `.env` beside
+the executable:
+
+```
+APRS_CALLSIGN=W1AW
+```
+
+Everything else - the map, the course import, the roster, the whole setup UI -
+works without it, and it will tell you that live tracking is off rather than
+refusing to start.
+
+### Linux, macOS, or a server: pip
+
+`pip` is universal here, so there is no separate download. Six commands from
+nothing to a running server - the exact steps, run against a clean clone and an
+empty virtualenv.
 
 ```bash
 git clone <repo-url>

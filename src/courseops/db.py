@@ -5,9 +5,10 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
+from . import resources
 from .parser import PositionReport
 
-SCHEMA_PATH = Path(__file__).with_name("schema.sql")
+SCHEMA_PATH = resources.package_file("schema.sql")
 
 
 def connect(db_path: str | Path) -> sqlite3.Connection:

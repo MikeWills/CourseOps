@@ -363,6 +363,17 @@ usability, not style preferences.
   those files ARE the app. A wheel without them installs something whose every
   page 404s, and `pip install -e .` hides it completely because it reads the
   source tree. Build a wheel and look inside before trusting a release.
+- **Anything that resolves a path to a shipped file goes through
+  `resources.py`.** `Path(__file__)` is wrong inside the frozen Windows build,
+  where the package is unpacked to a temporary directory that does not contain
+  the data files - and the symptom is a page with no stylesheet rather than an
+  error.
+- **A frozen build must not write beside itself.** It is run from a Downloads
+  folder or a USB stick; the database goes to `%LOCALAPPDATA%`.
+- **A callsign is required where it is USED, never at startup.** Everything
+  except the live APRS-IS connection works without one, and refusing to boot
+  over it turns the Windows download into a console window that flashes and
+  vanishes.
 - **CLI output stays ASCII.** Em dashes become mojibake in the Windows console,
   and a club laptop is the target environment.
 
@@ -416,6 +427,9 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-03** Added a single-file Windows .exe; pip stays the route for Linux and macOS.
+- **2026-09-03** A callsign is now needed only for live tracking, not to start the app.
+- **2026-09-03** Added CI and a release workflow that proves the .exe serves before publishing.
 - **2026-09-03** Read GIS attribute tables from `<description>`; `Type` now files points automatically.
 - **2026-09-03** Import creates the layers a file names; 48 mile markers land in a layer that starts off.
 - **2026-09-03** Fixed: stitch invented a 5.4 km leg and reported a 29.76 mile marathon.
@@ -423,6 +437,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-03** Tunnels documented as the alternative to web hosting, with ngrok's free-tier caveat.
 - **2026-09-03** Fixed: a fresh install would not boot; `python-multipart` was undeclared.
 - **2026-09-03** Rewrote README getting-started against a verified cold start.
-- **2026-09-03** Setup changes now push to the field live instead of waiting for a refresh.
-- **2026-09-03** Place layers are per-event data with no limit; `staffed` drives what is operational.
-- **2026-09-03** Station roles and place layers can be renamed; added a shared SVG glyph set.

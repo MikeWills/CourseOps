@@ -126,8 +126,13 @@ async def run_ingest(
 ) -> IngestStats:
     """Connect to APRS-IS for one event and store what arrives.
 
+    Requires a callsign, and says so here rather than at startup: everything
+    else in the app works without one, and refusing to boot over it is what
+    made a first run on Windows a console window that flashed and vanished.
+
     `max_packets` bounds the run for smoke-testing; None runs until cancelled.
     """
+    settings.require_callsign()
     conn = db.connect(settings.db_path)
     db.init_schema(conn)
 
