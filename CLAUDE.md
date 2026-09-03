@@ -40,7 +40,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 336 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 352 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -347,6 +347,18 @@ usability, not style preferences.
 - **Declare literal routes before parameterised ones.** `/pois/move` after
   `/pois/{poi_id}` is never reached: FastAPI matches in order, "move" parses as
   an id, and the UI button silently does nothing.
+- **GIS exporters put their attribute table in `<description>` as HTML, not in
+  `ExtendedData`.** For an ArcGIS file it is the only thing distinguishing a
+  water stop from a mile marker - every placemark being named after its race.
+  `kml.attributes_from_description` reads it, and `Type` beats every text hint
+  because the file is stating what the thing is.
+- **Import may create layers; it may never create places.** The exporter has
+  already decided the layers, so creating them saves retyping. Places still
+  stage as pending for a human, which is what stops a parking lot filing itself
+  as an aid station.
+- **A suggestion must name a layer that exists.** Otherwise assignment is
+  refused and the UI just looks broken - which is why `END` is aliased onto the
+  `finish` layer that ships by default.
 - **CLI output stays ASCII.** Em dashes become mojibake in the Windows console,
   and a club laptop is the target environment.
 
@@ -400,6 +412,9 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-03** Read GIS attribute tables from `<description>`; `Type` now files points automatically.
+- **2026-09-03** Import creates the layers a file names; 48 mile markers land in a layer that starts off.
+- **2026-09-03** Fixed: stitch invented a 5.4 km leg and reported a 29.76 mile marathon.
 - **2026-09-03** Places can be moved between layers in bulk; organizer KML arrives as one flat list.
 - **2026-09-03** Tunnels documented as the alternative to web hosting, with ngrok's free-tier caveat.
 - **2026-09-03** Fixed: a fresh install would not boot; `python-multipart` was undeclared.
@@ -407,6 +422,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-03** Setup changes now push to the field live instead of waiting for a refresh.
 - **2026-09-03** Place layers are per-event data with no limit; `staffed` drives what is operational.
 - **2026-09-03** Station roles and place layers can be renamed; added a shared SVG glyph set.
-- **2026-09-03** Fixed: lead runner sightings broke silently when an aid station layer was renamed.
-- **2026-09-02** Added the SAG role with its own link and per-capability permissions.
-- **2026-09-02** Incidents split into pickups and course notes; added a "dropped off" step.
