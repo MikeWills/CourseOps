@@ -736,12 +736,14 @@ async function loadCourses() {
     }));
 
   $('poi-table').innerHTML = data.pois.length ? `
-    <table class="grid"><thead><tr><th>Mile</th><th>Name</th><th>Type</th>
+    <table class="grid"><thead><tr><th>Mile</th><th>Name</th><th>Layer</th>
       <th>What3Words</th><th></th></tr></thead><tbody>` +
     data.pois.map((p) => `<tr>
       <td>${p.distance_along_m != null ? miles(p.distance_along_m) : '—'}</td>
       <td><input value="${esc(p.name)}" data-pname="${p.id}" style="width:150px"></td>
-      <td>${esc(p.poi_type.replace(/_/g, ' '))}</td>
+      <td><span class="layer-glyph" style="color:${esc(p.layer_color || '#35507a')}"
+          >${glyphSvg(p.layer_icon || 'pin', 16)}</span>
+        ${esc(p.layer_name || p.poi_type)}</td>
       <td><input value="${esc(p.what3words || '')}" data-w3w="${p.id}"
             placeholder="filled.count.soap" style="width:170px"></td>
       <td class="actions">${iconBtn('save', {'data-savep': p.id}, `Save ${p.name}`)

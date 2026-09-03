@@ -47,6 +47,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   "Parking" lasted until the next page load. Defaults are now seeded only into
   an event that has none at all.
 
+#### Changed
+- The place-rename table names each point's **layer** with its glyph, instead of
+  the raw `poi_type` key. You rename points from several layers in one table, so
+  which layer a row belongs to has to be visible while you type - that is what
+  makes "Ham Alpha" and "Medic Alpha" practical to set up.
+
 #### Note
 Deleting a layer that still has places in it is refused, with the count. Doing
 it would leave those places in the database, off the map, and with no error
