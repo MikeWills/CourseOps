@@ -47,10 +47,22 @@ SQLite is nowhere near stressed.
 | Parsing | `aprslib` | Mic-E alone would be a major time sink to hand-roll |
 | Storage | SQLite | One file, no server for a club to install; free replay |
 | Frontend | Leaflet, no build step | No npm toolchain in deployment; mature touch support |
-| Packaging | Docker Compose + plain pip | One container, one volume |
+| Packaging | pip into a venv, systemd unit, Apache in front | No container runtime for a club to install |
 
 Deliberately **not** used: Redis, Celery, Postgres, a JS build pipeline. None earn
 their place at this scale, and each is one more thing for a club to install.
+
+**Containers were planned and dropped.** This table said "Docker Compose + plain
+pip" until Phase 8 actually shipped, which it did as a venv, a systemd unit and
+Apache - and the row went unreconciled for a while, promising something that did
+not exist.
+
+The reasoning for dropping it: the deployment target is a club's ordinary VPS or
+a laptop, where Docker is a runtime to install and a networking layer to debug
+in front of an app that is one Python process and one SQLite file. It solves
+nothing at that scale. It becomes attractive at the point of hosting several
+clubs at once - see issue #5 - where reproducibility and isolation start paying
+for themselves. Not before.
 
 ## Architecture
 
