@@ -336,6 +336,10 @@ usability, not style preferences.
   to reach the field, and the failure is silent because NCS sees their own
   screen update. Resync reloads data, not the page: view and layer choices are
   restored only on first load, so they survive.
+- **Verify setup instructions by cold-starting a clean clone into an empty
+  virtualenv.** A missing dependency (`python-multipart`) that this machine
+  happened to have made the app fail to boot for everyone else, and no test
+  caught it because tests run in the developed environment.
 - **CLI output stays ASCII.** Em dashes become mojibake in the Windows console,
   and a club laptop is the target environment.
 
@@ -389,6 +393,9 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-03** Fixed: a fresh install would not boot; `python-multipart` was undeclared.
+- **2026-09-03** Rewrote README getting-started against a verified cold start.
+- **2026-09-03** Setup changes now push to the field live instead of waiting for a refresh.
 - **2026-09-03** Place layers are per-event data with no limit; `staffed` drives what is operational.
 - **2026-09-03** Station roles and place layers can be renamed; added a shared SVG glyph set.
 - **2026-09-03** Fixed: lead runner sightings broke silently when an aid station layer was renamed.
@@ -396,6 +403,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-02** Incidents split into pickups and course notes; added a "dropped off" step.
 - **2026-09-02** SAG can order the pickup queue by proximity, client-side only.
 - **2026-09-02** Table row actions became labelled icon buttons; fixed Delete never rendering red.
-- **2026-09-02** Events and organizations can now be edited, not just created and deleted.
-- **2026-09-02** Roster entries may be a bare callsign; the SSID is learned from the air.
-- **2026-09-02** Operator names now shown on the map, in the popup and in the setup roster.

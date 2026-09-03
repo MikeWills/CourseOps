@@ -48,24 +48,58 @@ Not yet deployed anywhere — it runs locally.
 
 ## Requirements
 
-Python 3.11+. One runtime dependency (`aprslib`).
+**Python 3.11 or newer**, and nothing else. Five runtime dependencies, installed
+for you by the command below: `aprslib`, `defusedxml`, `fastapi`, `uvicorn` and
+`python-multipart`. No database server, no npm, no build step.
 
-## Quick start
+You also need **your own callsign**. The app connects to APRS-IS to listen; the
+passcode stays `-1`, which grants read access and no transmit capability. It
+never transmits.
+
+## Getting started
+
+Six commands from nothing to a running server. These are the exact steps, run
+against a clean clone and an empty virtualenv.
 
 ```bash
-git clone <repo-url> && cd CourseOps
+git clone <repo-url>
+cd CourseOps
+
 python -m venv .venv
-.venv/bin/pip install -e ".[dev]"          # Windows: .venv\Scripts\pip
-cp .env.example .env                       # set APRS_CALLSIGN to your callsign
+.venv/Scripts/python -m pip install -e .     # Linux/macOS: .venv/bin/python
+
+copy .env.example .env                       # Linux/macOS: cp
 ```
 
-### Set it up in the browser
+Open `.env` and put your callsign in it:
+
+```
+APRS_CALLSIGN=W1AW
+```
+
+That is the only file you ever edit by hand. Then start it:
 
 ```bash
-courseops serve
+.venv/Scripts/courseops serve                # Linux/macOS: .venv/bin/courseops
 ```
 
-Then open **http://localhost:8000/setup**. The first visit asks you to create a
+It creates its own database on first run - there is no separate setup command -
+and prints where to go:
+
+```
+  Course Ops
+  Setup: http://localhost:8000/setup
+         (first run - it will ask you to create an administrator)
+
+  Listening on http://127.0.0.1:8000   Ctrl-C to stop
+```
+
+If you get **"APRS_CALLSIGN is still the placeholder N0CALL"**, you copied the
+file but have not edited it yet - that is the step above.
+
+### Then do the rest in a browser
+
+Open **http://localhost:8000/setup**. The first visit asks you to create a
 system administrator; after that you sign in.
 
 Everything else is forms: create an organization and an event, upload the
@@ -75,6 +109,42 @@ and copy the access links to send out.
 
 Only two things stay in a terminal, because they happen before the page exists:
 the callsign in `.env`, and starting the server.
+
+### Reaching it from a phone on the same wifi
+
+By default it listens on localhost only, which no other device can reach. To let
+phones on your network in:
+
+```bash
+.venv/Scripts/courseops serve --host 0.0.0.0
+```
+
+Then browse to `http://<your computer's IP>:8000/...` from the phone. Find the
+IP with `ipconfig` on Windows or `ip addr` on Linux. You may have to allow the
+port through the firewall.
+
+**One thing will not work over plain http:** the "you are here" dot, and so the
+SAG queue's "nearest me" ordering. Browsers only allow geolocation in a secure
+context, and localhost is the sole exception. Everything else works normally.
+That is the reason for the next section rather than a limitation you can
+configure away.
+
+### On a real web server
+
+`docs/DEPLOYMENT.md` walks through it: Apache as a reverse proxy, a Let's
+Encrypt certificate, and a systemd unit so it comes back after a reboot. Ready
+made files are in `deploy/`.
+
+Three things are easy to get wrong, so they are called out there:
+
+- Apache needs **`mod_proxy_wstunnel`**, and the `/ws/` rules must come *before*
+  the catch-all - otherwise the map loads and then never moves, with no error.
+- Run with **`--behind-proxy`** or session cookies silently lose the `Secure`
+  flag, because behind a proxy the app cannot see the real scheme.
+- Bind to **127.0.0.1** so nobody can reach it bypassing TLS.
+
+For one club on one afternoon, a laptop with `--host 0.0.0.0` is genuinely
+enough - you just lose the location dot.
 
 ### Or set it up from the command line
 

@@ -38,10 +38,22 @@ class Settings:
     @classmethod
     def from_env(cls) -> "Settings":
         callsign = os.environ.get("APRS_CALLSIGN", "").strip().upper()
-        if not callsign or callsign == "N0CALL":
+        # Two different mistakes with two different fixes. Telling someone who
+        # has just copied the file to "copy the file" reads as the app not
+        # noticing what they did, which is where a first setup stalls.
+        if not callsign:
             raise SystemExit(
-                "APRS_CALLSIGN must be set to your real callsign. "
-                "Copy .env.example to .env and fill it in."
+                "APRS_CALLSIGN is not set.\n"
+                "  Copy .env.example to .env, then put your callsign in it:\n"
+                "    APRS_CALLSIGN=W1AW"
+            )
+        if callsign == "N0CALL":
+            raise SystemExit(
+                "APRS_CALLSIGN is still the placeholder N0CALL.\n"
+                "  Edit .env and put your own callsign there:\n"
+                "    APRS_CALLSIGN=W1AW\n"
+                "  It identifies this client to APRS-IS. Leave the passcode at\n"
+                "  -1, which grants read access only - this never transmits."
             )
         return cls(
             callsign=callsign,
