@@ -117,6 +117,7 @@ async def _run_check_in(settings, event, seconds: int):
     if not roster_keys:
         raise SystemExit("Roster is empty - add stations before checking in.")
 
+    settings.require_callsign()
     check = discovery.CheckIn(roster_keys)
     aprs_filter = discovery.wildcard_filter(roster_keys)
     print(f"Listening {seconds}s for every SSID of {len(check.expected_bases)} "
@@ -662,6 +663,12 @@ def cmd_serve(args: argparse.Namespace) -> int:
         if args.no_ingest:
             lines.append("")
             lines.append("  APRS-IS ingest disabled (--no-ingest).")
+        elif settings.callsign_problem:
+            # Everything except live tracking works without a callsign, so the
+            # server still starts. Saying so plainly beats refusing to run,
+            # which is what a first-time user meets otherwise.
+            lines.append("")
+            lines.append("  NOT tracking - " + settings.callsign_problem)
         else:
             ingest_events = [args.event]
             lines.append("")

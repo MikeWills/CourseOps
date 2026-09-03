@@ -1,0 +1,104 @@
+# Builds the downloads and attaches them to a GitHub Release.
+#
+# Two artefacts, for two audiences:
+#
+#   CourseOps.exe   a club officer on Windows who has never installed Python.
+#                   One file, double-click, no runtime to install.
+#
+#   the wheel       everyone on Linux or macOS, and anyone running this on a
+#                   server. pip is universal there, so a platform binary would
+#                   be work for no gain - and an unsigned macOS binary is worse
+#                   than useless, since Gatekeeper refuses to open it.
+#
+# Triggered by pushing a tag like v0.1.0. Run it manually first with
+# workflow_dispatch to check the artefacts before committing to a tag.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  wheel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build            # wheel and sdist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: python-package
+          path: dist/*
+
+  windows-exe:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          pip install pyinstaller
+
+      - name: Build
+        run: pyinstaller --clean --noconfirm packaging/courseops.spec
+
+      # A build that produces an .exe which cannot serve its own pages looks
+      # identical to a good one until somebody downloads it, so prove it runs
+      # before anything is published. The exe is started detached, given time
+      # to bind, then asked for a page and an asset.
+      - name: Prove the executable actually serves
+        shell: pwsh
+        run: |
+          $exe = Resolve-Path dist/CourseOps.exe
+          $proc = Start-Process -FilePath $exe `
+            -ArgumentList "serve","--port","8099" -PassThru
+          try {
+            $ok = $false
+            foreach ($attempt in 1..30) {
+              Start-Sleep -Seconds 2
+              try {
+                $page = Invoke-WebRequest "http://127.0.0.1:8099/setup" -UseBasicParsing
+                $js   = Invoke-WebRequest "http://127.0.0.1:8099/static/app.js" -UseBasicParsing
+                if ($page.StatusCode -eq 200 -and $js.StatusCode -eq 200) {
+                  Write-Host "setup and app.js both 200 - the bundle is complete"
+                  $ok = $true
+                  break
+                }
+              } catch { }
+            }
+            if (-not $ok) { throw "the executable never served a page" }
+          } finally {
+            Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+          }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-exe
+          path: dist/CourseOps.exe
+
+  publish:
+    needs: [wheel, windows-exe]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/windows-exe/CourseOps.exe
+            artifacts/python-package/*
+          generate_release_notes: true

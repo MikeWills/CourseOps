@@ -7,6 +7,44 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-09-03 - A download for Windows, and pip for everyone else
+
+#### Added
+- **A single-file Windows executable.** The barrier for the clubs this is aimed
+  at was never the app, it was "install Python". `CourseOps.exe` is one 16 MB
+  file with no runtime to install, built by PyInstaller from
+  `packaging/courseops.spec`.
+
+  It keeps its database in `%LOCALAPPDATA%\CourseOps` rather than beside
+  itself, because a downloaded executable is run from a Downloads folder or a
+  USB stick and writing an event's only record there is how a race gets lost.
+  With no arguments it serves rather than printing usage, and it holds the
+  console open on exit so a message cannot vanish with the window.
+
+- **`resources.py`**, the one place that knows about being frozen. PyInstaller
+  unpacks to a temporary directory where `__file__` no longer sits beside the
+  data files, which produces an executable that starts, serves a page with no
+  stylesheet and cannot open its database - all without a useful error.
+
+- **CI and release workflows.** Tests on every push, plus a wheel check that
+  catches a static file falling out of the package. The release build proves
+  the executable actually serves `/setup` and `/static/app.js` before anything
+  is published, because a broken build looks exactly like a good one until
+  somebody downloads it.
+
+#### Changed
+- **A callsign is now required only where it is used.** Serving the map,
+  importing a course, building a roster and the entire setup UI work without
+  one; only the live APRS-IS connection needs it. Refusing to start over it
+  made the Windows build useless - a console window that flashed and vanished
+  for anyone who had never seen a `.env` file. `serve` now says live tracking
+  is off and carries on.
+
+#### Note
+Linux and macOS get the wheel rather than a platform binary. `pip` is universal
+there, and an unsigned macOS binary is worse than none - Gatekeeper refuses to
+open it.
+
 ### 2026-09-03 - A built wheel shipped no frontend
 
 #### Fixed

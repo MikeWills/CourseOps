@@ -22,14 +22,15 @@ from fastapi import (FastAPI, File, Form, HTTPException, Request, UploadFile,
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import (access, admin, categories, db, hub as hub_module, importer, incidents,
+from . import (access, admin, categories, db, hub as hub_module, importer,
+               incidents, resources,
                kml, leaders, progress, symbols, users)
 from .config import Settings
 from .ingest import run_ingest
 
 log = logging.getLogger(__name__)
 
-STATIC_DIR = Path(__file__).with_name("static")
+STATIC_DIR = resources.package_file("static")
 
 SESSION_COOKIE = "courseops_session"
 
