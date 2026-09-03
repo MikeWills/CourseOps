@@ -48,15 +48,32 @@ def test_stitch_reorders_segments():
     assert warnings == []
 
 
-def test_stitch_warns_about_a_gap_but_still_returns_a_line():
-    """A gap is worth importing and eyeballing, not refusing outright."""
+def test_stitch_bridges_a_modest_gap_and_says_so():
+    """A short gap is a digitising artefact, worth importing and eyeballing."""
+    a = [(-86.58, 34.73), (-86.57, 34.73)]
+    slightly_apart = [(-86.565, 34.73), (-86.560, 34.73)]
+
+    joined, warnings = geo.stitch([a, slightly_apart])
+
+    assert len(joined) == 4
+    assert any("Gap of" in w for w in warnings)
+
+
+def test_stitch_refuses_to_invent_a_kilometres_long_leg():
+    """The real case this exists for: an organizer's marathon arrived as eight
+    LineStrings, five chaining cleanly into 26.12 miles and three being chutes
+    of 0.14, 0.01 and 0.09 miles near the start. Dragging those in cost a 5.4 km
+    fabricated leg and reported a 29.76 mile marathon - confident, plausible and
+    wrong, which is the one thing this must never print."""
     a = [(-86.58, 34.73), (-86.57, 34.73)]
     far_away = [(-86.20, 34.73), (-86.19, 34.73)]
 
     joined, warnings = geo.stitch([a, far_away])
 
-    assert len(joined) == 4
-    assert any("Gap of" in w for w in warnings)
+    assert joined == a
+    assert any("could not be joined" in w for w in warnings)
+    # The warning has to name what was dropped, or it is just a shrug.
+    assert any("mi" in w for w in warnings)
 
 
 def test_stitch_handles_a_single_segment():
