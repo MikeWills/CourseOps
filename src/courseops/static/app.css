@@ -454,6 +454,8 @@ html, body {
 .stn--silent { background: var(--silent); opacity: 0.75; }
 .stn--no_aprs{ background: var(--no-aprs); opacity: 0.85; }
 
+.layer-glyph { display: inline-grid; place-items: center; width: 18px; flex: none; }
+
 .poi-icon {
   display: grid;
   place-items: center;

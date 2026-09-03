@@ -40,7 +40,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 306 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 326 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -86,12 +86,14 @@ src/courseops/
   progress.py     snap a station onto a course: "mile 14.2 of Full"
   incidents.py    pickups by bib, status workflow, change log
   leaders.py      first male/female per race, from aid station reports
+  categories.py   per-event place layers and role names; the `staffed` flag
   styling.py      course colors, line styles, draw order
   what3words.py   normalize/validate W3W strings, no API
   access.py       role tokens: ncs writes; liaison + logistics read
   hub.py          per-event fan-out, bounded queues
   web.py          FastAPI: map page, state snapshot, WebSocket
   static/         Leaflet client, no build step, plus the icon set
+  static/icons.js shared glyph set, inline SVG, used by map and setup
   discovery.py    pre-event check-in: which SSIDs are actually on the air
   symbols.py      APRS symbols: is this a person or a digipeater?
   admin.py        setup API: events, import, roster, links
@@ -313,6 +315,22 @@ usability, not style preferences.
   pickup that has waited twenty minutes. Status leads; distance breaks ties
   within it. The distance is straight-line and labelled "away" - there is no
   routing engine, and it must never read as an ETA.
+- **The taxonomy is the club's, not the code's.** Place layers live in
+  `poi_category`, one per event, unlimited. Never reintroduce a hardcoded list
+  of place types - it was in five places and every one of them meant editing
+  Python to accept a race.
+- **`staffed` is the flag everything operational keys off.** Not
+  `poi_type == 'aid_station'`. Who can be posted somewhere, where a lead runner
+  can be sighted, which places are worth a What3Words address. Getting this
+  wrong is silent: the club renames a layer and a feature quietly empties.
+- **A layer's key never changes; its name is free.** `poi.poi_type` holds the
+  key, so renaming is display-only and no place has to move. Same for station
+  roles, whose keys carry their status vocabulary.
+- **Never resurrect a deleted default.** Seed defaults only into an event with
+  no categories at all. A layer that reappears after being deleted teaches
+  people not to trust the screen.
+- **Refuse to delete a layer that still has places.** They would stay in the
+  database, vanish from the map, and nothing would say why.
 - **CLI output stays ASCII.** Em dashes become mojibake in the Windows console,
   and a club laptop is the target environment.
 
@@ -366,6 +384,9 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-03** Place layers are per-event data with no limit; `staffed` drives what is operational.
+- **2026-09-03** Station roles and place layers can be renamed; added a shared SVG glyph set.
+- **2026-09-03** Fixed: lead runner sightings broke silently when an aid station layer was renamed.
 - **2026-09-02** Added the SAG role with its own link and per-capability permissions.
 - **2026-09-02** Incidents split into pickups and course notes; added a "dropped off" step.
 - **2026-09-02** SAG can order the pickup queue by proximity, client-side only.
@@ -373,6 +394,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-02** Events and organizations can now be edited, not just created and deleted.
 - **2026-09-02** Roster entries may be a bare callsign; the SSID is learned from the air.
 - **2026-09-02** Operator names now shown on the map, in the popup and in the setup roster.
-- **2026-09-02** Gated Course/Aid/Roster/Links behind picking an event, instead of a banner over a live form.
-- **2026-09-02** Event time zone is a dropdown, browser-detected, and shown in the event list.
-- **2026-09-02** Fixed: `hidden` did nothing wherever CSS set `display`, so the UI contradicted itself.

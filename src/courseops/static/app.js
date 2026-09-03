@@ -43,7 +43,8 @@ const state = {
   positions: new Map(),       // station_key -> latest position
   markers: new Map(),         // station_key -> L.Marker
   courseLayers: new Map(),    // course id -> L.Polyline
-  poiLayer: null,
+  poiLayers: new Map(),       // category key -> L.LayerGroup
+  poiCategories: [],          // the club's own layer definitions
   visibleCourses: new Set(),
   layerPrefs: {},
   socket: null,
@@ -110,10 +111,14 @@ function defaultLayers(role) {
     rover: true,
     net_control: !field,
     start_finish: true,
-    pois: true,
+  
   };
 }
 
+/* Station roles. Fixed keys, because each carries its own status wording; the
+   displayed names come from the server so a club can use its own terminology.
+   Layers for PLACES are not here at all - those are the club's own list and
+   arrive with the state. */
 const LAYER_LABELS = {
   aid_station_ops: 'Aid station operators',
   sweep: 'Sweeps',
@@ -122,7 +127,7 @@ const LAYER_LABELS = {
   rover: 'Rovers',
   net_control: 'Net control',
   start_finish: 'Start / finish stations',
-  pois: 'Aid station locations',
+
 };
 
 const CATEGORY_TO_LAYER = {
@@ -376,21 +381,29 @@ function drawCourses(courses) {
   });
 }
 
+/* One Leaflet layer per category, so every layer can be switched
+   independently. The set is whatever the club defined - there is no fixed list
+   here and no limit on how many. */
 function drawPois(pois) {
-  if (state.poiLayer) map.removeLayer(state.poiLayer);
-  state.poiLayer = L.layerGroup();
+  state.poiLayers.forEach((layer) => map.removeLayer(layer));
+  state.poiLayers = new Map();
+  state.poiCategories.forEach((cat) => state.poiLayers.set(cat.key, L.layerGroup()));
 
   pois.forEach((poi) => {
+    const cat = categoryOfPoi(poi);
     const marker = L.marker([poi.lat, poi.lon], {
       icon: L.divIcon({
         className: '',
-        html: `<div class="poi-icon">${escapeHtml(initials(poi.name))}</div>`,
+        // The glyph carries the meaning and the colour reinforces it, so two
+        // layers a club happens to colour alike are still told apart.
+        html: `<div class="poi-icon" style="background:${cssColor(cat.color)}">`
+            + `${glyphSvg(cat.icon, 14)}</div>`,
         iconSize: [24, 24],
         iconAnchor: [12, 12],
       }),
-      title: poi.name,
+      title: `${poi.name} (${cat.name})`,
     });
-    const rows = [['Type', poi.poi_type.replace(/_/g, ' ')]];
+    const rows = [['Layer', cat.name]];
     if (poi.course_position) {
       rows.push(['Course position',
         `${formatMile(poi.course_position.distance_along_m)} of ` +
@@ -406,10 +419,34 @@ function drawPois(pois) {
         return `<dt>${escapeHtml(k)}</dt><dd${cls}>${escapeHtml(String(v))}</dd>`;
       }).join('') + '</dl>'
     );
-    state.poiLayer.addLayer(marker);
+    const layer = state.poiLayers.get(cat.key);
+    if (layer) layer.addLayer(marker);
   });
 
-  if (state.layerPrefs.pois !== false) state.poiLayer.addTo(map);
+  state.poiLayers.forEach((layer, key) => {
+    if (poiLayerVisible(key)) layer.addTo(map);
+  });
+}
+
+/* A club's own default for the layer, unless this browser has been told
+   otherwise. A 26-marker mile layer wants to start off; aid stations always
+   start on. */
+function poiLayerVisible(key) {
+  const pref = state.layerPrefs[`poi:${key}`];
+  if (pref !== undefined) return pref !== false;
+  const cat = state.poiCategories.find((c) => c.key === key);
+  return cat ? cat.visible !== false : true;
+}
+
+function categoryOfPoi(poi) {
+  return state.poiCategories.find((c) => c.key === poi.poi_type)
+    || {key: poi.poi_type, name: poi.poi_type, icon: 'pin', color: null};
+}
+
+/* Set via a style property, never interpolated into an attribute: an invalid
+   value is dropped by the CSS parser instead of becoming markup. */
+function cssColor(value) {
+  return /^#[0-9a-fA-F]{3,8}$/.test(String(value || '')) ? value : '#35507a';
 }
 
 function fitToContent() {
@@ -460,33 +497,71 @@ function renderCourseToggles(courses) {
   });
 }
 
+function layerToggle(label, checked, onChange, swatch) {
+  const row = document.createElement('label');
+  row.className = 'toggle';
+  row.innerHTML =
+    `<input type="checkbox" ${checked ? 'checked' : ''}>` +
+    (swatch || '') +
+    `<span class="label">${escapeHtml(label)}</span>`;
+  row.querySelector('input').addEventListener('change', (ev) => onChange(ev.target.checked));
+  return row;
+}
+
+/* Two lists: the people (fixed roles, club-named) and the places (the club's
+   own layers, however many they have made). Places are rendered from the state
+   rather than a constant here, which is the whole point - a mile marker layer
+   and a traffic control layer are as first-class as aid stations. */
 function renderLayerToggles() {
   const host = document.getElementById('layer-list');
   host.innerHTML = '';
+
   Object.keys(LAYER_LABELS).forEach((key) => {
-    const row = document.createElement('label');
-    row.className = 'toggle';
-    row.innerHTML =
-      `<input type="checkbox" ${state.layerPrefs[key] !== false ? 'checked' : ''}>` +
-      `<span class="label">${escapeHtml(LAYER_LABELS[key])}</span>`;
-    row.querySelector('input').addEventListener('change', (ev) => {
-      state.layerPrefs[key] = ev.target.checked;
-      applyLayerVisibility();
-      savePrefs();
-    });
-    host.appendChild(row);
+    host.appendChild(layerToggle(
+      roleLabel(key),
+      state.layerPrefs[key] !== false,
+      (on) => {
+        state.layerPrefs[key] = on;
+        applyLayerVisibility();
+        savePrefs();
+      },
+    ));
   });
+
+  const places = document.getElementById('place-layer-list');
+  places.innerHTML = '';
+  document.getElementById('place-layer-section').hidden = !state.poiCategories.length;
+  state.poiCategories.forEach((cat) => {
+    const swatch = `<span class="layer-glyph" style="color:${cssColor(cat.color)}">`
+      + `${glyphSvg(cat.icon, 16)}</span>`;
+    places.appendChild(layerToggle(
+      cat.name,
+      poiLayerVisible(cat.key),
+      (on) => {
+        state.layerPrefs[`poi:${cat.key}`] = on;
+        applyLayerVisibility();
+        savePrefs();
+      },
+      swatch,
+    ));
+  });
+}
+
+/* A club renames its roles, so the label is never hardcoded on the client. */
+function roleLabel(key) {
+  const found = (state.roleLabels || {})[key];
+  return found || LAYER_LABELS[key] || key;
 }
 
 function applyLayerVisibility() {
   state.markers.forEach((_, stationKey) => upsertStationMarker(stationKey));
-  if (state.poiLayer) {
-    if (state.layerPrefs.pois !== false) {
-      if (!map.hasLayer(state.poiLayer)) state.poiLayer.addTo(map);
-    } else if (map.hasLayer(state.poiLayer)) {
-      map.removeLayer(state.poiLayer);
+  state.poiLayers.forEach((layer, key) => {
+    if (poiLayerVisible(key)) {
+      if (!map.hasLayer(layer)) layer.addTo(map);
+    } else if (map.hasLayer(layer)) {
+      map.removeLayer(layer);
     }
-  }
+  });
 }
 
 /* Stations sort with whatever needs attention first: silent before stale
@@ -1377,6 +1452,8 @@ function applyState(data) {
   state.event = data.event;
   state.role = data.role;
   state.canWrite = data.can_write;
+  state.poiCategories = data.poi_categories || [];
+  state.roleLabels = data.role_labels || {};
   state.can = new Set(data.capabilities || (data.can_write ? ['incidents',
     'stations', 'ssid', 'leaders', 'course'] : []));
   state.thresholds = data.thresholds;

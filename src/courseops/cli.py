@@ -7,17 +7,18 @@ import asyncio
 import logging
 import sys
 
-from . import (access, aprsis, db, discovery, importer, kml, leaders, styling,
-               units, users, what3words)
+from . import (access, aprsis, categories, db, discovery, importer, kml,
+               leaders, styling, units, users, what3words)
 from .config import Settings, load_dotenv
 
-CATEGORIES = [
-    "net_control", "aid_station", "sweep", "sag", "shadow", "rover", "start_finish",
-]
+# Station roles are a fixed set - each carries its own status wording - so the
+# CLI can still offer them as choices. Their *names* are per event and edited in
+# the setup UI; the CLI works in keys.
+CATEGORIES = [key for key, _ in categories.DEFAULT_ROSTER_ROLES]
 
-POI_TYPES = [
-    "aid_station", "start", "finish", "start_finish", "medical", "parking", "other",
-]
+# Place layers are deliberately NOT a fixed list: a club adds its own, so there
+# is nothing here to enumerate. `--type` takes any layer key that exists in the
+# event, and `courseops layers <event>` prints them.
 
 
 def _settings() -> Settings:
@@ -408,6 +409,43 @@ def cmd_discard(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_layers(args: argparse.Namespace) -> int:
+    """The place layers and role names this event has.
+
+    Place layers are the club's own list, so there is nothing to hardcode in
+    `--type`'s help text - this is how you find out what exists.
+    """
+    settings = _settings()
+    conn = db.connect(settings.db_path)
+    event = _event_or_exit(conn, args.event)
+    rows = categories.poi_categories(conn, event["id"])
+    conn.commit()
+
+    print()
+    print(f"Place layers for {event['name']!r}")
+    print()
+    print(f"  {'KEY':<20} {'NAME':<22} {'STAFFED':<9} PLACES")
+    for row in rows:
+        count = conn.execute(
+            "SELECT COUNT(*) AS c FROM poi WHERE event_id = ? AND poi_type = ?",
+            (event["id"], row["key"]),
+        ).fetchone()["c"]
+        staffed = "yes" if row["staffed"] else "-"
+        print(f"  {row['key']:<20} {row['name']:<22} {staffed:<9} {count}")
+
+    print()
+    print("Station roles")
+    print()
+    for row in categories.roster_roles(conn, event["id"]):
+        print(f"  {row['key']:<20} {row['name']}")
+    print()
+    print("Add layers and rename either of these in the setup UI: /setup")
+    print()
+    conn.close()
+    return 0
+
+
+
 def cmd_courses(args: argparse.Namespace) -> int:
     settings = _settings()
     conn = db.connect(settings.db_path)
@@ -787,7 +825,8 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("assign-poi", help="turn a staged point into a POI")
     p.add_argument("event")
     p.add_argument("id", type=int)
-    p.add_argument("--type", choices=POI_TYPES, default="aid_station")
+    p.add_argument("--type", default="aid_station",
+                   help="Layer key; see: courseops layers <event>")
     p.add_argument("--name", help="override the imported name")
     p.add_argument("--what3words", help="e.g. filled.count.soap")
     p.set_defaults(func=cmd_assign_poi)
@@ -800,6 +839,10 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("courses", help="show imported courses and POIs")
     p.add_argument("event")
     p.set_defaults(func=cmd_courses)
+
+    p = sub.add_parser("layers", help="show this event's place layers and roles")
+    p.add_argument("event")
+    p.set_defaults(func=cmd_layers)
 
     p = sub.add_parser(
         "style-course", help="change a course's color, line style, name or draw order"

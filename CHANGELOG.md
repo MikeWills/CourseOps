@@ -7,6 +7,51 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-09-03 - The taxonomy belongs to the club, not to the code
+
+#### Added
+- **Place layers are data, with no limit on how many.** A KML arrives with
+  whatever the organizer drew - mile markers, medical, aid stations, traffic
+  control, portable toilets, spectator zones - and the next club has a different
+  set. The list was hardcoded in five places, which meant editing Python to
+  accept a race. It is now a per-event table: a club adds as many layers as it
+  likes, names them in its own words, and picks an icon and a colour. Each is
+  its own map layer with its own toggle, and each can start on or off.
+
+- **A `staffed` flag is what makes a layer operational.** "We put a person here
+  and track them" is the property that separates an aid station from a portable
+  toilet, and it decides which layers can have an operator posted to them and
+  can report a lead runner. Medical is unstaffed by default, because a medic
+  tent is run by the race's own medical team rather than by an operator we track
+  - a club that does staff them ticks the box.
+
+- **Station roles can be renamed.** One club's "Rover" is another's "Floater".
+  The keys stay fixed because each carries its own status vocabulary - an aid
+  station is "Torn down" where a sweep is "Finished" - so renaming is safe
+  precisely because nothing keys off the name.
+
+- **A shared glyph set** (`static/icons.js`), 22 shapes, used for layer icons on
+  both the map and the setup screen. Inline SVG rather than an icon font or
+  Unicode: glyphs render as colour emoji on some platforms, and the paths
+  inherit `currentColor` so a marker takes its layer's colour.
+
+- `courseops layers <event>` prints an event's layers and role names, since
+  `--type` can no longer list its options in help text.
+
+#### Fixed
+- **Lead runner sightings were filtered by `poi_type == 'aid_station'`.** A club
+  that renamed its layer to "Water Stops" lost lead runner tracking silently -
+  the sighting list simply went empty, with nothing to say why. It now keys off
+  `staffed`.
+- **A deleted default layer came back.** Seeding ran on every read, so removing
+  "Parking" lasted until the next page load. Defaults are now seeded only into
+  an event that has none at all.
+
+#### Note
+Deleting a layer that still has places in it is refused, with the count. Doing
+it would leave those places in the database, off the map, and with no error
+anywhere to say so.
+
 ### 2026-09-02 - SAG becomes a role, and a note stops pretending to be a pickup
 
 #### Added

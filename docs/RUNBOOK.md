@@ -163,6 +163,27 @@ Confirm the roster and the filter it produces:
 courseops roster mankato2026
 ```
 
+### 5a. Name your layers before importing
+
+Setup -> **Layers**. Whatever kinds of place this event has: mile markers,
+medical, traffic control, portable toilets. Add as many as you need, name each
+in your own words, and give it an icon and a colour - each becomes a switch on
+the map.
+
+The one setting that matters operationally is **"We staff these"**. Tick it when
+we put an operator at that kind of place and track them. Staffed layers can have
+someone posted to them from the Roster tab and can report a lead runner; an
+unstaffed layer is just pins you can turn on and off. Medical starts unticked,
+because a medic tent is usually run by the race's own medical team rather than
+by one of ours - tick it if your club staffs them.
+
+Turn **On by default** off for anything numerous, such as a 26-pin mile marker
+layer, so the map does not open cluttered.
+
+**Station roles** on the same tab can be renamed. If your club says "Floater"
+rather than "Rover", change it - the status wording follows the role, not the
+name, so nothing else moves.
+
 ### 6a. Check who is actually on the air
 
 **The app watches for this on its own.** If someone transmits on an SSID the

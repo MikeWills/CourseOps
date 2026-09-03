@@ -200,6 +200,24 @@ def sightings(
     ).fetchall()
 
 
+def staffed_places(conn: sqlite3.Connection, event_id: int) -> list[sqlite3.Row]:
+    """Places where somebody is standing who could see a runner go past.
+
+    Which places those are is a property of the layer, not a magic string. This
+    used to be `poi_type == 'aid_station'`, so a club that renamed its layer to
+    "Water Stops" lost lead runner tracking silently - the sighting list simply
+    went empty, with nothing to say why.
+    """
+    return conn.execute(
+        """
+        SELECT p.* FROM poi p
+          JOIN poi_category c ON c.event_id = p.event_id AND c.key = p.poi_type
+         WHERE p.event_id = ? AND c.staffed = 1
+        """,
+        (event_id,),
+    ).fetchall()
+
+
 def for_event(
     conn: sqlite3.Connection,
     event_id: int,
@@ -216,10 +234,7 @@ def for_event(
         "SELECT * FROM course WHERE event_id = ? ORDER BY sort_order, id",
         (event_id,),
     ).fetchall()
-    poi_rows = conn.execute(
-        "SELECT * FROM poi WHERE event_id = ? AND poi_type = 'aid_station'",
-        (event_id,),
-    ).fetchall()
+    poi_rows = staffed_places(conn, event_id)
 
     # Aid stations in course order, each with its distance along.
     stations = []

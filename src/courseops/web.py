@@ -22,7 +22,7 @@ from fastapi import (FastAPI, File, Form, HTTPException, Request, UploadFile,
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import (access, admin, db, hub as hub_module, importer, incidents,
+from . import (access, admin, categories, db, hub as hub_module, importer, incidents,
                kml, leaders, progress, symbols, users)
 from .config import Settings
 from .ingest import run_ingest
@@ -214,6 +214,25 @@ def build_state(conn: sqlite3.Connection, event_id: int) -> dict[str, Any]:
             "zoom": event["zoom"],
         },
         "courses": courses,
+        # A club's own wording for the station roles. The keys are fixed
+        # because each carries its own status vocabulary; the names are not.
+        "role_labels": categories.role_labels(conn, event_id),
+        # A club's own wording for the station roles. The keys are fixed
+        # because each carries its own status vocabulary; the names are not.
+        "role_labels": categories.role_labels(conn, event_id),
+        # The layers this event has, and how each draws. Sent rather than
+        # assumed, because the set is the club's, not the code's.
+        "poi_categories": [
+            {
+                "key": row["key"],
+                "name": row["name"],
+                "staffed": bool(row["staffed"]),
+                "icon": row["icon"],
+                "color": row["color"],
+                "visible": bool(row["visible"]),
+            }
+            for row in categories.poi_categories(conn, event_id)
+        ],
         "pois": pois,
         "roster": roster,
         "positions": positions,
@@ -686,12 +705,111 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         try:
             return JSONResponse({
                 "roster": admin.list_roster(conn, event_id),
-                "categories": list(db.OP_STATUS_LABELS.keys()),
-                "pois": admin.list_pois(conn, event_id),
+                "categories": [
+                    {"key": row["key"], "name": row["name"]}
+                    for row in categories.roster_roles(conn, event_id)
+                ],
+                # Only places we staff can have somebody posted to them.
+                # Offering a portable toilet or a mile marker here would be
+                # noise, and the list is long enough already.
+                "pois": [
+                    poi for poi in admin.list_pois(conn, event_id)
+                    if poi["poi_type"] in categories.staffed_keys(conn, event_id)
+                ],
                 "ignored": sorted(db.excluded_station_keys(conn, event_id)),
             })
         finally:
             conn.close()
+
+    @app.get("/api/setup/events/{event_id}/categories")
+    async def setup_categories(event_id: int, request: Request) -> JSONResponse:
+        conn, user = require_event_admin(request, event_id)
+        try:
+            payload = {
+                "poi_categories": [
+                    # The count is what makes "delete" honest: a layer with
+                    # places in it cannot go, and the number says how many.
+                    dict(row) | {"place_count": conn.execute(
+                        "SELECT COUNT(*) AS c FROM poi"
+                        " WHERE event_id = ? AND poi_type = ?",
+                        (event_id, row["key"]),
+                    ).fetchone()["c"]}
+                    for row in categories.poi_categories(conn, event_id)
+                ],
+                "roster_roles": [
+                    dict(row) for row in categories.roster_roles(conn, event_id)
+                ],
+            }
+            conn.commit()
+        finally:
+            conn.close()
+        return JSONResponse(payload)
+
+    @app.post("/api/setup/events/{event_id}/categories")
+    async def setup_add_category(event_id: int, request: Request) -> JSONResponse:
+        conn, user = require_event_admin(request, event_id)
+        body = await _json_body(request, conn)
+        try:
+            row = _guard(
+                categories.add_poi_category, conn, event_id,
+                body.get("name", ""), bool(body.get("staffed")),
+                body.get("icon") or "pin", body.get("color"),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+        return JSONResponse(dict(row), status_code=201)
+
+    @app.post("/api/setup/events/{event_id}/categories/{key}")
+    async def setup_update_category(
+        event_id: int, key: str, request: Request
+    ) -> JSONResponse:
+        conn, user = require_event_admin(request, event_id)
+        body = await _json_body(request, conn)
+        try:
+            row = _guard(
+                categories.update_poi_category, conn, event_id, key, body
+            )
+            conn.commit()
+        finally:
+            conn.close()
+        return JSONResponse(dict(row))
+
+    @app.post("/api/setup/events/{event_id}/categories/{key}/delete")
+    async def setup_delete_category(
+        event_id: int, key: str, request: Request
+    ) -> JSONResponse:
+        conn, user = require_event_admin(request, event_id)
+        try:
+            in_use = _guard(categories.delete_poi_category, conn, event_id, key)
+            conn.commit()
+        finally:
+            conn.close()
+        if in_use:
+            # Deleting the layer would leave its places drawn in no layer at
+            # all - present in the database, invisible on the map, no error.
+            raise HTTPException(
+                status_code=409,
+                detail=f"{in_use} place(s) still use this layer. "
+                       "Move or delete them first.",
+            )
+        return JSONResponse({"deleted": key})
+
+    @app.post("/api/setup/events/{event_id}/roles/{key}")
+    async def setup_rename_role(
+        event_id: int, key: str, request: Request
+    ) -> JSONResponse:
+        conn, user = require_event_admin(request, event_id)
+        body = await _json_body(request, conn)
+        try:
+            row = _guard(
+                categories.rename_roster_role, conn, event_id, key,
+                body.get("name", ""),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+        return JSONResponse(dict(row))
 
     @app.post("/api/setup/events/{event_id}/roster")
     async def setup_save_roster(event_id: int, request: Request) -> JSONResponse:
