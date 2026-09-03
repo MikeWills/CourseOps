@@ -134,6 +134,31 @@ running this every year, the rest of this document is the sturdier answer.
 
 ---
 
+## On a Raspberry Pi
+
+Nothing in this needs a real server. It is one Python process, one SQLite file
+and a frontend with no build step, so a Pi runs it comfortably - which for a
+club is often the honest answer: a box that lives in the shack, costs nothing to
+leave on, and can go to the event in a bag.
+
+Follow the ordinary install below; there is no separate Pi path. Only one thing
+in the dependency tree contains compiled code (`pydantic-core`, via FastAPI) and
+it publishes wheels for both `aarch64` and `armv7l`, so nothing builds from
+source on the Pi. Raspberry Pi OS Bookworm ships Python 3.11, which is the
+version this needs. **64-bit is the safer choice** if you are installing fresh.
+
+Two Pi-specific cautions, neither about performance:
+
+- **The SD card is the weak point, not the CPU.** SQLite runs in WAL mode, which
+  survives a crash, but a card that is failing takes the event's only record
+  with it. Boot from a USB SSD if you have one, and take the backup in section 5
+  seriously.
+- **It still needs internet.** APRS-IS is an internet feed, so a Pi at a start
+  line needs a hotspot or a cell modem. Being on the course does not help it
+  hear anything.
+
+---
+
 ## 1. Install
 
 ```bash
