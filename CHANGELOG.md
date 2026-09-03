@@ -7,6 +7,33 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-09-03 - Sorting a flat import into layers
+
+#### Added
+- **Places can be moved between layers, in bulk.** Organizer KML is usually one
+  flat list rather than a folder per kind of place - the real Mankato export has
+  no `<Folder>` elements at all - so every marker arrives in a single layer and
+  has to be sorted afterwards. The Places table now has a checkbox per row and a
+  "move selected to layer" control, plus a per-row layer dropdown for one-offs.
+
+  Doing thirty points one at a time is the kind of chore that gets abandoned
+  half-finished, and a half-sorted map lies about what is where.
+
+- A place cannot be moved to a layer that does not exist. It would leave the pin
+  in the database, off the map, with nothing to say why.
+
+#### Fixed
+- **The move endpoint was unreachable.** FastAPI matches routes in declaration
+  order, and `/pois/{poi_id}` was declared first, so "move" was parsed as an id
+  and every request 422'd. In the UI the button simply did nothing. Pinned with
+  a test.
+
+#### Note
+This is based on the one real export we have. If a club's file does arrive with
+folders, seeding layers from the folder names would be a straightforward
+improvement - `docs/PLAN.md` carries it as an open thread rather than an
+assumption.
+
 ### 2026-09-03 - The taxonomy belongs to the club, not to the code
 
 #### Added

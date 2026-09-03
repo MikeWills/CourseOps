@@ -228,3 +228,64 @@ def test_a_deleted_default_layer_stays_deleted(event):
 
     keys = {c["key"] for c in categories.poi_categories(conn, event_id)}
     assert "parking" not in keys
+
+
+# --- sorting a flat import --------------------------------------------------
+
+def test_places_can_be_moved_between_layers(event):
+    """Organizer KML is usually one flat list, so everything lands in a single
+    layer and has to be sorted afterwards."""
+    conn, event_id = event
+    categories.add_poi_category(conn, event_id, "Medical tents", staffed=False)
+    a = _poi(conn, event_id, "Medic Alpha", "aid_station")
+    b = _poi(conn, event_id, "Medic Bravo", "aid_station")
+    keep = _poi(conn, event_id, "Ham Alpha", "aid_station")
+
+    from courseops import admin
+    moved = admin.move_pois(conn, event_id, [a, b], "medical_tents")
+
+    assert moved == 2
+    rows = {r["name"]: r["poi_type"] for r in conn.execute(
+        "SELECT name, poi_type FROM poi WHERE event_id = ?", (event_id,))}
+    assert rows == {"Medic Alpha": "medical_tents",
+                    "Medic Bravo": "medical_tents",
+                    "Ham Alpha": "aid_station"}
+
+
+def test_moving_to_a_layer_that_does_not_exist_is_refused(event):
+    """It would leave the place drawn in no layer - in the database, off the
+    map, with nothing to say why."""
+    conn, event_id = event
+    poi_id = _poi(conn, event_id, "Somewhere", "aid_station")
+
+    from courseops import admin
+    with pytest.raises(categories.CategoryError):
+        admin.move_pois(conn, event_id, [poi_id], "not_a_layer")
+
+
+def test_moving_nothing_is_refused(event):
+    conn, event_id = event
+    from courseops import admin
+    with pytest.raises(ValueError):
+        admin.move_pois(conn, event_id, [], "aid_station")
+
+
+def test_a_single_place_can_change_layer(event):
+    conn, event_id = event
+    categories.add_poi_category(conn, event_id, "Traffic control", staffed=True)
+    poi_id = _poi(conn, event_id, "5th & Main", "aid_station")
+
+    from courseops import admin
+    admin.update_poi(conn, event_id, poi_id, {"poi_type": "traffic_control"})
+
+    assert conn.execute(
+        "SELECT poi_type FROM poi WHERE id = ?", (poi_id,)
+    ).fetchone()["poi_type"] == "traffic_control"
+
+
+def test_an_unknown_layer_is_refused_on_a_single_edit(event):
+    conn, event_id = event
+    poi_id = _poi(conn, event_id, "Somewhere", "aid_station")
+    from courseops import admin
+    with pytest.raises(categories.CategoryError):
+        admin.update_poi(conn, event_id, poi_id, {"poi_type": "invented"})

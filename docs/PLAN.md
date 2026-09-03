@@ -523,6 +523,12 @@ Things discovered but not yet acted on. Each is a real constraint, not a wish.
   club names the points explicitly ("Ham Alpha", "Medic Alpha"), so the map says
   exactly what people say. The place-rename table shows each point's layer while
   you type, which is what makes that practical.
+- **We have not seen a real organizer's points file yet.** Requested, not
+  received. The one real export we have (Mankato, MapMyRun) is entirely flat -
+  no `<Folder>` elements - so places import into a single layer and are sorted
+  afterwards in the Places table. If a club's file does turn out to use folders,
+  seeding layers from the folder names would be a small, obvious improvement.
+  Nothing depends on either shape; `test_real_course.py` pins what we know.
 - **Colour specification pending** from the club; see Visual design above.
 - ~~**Static asset caching.**~~ Tracked in issue #5.
 - **Operator runbook is a draft.** `docs/RUNBOOK.md` exists and covers what is

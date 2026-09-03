@@ -695,6 +695,11 @@ $('assign-discard').addEventListener('click', async () => {
 /* ---------- courses and aid stations ------------------------------------- */
 
 async function loadCourses() {
+  // The layer list drives the per-row dropdown and the bulk target.
+  if (!S.poiCategories) {
+    S.poiCategories = (await api(
+      `/api/setup/events/${S.eventId}/categories`)).poi_categories;
+  }
   const data = await api(`/api/setup/events/${S.eventId}/courses`);
   S.pois = data.pois;
 
@@ -736,14 +741,21 @@ async function loadCourses() {
     }));
 
   $('poi-table').innerHTML = data.pois.length ? `
-    <table class="grid"><thead><tr><th>Mile</th><th>Name</th><th>Layer</th>
+    <table class="grid"><thead><tr><th><input type="checkbox" id="poi-all"
+        aria-label="Select every place"></th>
+      <th>Mile</th><th>Name</th><th>Layer</th>
       <th>What3Words</th><th></th></tr></thead><tbody>` +
     data.pois.map((p) => `<tr>
+      <td><input type="checkbox" data-ppick="${p.id}"
+            aria-label="Select ${esc(p.name)}"></td>
       <td>${p.distance_along_m != null ? miles(p.distance_along_m) : '—'}</td>
       <td><input value="${esc(p.name)}" data-pname="${p.id}" style="width:150px"></td>
       <td><span class="layer-glyph" style="color:${esc(p.layer_color || '#35507a')}"
-          >${glyphSvg(p.layer_icon || 'pin', 16)}</span>
-        ${esc(p.layer_name || p.poi_type)}</td>
+            >${glyphSvg(p.layer_icon || 'pin', 16)}</span>
+        <select data-player="${p.id}" style="width:150px">${
+          S.poiCategories.map((c) => `<option value="${esc(c.key)}"${
+            c.key === p.poi_type ? ' selected' : ''}>${esc(c.name)}</option>`).join('')
+        }</select></td>
       <td><input value="${esc(p.what3words || '')}" data-w3w="${p.id}"
             placeholder="filled.count.soap" style="width:170px"></td>
       <td class="actions">${iconBtn('save', {'data-savep': p.id}, `Save ${p.name}`)
@@ -751,12 +763,39 @@ async function loadCourses() {
     </tr>`).join('') + '</tbody></table>'
     : '<p class="muted">No aid stations yet.</p>';
 
+  /* Sorting a flat import one row at a time is the kind of chore that gets
+     abandoned half-finished, and a half-sorted map lies about what is where. */
+  const picked = () => [...$('poi-table').querySelectorAll('[data-ppick]:checked')]
+    .map((c) => Number(c.dataset.ppick));
+
+  function refreshPoiSelection() {
+    const n = picked().length;
+    $('poi-bulk').hidden = n === 0;
+    $('poi-selected').textContent = n === 1 ? '1 place selected'
+      : `${n} places selected`;
+  }
+
+  $('poi-move-to').innerHTML = S.poiCategories
+    .map((c) => `<option value="${esc(c.key)}">${esc(c.name)}</option>`).join('');
+  $('poi-table').querySelectorAll('[data-ppick]').forEach((c) =>
+    c.addEventListener('change', refreshPoiSelection));
+  if ($('poi-all')) {
+    $('poi-all').addEventListener('change', (ev) => {
+      $('poi-table').querySelectorAll('[data-ppick]').forEach((c) => {
+        c.checked = ev.target.checked;
+      });
+      refreshPoiSelection();
+    });
+  }
+  refreshPoiSelection();
+
   $('poi-table').querySelectorAll('[data-savep]').forEach((b) =>
     b.addEventListener('click', async () => {
       const id = b.dataset.savep;
       try {
         await post(`/api/setup/events/${S.eventId}/pois/${id}`, {
           name: $('poi-table').querySelector(`[data-pname="${id}"]`).value,
+          poi_type: $('poi-table').querySelector(`[data-player="${id}"]`).value,
           what3words: $('poi-table').querySelector(`[data-w3w="${id}"]`).value,
         });
         banner('Aid station saved.');
@@ -869,6 +908,19 @@ async function loadLayers() {
       } catch (err) { banner(err.message, true); }
     }));
 }
+
+$('poi-move').addEventListener('click', async () => {
+  const ids = [...$('poi-table').querySelectorAll('[data-ppick]:checked')]
+    .map((c) => Number(c.dataset.ppick));
+  if (!ids.length) return;
+  try {
+    const result = await post(`/api/setup/events/${S.eventId}/pois/move`, {
+      poi_ids: ids, poi_type: $('poi-move-to').value,
+    });
+    banner(`Moved ${result.moved} place(s).`);
+    loadCourses();
+  } catch (err) { banner(err.message, true); }
+});
 
 $('layer-form').addEventListener('submit', async (ev) => {
   ev.preventDefault();
