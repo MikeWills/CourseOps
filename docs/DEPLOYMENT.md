@@ -58,18 +58,38 @@ beyond your own devices. That is the gap the LAN setup cannot close.
 **`funnel` is for the event**, when volunteers who are not on your tailnet need
 in. Funnel's public side must use port 443, 8443 or 10000.
 
-### Cloudflare Tunnel or ngrok
+### Cloudflare Tunnel
 
-Both work the same way and neither needs a domain for a quick tunnel:
+Free, no click-through, and no domain needed for a quick tunnel:
 
 ```bash
 cloudflared tunnel --url http://localhost:8000
-ngrok http 8000
 ```
 
-They print a random public hostname; pass it to `--base-url`. Check whether your
-plan shows an interstitial page before the site - a volunteer meeting one on
-race morning will assume the link is broken.
+It prints a random `trycloudflare.com` hostname; pass it to `--base-url`. The
+hostname changes every time you restart, so issue the links after you start the
+tunnel, not before. A named tunnel gives you a stable hostname and is also free,
+but needs a domain you control.
+
+### ngrok, with a caveat that matters
+
+ngrok works, but **check which plan you are on before handing links to
+volunteers.** The free tier puts an interstitial warning page in front of all
+HTML browser traffic: every volunteer gets a click-through telling them the site
+is served by ngrok before they reach the map. Clicking through sets a cookie
+that suppresses it for seven days, so you will stop seeing it long before they
+do - which is how this ships by accident.
+
+At 6am in a car park, a page like that reads as a phishing warning, and the
+volunteer's reasonable conclusion is that the link is broken. The free tier also
+caps requests and transfer, which a live map with a dozen phones on it can
+reach. A paid plan removes the interstitial.
+
+If ngrok is already part of your toolkit and you pay for it, use it:
+
+```bash
+ngrok http 8000
+```
 
 ### What a tunnel does not change
 
