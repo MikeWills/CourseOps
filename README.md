@@ -141,9 +141,13 @@ internet. Cloudflare Tunnel and ngrok work too.
 Start the app with `--behind-proxy --base-url https://<tunnel-host>` so session
 cookies keep their `Secure` flag and the printed links carry the right address.
 
-One warning: **ngrok's free tier shows every visitor a click-through warning
-page** before your site, which a volunteer will read as a broken link. Use
-Cloudflare Tunnel or Tailscale for free, or a paid ngrok plan.
+Two things worth knowing before you pick one. **ngrok's free tier shows every
+visitor a click-through warning page**, which a volunteer will read as a broken
+link. And a **Cloudflare quick tunnel gets a new hostname every restart**, so a
+laptop reboot mid-event kills every link you handed out.
+
+Tailscale Funnel avoids both: free, no click-through, and a stable address that
+survives a restart, with only the host machine needing anything installed.
 `docs/DEPLOYMENT.md` has the detail, including what a tunnel does not change.
 
 ### On a real web server

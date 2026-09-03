@@ -41,6 +41,34 @@ courseops serve <event> --behind-proxy --base-url https://<your-tunnel-host>
 The default `--trusted-proxy 127.0.0.1` is already correct: all of these agents
 run on the same machine and connect over the loopback.
 
+### Which one
+
+|  | Account needed | Volunteers install | Address survives a restart | Click-through |
+|---|---|---|---|---|
+| **Tailscale Funnel** | free, host only | nothing | **yes** | no |
+| **Tailscale Serve** | free, host + viewers | Tailscale | yes | no |
+| **Cloudflare quick tunnel** | **none** | nothing | no | no |
+| **ngrok**, free | free | nothing | one dev domain | **yes** |
+| **ngrok**, paid | $8-10/mo | nothing | yes | no |
+
+Two columns decide it in practice.
+
+**"Address survives a restart"** is the one people underestimate. A Cloudflare
+quick tunnel gets a new random hostname every time it starts, so if the laptop
+reboots at mile 6, every link you handed out is dead and you are re-sending
+fifteen URLs while running a net. Issue links only after the tunnel is up, and
+know that a restart means re-issuing them.
+
+**"Volunteers install"** is why Funnel beats Serve for the event itself. Serve
+publishes to your tailnet, so everyone who needs the map has to be on it -
+fine for you and a second operator, a poor ask for fifteen volunteers on race
+morning. Funnel puts it on the public internet, where a link is just a link.
+
+So: **Serve while you are building and testing** on your own phone, **Funnel on
+the day**. The first time you run `tailscale funnel` it may send you to the
+admin console to enable Funnel for the tailnet; do that before race week, not
+during it.
+
 ### Tailscale
 
 If your club already uses Tailscale this is the least work of all, and it comes
