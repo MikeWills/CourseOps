@@ -47,6 +47,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   "Parking" lasted until the next page load. Defaults are now seeded only into
   an event that has none at all.
 
+#### Added
+- **A tunnel is now a documented deployment path**, and for a one-off event it
+  is the least effort way to get HTTPS - which is what brings back the location
+  dot and the SAG "nearest me" sort. Tailscale, Cloudflare Tunnel and ngrok all
+  work; `tailscale serve` is called out separately because it publishes over
+  HTTPS to your own devices only, which is exactly what walking a course with a
+  phone needs. Everything required already existed (`--behind-proxy`,
+  `--base-url`, and a default trusted proxy of 127.0.0.1 that is correct for all
+  of these); what was missing was saying so.
+
 #### Fixed
 - **A fresh install would not start at all.** `python-multipart` is required by
   FastAPI to accept the KML upload and was never declared, so installing the

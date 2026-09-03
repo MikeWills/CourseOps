@@ -129,6 +129,19 @@ context, and localhost is the sole exception. Everything else works normally.
 That is the reason for the next section rather than a limitation you can
 configure away.
 
+### The quickest way to get HTTPS
+
+A tunnel gives you a public HTTPS address pointing at the app on your own
+machine, with no Apache, DNS or certificate work - and HTTPS is what brings back
+the location dot. If you already use Tailscale, `tailscale serve 8000` publishes
+it to your own devices over HTTPS, which is the easiest way to walk a course
+with it on your phone; `tailscale funnel 8000` does the same for the public
+internet. Cloudflare Tunnel and ngrok work too.
+
+Start the app with `--behind-proxy --base-url https://<tunnel-host>` so session
+cookies keep their `Secure` flag and the printed links carry the right address.
+`docs/DEPLOYMENT.md` has the detail, including what a tunnel does not change.
+
 ### On a real web server
 
 `docs/DEPLOYMENT.md` walks through it: Apache as a reverse proxy, a Let's
