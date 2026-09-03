@@ -57,7 +57,9 @@ def dedupe_consecutive(coords: list[LonLat], tolerance_m: float = 0.5) -> list[L
 
 
 def stitch(
-    segments: list[list[LonLat]], tolerance_m: float = 50.0
+    segments: list[list[LonLat]],
+    tolerance_m: float = 50.0,
+    bridge_m: float = 2_500.0,
 ) -> tuple[list[LonLat], list[str]]:
     """Join course segments end-to-end into one line.
 
@@ -71,9 +73,20 @@ def stitch(
     doubles over itself. That is a silent, plausible-looking corruption, so both
     ends are always considered.
 
-    Returns the joined line and a list of human-readable warnings. Warnings are
-    returned rather than raised because a gap is usually still worth importing
-    and reviewing on the map — the operator can see whether it matters.
+    A segment that cannot be joined within `bridge_m` is LEFT OUT and named in
+    the warnings, rather than dragged in across a straight line that was never
+    part of the course. A real file made this necessary: an organizer's marathon
+    arrived as eight LineStrings, five of which chain perfectly into 26.12 miles
+    while the other three are chutes of 0.14, 0.01 and 0.09 miles sitting near
+    the start. Pulling those in cost a 5.4 km fabricated leg and reported a
+    29.76 mile marathon - a confident, plausible, wrong number of exactly the
+    kind this project refuses to print.
+
+    Nothing can reliably tell a spur from a genuinely gapped course, so this
+    does not try. It joins what clearly joins, says what it could not place, and
+    leaves the judgement to the person looking at the map.
+
+    Returns the joined line and a list of human-readable warnings.
     """
     usable = [dedupe_consecutive(s) for s in segments if len(s) >= 2]
     if not usable:
@@ -98,6 +111,23 @@ def stitch(
                     best = (distance, index, at_front, needs_reverse)
 
         distance, index, at_front, needs_reverse = best
+        if distance > bridge_m:
+            # Nothing left reaches the chain. Joining anyway would invent a
+            # kilometres-long straight leg and inflate every mile figure
+            # measured along the course afterwards.
+            lengths = ", ".join(
+                f"{line_length_m(s) / 1609.344:.2f} mi" for s in usable
+            )
+            warnings.append(
+                f"{len(usable)} segment(s) could not be joined and were left "
+                f"out ({lengths}) - the nearest was {distance:,.0f} m from the "
+                f"course. They are usually start or finish chutes, or belong "
+                f"to another route. Check the map, and add them as their own "
+                f"course if they are real."
+            )
+            break
+
+
         segment = usable.pop(index)
         if needs_reverse:
             segment = reverse(segment)
