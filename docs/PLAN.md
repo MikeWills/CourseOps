@@ -514,6 +514,15 @@ Things discovered but not yet acted on. Each is a real constraint, not a wish.
   deficiency. That is a reason to choose defaults well, never a reason to cap
   the count - a club with a mile marker layer of 26 pins wants it switched off
   by default, which the `visible` flag covers.
+- *Two teams, two alphabets: should the app disambiguate?* - **No.** Medical
+  and the water stops are numbered independently, so the medical team's Juliet
+  and the water stops' Juliet are different corners, and a bare "Juliet" on the
+  net means two things. The app could prefix names with their layer
+  automatically, but then the screen would say "Water Stops Juliet" while the
+  radio says "Juliet" - inventing a second vocabulary. Decided instead that the
+  club names the points explicitly ("Ham Alpha", "Medic Alpha"), so the map says
+  exactly what people say. The place-rename table shows each point's layer while
+  you type, which is what makes that practical.
 - **Colour specification pending** from the club; see Visual design above.
 - ~~**Static asset caching.**~~ Tracked in issue #5.
 - **Operator runbook is a draft.** `docs/RUNBOOK.md` exists and covers what is

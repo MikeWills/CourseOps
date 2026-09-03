@@ -19,7 +19,8 @@ import re
 import sqlite3
 from typing import Any
 
-from . import access, db, geo, importer, leaders, progress, styling, what3words
+from . import (access, categories, db, geo, importer, leaders, progress,
+               styling, what3words)
 
 
 def _row(row: sqlite3.Row) -> dict[str, Any]:
@@ -208,6 +209,12 @@ def delete_course(conn: sqlite3.Connection, event_id: int, course_id: int) -> No
 
 
 def list_pois(conn: sqlite3.Connection, event_id: int) -> list[dict]:
+    # The club's own name for each layer, so a table listing places from
+    # several layers says which is which while you rename them.
+    layers = {
+        row["key"]: row
+        for row in categories.poi_categories(conn, event_id)
+    }
     index = progress.CourseIndex.for_event(conn, event_id)
     rows = conn.execute(
         "SELECT * FROM poi WHERE event_id = ?", (event_id,)
@@ -215,6 +222,10 @@ def list_pois(conn: sqlite3.Connection, event_id: int) -> list[dict]:
     out = []
     for row in index.order_along_course(rows):
         entry = _row(row)
+        layer = layers.get(row["poi_type"])
+        entry["layer_name"] = layer["name"] if layer else row["poi_type"]
+        entry["layer_icon"] = layer["icon"] if layer else "pin"
+        entry["layer_color"] = layer["color"] if layer else None
         located = index.locate(row["lat"], row["lon"])
         entry["distance_along_m"] = located.distance_along_m if located else None
         out.append(entry)
