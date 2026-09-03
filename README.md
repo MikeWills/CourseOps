@@ -79,6 +79,9 @@ Everything else - the map, the course import, the roster, the whole setup UI -
 works without it, and it will tell you that live tracking is off rather than
 refusing to start.
 
+A **Raspberry Pi** works too, with no special steps - see
+[`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
+
 ### Linux, macOS, or a server: pip
 
 `pip` is universal here, so there is no separate download. Six commands from
