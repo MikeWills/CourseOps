@@ -1071,3 +1071,27 @@ def test_a_failed_setup_change_publishes_nothing(setup, tmp_path):
                         json={"name": "Floater"})
             assert ws.receive_json()["type"] == "resync"
             ws.close()
+
+
+def test_moving_places_is_not_swallowed_by_the_poi_id_route(setup, tmp_path):
+    """FastAPI matches routes in declaration order, so /pois/move has to be
+    declared before /pois/{poi_id} or the word "move" is parsed as an id and
+    the request 422s. It failed silently in the UI - the button just did
+    nothing - which is why this is pinned.
+    """
+    app, _, db_path, event_id = setup
+    _make_admin(db_path)
+
+    conn = db.connect(db_path)
+    poi_ids = [r["id"] for r in conn.execute(
+        "SELECT id FROM poi WHERE event_id = ?", (event_id,))]
+    conn.close()
+
+    with TestClient(app) as client:
+        client.post("/api/setup/login",
+                    json={"username": "mike", "password": "a-long-enough-password"})
+        moved = client.post(f"/api/setup/events/{event_id}/pois/move",
+                            json={"poi_ids": poi_ids, "poi_type": "medical"})
+
+    assert moved.status_code == 200, moved.text
+    assert moved.json()["moved"] == len(poi_ids)

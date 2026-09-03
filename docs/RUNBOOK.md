@@ -170,6 +170,12 @@ medical, traffic control, portable toilets. Add as many as you need, name each
 in your own words, and give it an icon and a colour - each becomes a switch on
 the map.
 
+**Expect everything to arrive in one layer.** Organizer KML is usually a flat
+list rather than a folder per kind of place, so after importing you sort it:
+Setup -> **Aid stations**, tick the rows that belong together, and move them to
+the right layer in one go. Do this before naming things, so you are naming
+within a layer rather than hunting through a mixed list.
+
 The one setting that matters operationally is **"We staff these"**. Tick it when
 we put an operator at that kind of place and track them. Staffed layers can have
 someone posted to them from the Roster tab and can report a lead runner; an

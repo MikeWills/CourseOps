@@ -125,3 +125,18 @@ def test_end_to_end_import_of_the_real_file(tmp_path):
     assert conn.execute(
         "SELECT COUNT(*) FROM poi WHERE event_id = ?", (event_id,)
     ).fetchone()[0] == 2
+
+
+def test_the_real_export_has_no_folders():
+    """A real-data finding, recorded so a change cannot quietly assume otherwise.
+
+    The Mankato MapMyRun export has no <Folder> elements at all: every placemark
+    sits in one flat list. So an organizer's points do NOT arrive pre-sorted
+    into layers, and a club has to move them after import - which is why the
+    Places table can move a selection into a layer in one go.
+
+    If a file ever does arrive with folders, that is an opportunity (seed layers
+    from the folder names) rather than a problem, but nothing may depend on it.
+    """
+    text = FIXTURE.read_text(encoding="utf-8")
+    assert "<Folder>" not in text

@@ -701,6 +701,24 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
             conn.close()
         return JSONResponse({"deleted": course_id})
 
+    # Declared before /pois/{poi_id}: FastAPI matches in declaration order,
+    # so with the parameterised route first this one is never reached - the
+    # word "move" gets parsed as a poi_id and the request 422s. The failure
+    # is quiet in the UI, which just does nothing.
+    @app.post("/api/setup/events/{event_id}/pois/move")
+    async def setup_move_pois(event_id: int, request: Request) -> JSONResponse:
+        conn, user = require_event_admin(request, event_id)
+        body = await _json_body(request, conn)
+        try:
+            moved = _guard(
+                admin.move_pois, conn, event_id,
+                body.get("poi_ids") or [], (body.get("poi_type") or "").strip(),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+        return JSONResponse({"moved": moved})
+
     @app.post("/api/setup/events/{event_id}/pois/{poi_id}")
     async def setup_update_poi(
         event_id: int, poi_id: int, request: Request

@@ -167,7 +167,17 @@
       <button data-goto="events" type="button">Go to Events</button></p>
     <h2>Courses</h2>
     <div id="course-table"></div>
-    <h2>Aid stations <span class="muted">in course order</span></h2>
+    <h2>Places <span class="muted">in course order</span></h2>
+    <p class="muted">
+      Organizer KML is usually one flat list, so everything arrives in a single
+      layer. Tick the ones that belong together and move them in one go.
+    </p>
+    <div id="poi-bulk" class="row" hidden>
+      <span id="poi-selected" class="muted"></span>
+      <label class="field" style="max-width:220px"><span>Move to layer</span>
+        <select id="poi-move-to"></select></label>
+      <button id="poi-move" class="primary" type="button">Move</button>
+    </div>
     <div id="poi-table"></div>
   </section>
 

@@ -40,7 +40,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 326 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 336 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -340,6 +340,13 @@ usability, not style preferences.
   virtualenv.** A missing dependency (`python-multipart`) that this machine
   happened to have made the app fail to boot for everyone else, and no test
   caught it because tests run in the developed environment.
+- **Organizer KML is one flat list, not a folder per kind of place.** The real
+  Mankato export has no `<Folder>` elements, so everything imports into one
+  layer and a club sorts it afterwards - which is why the Places table can move
+  a selection in bulk. Never assume points arrive pre-sorted.
+- **Declare literal routes before parameterised ones.** `/pois/move` after
+  `/pois/{poi_id}` is never reached: FastAPI matches in order, "move" parses as
+  an id, and the UI button silently does nothing.
 - **CLI output stays ASCII.** Em dashes become mojibake in the Windows console,
   and a club laptop is the target environment.
 
@@ -393,6 +400,8 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-03** Places can be moved between layers in bulk; organizer KML arrives as one flat list.
+- **2026-09-03** Tunnels documented as the alternative to web hosting, with ngrok's free-tier caveat.
 - **2026-09-03** Fixed: a fresh install would not boot; `python-multipart` was undeclared.
 - **2026-09-03** Rewrote README getting-started against a verified cold start.
 - **2026-09-03** Setup changes now push to the field live instead of waiting for a refresh.
@@ -401,5 +410,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-03** Fixed: lead runner sightings broke silently when an aid station layer was renamed.
 - **2026-09-02** Added the SAG role with its own link and per-capability permissions.
 - **2026-09-02** Incidents split into pickups and course notes; added a "dropped off" step.
-- **2026-09-02** SAG can order the pickup queue by proximity, client-side only.
-- **2026-09-02** Table row actions became labelled icon buttons; fixed Delete never rendering red.

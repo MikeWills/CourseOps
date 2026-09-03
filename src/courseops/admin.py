@@ -242,8 +242,13 @@ def update_poi(conn: sqlite3.Connection, event_id: int, poi_id: int,
         fields.append("name = ?")
         values.append(name)
     if "poi_type" in payload:
+        # Must be a layer that exists. An unknown key would leave the place
+        # drawn in no layer until something re-seeded one for it, which is a
+        # confusing way to lose a pin off the map.
+        key = (payload.get("poi_type") or "aid_station").strip()
+        categories.get_poi_category(conn, event_id, key)
         fields.append("poi_type = ?")
-        values.append((payload.get("poi_type") or "aid_station").strip())
+        values.append(key)
     if "what3words" in payload:
         words = payload.get("what3words")
         if words and not what3words.is_plausible(words):
@@ -266,6 +271,29 @@ def update_poi(conn: sqlite3.Connection, event_id: int, poi_id: int,
     if cur.rowcount == 0:
         raise ValueError(f"No aid station with id {poi_id} in this event.")
     return _row(conn.execute("SELECT * FROM poi WHERE id = ?", (poi_id,)).fetchone())
+
+
+def move_pois(conn: sqlite3.Connection, event_id: int,
+              poi_ids: list[int], key: str) -> int:
+    """Move several places into a layer at once.
+
+    Organizer KML is usually one flat list - the real Mankato export has no
+    folders at all - so every marker arrives in a single layer and has to be
+    sorted afterwards. Doing that one row at a time for thirty points is the
+    kind of chore that gets abandoned half-finished, which leaves the map
+    lying about what is where.
+    """
+    categories.get_poi_category(conn, event_id, key)
+    ids = [int(i) for i in poi_ids or []]
+    if not ids:
+        raise ValueError("Select at least one place to move.")
+
+    placeholders = ",".join("?" for _ in ids)
+    cur = conn.execute(
+        f"UPDATE poi SET poi_type = ? WHERE event_id = ? AND id IN ({placeholders})",
+        [key, event_id, *ids],
+    )
+    return int(cur.rowcount)
 
 
 def delete_poi(conn: sqlite3.Connection, event_id: int, poi_id: int) -> None:
