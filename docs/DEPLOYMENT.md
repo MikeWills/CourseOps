@@ -148,8 +148,9 @@ sudo -u courseops .venv/bin/pip install -e .
 
 sudo -u courseops cp .env.example .env
 sudo -u courseops nano .env          # set APRS_CALLSIGN; leave the passcode -1
-sudo -u courseops .venv/bin/courseops init-db
 ```
+
+The database creates itself on first start - there is no separate setup step.
 
 `APRS_PASSCODE` stays `-1`. That is read-only access to APRS-IS, and the app
 never transmits — there is no reason for a real passcode to exist on the server.
