@@ -1095,3 +1095,25 @@ def test_moving_places_is_not_swallowed_by_the_poi_id_route(setup, tmp_path):
 
     assert moved.status_code == 200, moved.text
     assert moved.json()["moved"] == len(poi_ids)
+
+
+def test_every_static_asset_the_pages_reference_is_packaged():
+    """A built wheel shipped no static files at all, so `pip install courseops`
+    produced an app whose every page 404'd. Nobody noticed because development
+    uses `pip install -e .`, which reads from the source tree.
+
+    This checks the manifest rather than the build: every asset the HTML asks
+    for has to be inside the package directory, which is what gets packaged.
+    """
+    import re
+    from courseops import web
+
+    static = web.STATIC_DIR
+    referenced = set()
+    for page in ("index.html", "setup.html"):
+        html = (static / page).read_text(encoding="utf-8")
+        referenced |= set(re.findall(r'(?:src|href)="/static/([^"?]+)"', html))
+
+    assert referenced, "no assets found - the check itself is broken"
+    missing = sorted(name for name in referenced if not (static / name).exists())
+    assert not missing, f"referenced but not present: {missing}"
