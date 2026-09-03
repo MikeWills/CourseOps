@@ -19,6 +19,73 @@ Everything else degrades gracefully without TLS. That one feature does not.
 
 ---
 
+## The short way: a tunnel
+
+If you are standing something up for one event rather than running a server all
+year, you do not need Apache, DNS or certbot. A tunnel gives you a public HTTPS
+address pointing at the app on your own machine, and it hands you a certificate
+for free. This is the least effort path to a working location dot.
+
+Whichever you use, the tunnel terminates TLS and speaks plain HTTP to the app
+on localhost, so **two flags matter**:
+
+```bash
+courseops serve <event> --behind-proxy --base-url https://<your-tunnel-host>
+```
+
+- `--behind-proxy` - without it the app sees "http", and admin session cookies
+  silently lose their `Secure` flag in the one deployment where it matters.
+- `--base-url` - so the role links it prints carry the tunnel address rather
+  than `localhost`, which is what you are about to send to volunteers.
+
+The default `--trusted-proxy 127.0.0.1` is already correct: all of these agents
+run on the same machine and connect over the loopback.
+
+### Tailscale
+
+If your club already uses Tailscale this is the least work of all, and it comes
+in two flavours that answer two different questions.
+
+```bash
+tailscale serve 8000     # HTTPS, visible to your tailnet only
+tailscale funnel 8000    # HTTPS, visible to the whole internet
+```
+
+**`serve` is the one for testing.** Your own phone gets a real HTTPS address, so
+geolocation works and you can walk the course with it, while nothing is exposed
+beyond your own devices. That is the gap the LAN setup cannot close.
+
+**`funnel` is for the event**, when volunteers who are not on your tailnet need
+in. Funnel's public side must use port 443, 8443 or 10000.
+
+### Cloudflare Tunnel or ngrok
+
+Both work the same way and neither needs a domain for a quick tunnel:
+
+```bash
+cloudflared tunnel --url http://localhost:8000
+ngrok http 8000
+```
+
+They print a random public hostname; pass it to `--base-url`. Check whether your
+plan shows an interstitial page before the site - a volunteer meeting one on
+race morning will assume the link is broken.
+
+### What a tunnel does not change
+
+Anyone holding a role link can use it, and now from anywhere rather than from
+your wifi. That is already the access model - the links are bearer tokens - but
+a public tunnel widens the audience from "people in the building" to "people who
+have the URL", so treat a leaked link accordingly and revoke it with
+`courseops revoke-link`. Nothing else about the security model changes: there is
+still no public view, and an invalid token still gets a 404.
+
+Tunnels are also a dependency you do not control on race morning. For a single
+event that is usually an acceptable trade against configuring Apache; for a club
+running this every year, the rest of this document is the sturdier answer.
+
+---
+
 ## 1. Install
 
 ```bash
