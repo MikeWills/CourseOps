@@ -1463,7 +1463,13 @@ function applyState(data) {
   if (Array.isArray(data.divisions)) state.divisions = data.divisions;
   state.leaders = data.leaders || [];
   state.ssidAlerts = data.ssid_alerts || [];
-  state.aidStations = (data.pois || []).filter((p) => p.poi_type === 'aid_station');
+  // Which places can report a lead runner is the layer's `staffed` flag, not a
+  // hardcoded 'aid_station' - the server already answers it that way, and the
+  // two disagreeing would mean a staffed Traffic control post could be sighted
+  // at on the server and be missing from this list.
+  const staffed = new Set(
+    (data.poi_categories || []).filter((c) => c.staffed).map((c) => c.key));
+  state.aidStations = (data.pois || []).filter((p) => staffed.has(p.poi_type));
 
   if (firstLoad) {
     const prefs = loadPrefs();

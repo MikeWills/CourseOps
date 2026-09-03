@@ -47,6 +47,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   "Parking" lasted until the next page load. Defaults are now seeded only into
   an event that has none at all.
 
+#### Fixed
+- **Setup changes never reached the field.** Only the two SSID endpoints pushed
+  anything, so renaming a station, a layer or a role mid-event left every phone
+  showing the old name until somebody happened to refresh - and silently, since
+  NCS watches it change on their own screen and reasonably assumes everyone has
+  it. Renaming mid-event is exactly what happens when the net discovers two
+  teams are using different words for the same corner.
+
+  Fixed with one middleware rather than a dozen endpoint edits: any successful
+  `POST /api/setup/events/{id}/...` publishes a resync. One place cannot be
+  forgotten, and a new setup endpoint gets it for free. A rejected edit
+  publishes nothing.
+
+  A resync reloads data, not the page: the map view, layer switches, course
+  switches and operator initials all survive it, because those are restored
+  only on first load. A real browser refresh keeps them too, from
+  `localStorage`.
+
+- **The lead runner sighting list still filtered on `poi_type == 'aid_station'`
+  in the client**, so a staffed Traffic control post could be sighted at on the
+  server and be missing from the list on screen. It keys off `staffed` now, the
+  same as everything else.
+
 #### Changed
 - The place-rename table names each point's **layer** with its glyph, instead of
   the raw `poi_type` key. You rename points from several layers in one table, so

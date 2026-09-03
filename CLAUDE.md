@@ -331,6 +331,11 @@ usability, not style preferences.
   people not to trust the screen.
 - **Refuse to delete a layer that still has places.** They would stay in the
   database, vanish from the map, and nothing would say why.
+- **Every setup change publishes a resync.** One middleware on
+  `POST /api/setup/events/{id}/...`, never per-endpoint - a renamed station has
+  to reach the field, and the failure is silent because NCS sees their own
+  screen update. Resync reloads data, not the page: view and layer choices are
+  restored only on first load, so they survive.
 - **CLI output stays ASCII.** Em dashes become mojibake in the Windows console,
   and a club laptop is the target environment.
 
