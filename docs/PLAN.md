@@ -221,8 +221,9 @@ the organizer's identifier — we will never have the bib-to-name mapping and sh
 not want it.
 
 All pin mutations go through one server-side endpoint that records who and when,
-regardless of role, so granting a field role write access later is a permission
-flag (`WRITE_ROLES`) rather than a rewrite.
+regardless of role. Permission is per capability (`access.ROLE_CAPABILITIES`),
+so widening a role is a change to that table rather than to the endpoints - which
+is how SAG gained the pickup queue and nothing else.
 
 ## Key domain decisions
 
@@ -271,7 +272,10 @@ flag (`WRITE_ROLES`) rather than a rewrite.
 - *Who maintains What3Words?* - NCS, by hand. No API; it is a paid service.
 - *Liaison and Logistics: one role or two?* - Two. Different teams (Liaison with
   Public Safety/Medics, Logistics on traffic/cones/teardown), separate links so
-  one can be revoked alone. Both read-only in v1.
+  one can be revoked alone. Both read-only.
+- *Does SAG need its own role?* - Yes, added later. Their question is "who am I
+  going to collect", not "where is everyone", and they were reading a view built
+  for road clearance. The only field role that writes, and only the pickup queue.
 - *Multiple NCS operators?* - Yes, typically sharing one workstation. A shared
   role link covers it; operator initials (Phase 6) handle shift handover.
 - *Overlapping courses?* - Solved by adjustable draw order, not forced dashes.

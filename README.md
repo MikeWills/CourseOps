@@ -26,7 +26,10 @@ Not yet deployed anywhere — it runs locally.
 - Track sweeps, SAG and rovers live, with no page refresh
 - Give Net Control a roster panel showing who is on station and who has gone quiet
 - Give the Public Safety liaison the same map on a phone, filtered to what matters
-- Let NCS drop pickup pins tracked by bib number
+- Let NCS drop pickup pins tracked by bib number, and give SAG their own view of
+  the pickup queue - orderable by which one is nearest the vehicle
+- Record course notes on the map (a blocked intersection, a confusing turn) for
+  the organizer to read after the event
 
 ## Design notes
 
@@ -81,8 +84,13 @@ courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" \
     --date 2026-04-11 --timezone America/Chicago --lat 34.73 --lon -86.58
 
-# Someone who beacons (sweep following the last runner)
-courseops add-station marathon2026 N0CALL-7 "Half-back" --category sweep
+# The callsign alone is enough. The SSID belongs to whichever radio or phone
+# app they bring on the day, so the app binds the entry to the first SSID it
+# hears that looks like a person rather than a digipeater.
+courseops add-station marathon2026 N0CALL "Half-back" --category sweep
+
+# Give an SSID yourself only when you know it and want to pin it
+courseops add-station marathon2026 N0CALL-7 "Full-back" --category sweep
 
 # Someone assigned but not beaconing — excluded from the APRS-IS filter and
 # from staleness alerting, which is typical for aid station operators
@@ -131,13 +139,24 @@ That prints one link per role. Send each to the right group:
 
 ```
   Net Control   http://localhost:8000/e/m2026/KXPbeBeL...
+  SAG           http://localhost:8000/e/m2026/Nl0s3QBM...
   Liaison       http://localhost:8000/e/m2026/kKUjMiR_...
   Logistics     http://localhost:8000/e/m2026/9fQ2xLmT...
 ```
 
 These are bearer links - anyone holding one has that role, and there is no
-public view. Net Control can write; Liaison (with Public Safety and Medics) and
-Logistics (traffic control, cones, teardown) are read-only. Revoke a leaked link
+public view. Permission is per capability rather than one write flag:
+
+| Role | Can change |
+|---|---|
+| Net Control | Everything |
+| SAG | The pickup queue only - en route, picked up, dropped off, and the bib |
+| Liaison | Nothing. Embedded with Public Safety and Medics |
+| Logistics | Nothing. Traffic control, cones, teardown |
+
+SAG is scoped deliberately: a bearer link lives in a moving vehicle, so a lost
+phone should cost one incident queue rather than the roster and the links.
+Revoke a leaked link
 with `courseops revoke-link m2026 <id>` and issue a fresh one with
 `courseops links m2026 --new liaison`.
 

@@ -203,12 +203,13 @@ usability, not style preferences.
 - **Liaison and Logistics are different teams, not one role.** Liaison is
   embedded with Public Safety and Medics; Logistics is in the field doing traffic
   control, cone placement and teardown. Separate links so one can be revoked
-  alone. Both read-only in v1 (`WRITE_ROLES`).
+  alone. Both read-only.
 - **Sweeps stay visible to Logistics.** The sweep is the back of the pack, so its
   position is what says a road is clear and the cones can come up.
-- **Every mutation goes through `require_write()`.** One place enforces role
-  permission, so granting a field role write access is a `WRITE_ROLES` change.
-  A valid token in a read-only role gets 403; an invalid token still gets 404.
+- **Every mutation goes through `require_capability()`.** One place enforces
+  permission and each endpoint names what it needs, so widening a role is a
+  change to `ROLE_CAPABILITIES`. A valid token lacking the capability gets 403;
+  an invalid token still gets 404.
 - **Operator initials are a log annotation, never identity.** Free text, kept in
   the browser, truncated server-side. Nothing may start trusting it as auth.
 - **Behind a proxy the app cannot see the real scheme.** Run with
