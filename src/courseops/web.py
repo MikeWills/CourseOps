@@ -293,6 +293,34 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     app.state.hub = hub_module.Hub()
     app.state.ingest_tasks = []
 
+    # A setup change during an event has to reach the field, not wait for
+    # someone to pull to refresh.
+    #
+    # The failure this prevents is silent and one-sided: NCS renames a station
+    # mid-event, watches it change on their own screen, and reasonably assumes
+    # everyone has it - while every phone in the field still shows the old name
+    # and nobody has any reason to doubt what they are reading. Renaming
+    # stations mid-event is exactly what happens when the net discovers two
+    # teams are using different words for the same corner.
+    #
+    # Done here rather than in each endpoint on purpose. There are a dozen ways
+    # to change what the map shows and there will be more; one place cannot be
+    # forgotten, and a new setup endpoint gets this for free.
+    _SETUP_EVENT_PATH = re.compile(r"^/api/setup/events/(\d+)(?:/|$)")
+
+    @app.middleware("http")
+    async def publish_setup_changes(request: Request, call_next):
+        response = await call_next(request)
+        if request.method != "POST" or response.status_code >= 400:
+            return response
+        match = _SETUP_EVENT_PATH.match(request.url.path)
+        if match:
+            # A resync rather than a diff: setup edits rewrite whole sets -
+            # layers, roster, courses - which no incremental message expresses,
+            # and a resync cannot leave a client half-updated.
+            await app.state.hub.publish(int(match.group(1)), {"type": "resync"})
+        return response
+
     def get_conn() -> sqlite3.Connection:
         # SQLite connections are not shareable across threads; one per request
         # is cheap for this workload and avoids the whole question.

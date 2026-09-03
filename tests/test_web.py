@@ -1000,3 +1000,74 @@ def test_an_invalid_sag_token_is_still_a_404(setup):
         refused = client.post("/api/m2026/not-a-real-token/incidents",
                               json={"lat": 44.1, "lon": -93.9})
     assert refused.status_code == 404
+
+
+# --- setup changes reach the field ------------------------------------------
+
+def test_renaming_a_place_reaches_a_connected_map(setup, tmp_path):
+    """The failure this guards is silent and one-sided.
+
+    NCS renames a station mid-event - which is exactly what happens when the
+    net discovers two teams are using different words for the same corner -
+    watches it change on their own screen, and reasonably assumes everyone has
+    it. Without this, every phone in the field keeps showing the old name with
+    no reason to doubt what it is reading.
+    """
+    app, tokens, db_path, event_id = setup
+    _make_admin(db_path)
+
+    conn = db.connect(db_path)
+    poi_id = conn.execute(
+        "SELECT id FROM poi WHERE event_id = ?", (event_id,)
+    ).fetchone()["id"]
+    conn.close()
+
+    with TestClient(app) as client:
+        client.post("/api/setup/login",
+                    json={"username": "mike", "password": "a-long-enough-password"})
+        with client.websocket_connect(f"/ws/m2026/{tokens['liaison']}") as ws:
+            # The socket carries pushes only; state comes over HTTP on connect.
+            saved = client.post(
+                f"/api/setup/events/{event_id}/pois/{poi_id}",
+                json={"name": "Ham Alpha"},
+            )
+            assert saved.status_code == 200
+            assert ws.receive_json()["type"] == "resync"
+            ws.close()
+
+
+def test_renaming_a_layer_reaches_a_connected_map(setup, tmp_path):
+    app, tokens, db_path, event_id = setup
+    _make_admin(db_path)
+
+    with TestClient(app) as client:
+        client.post("/api/setup/login",
+                    json={"username": "mike", "password": "a-long-enough-password"})
+        with client.websocket_connect(f"/ws/m2026/{tokens['liaison']}") as ws:
+            client.post(f"/api/setup/events/{event_id}/categories/aid_station",
+                        json={"name": "Water Stops"})
+            assert ws.receive_json()["type"] == "resync"
+            ws.close()
+
+
+def test_a_failed_setup_change_publishes_nothing(setup, tmp_path):
+    """A rejected edit changed nothing, so telling every phone to reload would
+    be pure noise on a network that may be someone's phone data."""
+    app, tokens, db_path, event_id = setup
+    _make_admin(db_path)
+
+    with TestClient(app) as client:
+        client.post("/api/setup/login",
+                    json={"username": "mike", "password": "a-long-enough-password"})
+        with client.websocket_connect(f"/ws/m2026/{tokens['liaison']}") as ws:
+            refused = client.post(
+                f"/api/setup/events/{event_id}/categories",
+                json={"name": "   "},
+            )
+            assert refused.status_code == 400
+            # Prove the socket is quiet by making a change that DOES publish
+            # and seeing that arrive first.
+            client.post(f"/api/setup/events/{event_id}/roles/rover",
+                        json={"name": "Floater"})
+            assert ws.receive_json()["type"] == "resync"
+            ws.close()
