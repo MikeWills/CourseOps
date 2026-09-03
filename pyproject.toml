@@ -14,6 +14,12 @@ dependencies = [
     # The web server. Async throughout, which matters because one APRS-IS
     # connection feeds every browser over WebSockets from the same event loop.
     "fastapi>=0.110",
+    # Required by FastAPI to accept a file upload, which is how the organizer's
+    # KML/KMZ arrives. Not optional and not implied: without it the app raises
+    # on startup, so a fresh install from these dependencies alone would not
+    # boot at all. Found by installing into an empty virtualenv, which is the
+    # only way this class of omission shows up.
+    "python-multipart>=0.0.9",
     "uvicorn[standard]>=0.27",
 ]
 

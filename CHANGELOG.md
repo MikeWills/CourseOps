@@ -48,6 +48,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   an event that has none at all.
 
 #### Fixed
+- **A fresh install would not start at all.** `python-multipart` is required by
+  FastAPI to accept the KML upload and was never declared, so installing the
+  stated dependencies into an empty virtualenv produced an app that raised on
+  startup. It only worked here because something else had pulled it in. Found
+  by doing a cold start from a clean clone, which is the only way this class of
+  omission shows up.
+- **The callsign error told you to do what you had just done.** Copying
+  `.env.example` and not yet editing it produced "Copy .env.example to .env and
+  fill it in", which reads as the app not noticing. Two states now get two
+  messages: not set at all, and still the placeholder.
+
 - **Setup changes never reached the field.** Only the two SSID endpoints pushed
   anything, so renaming a station, a layer or a role mid-event left every phone
   showing the old name until somebody happened to refresh - and silently, since
