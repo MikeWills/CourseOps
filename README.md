@@ -140,6 +140,10 @@ internet. Cloudflare Tunnel and ngrok work too.
 
 Start the app with `--behind-proxy --base-url https://<tunnel-host>` so session
 cookies keep their `Secure` flag and the printed links carry the right address.
+
+One warning: **ngrok's free tier shows every visitor a click-through warning
+page** before your site, which a volunteer will read as a broken link. Use
+Cloudflare Tunnel or Tailscale for free, or a paid ngrok plan.
 `docs/DEPLOYMENT.md` has the detail, including what a tunnel does not change.
 
 ### On a real web server

@@ -53,7 +53,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   dot and the SAG "nearest me" sort. Tailscale, Cloudflare Tunnel and ngrok all
   work; `tailscale serve` is called out separately because it publishes over
   HTTPS to your own devices only, which is exactly what walking a course with a
-  phone needs. Everything required already existed (`--behind-proxy`,
+  phone needs. ngrok is written up with its caveat rather than as an equal
+  option: its free tier puts a click-through warning in front of all browser
+  traffic, and since clicking through sets a seven-day cookie, the person who
+  set it up stops seeing it long before the volunteers do - which is how that
+  ships by accident. Everything required already existed (`--behind-proxy`,
   `--base-url`, and a default trusted proxy of 127.0.0.1 that is correct for all
   of these); what was missing was saying so.
 
