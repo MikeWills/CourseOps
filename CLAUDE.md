@@ -377,6 +377,24 @@ usability, not style preferences.
 - **CLI output stays ASCII.** Em dashes become mojibake in the Windows console,
   and a club laptop is the target environment.
 
+## Working method
+
+**Changes reach `main` through a pull request, never a direct push.** Branch,
+commit, push the branch, open a PR, let CI finish.
+
+This is not ceremony on a one-person project. It is the only place where the
+whole change is visible at once instead of arriving as a sequence of commits
+nobody re-reads, and CI runs before `main` is affected rather than after. The
+tests are the safety net for behaviour; the PR is the safety net for judgement.
+
+- Branch names say what and why: `fix/stitch-invents-a-leg`,
+  `feat/sag-role`, `chore/pull-request-workflow`.
+- One PR per idea. A PR that fixes a bug *and* renames a module is two reviews
+  pretending to be one.
+- The PR description carries the reasoning; commit messages still carry the
+  detail. Neither is a substitute for the CHANGELOG entry.
+- Do not merge on red. If CI fails, the branch is the right place for that.
+
 ## Documentation discipline — do this every cycle
 
 Documentation is maintained as work happens, not batched up at the end. Batched
