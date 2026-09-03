@@ -7,6 +7,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-09-03 - A built wheel shipped no frontend
+
+#### Fixed
+- **`pip install courseops` produced an app whose every page 404'd.** The
+  packaging listed only `*.sql`, so a built wheel contained the Python and the
+  schema and none of the twenty static files - no HTML, CSS, JavaScript or
+  icons. The frontend has no build step, so those files *are* the application
+  rather than artefacts of one.
+
+  It went unnoticed because development uses `pip install -e .`, which reads
+  straight from the source tree and so always works. Only building a wheel and
+  looking inside it shows this, and nothing had ever built one.
+
+  Caught before the first release rather than after, while looking at what
+  distributing the app would involve. A test now asserts every asset the pages
+  reference is present in the package directory.
+
 ### 2026-09-03 - Reading a real organizer's files
 
 Four real files arrived - a points file and one per race - and changed several

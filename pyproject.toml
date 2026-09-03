@@ -37,7 +37,12 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [tool.setuptools.package-data]
-courseops = ["*.sql"]
+# The frontend has no build step, so these ARE the application - not artefacts
+# of one. Without the static entry a built wheel installs an app whose every
+# page 404s, and nobody notices because development uses `pip install -e .`,
+# which reads straight from the source tree. Found by building a wheel and
+# looking inside it, which is the only thing that shows this.
+courseops = ["*.sql", "static/*", "static/**/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

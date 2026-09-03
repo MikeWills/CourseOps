@@ -359,6 +359,10 @@ usability, not style preferences.
 - **A suggestion must name a layer that exists.** Otherwise assignment is
   refused and the UI just looks broken - which is why `END` is aliased onto the
   `finish` layer that ships by default.
+- **`static/` must be in `package-data`.** The frontend has no build step, so
+  those files ARE the app. A wheel without them installs something whose every
+  page 404s, and `pip install -e .` hides it completely because it reads the
+  source tree. Build a wheel and look inside before trusting a release.
 - **CLI output stays ASCII.** Em dashes become mojibake in the Windows console,
   and a club laptop is the target environment.
 
