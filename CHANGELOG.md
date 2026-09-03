@@ -7,6 +7,48 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### 2026-09-03 - Reading a real organizer's files
+
+Four real files arrived - a points file and one per race - and changed several
+assumptions.
+
+#### Added
+- **An exporter's attribute table is read out of `<description>`.** ArcGIS does
+  not use `ExtendedData`; it renders the whole attribute table into the
+  description as HTML and ships an XSL to style it. For the real file that is
+  the *only* place saying what a point is: all 78 placemarks are named after
+  their race ("10K", "ALL", "FULL"), while the description carries
+  `Type` = WATER / MM / FIRST AID / Exchange Zone / Start / END.
+
+  A narrow regex rather than an HTML parser: the markup is machine-generated and
+  uniform, we want five known cells, and taking a dependency to read a table
+  nobody styles is a poor trade. Anything that is not an attribute table yields
+  nothing and the old behaviour stands.
+
+- **The `Type` column decides the suggestion**, outright rather than as a hint -
+  the file is stating what the thing is, not hinting at it.
+
+- **Importing creates the layers the file names.** The exporter has already
+  decided them, so retyping them is busywork. Only the *layer* is created; the
+  places still stage as pending for a human to assign, which is the rule that
+  keeps a parking lot from filing itself as an aid station.
+
+  Known GIS shorthand is expanded into words a club would say on a net - MM
+  becomes "Mile markers", FIRST AID becomes "First aid" - and a tiny alias table
+  maps synonyms onto layers that already ship, so a file saying END suggests the
+  existing `finish` layer rather than a key nothing created.
+
+- **A numerous layer starts switched off.** The real file carries 48 mile
+  markers, and opening the map to 48 pins over the course is not what anyone
+  wants on race morning. The layer exists, off, one tap away.
+
+- **Labels come from the attributes** when the name does not distinguish
+  anything: "MM 12 (FULL)" rather than 78 rows all reading "FULL".
+
+#### Result
+Importing all four of their files stages 89 features, creates four layers, and
+files every one of the 78 points into the right one with nothing typed.
+
 ### 2026-09-03 - Sorting a flat import into layers
 
 #### Added

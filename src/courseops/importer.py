@@ -35,6 +35,78 @@ class ImportSummary:
     warnings: list[str]
 
 
+# GIS shorthand, expanded into words a club would actually say on a net, with a
+# sensible starting guess at whether we staff that kind of place. Anything not
+# listed keeps the exporter's own wording, title-cased.
+#
+# `visible` matters for mile markers specifically: a real file carried 48 of
+# them, and 48 pins on top of a course is not a map anybody wants opened by
+# default. The layer exists, switched off, one tap away.
+_KNOWN_TYPES: dict[str, tuple[str, bool, bool, str, str]] = {
+    # key: (name, staffed, visible, icon, colour)
+    "mm": ("Mile markers", False, False, "marker", "#5a6572"),
+    "water": ("Water stops", True, True, "cup", "#0072b2"),
+    "first_aid": ("First aid", False, True, "cross", "#b3261e"),
+    "exchange_zone": ("Exchange zones", True, True, "flag", "#e69f00"),
+    "start": ("Start", True, True, "flag", "#009e73"),
+    "end": ("Finish", True, True, "finish", "#009e73"),
+    "medical": ("Medical", False, True, "cross", "#b3261e"),
+    "parking": ("Parking", False, True, "car", "#5a6572"),
+    "toilets": ("Toilets", False, False, "toilet", "#6b5ea8"),
+}
+
+
+def ensure_layers_for(
+    conn: sqlite3.Connection, event_id: int, features: list
+) -> list[str]:
+    """Create a layer for every kind of place the file names.
+
+    The exporter often states what each point is - ArcGIS puts a `Type` column
+    in the attribute table - so the layers are already decided by the file and
+    making a human retype them is busywork. This creates the layer only; the
+    places themselves still stage as pending and are assigned by a person, which
+    is the rule that keeps a parking lot from filing itself as an aid station.
+
+    Returns the names of any layers it added, so the import summary can say so.
+    """
+    from . import categories
+
+    existing = {row["key"] for row in categories.poi_categories(conn, event_id)}
+    added: list[str] = []
+
+    for feature in features:
+        kind = (feature.attributes.get("Type") or "").strip()
+        if not kind or feature.geom_type != "point":
+            continue
+        key = kml.attribute_key(kind)
+        if not key or key in existing:
+            continue
+
+        name, staffed, visible, icon, color = _KNOWN_TYPES.get(
+            key, (kind.title(), False, True, "pin", None)
+        )
+        try:
+            row = categories.add_poi_category(
+                conn, event_id, name, staffed=staffed, icon=icon, color=color
+            )
+        except categories.CategoryError:
+            existing.add(key)
+            continue
+
+        # add_poi_category derives its key from the name, which for a friendly
+        # name ("Mile markers") is not the file's key ("mm"). The staged
+        # features point at the file's key, so that is the one that has to be
+        # stored - otherwise every suggestion would miss.
+        conn.execute(
+            "UPDATE poi_category SET key = ?, visible = ? WHERE id = ?",
+            (key, int(visible), row["id"]),
+        )
+        existing.add(key)
+        added.append(name)
+
+    return added
+
+
 def stage_file(
     conn: sqlite3.Connection, event_id: int, path: str | Path
 ) -> ImportSummary:
@@ -51,6 +123,11 @@ def stage_file(
 
     by_type: dict[str, int] = {}
     warnings: list[str] = []
+
+    # Layers first, so every staged feature's suggestion names one that exists
+    # and the review screen can offer it.
+    for layer_name in ensure_layers_for(conn, event_id, features):
+        warnings.append(f"Added a layer for {layer_name!r}, named by the file.")
 
     for feature in features:
         geometry = (

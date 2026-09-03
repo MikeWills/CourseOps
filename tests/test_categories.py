@@ -289,3 +289,80 @@ def test_an_unknown_layer_is_refused_on_a_single_edit(event):
     from courseops import admin
     with pytest.raises(categories.CategoryError):
         admin.update_poi(conn, event_id, poi_id, {"poi_type": "invented"})
+
+
+# --- layers named by the file ----------------------------------------------
+
+def test_a_files_own_types_become_layers(event):
+    """An exporter that states what each point is has already decided the
+    layers; making a human retype them is busywork. The places themselves still
+    stage as pending - only the layer is created."""
+    conn, event_id = event
+    from courseops import importer, kml
+
+    def point(kind):
+        desc = f"<table><tr><td>Type</td><td>{kind}</td></tr></table>"
+        return kml.KmlFeature(
+            name="ALL", folder="Points", geom_type="point",
+            coords=[(-93.9, 44.1)], description=desc,
+            attributes=kml.attributes_from_description(desc))
+
+    added = importer.ensure_layers_for(
+        conn, event_id, [point("WATER"), point("MM"), point("FIRST AID")])
+
+    assert set(added) == {"Water stops", "Mile markers", "First aid"}
+    keys = {c["key"] for c in categories.poi_categories(conn, event_id)}
+    assert {"water", "mm", "first_aid"} <= keys
+
+
+def test_a_numerous_layer_starts_switched_off(event):
+    """A real file carried 48 mile markers. Opening the map to 48 pins on top
+    of the course is not what anyone wants on race morning."""
+    conn, event_id = event
+    from courseops import importer, kml
+
+    desc = "<table><tr><td>Type</td><td>MM</td></tr></table>"
+    importer.ensure_layers_for(conn, event_id, [kml.KmlFeature(
+        name="ALL", folder="P", geom_type="point", coords=[(-93.9, 44.1)],
+        description=desc, attributes=kml.attributes_from_description(desc))])
+
+    assert not categories.get_poi_category(conn, event_id, "mm")["visible"]
+
+
+def test_importing_the_same_types_twice_adds_nothing(event):
+    """Courses arrive as several files, and a club re-imports after a fix."""
+    conn, event_id = event
+    from courseops import importer, kml
+
+    desc = "<table><tr><td>Type</td><td>WATER</td></tr></table>"
+    feature = kml.KmlFeature(
+        name="ALL", folder="P", geom_type="point", coords=[(-93.9, 44.1)],
+        description=desc, attributes=kml.attributes_from_description(desc))
+
+    first = importer.ensure_layers_for(conn, event_id, [feature])
+    second = importer.ensure_layers_for(conn, event_id, [feature])
+
+    assert first == ["Water stops"]
+    assert second == []
+
+
+def test_every_suggestion_names_a_layer_that_exists(event):
+    """The check that keeps the two halves honest: a suggestion pointing at a
+    layer nobody created is refused at assignment, which reads as the button
+    not working."""
+    conn, event_id = event
+    from courseops import importer, kml
+
+    features = []
+    for kind in ("WATER", "MM", "FIRST AID", "Exchange Zone", "Start", "END"):
+        desc = f"<table><tr><td>Type</td><td>{kind}</td></tr></table>"
+        features.append(kml.KmlFeature(
+            name="ALL", folder="P", geom_type="point", coords=[(-93.9, 44.1)],
+            description=desc, attributes=kml.attributes_from_description(desc)))
+
+    importer.ensure_layers_for(conn, event_id, features)
+    layers = {c["key"] for c in categories.poi_categories(conn, event_id)}
+
+    for feature in features:
+        key = feature.suggest().removeprefix("poi:")
+        assert key in layers, f"{feature.attributes['Type']} -> {key} has no layer"

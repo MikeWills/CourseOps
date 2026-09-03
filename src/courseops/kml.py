@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import re
 import zipfile
+from html import unescape
 from dataclasses import dataclass, field
 from pathlib import Path
 from defusedxml import ElementTree as SafeElementTree
@@ -78,6 +79,11 @@ class KmlFeature:
     # by style — MapMyRun names both the start and the finish after the route.
     # Without this they are indistinguishable in the review list.
     style_id: str | None = None
+    # The exporter's attribute table, when the description carries one. ArcGIS
+    # renders it as HTML rather than using ExtendedData, and for some files it
+    # is the ONLY thing distinguishing a water stop from a mile marker - every
+    # placemark being named after its race instead.
+    attributes: dict[str, str] = field(default_factory=dict)
     warnings: list[str] = field(default_factory=list)
 
     @property
@@ -93,8 +99,29 @@ class KmlFeature:
         return self.name.strip().lower() not in _MEANINGLESS_NAMES
 
     @property
+    def attribute_label(self) -> str | None:
+        """A label built from the exporter's own attribute table, if it has one.
+
+        A real file needed this: every one of 78 placemarks was named after its
+        race - "10K", "ALL", "FULL" - so the review list read as 78 rows of the
+        same three words. Type and NUM turn that into "MM 12" and "WATER",
+        which is the difference between a reviewable list and a wall.
+        """
+        kind = (self.attributes.get("Type") or "").strip()
+        if not kind:
+            return None
+        number = (self.attributes.get("NUM") or "").strip()
+        return f"{kind} {number}".strip()
+
+    @property
     def label(self) -> str:
         """Best available human label, falling back to the folder path."""
+        from_attributes = self.attribute_label
+        if from_attributes:
+            # The name is usually the race here, which is worth keeping as
+            # context but is useless on its own.
+            race = (self.attributes.get("Race") or "").strip()
+            return f"{from_attributes} ({race})" if race else from_attributes
         if self.has_useful_name:
             return self.name.strip()
         if self.folder:
@@ -108,6 +135,13 @@ class KmlFeature:
         and have the operator classify it than to silently file a parking lot
         as an aid station.
         """
+        # An exporter's own attribute table beats any guess we could make from
+        # the text, so it wins outright when present. This is not a hint - the
+        # file is stating what the thing is.
+        kind = (self.attributes.get("Type") or "").strip()
+        if kind and self.geom_type == "point":
+            return f"poi:{attribute_key(kind)}"
+
         # style_id is included because it is sometimes the ONLY thing that
         # distinguishes two placemarks (see the field's note). Underscores and
         # hyphens become spaces first: '_' is a word character, so a \b-anchored
@@ -131,6 +165,70 @@ class KmlFeature:
         if _AID_HINTS.search(text):
             return "poi:aid_station"
         return "unassigned"
+
+
+# GIS exporters (ArcGIS in particular) do not put attributes in ExtendedData.
+# They render the whole attribute table into <description> as an HTML table and
+# ship an XSL alongside to style it. The real information about a place -
+# whether it is a water stop, a mile marker, a first aid post, and which race it
+# belongs to - lives in there and nowhere else.
+#
+# A real file made this worth parsing: 78 placemarks all named after their race
+# ("10K", "ALL", "FULL"), whose descriptions carry Type=WATER / MM / FIRST AID /
+# Exchange Zone / Start / END. Without reading the table there is nothing to
+# tell one pin from another; with it, every point files itself.
+#
+# Deliberately a narrow regex over the CDATA rather than an HTML parse: the
+# markup is machine-generated and uniform, we want four or five known cells from
+# it, and adding an HTML parser as a dependency to read a table nobody styles is
+# a poor trade. If it does not match, the caller gets an empty dict and falls
+# back to the name, which is the behaviour we had before.
+_ATTR_ROW = re.compile(
+    r"<td[^>]*>\s*([^<>]{1,60}?)\s*</td>\s*<td[^>]*>\s*(.*?)\s*</td>",
+    re.S | re.I,
+)
+_NULLISH = {"", "<null>", "&lt;null&gt;", "null", "none"}
+
+
+# An exporter's word for something we already have a layer for. Without this,
+# a file saying Type=END suggests a layer key "end" while the event has one
+# called "finish", and the assignment is refused for naming a layer that does
+# not exist. Kept deliberately tiny: only synonyms for layers that ship by
+# default, never an attempt to guess at a club's own vocabulary.
+_TYPE_ALIASES = {
+    "end": "finish",
+    "finish_line": "finish",
+    "start_line": "start",
+}
+
+
+def attribute_key(value: str) -> str:
+    """`FIRST AID` -> `first_aid`. Matches categories.slugify deliberately, so
+    a layer created from a file's own attribute lines up with the layer key a
+    club would get by typing the same words into the setup screen."""
+    key = re.sub(r"[^a-z0-9]+", "_", (value or "").strip().lower()).strip("_")[:40]
+    return _TYPE_ALIASES.get(key, key)
+
+
+def attributes_from_description(description: str | None) -> dict[str, str]:
+    """Pull an exporter's attribute table out of a description blob.
+
+    Returns {} for anything that is not one, which includes every hand-written
+    description and every file from an exporter that uses ExtendedData properly.
+    """
+    if not description or "<td" not in description.lower():
+        return {}
+
+    found: dict[str, str] = {}
+    for key, value in _ATTR_ROW.findall(description):
+        key = unescape(key).strip()
+        value = unescape(re.sub(r"<[^>]+>", "", value)).strip()
+        if not key or key in found:
+            continue
+        if value.lower() in _NULLISH:
+            value = ""
+        found[key] = value
+    return found
 
 
 def _local(tag: str) -> str:
@@ -241,6 +339,7 @@ def _features_from_placemark(
                 coords=coords,
                 description=description,
                 style_id=style_id,
+                attributes=attributes_from_description(description),
                 warnings=warnings,
             )
         )
