@@ -156,6 +156,35 @@ button:disabled { opacity: 0.65; cursor: progress; }
    The form underneath would post to a nonexistent event and fail with
    something unhelpful, so it is hidden outright rather than merely warned
    over - the banner alone left a live form sitting under it. */
+.icon-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+}
+.icon-opt {
+  display: inline-grid;
+  place-items: center;
+  width: 34px; height: 34px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: none;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.icon-opt:hover { background: #eef2f7; }
+/* Selection is a filled chip, not a colour change: the glyph itself is the
+   thing being chosen, so it must not change appearance when picked. */
+.icon-opt.is-on {
+  background: var(--navy-700);
+  border-color: var(--navy-700);
+  color: #fff;
+}
+.layer-glyph { display: inline-grid; place-items: center; }
+
 .needs-event {
   display: flex;
   flex-wrap: wrap;

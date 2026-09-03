@@ -507,6 +507,13 @@ Things discovered but not yet acted on. Each is a real constraint, not a wish.
 - **Course notes have no export** - issue #7. Their whole value is the organizer
   reading them after the event, which currently means reading them off a screen
   before the database is cleared.
+- ~~**Place types were a fixed list.**~~ Resolved: `poi_category` is per-event
+  data with no limit, and `staffed` replaced the hardcoded `aid_station` check.
+  The remaining constraint is display, not storage: past a handful of layers,
+  icon-plus-colour stops being reliably distinguishable outdoors and with colour
+  deficiency. That is a reason to choose defaults well, never a reason to cap
+  the count - a club with a mile marker layer of 26 pins wants it switched off
+  by default, which the `visible` flag covers.
 - **Colour specification pending** from the club; see Visual design above.
 - ~~**Static asset caching.**~~ Tracked in issue #5.
 - **Operator runbook is a draft.** `docs/RUNBOOK.md` exists and covers what is

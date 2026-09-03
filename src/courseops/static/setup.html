@@ -59,6 +59,7 @@
     <button class="tab is-on" data-tab="events" type="button">Events</button>
     <button class="tab" data-tab="course" type="button">Course</button>
     <button class="tab" data-tab="stations" type="button">Aid stations</button>
+    <button class="tab" data-tab="layers" type="button">Layers</button>
     <button class="tab" data-tab="roster" type="button">Roster</button>
     <button class="tab" data-tab="links" type="button">Links</button>
     <button class="tab" data-tab="users" type="button" hidden>Users</button>
@@ -148,13 +149,6 @@
           <label class="field"><span>Type</span>
             <select id="assign-type">
               <option value="course">Course</option>
-              <option value="aid_station">Aid station</option>
-              <option value="start">Start</option>
-              <option value="finish">Finish</option>
-              <option value="start_finish">Start / finish</option>
-              <option value="medical">Medical</option>
-              <option value="parking">Parking</option>
-              <option value="other">Other</option>
             </select></label>
         </div>
         <label class="check"><input id="assign-reverse" type="checkbox">
@@ -175,6 +169,48 @@
     <div id="course-table"></div>
     <h2>Aid stations <span class="muted">in course order</span></h2>
     <div id="poi-table"></div>
+  </section>
+
+  <section class="panel" data-panel="layers" data-needs-event hidden>
+    <p class="needs-event" hidden>Pick an event first — everything on this
+      tab belongs to one event.
+      <button data-goto="events" type="button">Go to Events</button></p>
+    <h2>Place layers</h2>
+    <p class="muted">
+      Whatever kinds of place this event has. Organizers draw different things —
+      mile markers, medical, traffic control, portable toilets — so this list is
+      yours, and there is no limit on it. Each one is a layer that can be turned
+      on and off on the map.
+    </p>
+    <div id="layer-table"></div>
+
+    <form id="layer-form" class="card">
+      <h3>Add a layer</h3>
+      <div class="row">
+        <label class="field"><span>Name</span>
+          <input id="lay-name" type="text" placeholder="Traffic control" required></label>
+        <label class="field"><span>Colour</span>
+          <input id="lay-color" type="color" value="#0072b2"></label>
+      </div>
+      <label class="field"><span>Icon</span>
+        <div id="lay-icon-picker" class="icon-picker"></div></label>
+      <label class="check"><input id="lay-staffed" type="checkbox">
+        <span>We staff these
+          <small>Tick when we put an operator here and track them. Staffed
+          layers can have someone posted to them and can report a lead runner;
+          a mile marker or a portable toilet is just a pin on the map.</small>
+        </span></label>
+      <p id="layer-error" class="error" hidden></p>
+      <button class="primary" type="submit">Add layer</button>
+    </form>
+
+    <h2>Station roles</h2>
+    <p class="muted">
+      The kinds of job a person does. The list is fixed, because each carries its
+      own status wording — an aid station is "Torn down" where a sweep is
+      "Finished" — but the names are yours.
+    </p>
+    <div id="role-table"></div>
   </section>
 
   <section class="panel" data-panel="roster" data-needs-event hidden>
@@ -269,6 +305,7 @@
 <script>window.__FIRST_RUN__ = {{FIRST_RUN}};</script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-<script src="/static/setup.js"></script>
+<script src="/static/icons.js"></script>
+  <script src="/static/setup.js"></script>
 </body>
 </html>

@@ -60,6 +60,56 @@ CREATE TABLE IF NOT EXISTS poi (
     notes    TEXT
 );
 
+-- What kinds of place this event has, and how each is drawn.
+--
+-- Deliberately data rather than an enum in the code. A KML arrives with
+-- whatever layers the organizer drew - mile markers, medical, aid stations,
+-- traffic control, portable toilets, spectator zones - and the next club will
+-- have a different set. Hardcoding the list means editing Python to accept a
+-- race, which is the opposite of what this project is for. There is no limit
+-- on how many a club may add.
+--
+-- `key` is the stable identifier stored in poi.poi_type; `name` is the club's
+-- own wording and may be renamed freely without breaking anything that keys
+-- off the category.
+CREATE TABLE IF NOT EXISTS poi_category (
+    id         INTEGER PRIMARY KEY,
+    event_id   INTEGER NOT NULL REFERENCES event(id) ON DELETE CASCADE,
+    key        TEXT    NOT NULL,
+    name       TEXT    NOT NULL,
+    -- "We put a person here and track them." This is the flag that decides
+    -- which layers get the operational treatment - an operator posted to them,
+    -- a lead runner sighted at them, a What3Words address worth maintaining.
+    -- A mile marker or a portable toilet is a layer you turn on and off; an
+    -- aid station is somewhere a human is standing.
+    staffed    INTEGER NOT NULL DEFAULT 0,
+    -- Name from the shared glyph set; see static/icons.js.
+    icon       TEXT    NOT NULL DEFAULT 'pin',
+    color      TEXT,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    -- Whether the layer starts switched on. A club with a 26-marker mile layer
+    -- will want it off by default; aid stations always on.
+    visible    INTEGER NOT NULL DEFAULT 1,
+    UNIQUE (event_id, key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_poi_category_event
+    ON poi_category (event_id, sort_order);
+
+-- Per-event wording for the fixed set of station roles.
+--
+-- The keys are fixed because each carries its own status vocabulary - an aid
+-- station is "Torn down" where a sweep is "Finished" - and that mapping lives
+-- in code. The *name* is the club's: one club's "Rover" is another's "Floater".
+-- Renaming is therefore safe, because nothing keys off the name.
+CREATE TABLE IF NOT EXISTS roster_role (
+    id       INTEGER PRIMARY KEY,
+    event_id INTEGER NOT NULL REFERENCES event(id) ON DELETE CASCADE,
+    key      TEXT    NOT NULL,
+    name     TEXT    NOT NULL,
+    UNIQUE (event_id, key)
+);
+
 -- Assigned operators. NOT the same set as "stations sending APRS": most aid
 -- station operators never beacon. See expects_aprs.
 CREATE TABLE IF NOT EXISTS roster (

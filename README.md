@@ -30,6 +30,9 @@ Not yet deployed anywhere — it runs locally.
   the pickup queue - orderable by which one is nearest the vehicle
 - Record course notes on the map (a blocked intersection, a confusing turn) for
   the organizer to read after the event
+- Put the organizer's own layers on the map - mile markers, medical, traffic
+  control, portable toilets - naming each one yourself, with its own icon,
+  colour and on/off switch. There is no fixed list and no limit
 
 ## Design notes
 

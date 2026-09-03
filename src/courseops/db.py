@@ -68,7 +68,23 @@ def init_schema(conn: sqlite3.Connection) -> list[str]:
     conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
     applied = _apply_migrations(conn)
     _adopt_orphan_events(conn)
+    _seed_categories(conn)
     return applied
+
+
+def _seed_categories(conn: sqlite3.Connection) -> None:
+    """Give every event its layer and role definitions.
+
+    Anything joining a place to its layer needs the layer row to exist, so
+    seeding cannot be left until someone opens the setup screen - a lead runner
+    query would find nothing and fail silently. Idempotent, and it never
+    disturbs a name a club has already edited.
+    """
+    from . import categories  # local: categories has no other db dependency
+
+    for row in conn.execute("SELECT id FROM event").fetchall():
+        categories.seed_poi_categories(conn, row["id"])
+        categories.seed_roster_roles(conn, row["id"])
 
 
 def _adopt_orphan_events(conn: sqlite3.Connection) -> None:
@@ -108,7 +124,16 @@ def create_event(conn: sqlite3.Connection, slug: str, name: str, **fields) -> in
         f"INSERT INTO event ({', '.join(columns)}) VALUES ({placeholders})",
         [slug, name, *fields.values()],
     )
-    return int(cur.lastrowid)
+    event_id = int(cur.lastrowid)
+
+    # A new event starts with the usual layers and role names, which the club
+    # then edits. Seeded here rather than lazily because everything that joins
+    # a place to its layer assumes the layer exists.
+    from . import categories
+
+    categories.seed_poi_categories(conn, event_id)
+    categories.seed_roster_roles(conn, event_id)
+    return event_id
 
 
 def get_event(conn: sqlite3.Connection, slug: str) -> sqlite3.Row | None:

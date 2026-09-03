@@ -201,6 +201,7 @@ async function refreshTab(name) {
     if (!gateOnEvent(name)) return;
     if (name === 'course') return loadStaged();
     if (name === 'stations') return loadCourses();
+    if (name === 'layers') return loadLayers();
     if (name === 'roster') return loadRoster();
     if (name === 'links') return loadLinks();
   } catch (err) { banner(err.message, true); }
@@ -566,7 +567,21 @@ $('course-file').addEventListener('change', async (ev) => {
   ev.target.value = '';
 });
 
+/* The review screen offers whatever layers this event has, so importing a
+   medic or mile-marker layer needs no code change. "Course" stays first and
+   fixed: a route is not a place, and it is what most features become. */
+async function fillAssignTypes() {
+  if (!S.poiCategories) {
+    const data = await api(`/api/setup/events/${S.eventId}/categories`);
+    S.poiCategories = data.poi_categories;
+  }
+  $('assign-type').innerHTML = '<option value="course">Course</option>'
+    + S.poiCategories.map((c) =>
+        `<option value="${esc(c.key)}">${esc(c.name)}</option>`).join('');
+}
+
 async function loadStaged() {
+  await fillAssignTypes();
   const data = await api(`/api/setup/events/${S.eventId}/staged`);
   renderReview(data.features);
 }
@@ -754,12 +769,125 @@ async function loadCourses() {
     }));
 }
 
-/* ---------- roster ------------------------------------------------------- */
+/* ---------- layers ------------------------------------------------------- */
 
-const CATEGORY_LABELS = {
-  net_control: 'Net control', aid_station: 'Aid station', sweep: 'Sweep',
-  sag: 'SAG', shadow: 'Shadow', rover: 'Rover', start_finish: 'Start / finish',
-};
+/* The kinds of place this event has, and the club's own names for the station
+   roles. Both exist because the taxonomy is not the code's to decide: a KML
+   arrives with whatever the organizer drew, and one club's "Rover" is
+   another's "Floater". */
+
+let iconPick = 'pin';
+
+function renderIconPicker(host, selected, onPick) {
+  host.innerHTML = Object.keys(POI_GLYPHS).map((key) =>
+    `<button type="button" class="icon-opt${key === selected ? ' is-on' : ''}"
+       data-icon="${key}" title="${esc(glyphLabel(key))}"
+       aria-label="${esc(glyphLabel(key))}"
+       aria-pressed="${key === selected}">${glyphSvg(key, 18)}</button>`).join('');
+  host.querySelectorAll('[data-icon]').forEach((b) =>
+    b.addEventListener('click', () => {
+      onPick(b.dataset.icon);
+      renderIconPicker(host, b.dataset.icon, onPick);
+    }));
+}
+
+async function loadLayers() {
+  const data = await api(`/api/setup/events/${S.eventId}/categories`);
+  S.poiCategories = data.poi_categories;
+  S.roles = data.roster_roles;
+
+  renderIconPicker($('lay-icon-picker'), iconPick, (k) => { iconPick = k; });
+
+  $('layer-table').innerHTML = `
+    <table class="grid"><thead><tr><th></th><th>Layer</th><th>Places</th>
+      <th>We staff these</th><th>On by default</th><th></th></tr></thead><tbody>`
+    + S.poiCategories.map((c) => `<tr>
+        <td><span class="layer-glyph" style="color:${esc(c.color || '#35507a')}"
+            >${glyphSvg(c.icon, 20)}</span></td>
+        <td><input value="${esc(c.name)}" data-lname="${esc(c.key)}" style="width:150px">
+          <br><span class="muted">${esc(c.key)}</span></td>
+        <td>${c.place_count}</td>
+        <td><input type="checkbox" data-lstaffed="${esc(c.key)}"
+              ${c.staffed ? 'checked' : ''} aria-label="We staff these"></td>
+        <td><input type="checkbox" data-lvisible="${esc(c.key)}"
+              ${c.visible ? 'checked' : ''} aria-label="On by default"></td>
+        <td class="actions">
+          <input type="color" value="${esc(c.color || '#35507a')}"
+            data-lcolor="${esc(c.key)}" aria-label="Colour" style="width:44px">
+          ${iconBtn('save', {'data-lsave': c.key}, `Save ${c.name}`)}
+          ${iconBtn('remove', {'data-ldel': c.key}, `Delete ${c.name}`)}
+        </td>
+      </tr>`).join('') + '</tbody></table>';
+
+  $('layer-table').querySelectorAll('[data-lsave]').forEach((b) =>
+    b.addEventListener('click', async () => {
+      const key = b.dataset.lsave;
+      const pick = (attr) => $('layer-table').querySelector(`[data-${attr}="${key}"]`);
+      try {
+        await post(`/api/setup/events/${S.eventId}/categories/${key}`, {
+          name: pick('lname').value,
+          color: pick('lcolor').value,
+          staffed: pick('lstaffed').checked,
+          visible: pick('lvisible').checked,
+        });
+        banner('Layer saved.');
+        loadLayers();
+      } catch (err) { banner(err.message, true); }
+    }));
+
+  $('layer-table').querySelectorAll('[data-ldel]').forEach((b) =>
+    b.addEventListener('click', async () => {
+      const cat = S.poiCategories.find((c) => c.key === b.dataset.ldel);
+      if (!confirm(`Delete the "${cat.name}" layer?`)) return;
+      try {
+        await post(`/api/setup/events/${S.eventId}/categories/${cat.key}/delete`);
+        banner(`Deleted ${cat.name}.`);
+        loadLayers();
+      } catch (err) { banner(err.message, true); }
+    }));
+
+  $('role-table').innerHTML = `
+    <table class="grid"><thead><tr><th>Role</th><th></th></tr></thead><tbody>`
+    + S.roles.map((r) => `<tr>
+        <td><input value="${esc(r.name)}" data-rname="${esc(r.key)}" style="width:180px">
+          <br><span class="muted">${esc(r.key)}</span></td>
+        <td class="actions">${iconBtn('save', {'data-rsave': r.key},
+          `Save ${r.name}`)}</td>
+      </tr>`).join('') + '</tbody></table>';
+
+  $('role-table').querySelectorAll('[data-rsave]').forEach((b) =>
+    b.addEventListener('click', async () => {
+      const key = b.dataset.rsave;
+      try {
+        await post(`/api/setup/events/${S.eventId}/roles/${key}`, {
+          name: $('role-table').querySelector(`[data-rname="${key}"]`).value,
+        });
+        banner('Role renamed.');
+        loadLayers();
+      } catch (err) { banner(err.message, true); }
+    }));
+}
+
+$('layer-form').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  $('layer-error').hidden = true;
+  try {
+    const created = await post(`/api/setup/events/${S.eventId}/categories`, {
+      name: $('lay-name').value,
+      color: $('lay-color').value,
+      icon: iconPick,
+      staffed: $('lay-staffed').checked,
+    });
+    $('layer-form').reset();
+    banner(`Added ${created.name}.`);
+    loadLayers();
+  } catch (err) {
+    $('layer-error').textContent = err.message;
+    $('layer-error').hidden = false;
+  }
+});
+
+/* ---------- roster ------------------------------------------------------- */
 
 async function loadRoster() {
   const data = await api(`/api/setup/events/${S.eventId}/roster`);
@@ -767,8 +895,10 @@ async function loadRoster() {
   S.categories = data.categories;
   S.pois = data.pois;
 
+  // Names come from the server, because a club renames its roles.
+  S.roleNames = Object.fromEntries(data.categories.map((c) => [c.key, c.name]));
   $('rs-category').innerHTML = data.categories
-    .map((c) => `<option value="${esc(c)}">${esc(CATEGORY_LABELS[c] || c)}</option>`).join('');
+    .map((c) => `<option value="${esc(c.key)}">${esc(c.name)}</option>`).join('');
   $('rs-poi').innerHTML = '<option value="">Not posted</option>' +
     data.pois.map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join('');
 
@@ -780,7 +910,7 @@ async function loadRoster() {
         ? `<br><span class="muted">heard as ${esc(r.bound_key)}</span>` : ''}</td>
       <td>${esc(r.display_label)}</td>
       <td>${esc(r.operator_name || '')}</td>
-      <td>${esc(CATEGORY_LABELS[r.category] || r.category)}</td>
+      <td>${esc((S.roleNames || {})[r.category] || r.category)}</td>
       <td>${r.expects_aprs
         ? '<span class="pill">tracked</span>'
         : '<span class="pill is-off">no APRS</span>'}</td>
