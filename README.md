@@ -129,26 +129,61 @@ context, and localhost is the sole exception. Everything else works normally.
 That is the reason for the next section rather than a limitation you can
 configure away.
 
-### The quickest way to get HTTPS
+### Sharing it without a web server
 
-A tunnel gives you a public HTTPS address pointing at the app on your own
-machine, with no Apache, DNS or certificate work - and HTTPS is what brings back
-the location dot. If you already use Tailscale, `tailscale serve 8000` publishes
-it to your own devices over HTTPS, which is the easiest way to walk a course
-with it on your phone; `tailscale funnel 8000` does the same for the public
-internet. Cloudflare Tunnel and ngrok work too.
+You do not need Apache, a domain or a certificate to let volunteers in. A tunnel
+gives you a public HTTPS address pointing straight at the app on your own
+laptop, and it takes one command. HTTPS is not cosmetic here - it is what makes
+the "where am I" dot and SAG's *nearest me* ordering work at all, neither of
+which a plain LAN can do.
 
-Start the app with `--behind-proxy --base-url https://<tunnel-host>` so session
-cookies keep their `Secure` flag and the printed links carry the right address.
+Two free options, both fine for a one-day event.
 
-Two things worth knowing before you pick one. **ngrok's free tier shows every
-visitor a click-through warning page**, which a volunteer will read as a broken
-link. And a **Cloudflare quick tunnel gets a new hostname every restart**, so a
-laptop reboot mid-event kills every link you handed out.
+**Tailscale** - stable address, only your machine installs anything:
 
-Tailscale Funnel avoids both: free, no click-through, and a stable address that
-survives a restart, with only the host machine needing anything installed.
-`docs/DEPLOYMENT.md` has the detail, including what a tunnel does not change.
+```bash
+tailscale funnel 8000     # public: the address volunteers use
+tailscale serve  8000     # your own devices only: for testing on your phone
+```
+
+Use `serve` while you are setting up and walking the course, `funnel` on the
+day. The first `tailscale funnel` may send you to the admin console to switch
+Funnel on for your tailnet - do that before race week.
+
+**Cloudflare Tunnel** - no account at all:
+
+```bash
+cloudflared tunnel --url http://localhost:8000
+```
+
+Either way, start the app pointed at the address the tunnel gave you:
+
+```bash
+courseops serve <event> --behind-proxy --base-url https://<tunnel-host>
+```
+
+`--behind-proxy` keeps the `Secure` flag on admin session cookies, since the
+tunnel terminates TLS and speaks plain HTTP to the app. `--base-url` makes the
+role links it prints carry the tunnel address instead of `localhost` - those
+links are what you are about to send to fifteen people.
+
+Three things to know before choosing:
+
+- A **Cloudflare quick tunnel takes a new hostname every time it starts.** If
+  the laptop reboots at mile 6, every link you handed out is dead and you are
+  re-sending URLs while running a net. Tailscale's address is stable.
+- **ngrok works, but not on the free tier for this.** Free ngrok shows every
+  visitor a click-through warning page first. You will click through once while
+  setting up, get a cookie that hides it for seven days, and never see it
+  again - so it looks fine right up until your volunteers meet it at 6am and
+  conclude the link is broken. A paid plan removes it.
+- A tunnel is **a dependency you do not control on race morning.** For one
+  event that is usually a fair trade against configuring Apache. For a club
+  running this every year, a real server is sturdier.
+
+`docs/DEPLOYMENT.md` compares all of them in a table and covers what a tunnel
+does not change - role links are bearer tokens, so a public tunnel widens the
+audience from your wifi to anyone holding the URL.
 
 ### On a real web server
 
