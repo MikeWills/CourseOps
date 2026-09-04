@@ -114,7 +114,12 @@ overlap — put the one people ask about most on top.
 
 ### 5. Enter What3Words for each aid station
 
-NCS maintains these. Look each one up at what3words.com and type it in:
+NCS maintains these. In `/setup` -> Aid stations, every place shows its
+coordinates and a `///` link beside the What3Words box. The link opens the
+what3words map already centred on that square, so the job is: click `///`,
+copy the three words, paste them back. No hunting for the point on a map.
+
+Or from the command line:
 
 ```bash
 courseops set-w3w mankato2026 4 index.home.raft

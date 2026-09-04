@@ -7,6 +7,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **Coordinates and a what3words lookup link on every place.** The Aid stations
+  table showed a What3Words box with no way to find out what belonged in it -
+  you had to locate the point on some other map first, for all 78 of them. Each
+  row now shows its latitude and longitude, and a `///` link beside the box that
+  opens the what3words map already centred on that square: click, copy, paste.
+  Coordinates are monospace because they get read out over a voice net, and a
+  proportional face makes it easy to lose your place mid-digit.
+
+  Still no what3words API - it is paid, and a link costs nothing. The lat/lng
+  form of the map URL is not documented by what3words (their documented links
+  are word-based, and `w3w://show` has no coordinate form), so it is recorded as
+  a known gap in `docs/PLAN.md`. Verified working against real course
+  coordinates: it rewrites to the square it resolved.
+
 ### Fixed
 - **Editing several places lost all but one of them.** Each row had its own
   save button, and saving reloaded the whole table from the server - throwing
