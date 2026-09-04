@@ -70,21 +70,6 @@
            stroke-linejoin="round"><path d="M10 3.5L5.5 8l4.5 4.5"/></svg></button>
   </div>
 
-  <div class="sheet-section">
-    <h2>Courses</h2>
-    <div id="course-list" class="toggle-list"></div>
-  </div>
-
-  <div class="sheet-section">
-    <h2>People</h2>
-    <div id="layer-list" class="toggle-list"></div>
-  </div>
-
-  <div class="sheet-section" id="place-layer-section" hidden>
-    <h2>Places</h2>
-    <div id="place-layer-list" class="toggle-list"></div>
-  </div>
-
   <div class="sheet-section" id="ssid-section" hidden>
     <h2>Needs attention</h2>
     <div id="ssid-alerts"></div>
@@ -128,6 +113,25 @@
     <div id="station-list"></div>
   </div>
 
+  <!-- The layer switches live at the BOTTOM. They are set once before the race
+       and then never touched, while everything above them is read all day - so
+       the operational sections get the top of the panel, which is the part
+       visible without scrolling. -->
+  <div class="sheet-section" id="course-section">
+    <h2>Courses</h2>
+    <div id="course-list" class="toggle-list"></div>
+  </div>
+
+  <div class="sheet-section" id="people-section">
+    <h2>People</h2>
+    <div id="layer-list" class="toggle-list"></div>
+  </div>
+
+  <div class="sheet-section" id="place-layer-section" hidden>
+    <h2>Places</h2>
+    <div id="place-layer-list" class="toggle-list"></div>
+  </div>
+
   <div id="operator-box" class="sheet-section" hidden>
     <h2>Operator</h2>
     <label class="operator-row">
@@ -146,11 +150,11 @@
      screen with everything else it is permanently below the fold. On a phone
      there is not room for two panels, so the section moves back into the sheet
      below 860px - see moveStationsPanel(). -->
-<aside id="stations-panel" aria-label="Stations" hidden>
+<aside id="stations-panel" aria-label="Side panel" hidden>
   <div class="panel-head">
-    <span class="panel-title">Net control</span>
+    <span class="panel-title" id="side-panel-title">Stations</span>
     <button id="stations-collapse" type="button" class="panel-collapse"
-            aria-label="Hide the stations panel" title="Hide this panel">
+            aria-label="Hide the side panel" title="Hide this panel">
       <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="none"
            stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
            stroke-linejoin="round"><path d="M6 3.5L10.5 8 6 12.5"/></svg></button>
@@ -158,7 +162,7 @@
 </aside>
 
 <button id="stations-reopen" type="button" hidden
-        aria-label="Show the stations panel" title="Show stations">Stations</button>
+        aria-label="Show the side panel" title="Show the side panel">Stations</button>
 <button id="sheet-reopen" type="button" hidden
         aria-label="Show the layers panel" title="Show layers">Layers</button>
 

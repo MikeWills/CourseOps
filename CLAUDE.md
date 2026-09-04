@@ -239,6 +239,15 @@ usability, not style preferences.
   exists. Tokens are also scoped to their event: valid elsewhere means nothing.
 - **Never interpolate marker movement in the client** (same rule as the plan).
   `setLatLng`, not an animated transition.
+- **What goes in the right-hand panel depends on the ROLE, not just width.**
+  `SIDE_PANEL_BY_ROLE` in `app.js`: NCS and Logistics get stations, Liaison and
+  SAG get the pickup queue. Liaison is with Public Safety and Medics and needs
+  to see who needs picking up; Logistics needs the sweep, because that is what
+  says a road is clear. Sections moved out must go back into the AUTHORED
+  order, not onto the end - `sheetOrder` records it once at startup.
+- **Layer switches live at the bottom of the panel.** Set once before the race
+  and never touched, while everything above them is read all day. Anything new
+  that is read during the event goes above them, not below.
 - **The stations section is ONE element that lives in two places.** On a wide
   screen it moves into the right-hand panel; below 860px it moves back into the
   sheet. Moved, never duplicated - two copies drift the moment one is
@@ -531,6 +540,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-04** Layers moved to the bottom of the panel; the right panel now follows the role.
 - **2026-09-04** Pickups and course notes can be deleted; the removal reaches every browser.
 - **2026-09-04** Station roles are open and on their own tab; a deleted role no longer comes back.
 - **2026-09-04** Panel sections fold and stay folded; stations get their own panel on desktop.
@@ -540,4 +550,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-04** Fixed: a lead runner correction to a station on another course vanished silently.
 - **2026-09-03** Station roles save all at once; the three setup tables now share one save-all.
 - **2026-09-03** Labels on pins: one or two characters per place, per layer, derived from the name.
-- **2026-09-03** The Layers table now saves every edit at once, like Places.
