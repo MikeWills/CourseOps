@@ -1,11 +1,12 @@
 /* Shared glyph set for map layers, used by both the map and the setup screen.
  *
- * Inline SVG, not an icon font and not Unicode glyphs. Glyphs were tried and
- * are not dependable: U+270E with the U+FE0E text-presentation selector still
- * rendered as a full-colour emoji pencil in Chrome on Windows, which reads as
- * decoration and fights the status colours that mean something in this app.
- * A font is another file to ship and to fail to load, and the frontend has no
- * build step on purpose.
+ * Inline SVG here because these particular icons take a colour: a club sets a
+ * layer's colour and the marker follows it, which a glyph cannot do. Glyphs are
+ * a fine choice elsewhere in the app - but check one in Chrome on Windows
+ * first, where U+270E with the U+FE0E text-presentation selector still rendered
+ * as a full-colour emoji pencil, ignoring `color` and reading as decoration.
+ * An icon font is another file to ship and to fail to load, and the frontend
+ * has no build step on purpose.
  *
  * Every path is drawn on a 16x16 box with `currentColor`, so an icon takes the
  * colour of whatever it sits in - which is what lets a club set a layer colour

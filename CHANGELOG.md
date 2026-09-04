@@ -47,6 +47,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   reads as a target or a setting, not as "show me where I am", and the crosshair
   is what every map application uses for it.
 
+### Changed
+- **The "never glyphs" icon rule was overstated and has been narrowed.** One
+  real finding - U+270E rendering as a colour emoji in Chrome on Windows, in
+  buttons that needed `currentColor` - had been written up as a blanket ban on
+  Unicode glyphs across the whole app. Glyphs are a reasonable choice; SVG is
+  for icons that must take a colour or a state, and the emoji-presentation trap
+  is a thing to check rather than a reason to never try.
+
 ### Fixed
 - **The locate button was hidden behind the stations panel above 1000px.** It
   is anchored to the right edge at z-index 500 and the panel sits at 550, so on

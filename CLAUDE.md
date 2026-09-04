@@ -429,11 +429,20 @@ usability, not style preferences.
 - **An event's slug is immutable; it is in every link already sent.** Renaming
   the event changes the displayed name only. Changing `/e/<slug>/<token>` would
   404 every volunteer holding a link, silently, on the morning they need it.
-- **Icons are inline SVG, never glyphs or an icon font.** U+270E plus the
-  U+FE0E text-presentation selector still renders as a colour emoji in Chrome on
-  Windows. SVG also inherits `currentColor`, so an icon reddens with its danger
-  button. Every icon-only button needs `title` **and** `aria-label`, and the
-  label names the row, not just the verb: "Delete Aid 3", never "Delete".
+- **Glyphs are fine; reach for inline SVG when the icon carries colour or
+  state.** A Unicode glyph ships nothing and needs no markup, so it is a
+  reasonable choice for a plain icon. The two things it cannot be trusted with:
+  a codepoint that renders in *emoji presentation* ignores `color` entirely and
+  arrives as decoration (U+270E with the U+FE0E text-presentation selector
+  still came out a full-colour pencil in Chrome on Windows), and glyph metrics
+  vary by font, so precise sizing against a 34px button is guesswork. Anything
+  that must redden with a danger button, invert when pressed, or take a
+  club-set layer colour is SVG, because a path inherits `currentColor`. Check a
+  candidate glyph in Chrome on Windows before committing to it - that is where
+  the emoji substitution bites. An icon font stays out: another file to ship
+  and to fail to load, and the frontend has no build step.
+- **Every icon-only button needs both `title` and `aria-label`.** The label
+  names the row, not just the verb: "Delete Aid 3", never "Delete".
 - **Permission is per capability, not one write flag.** `ROLE_CAPABILITIES` in
   `access.py` is the whole policy; each endpoint names what it needs via
   `require_capability`. Never widen a field role by adding it to a second place.
