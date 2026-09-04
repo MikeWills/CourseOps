@@ -64,6 +64,7 @@
     <button class="tab" data-tab="stations" type="button">Aid stations</button>
     <button class="tab" data-tab="layers" type="button">Layers</button>
     <button class="tab" data-tab="roles" type="button">Roles</button>
+    <button class="tab" data-tab="tracking" type="button">Tracking</button>
     <button class="tab" data-tab="roster" type="button">Roster</button>
     <button class="tab" data-tab="links" type="button">Links</button>
     <button class="tab" data-tab="users" type="button" hidden>Users</button>
@@ -273,6 +274,40 @@
       <p id="role-error" class="error" hidden></p>
       <button class="primary" type="submit">Add role</button>
     </form>
+  </section>
+
+  <section class="panel" data-panel="tracking" data-needs-event hidden>
+    <p class="needs-event" hidden>Pick an event first — everything on this
+      tab belongs to one event.
+      <button data-goto="events" type="button">Go to Events</button></p>
+    <h2>Live tracking</h2>
+    <p class="muted">
+      Whether this event is connected to APRS-IS and storing positions. Turn it
+      on for the event, and for a check-in rehearsal beforehand.
+    </p>
+    <p class="muted">
+      <strong>Leave it off the rest of the time.</strong> The filter asks for
+      each operator's callsign wherever they are, not just on the course — so a
+      feed left running records where your volunteers are every day, which is
+      not what anyone agreed to by being on the roster.
+    </p>
+
+    <div id="tracking-box" class="card">
+      <!-- Matches the map's switches: the input IS the switch, and the knob
+           position is the primary signal with colour only reinforcing it. -->
+      <label class="toggle">
+        <input id="tracking-on" type="checkbox">
+        <span class="label" id="tracking-label">Tracking off</span>
+      </label>
+      <p id="tracking-detail" class="muted"></p>
+      <p id="tracking-error" class="error" hidden></p>
+      <h3>The filter this roster produces</h3>
+      <p class="muted">
+        What we ask APRS-IS for. Empty means nothing will ever arrive, however
+        healthy everything else looks.
+      </p>
+      <code id="tracking-filter" class="link-url"></code>
+    </div>
   </section>
 
   <section class="panel" data-panel="roster" data-needs-event hidden>

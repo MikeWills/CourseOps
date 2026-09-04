@@ -30,6 +30,24 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+
+      # Nothing tags automatically, so nothing was checking that the tag and
+      # the package agree. v0.1.1 was cut while both still said 0.1.0, and the
+      # header then read "v0.1.0 - v0.1.1" - which is exactly the confusion the
+      # version display exists to prevent.
+      - name: The tag and the package version must agree
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG=$(python -c "import re,pathlib; \
+            print(re.search(r'(?m)^version = \"([^\"]+)\"', \
+            pathlib.Path('pyproject.toml').read_text()).group(1))")
+          echo "tag=$TAG package=$PKG"
+          if [ "$TAG" != "$PKG" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match version $PKG in"\
+                 "pyproject.toml. Bump the version, commit, then tag."
+            exit 1
+          fi
+
       - run: python -m pip install --upgrade pip build
       - run: python -m build            # wheel and sdist
       - uses: actions/upload-artifact@v4

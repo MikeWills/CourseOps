@@ -162,6 +162,23 @@ count wrong, and that count is what says whether anyone is still waiting on us.
 Do not use it to tidy away something that really happened: a pickup that was
 made and delivered belongs in the record for the organizer afterwards.
 
+### Turning live tracking on and off
+
+`/setup` -> Tracking. One switch. Turn it on the morning of the event, and off
+again afterwards.
+
+**Leave it off the rest of the time.** The filter asks APRS-IS for each
+operator's callsign wherever they are, not only on the course - so a feed left
+running records where your volunteers are every day, which is not what anyone
+agreed to by being on a roster.
+
+The tab shows the filter your roster produces. If that line is empty, nothing
+will ever arrive no matter how healthy everything else looks - check the roster
+before blaming the radios.
+
+Worth turning on for a check-in rehearsal a week or two before the event, to
+see which SSIDs actually appear. Then off again.
+
 ### Making room on the screen
 
 Click any heading in the side panel to fold that section. Courses, People and
