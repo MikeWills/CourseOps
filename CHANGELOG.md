@@ -5,7 +5,10 @@ are mirrored into `CLAUDE.md`; this file is the complete record.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [0.1.2] - 2026-09-04
+
+v0.1.1 was an interim tag cut before the version was bumped; its contents are a subset of this release.
+
 
 ### Added
 - **Live tracking is a switch in setup, on a Tracking tab.** It was a systemd
@@ -109,7 +112,6 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   opened the wrong link - and it makes testing the four links a matter of
   looking rather than remembering which tab is which.
 
-## [Unreleased]
 
 ### Fixed
 - **Deploying a branch would have silently installed stale code.** The script
