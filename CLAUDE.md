@@ -451,13 +451,13 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-03** Added coordinates and a what3words lookup link to every place in the Aid stations table.
+- **2026-09-03** Fixed: saving one renamed place discarded every other unsaved edit.
+- **2026-09-03** Import accepts dropped files; fixed an Apache template that could never be enabled.
+- **2026-09-03** Made a large import reviewable: select-all, bulk accept, and filtering.
 - **2026-09-03** Added a single-file Windows .exe; pip stays the route for Linux and macOS.
 - **2026-09-03** A callsign is now needed only for live tracking, not to start the app.
 - **2026-09-03** Added CI and a release workflow that proves the .exe serves before publishing.
 - **2026-09-03** Read GIS attribute tables from `<description>`; `Type` now files points automatically.
 - **2026-09-03** Import creates the layers a file names; 48 mile markers land in a layer that starts off.
 - **2026-09-03** Fixed: stitch invented a 5.4 km leg and reported a 29.76 mile marathon.
-- **2026-09-03** Places can be moved between layers in bulk; organizer KML arrives as one flat list.
-- **2026-09-03** Tunnels documented as the alternative to web hosting, with ngrok's free-tier caveat.
-- **2026-09-03** Fixed: a fresh install would not boot; `python-multipart` was undeclared.
-- **2026-09-03** Rewrote README getting-started against a verified cold start.
