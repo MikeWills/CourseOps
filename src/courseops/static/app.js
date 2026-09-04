@@ -286,7 +286,14 @@ map.on('dragstart', () => setFollowing(false));
    moves back into the sheet where it started - the SAME element either way,
    because two copies would drift the moment one of them was updated. */
 
-const WIDE = window.matchMedia('(min-width: 860px)');
+/* These two must match the breakpoints in app.css. If they ever disagree, a
+   section ends up either invisible or in a panel that is not rendered.
+
+   SIDEBAR: the sheet is a column beside the map rather than a bottom sheet, so
+   it has a collapse control that has to actually work.
+   WIDE: the second panel is rendered, so its sections belong in it. */
+const SIDEBAR = window.matchMedia('(min-width: 700px)');
+const WIDE = window.matchMedia('(min-width: 1000px)');
 
 function foldKey(section) {
   return section.id || (section.querySelector('h2') || {}).textContent || '?';
@@ -414,17 +421,20 @@ function moveStationsPanel() {
 
 function applyPanelState() {
   const wide = WIDE.matches;
+  // The sheet collapses as soon as it is a sidebar - a tablet in portrait gets
+  // one panel and the map, and giving the map the whole width still matters.
+  const sidebar = SIDEBAR.matches;
   const showSheet = state.panelState.sheet !== false;
   const showStations = state.panelState.stations !== false;
 
-  document.body.classList.toggle('sheet-hidden', wide && !showSheet);
+  document.body.classList.toggle('sheet-hidden', sidebar && !showSheet);
   document.body.classList.toggle('stations-hidden', wide && !showStations);
 
   // The way back has to stay on screen. A panel that can be hidden with no
   // visible way to bring it back is a panel someone loses for the whole event.
   const sheetReopen = document.getElementById('sheet-reopen');
   const stationsReopen = document.getElementById('stations-reopen');
-  if (sheetReopen) sheetReopen.hidden = !(wide && !showSheet);
+  if (sheetReopen) sheetReopen.hidden = !(sidebar && !showSheet);
   if (stationsReopen) {
     stationsReopen.hidden = !(wide && !showStations
       && !document.getElementById('stations-panel').hidden);
@@ -448,6 +458,7 @@ document.getElementById('stations-collapse')
   .addEventListener('click', () => setPanel('stations', false));
 
 WIDE.addEventListener('change', moveStationsPanel);
+SIDEBAR.addEventListener('change', applyPanelState);
 
 /* Below this, aid station names overlap each other into an unreadable smear;
    at or above it a screen holds a mile or two of course and at most a couple
