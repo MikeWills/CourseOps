@@ -145,12 +145,13 @@ html, body {
   right: 12px;
   bottom: calc(76px + var(--safe-b));
   z-index: 500;
+  display: grid;
+  place-items: center;
   width: 48px; height: 48px;
   border-radius: 50%;
   border: 1px solid var(--line);
   background: var(--paper);
   color: var(--accent);
-  font-size: 22px;
   line-height: 1;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.22);
   cursor: pointer;
@@ -671,6 +672,29 @@ html, body {
   --inc-note:      #6b5ea8;
 }
 
+/* Two ways to place the same pin, side by side. The tap is wide because it is
+   the one that always works - Liaison at the EOC is reporting a place they are
+   not standing in. "Here" is the shortcut for the roles that are. */
+.pin-actions { display: flex; gap: 8px; margin-bottom: 8px; }
+.pin-actions #incident-add { flex: 1; margin-bottom: 0; }
+.pin-here {
+  flex: 0 0 auto;
+  /* 44px in both directions like every other control that gets pressed with a
+     glove on, at arm's length, walking. */
+  min-height: 44px;
+  min-width: 64px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--paper);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--ink);
+  cursor: pointer;
+}
+.pin-here:disabled { opacity: 0.55; cursor: default; }
+
 #incident-add {
   width: 100%;
   min-height: 44px;
@@ -1019,9 +1043,19 @@ html, body {
 
   #map, #topbar { right: clamp(240px, 24vw, 320px); }
 
+  /* The locate button rides the map's right edge, not the window's. It sits at
+     z-index 500 and the panel at 550, so anchoring it to the window put it
+     UNDERNEATH the stations panel - invisible, with nothing to say why, on
+     exactly the wide screens NCS runs the event from. It is also the way in to
+     "Here", so losing it loses the ability to report where you are standing. */
+  #locate-btn { right: calc(clamp(240px, 24vw, 320px) + 12px); }
+  #locate-status { right: calc(clamp(240px, 24vw, 320px) + 12px); }
+
   body.stations-hidden #stations-panel { display: none; }
   body.stations-hidden #map,
   body.stations-hidden #topbar { right: 0; }
+  body.stations-hidden #locate-btn,
+  body.stations-hidden #locate-status { right: 12px; }
 
 }
 

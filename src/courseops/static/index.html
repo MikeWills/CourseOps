@@ -48,8 +48,16 @@
   </div>
 </header>
 
+<!-- The crosshair every map app uses for "find me". It was a U+25CE glyph,
+     which is a double circle and reads as a setting or a target rather than
+     as your own position - and glyphs are not dependable anyway, see
+     icons.js. Inline SVG so it takes the button's colour when pressed. -->
 <button id="locate-btn" type="button" title="Show my location"
-        aria-label="Show my location" aria-pressed="false">◎</button>
+        aria-label="Show my location" aria-pressed="false"
+  ><svg viewBox="0 0 16 16" width="22" height="22" aria-hidden="true"
+        fill="none" stroke="currentColor" stroke-width="1.5"
+        stroke-linecap="round"
+        ><circle cx="8" cy="8" r="4.6"/><path d="M8 0.8v2.2M8 13v2.2M0.8 8h2.2M13 8h2.2"/><circle cx="8" cy="8" r="1.7" fill="currentColor" stroke="none"/></svg></button>
 <div id="locate-status" role="status" aria-live="polite" hidden></div>
 
 <button id="sheet-toggle" type="button" aria-expanded="false" aria-controls="sheet">
@@ -103,7 +111,11 @@
       <button type="button" class="sort-btn" data-sort="near"
               aria-pressed="false">Nearest me</button>
     </div>
-    <button id="incident-add" type="button" hidden>+ Drop a pin</button>
+    <div id="pin-actions" class="pin-actions" hidden>
+      <button id="incident-add" type="button">+ Drop a pin</button>
+      <button id="incident-here" type="button" class="pin-here"
+              title="Report this at my own location">Here</button>
+    </div>
     <p id="incident-hint" class="muted" hidden>Tap the map where the runner is.</p>
     <div id="incident-list"></div>
   </div>

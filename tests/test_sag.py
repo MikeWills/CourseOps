@@ -19,6 +19,21 @@ def _access(role):
 
 def test_sag_may_work_the_pickup_queue():
     assert _access(access.ROLE_SAG).can(access.CAP_INCIDENTS)
+    assert _access(access.ROLE_SAG).can(access.CAP_INCIDENT_REPORT)
+
+
+def test_every_role_may_report_an_incident():
+    """The whole reason four teams are on the course is that they see things.
+    A report that has to be relayed to whoever holds the right link is a
+    report that arrives late or not at all."""
+    assert all(_access(role).can(access.CAP_INCIDENT_REPORT)
+               for role in access.ROLES)
+
+
+def test_only_ncs_and_sag_work_the_queue():
+    assert {role for role in access.ROLES
+            if _access(role).can(access.CAP_INCIDENTS)} == {
+        access.ROLE_NCS, access.ROLE_SAG}
 
 
 @pytest.mark.parametrize("capability", [
@@ -36,10 +51,15 @@ def test_ncs_keeps_everything():
 
 
 @pytest.mark.parametrize("role", [access.ROLE_LIAISON, access.ROLE_LOGISTICS])
-def test_the_read_only_roles_stayed_read_only(role):
+def test_the_field_roles_may_report_and_no_more(role):
+    """Both are somewhere an incident happens, so both may put one on the
+    board. Neither may move it along or take it off: a queue read as "who is
+    still waiting" must not be clearable by a link that got left in a car."""
     granted = _access(role)
-    assert not granted.can_write
-    assert not any(granted.can(cap) for cap in access.ALL_CAPABILITIES)
+    assert granted.can(access.CAP_INCIDENT_REPORT)
+    assert not granted.can(access.CAP_INCIDENTS)
+    assert not any(granted.can(cap) for cap in
+                   access.ALL_CAPABILITIES - {access.CAP_INCIDENT_REPORT})
 
 
 def test_every_role_has_a_capability_entry():

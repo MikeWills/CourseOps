@@ -7,7 +7,8 @@ the data is operational, not sensitive, and it means a volunteer whose phone
 died can be re-admitted by re-sending a link, with no admin to call at 6am on
 race morning.
 
-What the token gates is real, though: NCS can write, Liaison cannot.
+What the token gates is real, though: every role can report what it sees,
+and only NCS and SAG can work the pickup queue.
 """
 
 from __future__ import annotations
@@ -49,14 +50,27 @@ ROLE_LABELS = {
 # names the capability it needs, in one place, and a role is a set of them.
 # Widening a role stays a change to this table rather than to the endpoints.
 
-CAP_INCIDENTS = "incidents"   # open a pickup, move it along, fill in the bib
+# Reporting is split from managing, because they are different jobs done by
+# different people. Anyone out on the course can SEE a runner sitting down or a
+# blocked intersection - that is the whole reason four teams are on the course -
+# and a report that has to be relayed over the radio to someone with the right
+# link is a report that arrives late or not at all.
+#
+# Working the queue is a different thing: dispatching, delivering and clearing
+# a pickup is NCS and SAG. So a field role can add to the board and describe
+# what it found, and cannot close or delete anything. The blast radius of a
+# bearer link lost in a parking lot is a spurious pin, not a queue quietly
+# emptied of people still waiting.
+CAP_INCIDENT_REPORT = "incident_report"  # open a pickup or note, fill it in
+CAP_INCIDENTS = "incidents"   # move a pickup along its workflow, delete one
 CAP_STATIONS = "stations"     # a roster entry's operational status
 CAP_SSID = "ssid"             # adopt or dismiss an unexpected SSID
 CAP_LEADERS = "leaders"       # lead runner sightings
 CAP_COURSE = "course"         # bib colours and course styling
 
 ALL_CAPABILITIES = frozenset(
-    {CAP_INCIDENTS, CAP_STATIONS, CAP_SSID, CAP_LEADERS, CAP_COURSE}
+    {CAP_INCIDENT_REPORT, CAP_INCIDENTS, CAP_STATIONS, CAP_SSID, CAP_LEADERS,
+     CAP_COURSE}
 )
 
 ROLE_CAPABILITIES = {
@@ -65,9 +79,15 @@ ROLE_CAPABILITIES = {
     # fills in the bib once they have the runner in front of them. Nothing
     # else: this is a bearer link in a moving vehicle, and the blast radius of
     # a lost phone should be one incident queue, not the whole event.
-    ROLE_SAG: frozenset({CAP_INCIDENTS}),
-    ROLE_LIAISON: frozenset(),
-    ROLE_LOGISTICS: frozenset(),
+    ROLE_SAG: frozenset({CAP_INCIDENT_REPORT, CAP_INCIDENTS}),
+    # Liaison and Logistics report and no more. Both are where the incidents
+    # happen: Logistics is on the course at a cone or an intersection, and
+    # Liaison sits with Public Safety and Medics, taking pickups that come in
+    # by another route entirely. Liaison is not AT the thing they are
+    # reporting, which is why dropping a pin on the map stays the primary way
+    # in and locating yourself is only ever the shortcut beside it.
+    ROLE_LIAISON: frozenset({CAP_INCIDENT_REPORT}),
+    ROLE_LOGISTICS: frozenset({CAP_INCIDENT_REPORT}),
 }
 
 # Kept for the roster filter and anything asking the old yes/no question.

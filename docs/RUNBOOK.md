@@ -15,9 +15,13 @@ person setting it up and for Net Control, not for developers.
 | Role | Link | Can |
 |---|---|---|
 | **Net Control (NCS)** | NCS link | See everything, edit What3Words, set station status, manage incidents **[PHASE 6]** |
-| **SAG** | SAG link | The pickup queue: mark a runner en route, picked up and dropped off, and fill in the bib. Can order pickups by how near they are. Nothing else is editable |
-| **Liaison** | Liaison link | View only. Embedded with Public Safety / Medics |
-| **Logistics** | Logistics link | View only. Traffic control, cone placement, teardown |
+| **SAG** | SAG link | Report an incident, and work the pickup queue: mark a runner en route, picked up and dropped off, and fill in the bib. Can order pickups by how near they are. Nothing else is editable |
+| **Liaison** | Liaison link | Report an incident. Otherwise view only. Embedded with Public Safety / Medics |
+| **Logistics** | Logistics link | Report an incident. Otherwise view only. Traffic control, cone placement, teardown |
+
+**Anyone can report; only NCS and SAG work the queue.** All four links can drop
+a pickup or a course note and fill in its bib and note. Only NCS and SAG can
+move one along its workflow or delete one.
 
 Each role gets its **own link**. Anyone holding a link has that role — treat
 them like door keys. Send each to the right group and no other.
@@ -420,8 +424,8 @@ stays at the top.
 shift. They are stamped on every status change with a timestamp, so a handover
 can see who marked Aid 3 torn down and when. It is a note in a log, not a login.
 
-Changes appear on the Liaison and Logistics views within a second; they cannot
-change anything themselves.
+Changes appear on the Liaison and Logistics views within a second. Those roles
+can report an incident of their own, and nothing else.
 
 ### What NCS watches
 
@@ -571,8 +575,24 @@ been sitting undispatched for eight minutes. That is the number to watch.
 Closed incidents come off the map but stay in the list, so the map shows only
 live work.
 
-Liaison and Logistics see every incident and its status, live, but cannot change
-anything.
+Liaison and Logistics see every incident and its status, live. They can open a
+pickup or a course note and describe it, but cannot move one along its workflow
+or delete one.
+
+### Dropping a pin
+
+Two ways, both under **Pickups**:
+
+- **+ Drop a pin** — then tap the map where it is. This always works, and it is
+  the one to use when you are not standing at the thing you are reporting.
+  Liaison at the EOC is always in this case.
+- **Here** — places it at your own location, for when you *are* standing there:
+  Logistics at an intersection, SAG beside a runner. It asks the browser for a
+  fix, so it needs HTTPS (see Deployment) and location permission. If the fix
+  is rough it says so — `±340 m` means wifi triangulation, not GPS.
+
+Pressing **Here** is the only time your own position leaves your phone, and
+what is stored is the incident's location. The blue locate dot never does.
 
 > **Keep notes operational.** Bib, location, status and something like "unable
 > to continue, waiting at mile 9" are what the net needs. Do not record a

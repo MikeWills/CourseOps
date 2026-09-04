@@ -102,7 +102,10 @@ def test_roles_differ_on_write_permission(setup):
         liaison = client.get(f"/api/m2026/{tokens['liaison']}/state").json()
 
     assert ncs["role"] == "ncs" and ncs["can_write"] is True
-    assert liaison["role"] == "liaison" and liaison["can_write"] is False
+    # Liaison writes exactly one thing: a report of what came in to the EOC.
+    assert liaison["role"] == "liaison"
+    assert liaison["capabilities"] == ["incident_report"]
+    assert set(ncs["capabilities"]) > set(liaison["capabilities"])
 
 
 # --- state snapshot ---------------------------------------------------------
@@ -200,13 +203,15 @@ def test_each_role_gets_its_own_link(setup):
     assert len(set(tokens.values())) == 4
 
 
-def test_logistics_is_read_only(setup):
+def test_logistics_may_report_and_nothing_else(setup):
+    """Out on the course at a cone or an intersection, which is exactly where
+    incidents happen. Reporting one is not permission to work the queue."""
     app, tokens, _, _ = setup
     with TestClient(app) as client:
         data = client.get(f"/api/m2026/{tokens['logistics']}/state").json()
     assert data["role"] == "logistics"
     assert data["role_label"] == "Logistics"
-    assert data["can_write"] is False
+    assert data["capabilities"] == ["incident_report"]
 
 
 def test_revoking_one_field_role_leaves_the_other_working(setup):
@@ -241,14 +246,15 @@ def test_ncs_can_set_operational_status(setup):
     assert body["op_status_at"] is not None
 
 
-def test_read_only_roles_cannot_write(setup):
-    """The whole point of the role split."""
+def test_the_field_roles_cannot_touch_the_roster(setup):
+    """The whole point of the role split. Reporting an incident is the one
+    thing these roles write; a station's operational status is NCS's."""
     app, tokens, _, _ = setup
     with TestClient(app) as client:
         for role in ("liaison", "logistics"):
             response = client.post(status_url(tokens[role]), json={"op_status": "active"})
             assert response.status_code == 403, role
-            assert "read-only" in response.json()["detail"]
+            assert "cannot change that" in response.json()["detail"]
 
 
 def test_write_with_a_bad_token_is_404_not_403(setup):
@@ -451,18 +457,51 @@ def test_ncs_can_open_an_incident(setup):
     assert body["bib"] == "1432"
 
 
-def test_read_only_roles_cannot_open_or_change_incidents(setup):
-    """Liaison and Logistics see incidents but cannot touch them in v1."""
+def test_every_field_role_can_open_an_incident(setup):
+    """A pickup or a course note is reported by whoever is standing there,
+    which is any of the four teams - relaying it to the one link that may
+    write it down is how a report arrives late or not at all."""
+    app, tokens, _, _ = setup
+    with TestClient(app) as client:
+        for role in ("ncs", "sag", "liaison", "logistics"):
+            response = client.post(incidents_url(tokens[role]), json={
+                "lat": 34.73, "lon": -86.57, "changed_by": role.upper(),
+            })
+            assert response.status_code == 201, role
+            assert response.json()["status"] == "reported"
+
+
+def test_a_reporting_role_may_describe_what_it_reported(setup):
+    """A pin with no bib and no note is half a report. The bib is filled in
+    once it can be read, which is the whole create-first flow."""
+    app, tokens, _, _ = setup
+    with TestClient(app) as client:
+        created = client.post(incidents_url(tokens["logistics"]),
+                              json={"lat": 34.73, "lon": -86.57}).json()
+        edited = client.post(
+            f"{incidents_url(tokens['logistics'])}/{created['id']}",
+            json={"bib": "1432", "note": "sitting at the corner"},
+        )
+    assert edited.status_code == 200
+    assert edited.json()["bib"] == "1432"
+
+
+def test_a_reporting_role_cannot_work_the_queue(setup):
+    """Dispatching and clearing stay with NCS and SAG. The pickup queue is
+    read as "who is still waiting", so a link left in a car must not be able
+    to empty it - or to delete the record of what was reported."""
     app, tokens, _, _ = setup
     with TestClient(app) as client:
         created = client.post(incidents_url(tokens["ncs"]),
                               json={"lat": 34.73, "lon": -86.57}).json()
         for role in ("liaison", "logistics"):
-            assert client.post(incidents_url(tokens[role]),
-                               json={"lat": 34.73, "lon": -86.57}).status_code == 403
             assert client.post(
                 f"{incidents_url(tokens[role])}/{created['id']}/status",
                 json={"status": "closed"},
+            ).status_code == 403
+            assert client.post(
+                f"{incidents_url(tokens[role])}/{created['id']}/delete",
+                json={},
             ).status_code == 403
 
 
@@ -972,14 +1011,21 @@ def test_sag_cannot_touch_anything_else(setup):
     assert [r.status_code for r in forbidden] == [403] * 5
 
 
-def test_a_read_only_role_still_cannot_open_an_incident(setup):
+def test_a_reporting_role_gains_nothing_else(setup):
+    """Widening a role is one line in ROLE_CAPABILITIES, and it must widen
+    only that one thing - the roster, the SSID alerts, the lead runners and
+    the course styling all stay where they were."""
     app, tokens, _, _ = setup
     with TestClient(app) as client:
-        refused = client.post(
-            f"/api/m2026/{tokens['liaison']}/incidents",
-            json={"lat": 44.1, "lon": -93.9},
-        )
-    assert refused.status_code == 403
+        refused = [
+            client.post(f"/api/m2026/{tokens['liaison']}/station/N0CALL-7/status",
+                        json={"op_status": "active"}),
+            client.post(f"/api/m2026/{tokens['liaison']}/ssid/adopt",
+                        json={"station_key": "N0CALL-9"}),
+            client.post(f"/api/m2026/{tokens['logistics']}/leaders/sighting",
+                        json={"poi_id": 1, "division": "male"}),
+        ]
+    assert [r.status_code for r in refused] == [403] * 3
 
 
 def test_the_state_payload_names_the_capabilities(setup):
@@ -988,9 +1034,9 @@ def test_the_state_payload_names_the_capabilities(setup):
         sag = client.get(f"/api/m2026/{tokens['sag']}/state").json()
         liaison = client.get(f"/api/m2026/{tokens['liaison']}/state").json()
 
-    assert sag["capabilities"] == ["incidents"]
+    assert sag["capabilities"] == ["incident_report", "incidents"]
     assert sag["can_write"] is True
-    assert liaison["capabilities"] == []
+    assert liaison["capabilities"] == ["incident_report"]
 
 
 def test_an_invalid_sag_token_is_still_a_404(setup):

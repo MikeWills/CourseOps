@@ -1442,11 +1442,14 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         payload["change"] = kind
         await app.state.hub.publish(event_id, payload)
 
+    # Reporting one is not the same permission as working the queue. Every role
+    # is somewhere an incident can happen, so any of them may open one and
+    # describe it; only NCS and SAG may move it along or take it off the board.
     @app.post("/api/{event_slug}/{token}/incidents")
     async def create_incident(
         event_slug: str, token: str, request: Request
     ) -> JSONResponse:
-        conn, granted = require_capability(event_slug, token, access.CAP_INCIDENTS)
+        conn, granted = require_capability(event_slug, token, access.CAP_INCIDENT_REPORT)
         body = await _json_body(request, conn)
         try:
             row = incidents.create(
@@ -1503,7 +1506,7 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     async def update_incident(
         event_slug: str, token: str, incident_id: int, request: Request
     ) -> JSONResponse:
-        conn, granted = require_capability(event_slug, token, access.CAP_INCIDENTS)
+        conn, granted = require_capability(event_slug, token, access.CAP_INCIDENT_REPORT)
         body = await _json_body(request, conn)
         fields = {k: v for k, v in body.items()
                   if k in {"bib", "note", "assigned_to", "lat", "lon"}}
