@@ -228,6 +228,11 @@ def list_pois(conn: sqlite3.Connection, event_id: int) -> list[dict]:
         entry["layer_color"] = layer["color"] if layer else None
         located = index.locate(row["lat"], row["lon"])
         entry["distance_along_m"] = located.distance_along_m if located else None
+        # The mile never travels alone. Each place is snapped to whichever
+        # course line is nearest, which is a coin flip where routes share
+        # pavement - so "4.4 mi" on its own invites exactly the reading that
+        # these figures are comparable between rows. They are not.
+        entry["course_name"] = located.course_name if located else None
         # What the pin will actually read. Shown in setup so a club can see
         # two places that came out the same character and override one.
         entry["label_text"] = labels.for_poi(row["name"], row["label"])
@@ -291,6 +296,39 @@ def update_poi(conn: sqlite3.Connection, event_id: int, poi_id: int,
     if cur.rowcount == 0:
         raise ValueError(f"No aid station with id {poi_id} in this event.")
     return _row(conn.execute("SELECT * FROM poi WHERE id = ?", (poi_id,)).fetchone())
+
+
+def reorder_pois(conn: sqlite3.Connection, event_id: int,
+                 poi_ids: list[int]) -> int:
+    """Set the club's running order for places, in the order given.
+
+    Numbered in tens so a later insertion has somewhere to go without
+    renumbering, and 1-based so nothing lands on 0, which means "not placed".
+
+    Only the ids passed are numbered. Anything omitted keeps its 0 and stays
+    at the end - which is what should happen to a place the club has not
+    thought about yet.
+    """
+    ids = [int(i) for i in poi_ids or []]
+    if not ids:
+        raise ValueError("Nothing to reorder.")
+    known = {
+        row["id"] for row in conn.execute(
+            "SELECT id FROM poi WHERE event_id = ?", (event_id,)
+        ).fetchall()
+    }
+    unknown = [i for i in ids if i not in known]
+    if unknown:
+        # Refuse rather than silently ordering a subset: a half-applied order
+        # is worse than none, because it looks like it worked.
+        raise ValueError(f"No such place in this event: {unknown[0]}")
+
+    for position, poi_id in enumerate(ids, start=1):
+        conn.execute(
+            "UPDATE poi SET sort_order = ? WHERE id = ? AND event_id = ?",
+            (position * 10, poi_id, event_id),
+        )
+    return len(ids)
 
 
 def move_pois(conn: sqlite3.Connection, event_id: int,

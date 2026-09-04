@@ -8,6 +8,36 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **Drag the places into the order they are actually reached.** Geometry cannot
+  work this out once an event has more than one route. Each place is snapped to
+  whichever course line is nearest, and where routes share pavement that is a
+  coin flip - so the list interleaved miles measured on three different races
+  into one meaningless order, and the lead runner progression inherited it.
+  Three routes with their own lettered stops is the normal case; which stop
+  follows which is a fact the club holds and the geometry does not.
+
+  A grip on each row drags it, and the arrow keys move it - drag and drop is
+  unusable with a keyboard and unreliable on the tablet someone may be sorting
+  this on race morning. `poi.sort_order` 0 means "never placed by hand" and
+  sorts last, so an event nobody has ordered behaves exactly as before and a
+  place imported afterwards lands at the end where it is visible.
+
+  The Mile column now also names the course it was measured on. It never should
+  have shown a bare figure: the snap makes those figures incomparable between
+  rows, which is exactly the misreading that was invited.
+
+### Fixed
+- **A lead runner correction to a station on another course vanished.**
+  Reporting the leader "at H" stored the sighting and then displayed nothing,
+  so they appeared stuck where they were. The lookups used to name a sighting
+  were built from one course's stations only, while the picker offers every
+  station - deliberately, because which race a stop belongs to is inferred from
+  proximity and that is a coin flip. Any staffed place can now be named. No
+  distance means no pace and no ETA invented for it.
+- **"The next station" now follows the club's order** rather than the next one
+  further along whichever line happened to be nearest.
+
+### Added
 - **Labels on pins.** Identical pins do not answer the question anyone actually
   asks of the map, which is "which one is that?" - and hovering each in turn to
   find out is useless during a net. Each pin on a labelled layer now carries one

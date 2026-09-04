@@ -62,6 +62,18 @@ CREATE TABLE IF NOT EXISTS poi (
     -- derived from the name (see labels.py), and this holds an override for
     -- the places where that guess comes out wrong or collides with another.
     label    TEXT,
+    -- The club's own running order, when geometry cannot work it out.
+    --
+    -- An event with three routes has three sequences of stops sharing one
+    -- flat list, and each stop is snapped to whichever course line is nearest
+    -- - a coin flip where routes share pavement. The result interleaves miles
+    -- measured on different races into one meaningless order. Which stop
+    -- follows which is a fact the club holds and the geometry does not.
+    --
+    -- 0 means "not placed by hand": those sort last, by course distance, so an
+    -- event that has never been ordered behaves exactly as before and a newly
+    -- imported place lands at the end rather than jumping into the middle.
+    sort_order INTEGER NOT NULL DEFAULT 0,
     notes    TEXT
 );
 

@@ -254,3 +254,79 @@ def test_a_realistic_pace_is_kept(race):
     entry = leader(conn, event_id, index)
     minutes_per_mile = MILE / entry.pace_mps / 60
     assert 7.0 < minutes_per_mile < 8.0
+
+
+# --- correcting a sighting -------------------------------------------------
+
+def test_a_sighting_off_this_course_is_still_named(race):
+    """The "At H doesn't update it" bug.
+
+    NCS can report the leader at any station, because which race a stop belongs
+    to is inferred from proximity and that is a coin flip where routes share
+    pavement. The lookups used to be built from one course's stations only, so
+    a correction typed against a station that snapped elsewhere was stored and
+    then displayed as nothing: the report vanished and the leader looked stuck.
+    """
+    conn, event_id, course_id, index = race
+    # A staffed place far from the course, so it snaps to nothing at all.
+    conn.execute(
+        "INSERT INTO poi (event_id, name, poi_type, lat, lon)"
+        " VALUES (?, 'Hotel', 'aid_station', 10.0, 10.0)", (event_id,))
+    off = poi_id(conn, "Hotel")
+
+    leaders.record_sighting(conn, event_id, course_id, "male",
+                            poi_id(conn, "Charlie"))
+    leaders.record_sighting(conn, event_id, course_id, "male", off)
+
+    current = leader(conn, event_id, index)
+    assert current.last_poi_id == off
+    assert current.last_poi_name == "Hotel"      # named, not silently dropped
+    # No distance, so no pace or ETA invented for it.
+    assert current.last_distance_m is None
+    assert current.eta_seconds is None
+
+
+def test_a_later_correction_wins(race):
+    """Reporting them back at an earlier station moves them back.
+
+    A runner logged as further along than they are has to be correctable, and
+    the correction is just another sighting - the latest one wins.
+    """
+    conn, event_id, course_id, index = race
+    leaders.record_sighting(conn, event_id, course_id, "male",
+                            poi_id(conn, "Echo"))
+    assert leader(conn, event_id, index).last_poi_name == "Echo"
+
+    leaders.record_sighting(conn, event_id, course_id, "male",
+                            poi_id(conn, "Bravo"))
+    assert leader(conn, event_id, index).last_poi_name == "Bravo"
+
+
+# --- the club's own order --------------------------------------------------
+
+def test_next_station_follows_the_clubs_order(race):
+    """With three routes sharing pavement, geometry cannot order the stops.
+
+    Once the club has dragged them into order, "the next station" has to mean
+    the next one in THEIR list, not the next one further along whichever line
+    happened to be nearest.
+    """
+    conn, event_id, course_id, index = race
+    # Reverse the geometric order by hand.
+    names = ["Echo", "Delta", "Charlie", "Bravo", "Alpha"]
+    for position, name in enumerate(names, start=1):
+        conn.execute("UPDATE poi SET sort_order = ? WHERE id = ?",
+                     (position * 10, poi_id(conn, name)))
+
+    # Nothing reported yet: the first station is the club's first, not mile 3.
+    assert leader(conn, event_id, index).next_poi_name == "Echo"
+
+    leaders.record_sighting(conn, event_id, course_id, "male",
+                            poi_id(conn, "Delta"))
+    assert leader(conn, event_id, index).next_poi_name == "Charlie"
+
+
+def test_unordered_places_keep_the_old_behaviour(race):
+    """An event nobody has ordered must behave exactly as it always did."""
+    conn, event_id, course_id, index = race
+    assert leader(conn, event_id, index).next_poi_name == "Alpha"

@@ -281,3 +281,66 @@ def test_posting_can_be_cleared(course_file):
     cleared = db.assign_station_to_poi(conn, event_id, "N0AAA-1", None)
 
     assert cleared["poi_id"] is None
+
+
+# --- the club's own running order ------------------------------------------
+
+def _places_event(tmp_path):
+    """Two places, deliberately out of geographic order by name."""
+    conn = db.connect(tmp_path / "order.sqlite3")
+    db.init_schema(conn)
+    event_id = db.create_event(conn, "ord", "Ordered")
+    for name, lat, lon in [("First", 1.0, 1.0), ("Second", 2.0, 2.0),
+                           ("Third", 3.0, 3.0)]:
+        conn.execute(
+            "INSERT INTO poi (event_id, name, poi_type, lat, lon)"
+            " VALUES (?, ?, 'aid_station', ?, ?)", (event_id, name, lat, lon))
+    return conn, event_id
+
+
+def _names(conn, event_id, index):
+    rows = conn.execute(
+        "SELECT * FROM poi WHERE event_id = ?", (event_id,)).fetchall()
+    return [r["name"] for r in index.order_along_course(rows)]
+
+
+def test_hand_placed_rows_lead_and_unplaced_follow(tmp_path):
+    """`sort_order` 0 means "never placed by hand" and must sort last.
+
+    So an event nobody has ordered behaves exactly as it always did, and a
+    place imported after the ordering was done lands at the end where it is
+    visible rather than in the middle where it is not.
+    """
+    conn, event_id = _places_event(tmp_path)
+    index = progress.CourseIndex([])          # no courses: nothing locates
+
+    conn.execute("UPDATE poi SET sort_order = 10 WHERE name = 'Third'")
+    conn.execute("UPDATE poi SET sort_order = 20 WHERE name = 'First'")
+    assert _names(conn, event_id, index)[:2] == ["Third", "First"]
+    assert _names(conn, event_id, index)[2] == "Second"   # unplaced, last
+
+
+def test_reorder_numbers_in_tens(tmp_path):
+    from courseops import admin
+    conn, event_id = _places_event(tmp_path)
+    ids = [r["id"] for r in conn.execute(
+        "SELECT id FROM poi WHERE event_id = ? ORDER BY name", (event_id,))]
+
+    assert admin.reorder_pois(conn, event_id, list(reversed(ids))) == 3
+    got = conn.execute(
+        "SELECT name, sort_order FROM poi WHERE event_id = ?"
+        " ORDER BY sort_order", (event_id,)).fetchall()
+    assert [r["sort_order"] for r in got] == [10, 20, 30]
+    assert [r["name"] for r in got] == ["Third", "Second", "First"]
+
+
+def test_reorder_refuses_an_id_from_another_event(tmp_path):
+    """A half-applied order is worse than none: it looks like it worked."""
+    from courseops import admin
+    conn, event_id = _places_event(tmp_path)
+    ids = [r["id"] for r in conn.execute("SELECT id FROM poi")]
+    with pytest.raises(ValueError):
+        admin.reorder_pois(conn, event_id, [*ids, 99999])
+    # Nothing was written.
+    assert all(r["sort_order"] == 0 for r in conn.execute(
+        "SELECT sort_order FROM poi WHERE event_id = ?", (event_id,)))

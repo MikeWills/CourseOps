@@ -24,6 +24,10 @@ from dataclasses import dataclass
 from . import geo
 from .geo import LonLat
 
+# Larger than any sort_order the UI assigns, so "not placed by hand" sorts
+# after everything that was.
+UNPLACED = 1_000_000_000
+
 # How far off the line a station may be and still be considered "on" a course.
 #
 # Deliberately generous. GPS is good to tens of metres, but the course line is
@@ -110,22 +114,34 @@ class CourseIndex:
         return cls(courses, max_offset_m)
 
     def order_along_course(self, rows: list) -> list:
-        """Sort places by where they sit on the course, nearest the start first.
+        """Sort places into the order they are reached.
 
-        This is the only ordering that works regardless of what a club calls its
-        aid stations. Sorting by name breaks in two ways that both show up in
-        practice: "Aid 10" sorts before "Aid 2", and Greek letters come out
-        Alpha, Beta, Delta, Epsilon, Gamma. NATO phonetic happens to sort
-        correctly, and place names do not sort meaningfully at all.
+        The club's own order wins where it has been set. Everything else falls
+        back to distance along the nearest course.
 
-        Course order is also the order NCS works in - aid stations close one
-        after another behind the sweep - so it is what the list should show
-        anyway. Anything not near a course sinks to the end rather than being
-        dropped.
+        Sorting by NAME is never right, which is what makes this necessary at
+        all: "Aid 10" sorts before "Aid 2", and Greek letters come out Alpha,
+        Beta, Delta, Epsilon, Gamma.
+
+        But geometry is not right either once an event has more than one route.
+        Each place is snapped to whichever course line is nearest, and where
+        routes share pavement that is a coin flip - so a list built from those
+        distances interleaves miles measured on three different races. Three
+        routes with their own lettered stops is the normal case, and which stop
+        follows which is a fact the club holds and the geometry does not. Hence
+        `poi.sort_order`, set by dragging the rows in setup.
+
+        `sort_order` 0 means "never placed by hand" and sorts last, by
+        distance. So an event nobody has ordered behaves exactly as it always
+        did, and a place imported after the ordering was done lands at the end
+        where it is visible rather than in the middle where it is not.
         """
         def key(row):
+            manual = row["sort_order"] if "sort_order" in row.keys() else 0
             located = self.locate(row["lat"], row["lon"])
-            return (0, located.distance_along_m) if located else (1, 0.0)
+            distance = located.distance_along_m if located else float("inf")
+            # UNPLACED is beyond any real sort_order, so hand-placed rows lead.
+            return (manual or UNPLACED, distance)
 
         return sorted(rows, key=key)
 
