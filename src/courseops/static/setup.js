@@ -1017,68 +1017,23 @@ async function loadCourses() {
       refreshPoiSelection();
     });
   }
-  /* Every input remembers what it was rendered with, so "changed" is a fact
-     rather than a guess, and saving can send only what actually moved. */
-  $('poi-table').querySelectorAll(
-    '[data-pname], [data-w3w], [data-player], [data-plabel], [data-lcolor]')
-    .forEach((el) => { el.dataset.original = el.value; });
-
-  function dirtyRows() {
-    const changed = new Map();
-    $('poi-table').querySelectorAll('tbody tr').forEach((tr) => {
-      const name = tr.querySelector('[data-pname]');
-      if (!name) return;
-      const id = name.dataset.pname;
-      const w3w = tr.querySelector('[data-w3w]');
-      const layer = tr.querySelector('[data-player]');
-      const pin = tr.querySelector('[data-plabel]');
-      const fields = {};
-      if (name.value !== name.dataset.original) fields.name = name.value;
-      if (w3w && w3w.value !== w3w.dataset.original) fields.what3words = w3w.value;
-      if (layer && layer.value !== layer.dataset.original) fields.poi_type = layer.value;
-      if (pin && pin.value !== pin.dataset.original) fields.label = pin.value;
-      if (Object.keys(fields).length) changed.set(id, fields);
-    });
-    return changed;
-  }
-
-  function refreshDirty() {
-    const count = dirtyRows().size;
-    $('poi-save-all').hidden = count === 0;
-    $('poi-save-all').textContent =
-      count === 1 ? 'Save 1 change' : `Save ${count} changes`;
-    $('poi-dirty').textContent = count ? 'unsaved' : '';
-  }
-
-  $('poi-table').addEventListener('input', refreshDirty);
-  $('poi-table').addEventListener('change', refreshDirty);
-
-  /* Saving used to reload the whole table, which threw away every other edit
-     in progress. Renaming thirteen water stops and pressing save on one lost
-     the other twelve, with no warning and nothing to undo. So: save them all,
-     in one go, and only then reload. */
-  $('poi-save-all').onclick = async () => {
-    const changed = dirtyRows();
-    if (!changed.size) return;
-    $('poi-save-all').disabled = true;
-    $('poi-save-all').textContent = `Saving ${changed.size}…`;
-    let saved = 0;
-    try {
-      for (const [id, fields] of changed) {
-        await post(`/api/setup/events/${S.eventId}/pois/${id}`, fields);
-        saved += 1;
-      }
-      banner(`Saved ${saved} place(s).`);
-    } catch (err) {
-      // Say how far it got. "Failed" alone leaves you unsure what to retype.
-      banner(`Saved ${saved} of ${changed.size}, then: ${err.message}`, true);
-    } finally {
-      $('poi-save-all').disabled = false;
-      loadCourses();
-    }
-  };
-
-  refreshDirty();
+  /* Save the table as a unit. A save button per row used to reload the whole
+     list, discarding every other edit in progress. */
+  bindSaveAll({
+    table: 'poi-table',
+    button: 'poi-save-all',
+    status: 'poi-dirty',
+    fields: [
+      { attr: 'pname', name: 'name' },
+      { attr: 'w3w', name: 'what3words' },
+      { attr: 'player', name: 'poi_type' },
+      { attr: 'plabel', name: 'label' },
+    ],
+    save: (id, payload) =>
+      post(`/api/setup/events/${S.eventId}/pois/${id}`, payload),
+    noun: 'place(s)',
+    reload: loadCourses,
+  });
   applyPoiFilter();
 
   $('poi-table').querySelectorAll('[data-delp]').forEach((b) =>
@@ -1111,11 +1066,95 @@ function renderIconPicker(host, selected, onPick) {
     }));
 }
 
-async function loadLayers() {
+/* One save button for a whole table.
+
+   Every editable table in setup used to save one row at a time, and each save
+   had to reload the table to show the result - which threw away every other
+   edit in progress. It cost a real user twelve renamed water stops, and the
+   Layers tab was worse still: saving a role reloaded the layers table above
+   it, so edits vanished from a table nobody had touched.
+
+   So a table saves as a unit. This tracks what actually changed against what
+   was rendered, sends only those fields, and reloads once at the end. `fields`
+   maps a data-attribute to the payload field it fills; the first one is also
+   the row key, and a checkbox sends a boolean.
+
+   Do not go back to a save button per row. Two save buttons with different
+   scopes is how the original bug happened. */
+function bindSaveAll({ table, button, status, fields, save, noun, reload }) {
+  const root = $(table);
+  const btn = $(button);
+  const read = (el) => (el.type === 'checkbox' ? String(el.checked) : el.value);
+
+  root.querySelectorAll(fields.map((f) => `[data-${f.attr}]`).join(', '))
+    .forEach((el) => { el.dataset.original = read(el); });
+
+  function dirty() {
+    const changed = new Map();
+    root.querySelectorAll('tbody tr').forEach((tr) => {
+      const first = tr.querySelector(`[data-${fields[0].attr}]`);
+      if (!first) return;
+      const payload = {};
+      fields.forEach(({ attr, name }) => {
+        const el = tr.querySelector(`[data-${attr}]`);
+        // A field can be absent from a row for its own reasons - a pin label
+        // on a layer that is not labelled - and that is not a change.
+        if (!el || read(el) === el.dataset.original) return;
+        payload[name] = el.type === 'checkbox' ? el.checked : el.value;
+      });
+      if (Object.keys(payload).length) {
+        changed.set(first.dataset[fields[0].attr], payload);
+      }
+    });
+    return changed;
+  }
+
+  function refresh() {
+    const count = dirty().size;
+    btn.hidden = count === 0;
+    btn.textContent = count === 1 ? 'Save 1 change' : `Save ${count} changes`;
+    if (status) $(status).textContent = count ? 'unsaved' : '';
+  }
+
+  root.addEventListener('input', refresh);
+  root.addEventListener('change', refresh);
+
+  btn.onclick = async () => {
+    const changed = dirty();
+    if (!changed.size) return;
+    btn.disabled = true;
+    btn.textContent = `Saving ${changed.size}\u2026`;
+    let saved = 0;
+    try {
+      for (const [key, payload] of changed) {
+        await save(key, payload);
+        saved += 1;
+      }
+      banner(`Saved ${saved} ${noun}.`);
+    } catch (err) {
+      // How far it got, so you know what still needs retyping.
+      banner(`Saved ${saved} of ${changed.size}, then: ${err.message}`, true);
+    } finally {
+      btn.disabled = false;
+      reload();
+    }
+  };
+
+  refresh();
+}
+
+/* Layers and roles share one endpoint but are two independent tables on one
+   tab, so each re-renders only itself after a save. Re-rendering both would
+   discard unsaved edits in the other one - the same bug, one table over. */
+async function loadLayers(only) {
   const data = await api(`/api/setup/events/${S.eventId}/categories`);
   S.poiCategories = data.poi_categories;
   S.roles = data.roster_roles;
+  if (only !== 'roles') renderLayerTable();
+  if (only !== 'layers') renderRoleTable();
+}
 
+function renderLayerTable() {
   renderIconPicker($('lay-icon-picker'), iconPick, (k) => { iconPick = k; });
 
   $('layer-table').innerHTML = `
@@ -1142,80 +1181,22 @@ async function loadLayers() {
         </td>
       </tr>`).join('') + '</tbody></table>';
 
-  /* One save for the whole table, for the same reason the Places table has
-     one: a per-row save had to reload the table to show the result, and that
-     reload discarded every other edit in progress. Renaming several layers
-     and pressing save on one lost the rest.
-
-     Only changed fields are sent, so a save is not a blind overwrite of rows
-     nobody touched. */
-  $('layer-table').querySelectorAll(
-    '[data-lname], [data-lcolor], [data-lstaffed], [data-lvisible], [data-llabels]')
-    .forEach((el) => {
-      el.dataset.original = el.type === 'checkbox'
-        ? String(el.checked) : el.value;
-    });
-
-  function dirtyLayers() {
-    const changed = new Map();
-    $('layer-table').querySelectorAll('tbody tr').forEach((tr) => {
-      const name = tr.querySelector('[data-lname]');
-      if (!name) return;
-      const key = name.dataset.lname;
-      const fields = {};
-      const text = (attr, field) => {
-        const el = tr.querySelector(`[data-${attr}]`);
-        if (el && el.value !== el.dataset.original) fields[field] = el.value;
-      };
-      const flag = (attr, field) => {
-        const el = tr.querySelector(`[data-${attr}]`);
-        if (el && String(el.checked) !== el.dataset.original) {
-          fields[field] = el.checked;
-        }
-      };
-      text('lname', 'name');
-      text('lcolor', 'color');
-      flag('lstaffed', 'staffed');
-      flag('lvisible', 'visible');
-      flag('llabels', 'show_labels');
-      if (Object.keys(fields).length) changed.set(key, fields);
-    });
-    return changed;
-  }
-
-  function refreshLayerDirty() {
-    const count = dirtyLayers().size;
-    $('layer-save-all').hidden = count === 0;
-    $('layer-save-all').textContent =
-      count === 1 ? 'Save 1 change' : `Save ${count} changes`;
-    $('layer-dirty').textContent = count ? 'unsaved' : '';
-  }
-
-  $('layer-table').addEventListener('input', refreshLayerDirty);
-  $('layer-table').addEventListener('change', refreshLayerDirty);
-
-  $('layer-save-all').onclick = async () => {
-    const changed = dirtyLayers();
-    if (!changed.size) return;
-    $('layer-save-all').disabled = true;
-    $('layer-save-all').textContent = `Saving ${changed.size}\u2026`;
-    let saved = 0;
-    try {
-      for (const [key, fields] of changed) {
-        await post(`/api/setup/events/${S.eventId}/categories/${key}`, fields);
-        saved += 1;
-      }
-      banner(`Saved ${saved} layer(s).`);
-    } catch (err) {
-      // How far it got, so you know what still needs retyping.
-      banner(`Saved ${saved} of ${changed.size}, then: ${err.message}`, true);
-    } finally {
-      $('layer-save-all').disabled = false;
-      loadLayers();
-    }
-  };
-
-  refreshLayerDirty();
+  bindSaveAll({
+    table: 'layer-table',
+    button: 'layer-save-all',
+    status: 'layer-dirty',
+    fields: [
+      { attr: 'lname', name: 'name' },
+      { attr: 'lcolor', name: 'color' },
+      { attr: 'lstaffed', name: 'staffed' },
+      { attr: 'lvisible', name: 'visible' },
+      { attr: 'llabels', name: 'show_labels' },
+    ],
+    save: (key, payload) =>
+      post(`/api/setup/events/${S.eventId}/categories/${key}`, payload),
+    noun: 'layer(s)',
+    reload: () => loadLayers('layers'),
+  });
 
   $('layer-table').querySelectorAll('[data-ldel]').forEach((b) =>
     b.addEventListener('click', async () => {
@@ -1224,30 +1205,29 @@ async function loadLayers() {
       try {
         await post(`/api/setup/events/${S.eventId}/categories/${cat.key}/delete`);
         banner(`Deleted ${cat.name}.`);
-        loadLayers();
+        loadLayers('layers');
       } catch (err) { banner(err.message, true); }
     }));
+}
 
+function renderRoleTable() {
   $('role-table').innerHTML = `
-    <table class="grid"><thead><tr><th>Role</th><th></th></tr></thead><tbody>`
+    <table class="grid"><thead><tr><th>Role</th></tr></thead><tbody>`
     + S.roles.map((r) => `<tr>
         <td><input value="${esc(r.name)}" data-rname="${esc(r.key)}" style="width:180px">
           <br><span class="muted">${esc(r.key)}</span></td>
-        <td class="actions">${iconBtn('save', {'data-rsave': r.key},
-          `Save ${r.name}`)}</td>
       </tr>`).join('') + '</tbody></table>';
 
-  $('role-table').querySelectorAll('[data-rsave]').forEach((b) =>
-    b.addEventListener('click', async () => {
-      const key = b.dataset.rsave;
-      try {
-        await post(`/api/setup/events/${S.eventId}/roles/${key}`, {
-          name: $('role-table').querySelector(`[data-rname="${key}"]`).value,
-        });
-        banner('Role renamed.');
-        loadLayers();
-      } catch (err) { banner(err.message, true); }
-    }));
+  bindSaveAll({
+    table: 'role-table',
+    button: 'role-save-all',
+    status: 'role-dirty',
+    fields: [{ attr: 'rname', name: 'name' }],
+    save: (key, payload) =>
+      post(`/api/setup/events/${S.eventId}/roles/${key}`, payload),
+    noun: 'role(s)',
+    reload: () => loadLayers('roles'),
+  });
 }
 
 $('poi-move').addEventListener('click', async () => {
