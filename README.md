@@ -13,7 +13,9 @@ without much effort.
 
 **Status: early development.** APRS-IS ingest, KML/KMZ course import, the live
 map, incidents, lead runner tracking and a browser setup application all work.
-v0.1.0 is the first release; see [releases](../../releases/latest) for the Windows download. Not yet run at a live event.
+See [releases](../../releases/latest) for the Windows download. Not yet run at
+a live event, and the live APRS-IS feed has not yet been exercised against real
+traffic.
 
 - [`docs/PLAN.md`](docs/PLAN.md) — the plan, decisions, and known gaps
 - [`docs/RUNBOOK.md`](docs/RUNBOOK.md) — event-day procedure for operators
@@ -291,12 +293,22 @@ address but never resolves it. The KML coordinates remain authoritative, and the
 Aid stations table shows them beside each place, with a `///` link that opens the
 what3words map on that exact square so the words can be copied back.
 
-Run the server. It opens one APRS-IS connection and pushes positions to every
-browser over a WebSocket:
+Run the server. It serves the map and the setup application, and pushes
+positions to every browser over a WebSocket:
 
 ```bash
 courseops serve m2026
 ```
+
+**The APRS-IS feed is off until you turn it on**, under Setup -> Tracking. One
+connection is opened for the whole server, receive-only, and the switch is
+remembered across restarts.
+
+Leave it off outside an event. The filter asks for each operator's callsign
+wherever they are rather than only on the course, so a feed left running
+records where your volunteers are every day - which is not what anyone agreed
+to by joining a roster. Turn it on for the event, and for a check-in rehearsal
+beforehand.
 
 That prints one link per role. Send each to the right group:
 
