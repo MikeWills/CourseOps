@@ -11,7 +11,7 @@
 # puts the previous version back if the new one does not answer.
 set -euo pipefail
 
-TAG="${1:?usage: deploy.sh <tag>, e.g. deploy.sh v0.1.1}"
+TAG="${1:?usage: deploy.sh <ref>, e.g. deploy.sh v0.1.1 or deploy.sh main}"
 APP_DIR="${APP_DIR:-/opt/courseops}"
 SERVICE="${SERVICE:-courseops}"
 HEALTH_URL="${HEALTH_URL:-http://127.0.0.1:8000/healthz}"
@@ -41,10 +41,34 @@ if [ -f "$DB" ]; then
     ls -1t "$APP_DIR"/data/pre-deploy-*.sqlite3 2>/dev/null | tail -n +11 | xargs -r rm --
 fi
 
-# --- fetch and check out the tag ------------------------------------------
+# --- fetch and check out the ref ------------------------------------------
+#
+# Resolved to a concrete commit before anything is checked out, because
+# `checkout main` does NOT do what it looks like it does here: this working
+# copy sits on a detached HEAD, so a local `main` branch is whatever it was
+# when the server was first cloned. Checking it out would deploy stale code,
+# report success, and leave someone staring at a version that did not change.
+#
+# A tag wins over a branch of the same name. Normally this deploys a tag - what
+# is running should be a named version you can point at, and rolling back is
+# then "deploy the previous tag" rather than an archaeology exercise - but a
+# branch is allowed for the case where you are away from a terminal and want
+# main on the server to look at.
 say "Fetching $TAG"
-git fetch --tags --prune origin
-git -c advice.detachedHead=false checkout --force "$TAG"
+git fetch --tags --prune --force origin
+
+if git rev-parse -q --verify "refs/tags/$TAG^{commit}" >/dev/null; then
+    TARGET="refs/tags/$TAG"
+elif git rev-parse -q --verify "refs/remotes/origin/$TAG^{commit}" >/dev/null; then
+    TARGET="refs/remotes/origin/$TAG"
+    say "NOTE: $TAG is a branch, not a release tag. Deploying origin/$TAG."
+else
+    say "No tag or branch called $TAG on origin. Nothing deployed."
+    exit 1
+fi
+
+say "Checking out $(git rev-parse --short "$TARGET") ($TARGET)"
+git -c advice.detachedHead=false checkout --force --detach "$TARGET"
 
 say "Installing"
 .venv/bin/pip install --quiet --upgrade pip

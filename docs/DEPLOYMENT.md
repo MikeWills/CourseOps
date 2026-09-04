@@ -378,6 +378,22 @@ Environments. That is where the secrets live, and it is what lets you require a
 click before anything touches the server. Worth having even alone: a deliberate
 approval before deploying to a box a club depends on costs one second.
 
+### Deploying by hand, including from a phone
+
+Once the secrets are in place, **Actions -> deploy -> Run workflow** deploys
+whatever you name. The box defaults to `main`, so getting the current main onto
+the server is three taps and needs no terminal - which is the whole point of it
+being there. That path works from the GitHub mobile app or the website.
+
+A tag is still the normal thing to deploy, and a tag of the same name wins over
+a branch. Deploying a branch says so in the log, because what is running should
+usually be a version you can point at by name.
+
+**Setting the secrets is the one part that cannot be automated**, and should
+not be: `SSH_KEY` is a private key. Add it yourself under Settings -> Secrets
+and variables -> Actions, and never paste it into an issue, a chat, or a pull
+request.
+
 ### What it checks
 
 The script checks `/healthz` from inside the box, which answers "does the app

@@ -40,7 +40,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 415 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 420 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -217,6 +217,12 @@ usability, not style preferences.
   an invalid token still gets 404.
 - **Operator initials are a log annotation, never identity.** Free text, kept in
   the browser, truncated server-side. Nothing may start trusting it as auth.
+- **`git checkout <branch>` on the server does not deploy that branch.** The
+  working copy is on a detached HEAD, so a local branch there is whatever it
+  was at clone time: the deploy reports success and installs stale code.
+  `deploy.sh` resolves to a concrete commit first - tag, then
+  `origin/<branch>` - and refuses an unknown ref rather than deploying
+  whatever HEAD happens to be.
 - **Behind a proxy the app cannot see the real scheme.** Run with
   `--behind-proxy` or session cookies silently lose the Secure flag. Bind
   127.0.0.1 so TLS cannot be bypassed.
@@ -547,6 +553,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-04** Deploy can be run by hand against a branch; fixed a branch deploy installing stale code.
 - **2026-09-04** Fixed: a tablet got the phone layout or a strip of map; three layout tiers now.
 - **2026-09-04** Layers moved to the bottom of the panel; the right panel now follows the role.
 - **2026-09-04** Pickups and course notes can be deleted; the removal reaches every browser.
@@ -556,4 +563,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-04** Lead runners can be cleared for a race before the start; undo was never a reset.
 - **2026-09-04** Places can be dragged into the order they are reached; geometry cannot order multi-route events.
 - **2026-09-04** Fixed: a lead runner correction to a station on another course vanished silently.
-- **2026-09-03** Station roles save all at once; the three setup tables now share one save-all.

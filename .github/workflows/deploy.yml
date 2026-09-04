@@ -1,12 +1,16 @@
-# Deploy a tagged release to the production server over SSH.
+# Deploy to the production server over SSH.
 #
-# Runs only on a version tag, never on a merge to main. main stays free for work
-# in progress, and what is running is always a named version you can point at -
-# which also makes rolling back "deploy the previous tag" rather than an
-# archaeology exercise.
+# Automatically on a version tag, never on a merge to main. main stays free for
+# work in progress, and what is running is normally a named version you can
+# point at - which also makes rolling back "deploy the previous tag" rather
+# than an archaeology exercise.
 #
-# It waits for the release build to have produced its artefacts first, so a tag
-# that cannot even build never reaches the server.
+# It can also be run by hand against any tag OR branch, which is the escape
+# hatch for being away from a terminal and wanting main on the server to look
+# at. Actions -> deploy -> Run workflow, and it defaults to main.
+#
+# The server installs from git, so there is nothing to wait for: no artefact
+# from the release build is used here.
 #
 # Repository secrets required:
 #   SSH_HOST   hostname or IP of the server
@@ -25,8 +29,9 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Tag to deploy, e.g. v0.1.1"
+        description: "Tag or branch to deploy, e.g. v0.1.1 or main"
         required: true
+        default: main
 
 jobs:
   deploy:
@@ -41,7 +46,7 @@ jobs:
         id: target
         run: |
           TAG="${{ github.event.inputs.tag || github.ref_name }}"
-          if [ -z "$TAG" ]; then echo "no tag to deploy"; exit 1; fi
+          if [ -z "$TAG" ]; then echo "nothing to deploy"; exit 1; fi
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "Deploying $TAG"
 

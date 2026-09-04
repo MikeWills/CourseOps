@@ -8,6 +8,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Fixed
+- **Deploying a branch would have silently installed stale code.** The script
+  ran `git checkout --force "$TAG"`, and the server's working copy sits on a
+  detached HEAD - so a local `main` there is whatever it was when the box was
+  cloned. The deploy would report success and change nothing, which is worse
+  than failing. The ref is now resolved to a concrete commit first, preferring
+  a tag and falling back to `origin/<branch>`, and an unknown ref stops rather
+  than deploying whatever HEAD happened to be.
+- **The deploy workflow claimed to wait for the release build's artefacts.** It
+  never did, and the server installs from git, so there was nothing to wait
+  for. The comment was the only thing that thought otherwise.
+
+### Changed
+- **The deploy workflow can be run by hand against a branch**, defaulting to
+  `main`. That makes getting current main onto the server three taps in the
+  GitHub app rather than something needing a terminal - which matters when the
+  person testing is out with a phone. A tag is still the normal thing to
+  deploy, and still wins over a branch of the same name.
+
+### Fixed
 - **A tablet got the phone layout, or a strip of map.** There was one
   breakpoint at 860px and 680px of fixed panel, which is wrong at both ends for
   the device NCS is most likely to run a net from. An 11" iPad in portrait is
