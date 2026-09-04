@@ -245,6 +245,13 @@ usability, not style preferences.
   to see who needs picking up; Logistics needs the sweep, because that is what
   says a road is clear. Sections moved out must go back into the AUTHORED
   order, not onto the end - `sheetOrder` records it once at startup.
+- **Three layout tiers, not two, and the JS must agree with the CSS.**
+  < 700px bottom sheet; >= 700px the sheet is a sidebar (this is where tablets
+  in portrait land - an 11" iPad is 834 CSS px); >= 1000px the side panel too,
+  because below that two panels leave a strip of map too narrow to read a
+  course on. `SIDEBAR` and `WIDE` in `app.js` mirror those numbers: if they
+  drift apart a section ends up invisible, or in a panel that is not rendered.
+  Panel widths are `clamp()`, not fixed, for the same reason.
 - **Layer switches live at the bottom of the panel.** Set once before the race
   and never touched, while everything above them is read all day. Anything new
   that is read during the event goes above them, not below.
@@ -540,6 +547,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-04** Fixed: a tablet got the phone layout or a strip of map; three layout tiers now.
 - **2026-09-04** Layers moved to the bottom of the panel; the right panel now follows the role.
 - **2026-09-04** Pickups and course notes can be deleted; the removal reaches every browser.
 - **2026-09-04** Station roles are open and on their own tab; a deleted role no longer comes back.
@@ -549,4 +557,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-04** Places can be dragged into the order they are reached; geometry cannot order multi-route events.
 - **2026-09-04** Fixed: a lead runner correction to a station on another course vanished silently.
 - **2026-09-03** Station roles save all at once; the three setup tables now share one save-all.
-- **2026-09-03** Labels on pins: one or two characters per place, per layer, derived from the name.

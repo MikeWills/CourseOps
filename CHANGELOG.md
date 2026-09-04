@@ -7,6 +7,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **A tablet got the phone layout, or a strip of map.** There was one
+  breakpoint at 860px and 680px of fixed panel, which is wrong at both ends for
+  the device NCS is most likely to run a net from. An 11" iPad in portrait is
+  834 CSS px, so it fell in the phone tier and lost the sidebar entirely; in
+  landscape at 1024 the two fixed panels left 344px of map.
+
+  Three tiers now: under 700px the bottom sheet, from 700px the sheet becomes a
+  sidebar - which catches every tablet in portrait - and from 1000px the side
+  panel appears as well. Panel widths are fluid between those points, so a
+  1024px landscape iPad keeps 471px of map instead of 344 and a laptop is
+  unchanged.
+
+  Collapsing the sheet also moved to the sidebar tier. It had been gated on the
+  two-panel breakpoint, so between 700 and 1000 the collapse button would have
+  been visible and done nothing.
+
 ### Changed
 - **The layer switches moved to the bottom of the panel, on every page.** They
   are set once before the race and then never touched, while everything above

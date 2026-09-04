@@ -523,7 +523,23 @@ html, body {
 
 /* --- desktop: the sheet becomes a fixed sidebar ------------------------- */
 
-@media (min-width: 860px) {
+/* --- layout tiers ---------------------------------------------------------
+
+   Three, not two, because a tablet is neither a phone nor a laptop and NCS may
+   well be running the net off an iPad.
+
+     < 700px   phone. One bottom sheet holding everything.
+     >= 700px  the sheet becomes a left sidebar beside the map. This catches
+               every tablet in portrait - an 11" iPad is 834 CSS px, a 10"
+               Android around 800 - which previously fell in the phone tier and
+               so lost the sidebar entirely.
+     >= 1000px the side panel appears as well. Two panels need roughly a
+               thousand pixels before the map is worth looking at: at 1024,
+               which is an iPad in landscape, fixed 360 + 320 panels left 344px
+               of map.
+
+   Panel widths are fluid between those points for the same reason. */
+@media (min-width: 700px) {
   /* Location problems get their own line. Reusing the connection badge would
    hide whether the data feed is actually live. */
 #locate-status {
@@ -545,7 +561,9 @@ html, body {
 #sheet-toggle { display: none; }
   #sheet {
     top: 0; bottom: 0; right: auto;
-    width: 360px;
+    /* Never more than 360, never so narrow a station row wraps, and never so
+       wide it eats the map on a tablet. */
+    width: clamp(280px, 30vw, 360px);
     max-height: none;
     border-radius: 0;
     border-top: 0;
@@ -556,9 +574,20 @@ html, body {
   #sheet-grip { display: none; }
   #sheet-header { display: flex; }
   #sheet { padding-top: 0; }
-  #map, #topbar { left: 360px; }
+  #map, #topbar { left: clamp(280px, 30vw, 360px); }
   /* The sidebar already carries the brand, so the top bar drops the lockup. */
   #brand, #brand-rule { display: none; }
+  /* Collapsing the sheet belongs to this tier, not the two-panel one: the
+     control appears the moment the sheet becomes a sidebar, and a visible
+     button that does nothing is worse than no button. */
+  body.sheet-hidden #sheet { display: none; }
+  body.sheet-hidden #map,
+  body.sheet-hidden #topbar { left: 0; }
+  /* With the sidebar gone the top bar has to carry the brand again. */
+  body.sheet-hidden #brand,
+  body.sheet-hidden #brand-rule { display: flex; }
+  body.sheet-hidden #sheet-reopen { left: 12px; top: 64px; }
+
   #locate-btn { bottom: 24px; }
   #locate-status { bottom: 80px; }
 }
@@ -922,14 +951,18 @@ html, body {
 #sheet-reopen { left: 12px; }
 #stations-reopen { right: 12px; }
 
-@media (min-width: 860px) {
+@media (min-width: 1000px) {
   /* Two panels: the working surface on the left, and the stations list on the
-     right where NCS is reading it all day rather than below the fold. */
+     right where NCS is reading it all day rather than below the fold.
+
+     1000px rather than 860: below that the two panels leave a strip of map too
+     narrow to read a course on, and the panel someone actually needs is
+     already reachable in the sheet. */
   #stations-panel {
     display: block;
     position: absolute;
     top: 0; bottom: 0; right: 0;
-    width: 320px;
+    width: clamp(240px, 24vw, 320px);
     z-index: 550;
     overflow-y: auto;
     padding: 0 14px 18px;
@@ -953,17 +986,10 @@ html, body {
     text-transform: uppercase;
   }
 
-  #map, #topbar { right: 320px; }
+  #map, #topbar { right: clamp(240px, 24vw, 320px); }
 
   body.stations-hidden #stations-panel { display: none; }
   body.stations-hidden #map,
   body.stations-hidden #topbar { right: 0; }
 
-  body.sheet-hidden #sheet { display: none; }
-  body.sheet-hidden #map,
-  body.sheet-hidden #topbar { left: 0; }
-  /* With the sidebar gone the top bar has to carry the brand again. */
-  body.sheet-hidden #brand,
-  body.sheet-hidden #brand-rule { display: flex; }
-  body.sheet-hidden #sheet-reopen { left: 12px; top: 64px; }
 }
