@@ -201,7 +201,7 @@ async function refreshTab(name) {
     if (!gateOnEvent(name)) return;
     if (name === 'course') return loadStaged();
     if (name === 'stations') return loadCourses();
-    if (name === 'layers') return loadLayers();
+    if (name === 'layers' || name === 'roles') return loadLayers();
     if (name === 'roster') return loadRoster();
     if (name === 'links') return loadLinks();
   } catch (err) { banner(err.message, true); }
@@ -1333,11 +1333,26 @@ function renderLayerTable() {
 
 function renderRoleTable() {
   $('role-table').innerHTML = `
-    <table class="grid"><thead><tr><th>Role</th></tr></thead><tbody>`
+    <table class="grid"><thead><tr><th>Role</th><th>On the roster</th>
+      <th></th></tr></thead><tbody>`
     + S.roles.map((r) => `<tr>
         <td><input value="${esc(r.name)}" data-rname="${esc(r.key)}" style="width:180px">
           <br><span class="muted">${esc(r.key)}</span></td>
+        <td>${r.in_use || 0}</td>
+        <td class="actions">${iconBtn('remove', {'data-rdel': r.key},
+          `Delete ${r.name}`)}</td>
       </tr>`).join('') + '</tbody></table>';
+
+  $('role-table').querySelectorAll('[data-rdel]').forEach((b) =>
+    b.addEventListener('click', async () => {
+      const role = S.roles.find((r) => r.key === b.dataset.rdel);
+      if (!confirm(`Delete the "${role.name}" role?`)) return;
+      try {
+        await post(`/api/setup/events/${S.eventId}/roles/${role.key}/delete`);
+        banner(`Deleted ${role.name}.`);
+        loadLayers('roles');
+      } catch (err) { banner(err.message, true); }
+    }));
 
   bindSaveAll({
     table: 'role-table',
@@ -1350,6 +1365,22 @@ function renderRoleTable() {
     reload: () => loadLayers('roles'),
   });
 }
+
+$('role-form').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  if (!needEvent()) return;
+  $('role-error').hidden = true;
+  try {
+    await post(`/api/setup/events/${S.eventId}/roles`,
+      { name: $('role-name').value });
+    $('role-name').value = '';
+    banner('Role added.');
+    loadLayers('roles');
+  } catch (err) {
+    $('role-error').textContent = err.message;
+    $('role-error').hidden = false;
+  }
+});
 
 $('poi-move').addEventListener('click', async () => {
   const ids = [...$('poi-table').querySelectorAll('[data-ppick]:checked')]

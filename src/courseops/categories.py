@@ -266,29 +266,102 @@ def delete_poi_category(conn: sqlite3.Connection, event_id: int, key: str) -> in
 # --- station roles ----------------------------------------------------------
 
 def seed_roster_roles(conn: sqlite3.Connection, event_id: int) -> None:
-    for key, name in DEFAULT_ROSTER_ROLES:
+    """Give a new event the usual starting set, once.
+
+    Only into an event with no roles at all - the same rule as the place
+    layers, and for the same reason. Re-seeding on every read would resurrect a
+    role the club deliberately deleted, and a thing that reappears after you
+    remove it teaches people not to trust the screen.
+    """
+    has_any = conn.execute(
+        "SELECT 1 FROM roster_role WHERE event_id = ? LIMIT 1", (event_id,)
+    ).fetchone()
+    if has_any is not None:
+        return
+    for order, (key, name) in enumerate(DEFAULT_ROSTER_ROLES):
         conn.execute(
-            "INSERT OR IGNORE INTO roster_role (event_id, key, name)"
-            " VALUES (?, ?, ?)",
-            (event_id, key, name),
+            "INSERT OR IGNORE INTO roster_role"
+            " (event_id, key, name, sort_order) VALUES (?, ?, ?, ?)",
+            (event_id, key, name, order * 10),
         )
 
 
 def roster_roles(conn: sqlite3.Connection, event_id: int) -> list[sqlite3.Row]:
+    """Every role this event has, including ones the club added.
+
+    Filtering to DEFAULT_ROSTER_ROLES here was what made the set closed: a role
+    a club added existed in the database and was then dropped on the way out,
+    so it could never appear anywhere. Liaison is the obvious missing one - the
+    operator embedded with Public Safety is a person on the roster, not just a
+    link role.
+    """
     seed_roster_roles(conn, event_id)
-    rows = {
-        row["key"]: row
-        for row in conn.execute(
-            "SELECT * FROM roster_role WHERE event_id = ?", (event_id,)
-        ).fetchall()
-    }
-    # Returned in the declared order rather than alphabetically, so the list
-    # reads the same for every club however they have renamed things.
-    return [rows[key] for key, _ in DEFAULT_ROSTER_ROLES if key in rows]
+    return conn.execute(
+        "SELECT * FROM roster_role WHERE event_id = ?"
+        " ORDER BY sort_order, name",
+        (event_id,),
+    ).fetchall()
 
 
 def role_labels(conn: sqlite3.Connection, event_id: int) -> dict[str, str]:
     return {row["key"]: row["name"] for row in roster_roles(conn, event_id)}
+
+
+def add_roster_role(
+    conn: sqlite3.Connection, event_id: int, name: str
+) -> sqlite3.Row:
+    """Add a role the club needs and the defaults do not have.
+
+    A new role has no status wording of its own in `db.OP_STATUS_LABELS`, so it
+    falls back to the generic "Not started / Active / Closed". That is the right
+    trade: the alternative was a fixed list, which meant editing Python to
+    accept a club that fields a Liaison.
+    """
+    seed_roster_roles(conn, event_id)
+    name = (name or "").strip()
+    if not name:
+        raise CategoryError("A role needs a name.")
+    key = slugify(name)
+    if not _KEY_OK.match(key):
+        raise CategoryError(f"{name!r} does not make a usable role name.")
+    existing = conn.execute(
+        "SELECT 1 FROM roster_role WHERE event_id = ? AND key = ?",
+        (event_id, key),
+    ).fetchone()
+    if existing is not None:
+        raise CategoryError(f"A role called {name!r} already exists.")
+    top = conn.execute(
+        "SELECT COALESCE(MAX(sort_order), 0) AS m FROM roster_role"
+        " WHERE event_id = ?", (event_id,),
+    ).fetchone()["m"]
+    conn.execute(
+        "INSERT INTO roster_role (event_id, key, name, sort_order)"
+        " VALUES (?, ?, ?, ?)",
+        (event_id, key, name, top + 10),
+    )
+    return conn.execute(
+        "SELECT * FROM roster_role WHERE event_id = ? AND key = ?",
+        (event_id, key),
+    ).fetchone()
+
+
+def delete_roster_role(conn: sqlite3.Connection, event_id: int, key: str) -> int:
+    """Remove a role. Refuses while anyone on the roster holds it.
+
+    Same rule as a place layer: deleting it out from under its people would
+    leave them in the database with a role nothing can name, and no error to
+    say why. Returns the count that blocked it, or 0 on success.
+    """
+    seed_roster_roles(conn, event_id)
+    in_use = conn.execute(
+        "SELECT COUNT(*) AS c FROM roster WHERE event_id = ? AND category = ?",
+        (event_id, key),
+    ).fetchone()["c"]
+    if in_use:
+        return int(in_use)
+    conn.execute(
+        "DELETE FROM roster_role WHERE event_id = ? AND key = ?", (event_id, key))
+    return 0
 
 
 def rename_roster_role(
@@ -297,9 +370,13 @@ def rename_roster_role(
     name = (name or "").strip()
     if not name:
         raise CategoryError("A role needs a name.")
-    if key not in {k for k, _ in DEFAULT_ROSTER_ROLES}:
-        raise CategoryError(f"Unknown role {key!r}.")
     seed_roster_roles(conn, event_id)
+    known = conn.execute(
+        "SELECT 1 FROM roster_role WHERE event_id = ? AND key = ?",
+        (event_id, key),
+    ).fetchone()
+    if known is None:
+        raise CategoryError(f"Unknown role {key!r}.")
     conn.execute(
         "UPDATE roster_role SET name = ? WHERE event_id = ? AND key = ?",
         (name, event_id, key),

@@ -831,7 +831,15 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
                     for row in categories.poi_categories(conn, event_id)
                 ],
                 "roster_roles": [
-                    dict(row) for row in categories.roster_roles(conn, event_id)
+                    # The count is what makes "delete" honest: a role someone
+                    # on the roster holds cannot go, and the number says how
+                    # many would have to move first.
+                    dict(row) | {"in_use": conn.execute(
+                        "SELECT COUNT(*) AS c FROM roster"
+                        " WHERE event_id = ? AND category = ?",
+                        (event_id, row["key"]),
+                    ).fetchone()["c"]}
+                    for row in categories.roster_roles(conn, event_id)
                 ],
             }
             conn.commit()
@@ -887,6 +895,36 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
                 detail=f"{in_use} place(s) still use this layer. "
                        "Move or delete them first.",
             )
+        return JSONResponse({"deleted": key})
+
+    @app.post("/api/setup/events/{event_id}/roles")
+    async def setup_add_role(event_id: int, request: Request) -> JSONResponse:
+        conn, user = require_event_admin(request, event_id)
+        body = await _json_body(request, conn)
+        try:
+            row = _guard(categories.add_roster_role, conn, event_id,
+                         body.get("name") or "")
+            conn.commit()
+        finally:
+            conn.close()
+        return JSONResponse(dict(row), status_code=201)
+
+    # Literal before parameterised: "/roles/{key}" would swallow this.
+    @app.post("/api/setup/events/{event_id}/roles/{key}/delete")
+    async def setup_delete_role(
+        event_id: int, key: str, request: Request
+    ) -> JSONResponse:
+        conn, user = require_event_admin(request, event_id)
+        try:
+            in_use = _guard(categories.delete_roster_role, conn, event_id, key)
+            conn.commit()
+        finally:
+            conn.close()
+        if in_use:
+            raise HTTPException(
+                status_code=400,
+                detail=f"{in_use} roster entr{'y' if in_use == 1 else 'ies'} "
+                       "still use this role. Move them first.")
         return JSONResponse({"deleted": key})
 
     @app.post("/api/setup/events/{event_id}/roles/{key}")

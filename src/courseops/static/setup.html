@@ -60,6 +60,7 @@
     <button class="tab" data-tab="course" type="button">Course</button>
     <button class="tab" data-tab="stations" type="button">Aid stations</button>
     <button class="tab" data-tab="layers" type="button">Layers</button>
+    <button class="tab" data-tab="roles" type="button">Roles</button>
     <button class="tab" data-tab="roster" type="button">Roster</button>
     <button class="tab" data-tab="links" type="button">Links</button>
     <button class="tab" data-tab="users" type="button" hidden>Users</button>
@@ -239,17 +240,36 @@
       <button class="primary" type="submit">Add layer</button>
     </form>
 
+  </section>
+
+  <section class="panel" data-panel="roles" data-needs-event hidden>
+    <p class="needs-event" hidden>Pick an event first — everything on this
+      tab belongs to one event.
+      <button data-goto="events" type="button">Go to Events</button></p>
     <h2>Station roles</h2>
     <p class="muted">
-      The kinds of job a person does. The list is fixed, because each carries its
-      own status wording — an aid station is "Torn down" where a sweep is
-      "Finished" — but the names are yours.
+      The kinds of job a person does at this event. Rename these to your own
+      wording, and add any the list is missing — a Liaison embedded with Public
+      Safety, say.
+    </p>
+    <p class="muted">
+      The seven that come with a new event have their own status wording: an aid
+      station is "Torn down" where a sweep is "Finished". A role you add uses
+      "Not started / Active / Closed".
     </p>
     <div id="role-table"></div>
     <div class="row">
       <button id="role-save-all" class="primary" type="button" hidden></button>
       <span id="role-dirty" class="muted"></span>
     </div>
+
+    <form id="role-form" class="card">
+      <h3>Add a role</h3>
+      <label class="field"><span>Name</span>
+        <input id="role-name" type="text" placeholder="Liaison" required></label>
+      <p id="role-error" class="error" hidden></p>
+      <button class="primary" type="submit">Add role</button>
+    </form>
   </section>
 
   <section class="panel" data-panel="roster" data-needs-event hidden>

@@ -139,17 +139,26 @@ CREATE TABLE IF NOT EXISTS poi_category (
 CREATE INDEX IF NOT EXISTS idx_poi_category_event
     ON poi_category (event_id, sort_order);
 
--- Per-event wording for the fixed set of station roles.
+-- The kinds of job a person does at this event.
 --
--- The keys are fixed because each carries its own status vocabulary - an aid
--- station is "Torn down" where a sweep is "Finished" - and that mapping lives
--- in code. The *name* is the club's: one club's "Rover" is another's "Floater".
--- Renaming is therefore safe, because nothing keys off the name.
+-- Open, like the place layers: a club fields roles the defaults do not have -
+-- Liaison being the obvious one, the operator embedded with Public Safety -
+-- and a fixed list meant editing Python to accept them.
+--
+-- The seven defaults each carry their own status vocabulary in
+-- db.OP_STATUS_LABELS, because an aid station is "Torn down" where a sweep is
+-- "Finished". A role a club adds has no entry there and falls back to the
+-- generic "Not started / Active / Closed", which is the right trade.
+--
+-- `key` is the stable identifier stored in roster.category; `name` is the
+-- club's own wording and may be renamed freely.
 CREATE TABLE IF NOT EXISTS roster_role (
     id       INTEGER PRIMARY KEY,
     event_id INTEGER NOT NULL REFERENCES event(id) ON DELETE CASCADE,
     key      TEXT    NOT NULL,
     name     TEXT    NOT NULL,
+    -- The set is the club's, so the order cannot come from a list in the code.
+    sort_order INTEGER NOT NULL DEFAULT 0,
     UNIQUE (event_id, key)
 );
 
