@@ -8,6 +8,34 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **Drag and drop on the course upload** (#13). The control had a dashed
+  border, which is the universal "drop files here" signal, and accepted clicks
+  only - dropping did nothing at all, not even an error. A control that
+  promises something it does not do is worse than a plain button, and files
+  arrive from an organizer by email, so dragging one out of a mail client is
+  the natural gesture.
+
+  Several files at once import **in sequence**, because import is additive into
+  the same event and parallel uploads race on the review list. An organizer's
+  courses routinely arrive as one file per race, so dropping four is the normal
+  case rather than the clever one. Anything that is not KML or KMZ is rejected
+  by name rather than in silence.
+
+### Fixed
+- **The Apache template could never be enabled as shipped.** It contained a
+  `<VirtualHost *:443>` block referencing a certificate that does not exist
+  until certbot has run - and certbot refuses to run while the config is
+  invalid. The documented order was impossible, and it cost a real deployment
+  four rounds of debugging.
+
+  The template is now HTTP-only, carrying the proxy and WebSocket rules so that
+  certbot copies them into the HTTPS vhost it generates. A companion
+  `apache-courseops-ssl.conf` documents the two things certbot will not do for
+  you: set `X-Forwarded-Proto "https"` (without which session cookies are never
+  marked Secure, in the one deployment where that matters), and carry the
+  WebSocket rewrite (without which the map loads and never moves).
+
+### Added
 - **"Accept N suggested" on the course review screen.** A real points file
   stages 78 places, and ticking them one at a time is not review, it is data
   entry that gets abandoned half way. The button names the layers it is about

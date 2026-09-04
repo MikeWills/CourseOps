@@ -284,6 +284,13 @@ table.grid button { min-height: 34px; padding: 0 10px; font-size: 13px; }
   font-weight: 650;
 }
 .upload input { display: none; }
+/* The dashed border promises a drop target, so dragging has to visibly react.
+   Silence during a drag is the same failure as a dead drop, in miniature. */
+.upload.is-over {
+  border-color: var(--navy-700);
+  border-style: solid;
+  background: #eaf2fb;
+}
 
 #review-map {
   height: 380px;
