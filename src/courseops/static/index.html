@@ -63,6 +63,11 @@
       <div id="brand-name">Course Ops</div>
       <div class="tagline">Track the course, run the net.</div>
     </div>
+    <button id="sheet-collapse" type="button" class="panel-collapse"
+            aria-label="Hide the layers panel" title="Hide this panel">
+      <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="none"
+           stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+           stroke-linejoin="round"><path d="M10 3.5L5.5 8l4.5 4.5"/></svg></button>
   </div>
 
   <div class="sheet-section">
@@ -118,7 +123,7 @@
     <div id="note-list"></div>
   </div>
 
-  <div class="sheet-section">
+  <div class="sheet-section" id="station-section">
     <h2>Stations <span id="station-count" class="muted"></span></h2>
     <div id="station-list"></div>
   </div>
@@ -136,6 +141,26 @@
 
   <p id="role-note" class="muted"></p>
 </section>
+
+<!-- Desktop only. The stations list is what NCS is reading all day, and on one
+     screen with everything else it is permanently below the fold. On a phone
+     there is not room for two panels, so the section moves back into the sheet
+     below 860px - see moveStationsPanel(). -->
+<aside id="stations-panel" aria-label="Stations" hidden>
+  <div class="panel-head">
+    <span class="panel-title">Net control</span>
+    <button id="stations-collapse" type="button" class="panel-collapse"
+            aria-label="Hide the stations panel" title="Hide this panel">
+      <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="none"
+           stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+           stroke-linejoin="round"><path d="M6 3.5L10.5 8 6 12.5"/></svg></button>
+  </div>
+</aside>
+
+<button id="stations-reopen" type="button" hidden
+        aria-label="Show the stations panel" title="Show stations">Stations</button>
+<button id="sheet-reopen" type="button" hidden
+        aria-label="Show the layers panel" title="Show layers">Layers</button>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>

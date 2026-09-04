@@ -239,6 +239,14 @@ usability, not style preferences.
   exists. Tokens are also scoped to their event: valid elsewhere means nothing.
 - **Never interpolate marker movement in the client** (same rule as the plan).
   `setLatLng`, not an animated transition.
+- **The stations section is ONE element that lives in two places.** On a wide
+  screen it moves into the right-hand panel; below 860px it moves back into the
+  sheet. Moved, never duplicated - two copies drift the moment one is
+  re-rendered, and the stale one is the one someone reads.
+- **A panel that can be hidden needs a visible way back.** Otherwise it is lost
+  for the whole event. Folded sections and hidden panels are both remembered in
+  prefs, because a phone reloads on its own coming back from a dead zone and
+  re-opening what someone deliberately folded reads as the screen not working.
 - **The connection badge must stay visible.** It is the only signal that a phone
   is showing stale data. Leaflet's zoom control shares that corner at z-index
   1000; the top bar reserves space for it.
@@ -507,6 +515,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-04** Panel sections fold and stay folded; stations get their own panel on desktop.
 - **2026-09-04** Fixed: the lead runner button skipped stations; a stop's races are now stated, not guessed.
 - **2026-09-04** Lead runners can be cleared for a race before the start; undo was never a reset.
 - **2026-09-04** Places can be dragged into the order they are reached; geometry cannot order multi-route events.
@@ -516,4 +525,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-03** The Layers table now saves every edit at once, like Places.
 - **2026-09-03** Added coordinates and a what3words lookup link to every place in the Aid stations table.
 - **2026-09-03** Fixed: saving one renamed place discarded every other unsaved edit.
-- **2026-09-03** Import accepts dropped files; fixed an Apache template that could never be enabled.

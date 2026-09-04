@@ -151,6 +151,18 @@ event day and check two things:
 Turning **Place names** on in the map's Places list adds the full name beside
 each labelled pin once you zoom in past street level.
 
+### Making room on the screen
+
+Click any heading in the side panel to fold that section. Courses, People and
+Places are set before the race and never change during it, so folding them puts
+the lead runners, the pickup queue and the stations in view without scrolling.
+
+On a laptop the stations list sits in its own panel on the right. The arrow in
+each panel header hides that panel and gives the width to the map; a labelled
+button brings it back. All of it is remembered, so a refresh - including the one
+a phone does by itself coming back from a dead zone - puts the screen back the
+way you left it.
+
 ### Correcting a lead runner
 
 The panel shows the leader wherever they were **last reported**. There is no

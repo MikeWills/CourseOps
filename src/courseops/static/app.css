@@ -836,3 +836,113 @@ html, body {
   font-size: 12px;
   font-weight: 700;
 }
+
+/* ---------- folding sections and panels ---------------------------------
+
+   The layer switches are set once before the race and never touched again,
+   but they sit at the top of the panel pushing the lead runners, the pickup
+   queue and the stations below the fold. Folding is remembered, because a
+   phone reloads on its own coming back from a dead zone. */
+
+.section-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+  min-height: 32px;                 /* still a comfortable target in a glove */
+}
+.section-head:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.fold-chevron {
+  margin-left: auto;
+  flex: none;
+  transition: transform 120ms ease-out;
+}
+.sheet-section.is-folded .fold-chevron { transform: rotate(-90deg); }
+.sheet-section.is-folded > .section-body { display: none; }
+
+/* Panel chrome ---------------------------------------------------------- */
+
+.panel-collapse {
+  margin-left: auto;
+  display: grid;
+  place-items: center;
+  width: 32px; height: 32px;
+  flex: none;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.panel-collapse:hover { background: rgba(255, 255, 255, 0.14); }
+
+#stations-panel { display: none; }
+
+/* The way back on screen. A panel that hides with no visible way to bring it
+   back is a panel someone loses for the whole event. */
+#sheet-reopen, #stations-reopen {
+  position: absolute;
+  top: 64px;
+  z-index: 600;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 650;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.22);
+  cursor: pointer;
+}
+#sheet-reopen { left: 12px; }
+#stations-reopen { right: 12px; }
+
+@media (min-width: 860px) {
+  /* Two panels: the working surface on the left, and the stations list on the
+     right where NCS is reading it all day rather than below the fold. */
+  #stations-panel {
+    display: block;
+    position: absolute;
+    top: 0; bottom: 0; right: 0;
+    width: 320px;
+    z-index: 550;
+    overflow-y: auto;
+    padding: 0 14px 18px;
+    background: var(--paper);
+    border-left: 1px solid var(--line);
+  }
+  #stations-panel[hidden] { display: none; }
+
+  .panel-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    margin: 0 -14px 12px;
+    background: var(--navy-700);
+    color: #fff;
+    border-bottom: 3px solid var(--orange);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  #map, #topbar { right: 320px; }
+
+  body.stations-hidden #stations-panel { display: none; }
+  body.stations-hidden #map,
+  body.stations-hidden #topbar { right: 0; }
+
+  body.sheet-hidden #sheet { display: none; }
+  body.sheet-hidden #map,
+  body.sheet-hidden #topbar { left: 0; }
+  /* With the sidebar gone the top bar has to carry the brand again. */
+  body.sheet-hidden #brand,
+  body.sheet-hidden #brand-rule { display: flex; }
+  body.sheet-hidden #sheet-reopen { left: 12px; top: 64px; }
+}
