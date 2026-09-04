@@ -8,6 +8,7 @@ reports success and changes nothing is worse than one that fails.
 from __future__ import annotations
 
 import re
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -73,3 +74,23 @@ def test_the_install_path_is_not_hardcoded(script):
     assert 'BASH_SOURCE' in script, "APP_DIR should derive from the script location"
     # Still overridable, for anyone who needs to.
     assert 'APP_DIR="${APP_DIR:-' in script
+
+
+def test_the_script_is_committed_executable():
+    """A clone must be able to run it.
+
+    Git stores the executable bit, and on Windows `core.filemode` is usually
+    false - so a script added there lands as 100644 and nobody notices until a
+    Linux box tries to run it and says "Permission denied". That is what
+    happened: the documented invocation, and the deploy over SSH, both failed
+    on a file that looked perfectly fine in the listing.
+    """
+    out = subprocess.run(
+        ["git", "ls-files", "-s", "deploy/deploy.sh"],
+        cwd=SCRIPT.parents[1], capture_output=True, text=True,
+    )
+    if out.returncode != 0:          # not a git checkout (an sdist, say)
+        import pytest
+        pytest.skip("not a git working tree")
+    mode = out.stdout.split()[0]
+    assert mode == "100755", f"deploy.sh is committed as {mode}, not executable"

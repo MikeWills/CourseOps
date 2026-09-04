@@ -40,7 +40,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 421 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 422 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -217,6 +217,11 @@ usability, not style preferences.
   an invalid token still gets 404.
 - **Operator initials are a log annotation, never identity.** Free text, kept in
   the browser, truncated server-side. Nothing may start trusting it as auth.
+- **A script added from Windows is not executable.** `core.filemode` is off
+  there, so it commits as 100644 and the failure appears only on the server, as
+  "Permission denied" on a file that looks fine in a listing. Use
+  `git update-index --chmod=+x`, and there is a test asserting `deploy.sh`
+  stays 100755.
 - **Nothing in `deploy/` may hardcode the install path.** It is wherever the
   club put it - this deployment lives under a mounted data volume, not
   `/opt`. `deploy.sh` derives `APP_DIR` from its own location; the only places
@@ -576,6 +581,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-04** Fixed: deploy.sh was committed non-executable, so no clone could run it.
 - **2026-09-04** Fixed: deploy.sh assumed /opt/courseops; the install path is now derived.
 - **2026-09-04** On a phone each role's own section opens first, rather than below the fold.
 - **2026-09-04** Fixed: the panel could not be closed on a phone; it is now full height with an X.
@@ -585,4 +591,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-04** Layers moved to the bottom of the panel; the right panel now follows the role.
 - **2026-09-04** Pickups and course notes can be deleted; the removal reaches every browser.
 - **2026-09-04** Station roles are open and on their own tab; a deleted role no longer comes back.
-- **2026-09-04** Panel sections fold and stay folded; stations get their own panel on desktop.
