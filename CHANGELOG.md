@@ -7,7 +7,62 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **Every role can report a pickup or a course note.** Liaison and Logistics
+  were view-only, so a Logistics volunteer standing at a blocked intersection,
+  or Liaison taking a pickup request at the EOC, had to relay it over the radio
+  to whoever held the NCS link. That is how a report arrives late, garbled, or
+  not at all - which is the exact failure the incident board exists to prevent.
+
+  Reporting is a new capability (`CAP_INCIDENT_REPORT`), separate from working
+  the queue (`CAP_INCIDENTS`). All four roles can open an incident and fill in
+  its bib and note; only NCS and SAG can move one along its workflow or delete
+  it. The split matters because the pickup queue and its count are read as "who
+  is still waiting", so being able to close or delete an entry is being able to
+  make that count lie - and Liaison's and Logistics' bearer links are the ones
+  handed out most widely.
+
+- **"Here" places the pin at your own location.** The map tap was the only way
+  to drop a pin, and finding your own position on a map while holding a radio
+  is the step that gets skipped. Logistics at an intersection and SAG beside a
+  runner are standing at the thing they are reporting.
+
+  It stays a second button beside "Drop a pin", never a replacement: Liaison
+  sits at the EOC and is usually reporting a place they have never seen, so
+  their own location is the one position that is always wrong. It takes a
+  one-shot fix if the locate watch is not already running, so it works without
+  having remembered to press locate first, and it names the real cause when the
+  browser refuses - on plain http it says location needs HTTPS rather than
+  failing as a bare permission error.
+
+  This is the single exception to "the viewer's own position never leaves the
+  browser": one fix, on one press, as the location of an incident the person is
+  deliberately publishing. The locate dot itself is still never transmitted. A
+  fix worse than 100 m still places the pin - a rough position with a note
+  beats no report - but the accuracy is shown, so nobody reads wifi
+  triangulation as GPS.
+
 ### Changed
+- **The locate button is a crosshair rather than a `◎` glyph.** A double circle
+  reads as a target or a setting, not as "show me where I am", and the crosshair
+  is what every map application uses for it.
+
+### Changed
+- **The "never glyphs" icon rule was overstated and has been narrowed.** One
+  real finding - U+270E rendering as a colour emoji in Chrome on Windows, in
+  buttons that needed `currentColor` - had been written up as a blanket ban on
+  Unicode glyphs across the whole app. Glyphs are a reasonable choice; SVG is
+  for icons that must take a colour or a state, and the emoji-presentation trap
+  is a thing to check rather than a reason to never try.
+
+### Fixed
+- **The locate button was hidden behind the stations panel above 1000px.** It
+  is anchored to the right edge at z-index 500 and the panel sits at 550, so on
+  exactly the wide screens NCS runs the event from, the control vanished with
+  nothing on screen to say why. It now rides the map's right edge and moves
+  back when the panel is hidden. This got worse with "Here": the locate button
+  is how a browser is asked for a fix in the first place.
+
 - **Documentation audited against the code.** `CLAUDE.md` still said the repo
   was private; it has been public since the organizer's KML was purged from the
   history. `build.py` and `resources.py` were missing from the module index.

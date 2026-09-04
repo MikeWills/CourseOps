@@ -325,9 +325,23 @@ public view. Permission is per capability rather than one write flag:
 | Role | Can change |
 |---|---|
 | Net Control | Everything |
-| SAG | The pickup queue only - en route, picked up, dropped off, and the bib |
-| Liaison | Nothing. Embedded with Public Safety and Medics |
-| Logistics | Nothing. Traffic control, cones, teardown |
+| SAG | Report an incident, and work the pickup queue - en route, picked up, dropped off, and the bib |
+| Liaison | Report an incident. Embedded with Public Safety and Medics |
+| Logistics | Report an incident. Traffic control, cones, teardown |
+
+**Every role can report; only NCS and SAG work the queue.** All four teams are
+somewhere an incident can happen, and a report that has to be relayed over the
+radio to whoever holds the right link is a report that arrives late or not at
+all. So any link can open a pickup or a course note and fill in the bib and the
+note. Dispatching, delivering and clearing one stays with NCS and SAG: the
+queue is read as "who is still waiting", and a link left in a car must not be
+able to empty it.
+
+Either drop the pin by tapping the map, or press **Here** to place it at your
+own location. Tapping is the one that always works - Liaison sits at the EOC
+and is usually reporting somewhere they have never been - so "Here" is the
+shortcut beside it and never the default. Your location is only sent when you
+press that button; the locate dot itself stays in your browser.
 
 SAG is scoped deliberately: a bearer link lives in a moving vehicle, so a lost
 phone should cost one incident queue rather than the roster and the links.

@@ -64,6 +64,8 @@ const state = {
     {value: 'closed', label: 'Closed'},
   ],
   droppingPin: false,
+  mePositionAt: 0,      // when the browser last gave us a fix
+  meAccuracyM: null,    // and how good it said that fix was
   ssidAlerts: [],
   leaders: [],
   divisions: [{value: 'male', label: 'First male'},
@@ -1456,8 +1458,82 @@ async function createIncident(latlng) {
       const field = document.querySelector(selector);
       if (field) { field.focus(); field.select(); }
     }, 60);
+    return created;
   } catch (err) {
     setLocateStatus('Could not create the incident');
+    return null;
+  }
+}
+
+/* Report it where I am standing.
+
+   The map tap stays the primary way in and this is the shortcut beside it,
+   because which one is right depends entirely on the role. Logistics at an
+   intersection and SAG beside a runner ARE at the thing they are reporting,
+   and finding your own position on a map while holding a radio is the step
+   that gets skipped. Liaison sits at the EOC taking reports about places they
+   have never seen - for them "here" is the one location that is always wrong,
+   which is why this never becomes the default and never replaces the tap. */
+const FIX_MAX_AGE_MS = 30000;
+const FIX_WARN_M = 100;
+
+function currentFix() {
+  return new Promise((resolve, reject) => {
+    // The locate watch already has a fix, and while it is running that fix is
+    // current. Older than half a minute and it is not: someone in a vehicle
+    // has moved, and a pin dropped where they were is worse than a short wait.
+    if (state.mePosition && Date.now() - state.mePositionAt < FIX_MAX_AGE_MS) {
+      resolve({...state.mePosition, accuracy: state.meAccuracyM});
+      return;
+    }
+    if (!navigator.geolocation) {
+      reject(new Error('This browser has no location support'));
+      return;
+    }
+    // Named rather than left as a bare permission error - see the locate
+    // button: on a club LAN over plain http this is not the user's fault.
+    if (!window.isSecureContext) {
+      reject(new Error('Location needs HTTPS (or localhost) - tap the map instead'));
+      return;
+    }
+    // A one-shot fix, so this works without having pressed locate first.
+    // Anything that depends on remembering a prior step gets forgotten on
+    // race morning.
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({
+        lat: pos.coords.latitude,
+        lon: pos.coords.longitude,
+        accuracy: pos.coords.accuracy,
+      }),
+      (err) => reject(new Error(
+        err.code === err.PERMISSION_DENIED ? 'Location permission denied - tap the map instead'
+        : err.code === err.TIMEOUT ? 'No GPS fix yet - try again, or tap the map'
+        : 'Location unavailable - tap the map instead')),
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+    );
+  });
+}
+
+async function dropPinHere() {
+  const button = document.getElementById('incident-here');
+  button.disabled = true;
+  setLocateStatus('Getting your location…');
+  try {
+    const fix = await currentFix();
+    setDroppingPin(false);      // "here" answers the same question as the tap
+    const created = await createIncident({lat: fix.lat, lng: fix.lon});
+    if (!created) return;       // createIncident has already said why
+    // A 500 m "fix" is wifi triangulation, not GPS. The pin is still worth
+    // having - a rough position with a note beats no report at all - but
+    // nobody should read it as GPS, and there is nothing else on screen to
+    // say the difference.
+    setLocateStatus(fix.accuracy > FIX_WARN_M
+      ? `Placed at your location, but only accurate to ±${Math.round(fix.accuracy)} m`
+      : '');
+  } catch (err) {
+    setLocateStatus(err.message);
+  } finally {
+    button.disabled = false;
   }
 }
 
@@ -1620,7 +1696,10 @@ function renderPickups(pickups) {
     });
     row.appendChild(main);
 
-    if (can('incidents')) {
+    // Whoever may report may also describe: a pin with no bib and no note is
+    // half a report. Moving it along the workflow and taking it off the board
+    // are the parts that stay with NCS and SAG.
+    if (can('incident_report')) {
       // Bib and note edited in place. The bib is usually unknown when the
       // incident is opened, and the note stays short by design - see the
       // schema comment on why medical detail is kept out.
@@ -1657,9 +1736,11 @@ function renderPickups(pickups) {
       }));
 
       fields.append(bib, note);
-      fields.appendChild(deleteButton(
-        incident,
-        incident.bib ? `the pickup for bib ${incident.bib}` : 'this pickup'));
+      if (can('incidents')) {
+        fields.appendChild(deleteButton(
+          incident,
+          incident.bib ? `the pickup for bib ${incident.bib}` : 'this pickup'));
+      }
       row.appendChild(fields);
     } else if (incident.note) {
       const note = document.createElement('p');
@@ -1739,7 +1820,7 @@ function renderNotes(notes) {
     });
     row.appendChild(main);
 
-    if (can('incidents')) {
+    if (can('incident_report')) {
       const field = document.createElement('input');
       field.type = 'text';
       field.className = 'incident-note';
@@ -1760,8 +1841,10 @@ function renderNotes(notes) {
       const fields = document.createElement('div');
       fields.className = 'incident-fields';
       fields.appendChild(field);
-      fields.appendChild(
-        deleteButton(incident, incident.note || 'this course note'));
+      if (can('incidents')) {
+        fields.appendChild(
+          deleteButton(incident, incident.note || 'this course note'));
+      }
       row.appendChild(fields);
     }
 
@@ -1776,6 +1859,10 @@ function setDroppingPin(on) {
   button.textContent = on ? 'Cancel'
     : state.pinKind === 'note' ? '+ Drop a course note' : '+ Drop a pickup pin';
   button.classList.toggle('is-active', on);
+  const here = document.getElementById('incident-here');
+  here.title = state.pinKind === 'note'
+    ? 'Record a course note at my own location'
+    : 'Report a pickup at my own location';
   document.getElementById('map').style.cursor = on ? 'crosshair' : '';
 }
 
@@ -1806,6 +1893,8 @@ document.querySelectorAll('.pin-kind-btn').forEach((btn) => {
     setDroppingPin(state.droppingPin);
   });
 });
+
+document.getElementById('incident-here').addEventListener('click', dropPinHere);
 
 document.getElementById('incident-add').addEventListener('click', () => {
   setDroppingPin(!state.droppingPin);
@@ -1845,8 +1934,8 @@ function applyState(data) {
   state.canWrite = data.can_write;
   state.poiCategories = data.poi_categories || [];
   state.roleLabels = data.role_labels || {};
-  state.can = new Set(data.capabilities || (data.can_write ? ['incidents',
-    'stations', 'ssid', 'leaders', 'course'] : []));
+  state.can = new Set(data.capabilities || (data.can_write ? ['incident_report',
+    'incidents', 'stations', 'ssid', 'leaders', 'course'] : []));
   state.thresholds = data.thresholds;
   if (Array.isArray(data.op_statuses)) state.opStatuses = data.op_statuses;
   if (Array.isArray(data.incident_statuses)) state.incidentStatuses = data.incident_statuses;
@@ -1920,8 +2009,10 @@ function applyState(data) {
 
   renderCourseToggles(data.courses);
   if (firstLoad) renderLayerToggles();
-  document.getElementById('incident-add').hidden = !can('incidents');
-  document.getElementById('pin-kind').hidden = !can('incidents');
+  // Reporting, not managing: every role is somewhere an incident can happen,
+  // so all four get the pin controls. What they cannot do is work the queue.
+  document.getElementById('pin-actions').hidden = !can('incident_report');
+  document.getElementById('pin-kind').hidden = !can('incident_report');
   renderSsidAlerts();
   renderLeaders();
   renderIncidents();
@@ -2046,6 +2137,8 @@ function stopWatching() {
   }
   setFollowing(false);
   state.mePosition = null;
+  state.mePositionAt = 0;
+  state.meAccuracyM = null;
   if (state.sortPickupsBy === 'near') renderIncidents();
   if (state.meMarker) { map.removeLayer(state.meMarker); state.meMarker = null; }
   if (state.meAccuracy) { map.removeLayer(state.meAccuracy); state.meAccuracy = null; }
@@ -2059,6 +2152,10 @@ function onPosition(pos) {
   // Kept so the pickup queue can be ordered by how near each one is. Still
   // local: this never leaves the browser, exactly as the dot does not.
   state.mePosition = {lat: latlng[0], lon: latlng[1]};
+  // Kept alongside it so "Here" can tell a current fix from a stale one and
+  // can repeat the accuracy caveat the dot is already showing.
+  state.mePositionAt = Date.now();
+  state.meAccuracyM = accuracy;
   if (state.sortPickupsBy === 'near') renderIncidents();
 
   if (!state.meMarker) {

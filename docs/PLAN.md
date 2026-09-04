@@ -125,7 +125,9 @@ one-handed, on a phone that must survive a six-hour event.
   reported is worse than a stale one, because someone will act on it. Discrete
   jumps are more honest *and* easier on the battery
 - Visible reconnect state; full state resync on reconnect
-- Browser geolocation for "where am I" — local only, never transmitted or stored
+- Browser geolocation for "where am I" — local only, never transmitted or
+  stored. The one exception is deliberate and per-press: see "Reporting is
+  everyone's job" under Phase 6
 - Design at 375px first; the NCS desktop layout is the enhancement
 
 ### Phase 4 — Roster / NCS panel
@@ -236,6 +238,45 @@ All pin mutations go through one server-side endpoint that records who and when,
 regardless of role. Permission is per capability (`access.ROLE_CAPABILITIES`),
 so widening a role is a change to that table rather than to the endpoints - which
 is how SAG gained the pickup queue and nothing else.
+
+#### Reporting is everyone's job; the queue is not (done)
+
+Opening an incident and working one are different jobs, so they are different
+capabilities. `CAP_INCIDENT_REPORT` creates a pickup or a course note and fills
+in its bib, note and position; `CAP_INCIDENTS` moves one along its workflow and
+deletes it. All four roles hold the first. Only NCS and SAG hold the second.
+
+The reason for the split rather than simply granting `CAP_INCIDENTS` to
+everyone: the pickup queue and its count are read as "who is still waiting", so
+the ability to close or delete an entry is the ability to make that count lie.
+A bearer link is only as good as the phone it is on, and Liaison's and
+Logistics' links are handed out most widely. Adding to the board is safe;
+silently emptying it is not.
+
+The reason for granting anything at all: all four teams are out where things
+happen. Requiring a Logistics volunteer at an intersection to relay a pickup
+over the radio to whoever holds the NCS link means it arrives late, or garbled,
+or not at all - and that is the failure the incident board exists to prevent.
+
+**Two ways to place the pin, and the tap is the primary one.** Liaison sits at
+the EOC with Public Safety and Medics, taking reports about places they have
+never seen: for them their own location is the one position that is always
+wrong. So "Here" is a second button beside "Drop a pin", never a replacement
+and never the default.
+
+**"Here" is the single exception to the geolocation privacy rule.** The locate
+dot is local, always - never sent, never stored, invisible to other viewers.
+Pressing "Here" sends one fix, once, as the location of an incident the person
+is deliberately publishing. That is a per-press disclosure of a place rather
+than continuous tracking of a person, and the distinction is the whole reason
+it is a separate button rather than a background behaviour. If a fix comes back
+worse than 100 m the pin is still created - a rough position with a note beats
+no report - but the accuracy is stated on screen so nobody reads wifi
+triangulation as GPS.
+
+Known limitation: a pin placed at a bad fix cannot be dragged to correct it.
+`update` accepts `lat`/`lon` and a reporting role may call it, but there is no
+UI for moving a marker yet. Today the fix is for NCS or SAG to delete it.
 
 ## Key domain decisions
 

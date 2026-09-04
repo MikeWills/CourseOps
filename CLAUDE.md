@@ -52,7 +52,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 437 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 441 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -205,6 +205,11 @@ usability, not style preferences.
 - **Keep medical detail out of incidents.** Bib, location, status, short
   operational note. Narrative descriptions of a runner's condition would make this
   a system storing health information about identifiable people.
+- **A one-shot fix, never "press locate first".** Anything that depends on
+  remembering a prior step is forgotten on race morning, so `currentFix()`
+  falls back to `getCurrentPosition` and reuses the watch's fix only while it
+  is under 30 seconds old - a stale fix pins someone where they were, not
+  where they are.
 - **Everything is event-scoped**, even with one event. `event_id` on every table.
 - **No What3Words API.** Paid service, deliberately not integrated. Manual entry,
   shape validation only, KML lat/lon stays authoritative.
@@ -333,6 +338,11 @@ usability, not style preferences.
   while the sheet was open it was the ONLY way out, because the toggle sits
   under the sheet at a lower z-index. Any control that closes something needs
   the 44px target like everything else.
+- **A floating map control must be anchored to the MAP's edge, not the
+  window's.** `#locate-btn` is z-index 500 and `#stations-panel` is 550, so
+  `right: 12px` put it underneath the panel on every screen over 1000px -
+  invisible, with no error, on the layout NCS actually uses. Offset by the same
+  `clamp()` the map is, and put it back under `body.stations-hidden`.
 - **The connection badge must stay visible.** It is the only signal that a phone
   is showing stale data. Leaflet's zoom control shares that corner at z-index
   1000; the top bar reserves space for it.
@@ -419,15 +429,41 @@ usability, not style preferences.
 - **An event's slug is immutable; it is in every link already sent.** Renaming
   the event changes the displayed name only. Changing `/e/<slug>/<token>` would
   404 every volunteer holding a link, silently, on the morning they need it.
-- **Icons are inline SVG, never glyphs or an icon font.** U+270E plus the
-  U+FE0E text-presentation selector still renders as a colour emoji in Chrome on
-  Windows. SVG also inherits `currentColor`, so an icon reddens with its danger
-  button. Every icon-only button needs `title` **and** `aria-label`, and the
-  label names the row, not just the verb: "Delete Aid 3", never "Delete".
+- **Glyphs are fine; reach for inline SVG when the icon carries colour or
+  state.** A Unicode glyph ships nothing and needs no markup, so it is a
+  reasonable choice for a plain icon. The two things it cannot be trusted with:
+  a codepoint that renders in *emoji presentation* ignores `color` entirely and
+  arrives as decoration (U+270E with the U+FE0E text-presentation selector
+  still came out a full-colour pencil in Chrome on Windows), and glyph metrics
+  vary by font, so precise sizing against a 34px button is guesswork. Anything
+  that must redden with a danger button, invert when pressed, or take a
+  club-set layer colour is SVG, because a path inherits `currentColor`. Check a
+  candidate glyph in Chrome on Windows before committing to it - that is where
+  the emoji substitution bites. An icon font stays out: another file to ship
+  and to fail to load, and the frontend has no build step.
+- **Every icon-only button needs both `title` and `aria-label`.** The label
+  names the row, not just the verb: "Delete Aid 3", never "Delete".
 - **Permission is per capability, not one write flag.** `ROLE_CAPABILITIES` in
   `access.py` is the whole policy; each endpoint names what it needs via
-  `require_capability`. SAG holds `incidents` only - never widen a field role by
-  adding it to a second place.
+  `require_capability`. Never widen a field role by adding it to a second place.
+- **Reporting an incident and working the queue are different capabilities.**
+  `CAP_INCIDENT_REPORT` (all four roles) opens a pickup or a note and fills in
+  its bib, note and position; `CAP_INCIDENTS` (NCS and SAG) moves one along and
+  deletes it. Everyone is somewhere incidents happen, and relaying a report to
+  whoever holds the right link is how it arrives late. But the queue and its
+  count are read as "who is still waiting", so closing or deleting an entry is
+  the power to make that count lie - and the widely-handed-out links must not
+  have it.
+- **The map tap is the primary way to drop a pin; "Here" is the shortcut.**
+  Liaison sits at the EOC reporting places they have never seen, so their own
+  location is the one position that is always wrong. Never make "Here" the
+  default, and never remove the tap.
+- **"Here" is the ONLY thing that sends the viewer's own position.** One fix,
+  on one press, stored as an incident's location - not continuous tracking,
+  which is why it is a button and not a background behaviour. The locate dot
+  stays local. A fix worse than 100 m still places the pin (a rough position
+  with a note beats no report) but the accuracy is stated, or someone reads
+  wifi triangulation as GPS.
 - **An incident is deleted, never "cancelled".** The pickup queue and its
   count are read as "who is still waiting", so a status that has to be filtered
   out of both is a second chance to get that filter wrong - which this app got
@@ -617,6 +653,9 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-04** Every role can report a pickup or course note; only NCS and SAG work the queue.
+- **2026-09-04** "Here" drops the pin at your own location, beside the map tap rather than replacing it.
+- **2026-09-04** The locate button is a crosshair, and no longer hidden behind the stations panel.
 - **2026-09-04** Live tracking is a switch in setup, off by default, with the roster's filter shown.
 - **2026-09-04** The running build is shown in the setup header, so a deploy can be confirmed.
 - **2026-09-04** Fixed: deploy.sh was committed non-executable, so no clone could run it.
@@ -624,6 +663,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-04** On a phone each role's own section opens first, rather than below the fold.
 - **2026-09-04** Fixed: the panel could not be closed on a phone; it is now full height with an X.
 - **2026-09-04** The role is named in the header, so it is obvious which link you are on.
-- **2026-09-04** Deploy can be run by hand against a branch; fixed a branch deploy installing stale code.
-- **2026-09-04** Fixed: a tablet got the phone layout or a strip of map; three layout tiers now.
-- **2026-09-04** Layers moved to the bottom of the panel; the right panel now follows the role.
