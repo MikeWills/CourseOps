@@ -60,3 +60,16 @@ def test_the_workflow_does_not_claim_to_wait_for_something_it_does_not():
     never did, and the server installs from git, so nothing was waiting."""
     text = WORKFLOW.read_text(encoding="utf-8")
     assert "waits for the release build" not in text
+
+
+def test_the_install_path_is_not_hardcoded(script):
+    """The install is wherever the club put it.
+
+    A VPS with a mounted data volume may well have it under /mnt rather than
+    /opt. Hardcoding the default meant the script would cd somewhere else
+    entirely and fail on its first line - or, worse, operate on another tree.
+    """
+    assert 'APP_DIR:-/opt/courseops' not in script
+    assert 'BASH_SOURCE' in script, "APP_DIR should derive from the script location"
+    # Still overridable, for anyone who needs to.
+    assert 'APP_DIR="${APP_DIR:-' in script

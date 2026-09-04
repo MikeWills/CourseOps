@@ -7,6 +7,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **The deploy script assumed the app was installed at `/opt/courseops`.** It
+  is wherever the club put it - this one lives under a mounted data volume -
+  so the first deploy would have changed directory somewhere else entirely and
+  failed on its first line. `APP_DIR` is now derived from the script's own
+  location, which it always knew, and is still overridable.
+
 ### Changed
 - **On a phone, each role's own section opens first.** There is no second panel
   at that width, so what a role exists to look at was landing below the fold:

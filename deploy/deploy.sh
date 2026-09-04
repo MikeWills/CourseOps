@@ -3,7 +3,7 @@
 # Deploy a tagged release on the server. Run by the GitHub Actions workflow over
 # SSH, and safe to run by hand:
 #
-#     sudo -u courseops /opt/courseops/deploy/deploy.sh v0.1.1
+#     sudo -u courseops /path/to/courseops/deploy/deploy.sh v0.1.1
 #
 # The shape of this is decided by one fact: nobody is watching. A deploy that
 # half-works at 03:00 and leaves the app down until somebody notices is worse
@@ -12,7 +12,15 @@
 set -euo pipefail
 
 TAG="${1:?usage: deploy.sh <ref>, e.g. deploy.sh v0.1.1 or deploy.sh main}"
-APP_DIR="${APP_DIR:-/opt/courseops}"
+# Where the app is installed.
+#
+# Derived from this script's own location rather than hardcoded, because the
+# install is wherever the club put it - a VPS with a mounted data volume may
+# well have it under /mnt, not /opt. The workflow invokes this script by its
+# full path, so the script already knows where it lives; hardcoding a default
+# meant it would cd somewhere else entirely and fail at the first line, or
+# worse, operate on a different tree.
+APP_DIR="${APP_DIR:-$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)}"
 SERVICE="${SERVICE:-courseops}"
 HEALTH_URL="${HEALTH_URL:-http://127.0.0.1:8000/healthz}"
 HEALTH_TRIES="${HEALTH_TRIES:-20}"
