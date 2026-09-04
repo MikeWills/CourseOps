@@ -903,8 +903,8 @@ async function loadCourses() {
         }</select></td>
       <td><input value="${esc(p.what3words || '')}" data-w3w="${p.id}"
             placeholder="filled.count.soap" style="width:170px"></td>
-      <td class="actions">${iconBtn('save', {'data-savep': p.id}, `Save ${p.name}`)
-        + iconBtn('remove', {'data-delp': p.id}, `Delete ${p.name}`)}</td>
+      <td class="actions">${iconBtn('remove', {'data-delp': p.id},
+        `Delete ${p.name}`)}</td>
     </tr>`).join('') + '</tbody></table>'
     : '<p class="muted">No aid stations yet.</p>';
 
@@ -950,10 +950,16 @@ async function loadCourses() {
   }
 
   $('poi-filter').oninput = applyPoiFilter;
-  $('poi-filter-layer').onchange = applyPoiFilter;
+  $('poi-filter-layer').onchange = (ev) => {
+    S.poiFilterLayer = ev.target.value;
+    applyPoiFilter();
+  };
+  // Rebuilding the options resets the selection, which silently threw away the
+  // filter every time the table reloaded. Put it back.
   $('poi-filter-layer').innerHTML = '<option value="">All layers</option>'
     + S.poiCategories.map((c) =>
         `<option value="${esc(c.key)}">${esc(c.name)}</option>`).join('');
+  if (S.poiFilterLayer) $('poi-filter-layer').value = S.poiFilterLayer;
 
   function refreshPoiSelection() {
     const n = picked().length;
@@ -978,21 +984,67 @@ async function loadCourses() {
       refreshPoiSelection();
     });
   }
+  /* Every input remembers what it was rendered with, so "changed" is a fact
+     rather than a guess, and saving can send only what actually moved. */
+  $('poi-table').querySelectorAll('[data-pname], [data-w3w], [data-player], [data-lcolor]')
+    .forEach((el) => { el.dataset.original = el.value; });
+
+  function dirtyRows() {
+    const changed = new Map();
+    $('poi-table').querySelectorAll('tbody tr').forEach((tr) => {
+      const name = tr.querySelector('[data-pname]');
+      if (!name) return;
+      const id = name.dataset.pname;
+      const w3w = tr.querySelector('[data-w3w]');
+      const layer = tr.querySelector('[data-player]');
+      const fields = {};
+      if (name.value !== name.dataset.original) fields.name = name.value;
+      if (w3w && w3w.value !== w3w.dataset.original) fields.what3words = w3w.value;
+      if (layer && layer.value !== layer.dataset.original) fields.poi_type = layer.value;
+      if (Object.keys(fields).length) changed.set(id, fields);
+    });
+    return changed;
+  }
+
+  function refreshDirty() {
+    const count = dirtyRows().size;
+    $('poi-save-all').hidden = count === 0;
+    $('poi-save-all').textContent =
+      count === 1 ? 'Save 1 change' : `Save ${count} changes`;
+    $('poi-dirty').textContent = count ? 'unsaved' : '';
+  }
+
+  $('poi-table').addEventListener('input', refreshDirty);
+  $('poi-table').addEventListener('change', refreshDirty);
+
+  /* Saving used to reload the whole table, which threw away every other edit
+     in progress. Renaming thirteen water stops and pressing save on one lost
+     the other twelve, with no warning and nothing to undo. So: save them all,
+     in one go, and only then reload. */
+  $('poi-save-all').onclick = async () => {
+    const changed = dirtyRows();
+    if (!changed.size) return;
+    $('poi-save-all').disabled = true;
+    $('poi-save-all').textContent = `Saving ${changed.size}…`;
+    let saved = 0;
+    try {
+      for (const [id, fields] of changed) {
+        await post(`/api/setup/events/${S.eventId}/pois/${id}`, fields);
+        saved += 1;
+      }
+      banner(`Saved ${saved} place(s).`);
+    } catch (err) {
+      // Say how far it got. "Failed" alone leaves you unsure what to retype.
+      banner(`Saved ${saved} of ${changed.size}, then: ${err.message}`, true);
+    } finally {
+      $('poi-save-all').disabled = false;
+      loadCourses();
+    }
+  };
+
+  refreshDirty();
   applyPoiFilter();
 
-  $('poi-table').querySelectorAll('[data-savep]').forEach((b) =>
-    b.addEventListener('click', async () => {
-      const id = b.dataset.savep;
-      try {
-        await post(`/api/setup/events/${S.eventId}/pois/${id}`, {
-          name: $('poi-table').querySelector(`[data-pname="${id}"]`).value,
-          poi_type: $('poi-table').querySelector(`[data-player="${id}"]`).value,
-          what3words: $('poi-table').querySelector(`[data-w3w="${id}"]`).value,
-        });
-        banner('Aid station saved.');
-        loadCourses();
-      } catch (err) { banner(err.message, true); }
-    }));
   $('poi-table').querySelectorAll('[data-delp]').forEach((b) =>
     b.addEventListener('click', async () => {
       if (!confirm('Delete this aid station?')) return;
