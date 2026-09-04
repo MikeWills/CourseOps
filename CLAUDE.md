@@ -40,7 +40,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 398 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 403 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -266,6 +266,18 @@ usability, not style preferences.
   LAST, so an unordered event is unchanged and a later import lands at the end
   where it is visible. The lead runner progression uses the same order, or
   "the next station" disagrees with the list the club just arranged.
+- **Which race a stop serves is stated, not guessed.** `poi_course`, many to
+  many, because one water stop routinely serves several races - the organizer's
+  file names them "WATER (ALL)". Snapping a stop to the nearest course line
+  picks exactly ONE, so every stop closer to another route's line was dropped
+  from this race's progression and the "Passed X" button skipped from D to I.
+  Nothing stated falls back to the snap, which is what keeps existing events
+  working; never make that fallback the primary path again.
+- **Undo is not a reset.** `undo_last_sighting` removes one report, for a
+  mis-tap mid-race. `clear_sightings` empties a race and division, for the
+  morning of the event when the panel is carrying a rehearsal. Both are scoped
+  to one course and division, so clearing a race that has not started cannot
+  take out one that has.
 - **A lead runner sighting may be at ANY station.** The picker offers all of
   them on purpose, because which race a stop belongs to is inferred from
   proximity. So anything that NAMES a sighting must be built from every staffed
@@ -495,6 +507,8 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-04** Fixed: the lead runner button skipped stations; a stop's races are now stated, not guessed.
+- **2026-09-04** Lead runners can be cleared for a race before the start; undo was never a reset.
 - **2026-09-04** Places can be dragged into the order they are reached; geometry cannot order multi-route events.
 - **2026-09-04** Fixed: a lead runner correction to a station on another course vanished silently.
 - **2026-09-03** Station roles save all at once; the three setup tables now share one save-all.
@@ -503,5 +517,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-03** Added coordinates and a what3words lookup link to every place in the Aid stations table.
 - **2026-09-03** Fixed: saving one renamed place discarded every other unsaved edit.
 - **2026-09-03** Import accepts dropped files; fixed an Apache template that could never be enabled.
-- **2026-09-03** Made a large import reviewable: select-all, bulk accept, and filtering.
-- **2026-09-03** Added a single-file Windows .exe; pip stays the route for Linux and macOS.

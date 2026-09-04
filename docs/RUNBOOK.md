@@ -126,6 +126,16 @@ which is how you spot it.
 This order is what the lead runner panel calls "the next station", so getting
 it right before the event is what makes that panel useful during it.
 
+### 4c. Say which races each place serves
+
+`/setup` -> Aid stations, the **Races** column. Tick every race a stop serves -
+a water stop on shared road usually serves all of them.
+
+Leave it blank and the app falls back to guessing, by snapping the stop to the
+nearest course line. That guess picks exactly ONE race, so a stop serving three
+gets dropped from two of them and the lead runner panel skips it: the "Passed
+X" button jumps from D to I with four stops missing. Tick the boxes.
+
 ### 4b. Check the labels on the pins
 
 Each pin on a labelled layer carries one or two characters taken from its name,
@@ -150,6 +160,9 @@ separate "finished" state to clear - position is only ever the last sighting.
   row. The new sighting is later, so it wins.
 - **A mis-tap:** press **Undo**, which removes the most recent sighting only.
   Press it again to walk further back.
+- **Before the start, with rehearsal data showing:** press **Clear**. That
+  removes every sighting for that race and division and cannot be undone. Undo
+  is for one report; Clear is for starting over.
 
 The dropdown lists every staffed place, not only the ones on that race, because
 the app infers which race a stop belongs to from how close it is to each course

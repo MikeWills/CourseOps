@@ -190,6 +190,28 @@ def undo_last_sighting(
     return True
 
 
+def clear_sightings(
+    conn: sqlite3.Connection, event_id: int, course_id: int, division: str
+) -> int:
+    """Throw away every sighting for one race and division. Returns the count.
+
+    Undo removes one report, which is right for a mis-tap during the race and
+    useless the morning of it: a club that rehearsed the panel, or ran the same
+    event last year on the same database, starts with a leader already halfway
+    round. Pressing undo eleven times is not a reset.
+
+    Deliberately scoped to one course and division rather than the whole event,
+    so this is the same shape as every other control on that row and cannot
+    take out a race that has genuinely started alongside one that has not.
+    """
+    cur = conn.execute(
+        "DELETE FROM lead_sighting WHERE event_id = ? AND course_id = ?"
+        " AND division = ?",
+        (event_id, course_id, (division or "").strip().lower()),
+    )
+    return int(cur.rowcount)
+
+
 def sightings(
     conn: sqlite3.Connection, event_id: int, course_id: int, division: str
 ) -> list[sqlite3.Row]:
@@ -245,13 +267,30 @@ def for_event(
     # stations meant a correction to a station that snapped elsewhere was
     # stored and then displayed as nothing at all: the report vanished, and the
     # leader appeared stuck where they were.
+    # Which races each place serves, as STATED by the club.
+    stated: dict[int, set[int]] = {}
+    for row in conn.execute(
+        "SELECT poi_id, course_id FROM poi_course WHERE event_id = ?",
+        (event_id,),
+    ).fetchall():
+        stated.setdefault(row["poi_id"], set()).add(row["course_id"])
+
     known = {}
     for row in poi_rows:
         located = index.locate(row["lat"], row["lon"])
+        # Stated beats snapped. A stop can serve several races - the organizer
+        # names them "WATER (ALL)" - and snapping picks exactly one, so the
+        # progression for a race silently skipped every stop that happened to
+        # sit closer to another line: A, B, C, D, I with E to H missing.
+        # Nothing stated falls back to the snap, so an event that predates
+        # this behaves as it did.
+        serves = stated.get(row["id"])
+        if not serves:
+            serves = {located.course_id} if located else set()
         known[row["id"]] = (
             row["name"],
             located.distance_along_m if located else None,
-            located.course_id if located else None,
+            serves,
         )
 
     # Ordered the way the club reads them: their own order where they set one,
@@ -262,7 +301,7 @@ def for_event(
     results: list[Leader] = []
     for course in courses:
         on_course = [
-            row for row in ordered if known[row["id"]][2] == course["id"]
+            row for row in ordered if course["id"] in known[row["id"]][2]
         ]
         for division in divisions:
             results.append(

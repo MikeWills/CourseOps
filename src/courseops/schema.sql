@@ -77,6 +77,28 @@ CREATE TABLE IF NOT EXISTS poi (
     notes    TEXT
 );
 
+-- Which races each place serves.
+--
+-- Not a column on `poi`, because one water stop routinely serves several
+-- races: the organizer's own file says so in the names - "WATER (ALL)",
+-- "MM 15 (FULL)". A single course_id would force a club to duplicate a place
+-- per race, and then a rename or a What3Words address would have to be typed
+-- three times and would drift.
+--
+-- No rows for a place means "not stated", and the app falls back to snapping
+-- it onto the nearest course line. That fallback is a guess - the lines share
+-- pavement - and it is exactly what this table exists to replace, but it keeps
+-- an event that predates this working unchanged.
+CREATE TABLE IF NOT EXISTS poi_course (
+    event_id  INTEGER NOT NULL REFERENCES event(id) ON DELETE CASCADE,
+    poi_id    INTEGER NOT NULL REFERENCES poi(id) ON DELETE CASCADE,
+    course_id INTEGER NOT NULL REFERENCES course(id) ON DELETE CASCADE,
+    PRIMARY KEY (poi_id, course_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_poi_course_course
+    ON poi_course (event_id, course_id);
+
 -- What kinds of place this event has, and how each is drawn.
 --
 -- Deliberately data rather than an enum in the code. A KML arrives with

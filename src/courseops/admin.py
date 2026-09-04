@@ -219,6 +219,12 @@ def list_pois(conn: sqlite3.Connection, event_id: int) -> list[dict]:
     rows = conn.execute(
         "SELECT * FROM poi WHERE event_id = ?", (event_id,)
     ).fetchall()
+    races: dict[int, list[int]] = {}
+    for row in conn.execute(
+        "SELECT poi_id, course_id FROM poi_course WHERE event_id = ?",
+        (event_id,),
+    ).fetchall():
+        races.setdefault(row["poi_id"], []).append(row["course_id"])
     out = []
     for row in index.order_along_course(rows):
         entry = _row(row)
@@ -238,6 +244,9 @@ def list_pois(conn: sqlite3.Connection, event_id: int) -> list[dict]:
         entry["label_text"] = labels.for_poi(row["name"], row["label"])
         entry["label_auto"] = labels.derive(row["name"])
         entry["show_labels"] = bool(layer["show_labels"]) if layer else False
+        # Which races this place serves. Empty means "not stated", and the
+        # lead runner panel falls back to the course it snapped to.
+        entry["course_ids"] = sorted(races.get(row["id"], []))
         out.append(entry)
     return out
 
@@ -286,7 +295,18 @@ def update_poi(conn: sqlite3.Connection, event_id: int, poi_id: int,
     if "notes" in payload:
         fields.append("notes = ?")
         values.append((payload.get("notes") or "").strip() or None)
+
+    # Races are a separate table, so they are applied here rather than through
+    # the UPDATE below - and a place may legitimately change nothing else.
+    changed_races = False
+    if "course_ids" in payload:
+        set_poi_courses(conn, event_id, poi_id, payload.get("course_ids"))
+        changed_races = True
+
     if not fields:
+        if changed_races:
+            return _row(conn.execute(
+                "SELECT * FROM poi WHERE id = ?", (poi_id,)).fetchone())
         raise ValueError("Nothing to change.")
 
     values.extend([poi_id, event_id])
@@ -296,6 +316,48 @@ def update_poi(conn: sqlite3.Connection, event_id: int, poi_id: int,
     if cur.rowcount == 0:
         raise ValueError(f"No aid station with id {poi_id} in this event.")
     return _row(conn.execute("SELECT * FROM poi WHERE id = ?", (poi_id,)).fetchone())
+
+
+def set_poi_courses(conn: sqlite3.Connection, event_id: int, poi_id: int,
+                    course_ids) -> list[int]:
+    """Say which races a place serves. Replaces whatever was there.
+
+    Accepts a list, or the comma-separated string the form sends. An empty
+    value clears the assignment, which puts the place back on the proximity
+    fallback rather than hiding it - "not stated" has to stay expressible,
+    because it is what every existing event has.
+    """
+    if isinstance(course_ids, str):
+        parts = [p for p in course_ids.split(",") if p.strip()]
+    else:
+        parts = list(course_ids or [])
+    ids = []
+    for part in parts:
+        try:
+            ids.append(int(part))
+        except (TypeError, ValueError):
+            raise ValueError(f"{part!r} is not a course id.")
+
+    known = {
+        row["id"] for row in conn.execute(
+            "SELECT id FROM course WHERE event_id = ?", (event_id,)
+        ).fetchall()
+    }
+    unknown = [i for i in ids if i not in known]
+    if unknown:
+        raise ValueError(f"No course with id {unknown[0]} in this event.")
+
+    conn.execute(
+        "DELETE FROM poi_course WHERE event_id = ? AND poi_id = ?",
+        (event_id, poi_id),
+    )
+    for course_id in sorted(set(ids)):
+        conn.execute(
+            "INSERT INTO poi_course (event_id, poi_id, course_id)"
+            " VALUES (?, ?, ?)",
+            (event_id, poi_id, course_id),
+        )
+    return sorted(set(ids))
 
 
 def reorder_pois(conn: sqlite3.Connection, event_id: int,

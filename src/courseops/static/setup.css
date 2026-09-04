@@ -379,3 +379,17 @@ tr.is-dragging { opacity: 0.45; background: #eaf2fb; }
    a coin flip where routes share pavement. */
 td.mile { line-height: 1.25; white-space: nowrap; }
 td.mile .muted { font-size: 11px; }
+
+/* Which races a stop serves.
+   Stacked rather than inline: a marathon has three or four races and the
+   names are words, not codes, so a row of them would push the table wide. */
+td.races { line-height: 1.35; }
+.race-pick {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.race-pick input { margin: 0; }

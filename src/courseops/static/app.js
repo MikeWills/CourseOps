@@ -963,6 +963,26 @@ async function recordSighting(leader, poiId, bib) {
   }
 }
 
+/* Clearing a race is not undo. It is what you press before the start when the
+   panel is carrying a rehearsal, or last year's event on the same database.
+   Confirmed, because it cannot be undone - the sightings are gone. */
+async function resetLeader(leader) {
+  if (!confirm(
+      `Clear every ${leader.division_label} sighting for ${leader.course_name}?`
+      + '\n\nThis cannot be undone.')) return;
+  try {
+    await fetch(`/api/${M.slug}/${M.token}/leaders/reset`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        course_id: leader.course_id, division: leader.division,
+      }),
+    });
+  } catch (err) {
+    setLocateStatus('Could not clear');
+  }
+}
+
 async function undoSighting(leader) {
   try {
     await fetch(`/api/${M.slug}/${M.token}/leaders/undo`, {
@@ -1078,6 +1098,15 @@ function renderLeaders() {
         undo.title = 'Remove the last sighting';
         undo.addEventListener('click', () => undoSighting(leader));
         controls.appendChild(undo);
+
+        const reset = document.createElement('button');
+        reset.type = 'button';
+        reset.className = 'leader-undo';
+        reset.textContent = 'Clear';
+        reset.title =
+          `Clear every ${leader.division_label} sighting for ${leader.course_name}`;
+        reset.addEventListener('click', () => resetLeader(leader));
+        controls.appendChild(reset);
       }
       row.appendChild(controls);
     }
