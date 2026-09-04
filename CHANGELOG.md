@@ -7,6 +7,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **The role is named in the header.** Four roles see four different screens,
+  and the only thing that said which one you were looking at was a line at the
+  very bottom of the panel. The badge sits beside the connection badge and says
+  "Liaison - view only" or "Net control", so it is obvious whether a volunteer
+  opened the wrong link - and it makes testing the four links a matter of
+  looking rather than remembering which tab is which.
+
+## [Unreleased]
+
 ### Fixed
 - **Deploying a branch would have silently installed stale code.** The script
   ran `git checkout --force "$TAG"`, and the server's working copy sits on a
