@@ -280,6 +280,11 @@ courseops courses m2026       # what you ended up with
 courseops set-w3w m2026 4 index.home.raft
 ```
 
+Pins on a labelled layer carry one or two characters from the place name, so
+`Aid 3` reads **3** and `Water B` reads **B** without opening anything. Which
+layers are labelled is per event, under Layers; the characters are derived from
+the name, with an override in the Places table for where that guesses wrong.
+
 What3Words addresses are entered by hand and maintained by Net Control. There is
 no API integration: it is a paid service, so the app validates the shape of an
 address but never resolves it. The KML coordinates remain authoritative, and the

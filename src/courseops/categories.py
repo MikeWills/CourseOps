@@ -43,6 +43,12 @@ DEFAULT_POI_CATEGORIES: list[tuple[str, str, bool, str, str]] = [
     ("other", "Other", False, "pin", "#6b5ea8"),
 ]
 
+# Labels default on exactly where a person is standing. Those are the pins
+# someone needs to tell apart mid-net; a fifty-marker mile layer with labels on
+# is the wall of digits this flag exists to prevent.
+def _labels_default(staffed: bool) -> int:
+    return int(staffed)
+
 # The station roles. Fixed keys, because each has its own status wording in
 # db.OP_STATUS_LABELS; the names here are only defaults.
 DEFAULT_ROSTER_ROLES: list[tuple[str, str]] = [
@@ -95,10 +101,12 @@ def seed_poi_categories(conn: sqlite3.Connection, event_id: int) -> None:
             conn.execute(
                 """
                 INSERT INTO poi_category
-                    (event_id, key, name, staffed, icon, color, sort_order, visible)
-                VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+                    (event_id, key, name, staffed, icon, color, sort_order,
+                     visible, show_labels)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)
                 """,
-                (event_id, key, name, int(staffed), icon, color, order * 10),
+                (event_id, key, name, int(staffed), icon, color, order * 10,
+                 _labels_default(staffed)),
             )
     # Unlike the defaults, this runs every time: a place whose layer does not
     # exist is in the database, off the map, with no error to say so. Better an
@@ -112,8 +120,9 @@ def seed_poi_categories(conn: sqlite3.Connection, event_id: int) -> None:
         conn.execute(
             """
             INSERT OR IGNORE INTO poi_category
-                (event_id, key, name, staffed, icon, color, sort_order, visible)
-            VALUES (?, ?, ?, 0, 'pin', NULL, 900, 1)
+                (event_id, key, name, staffed, icon, color, sort_order,
+                 visible, show_labels)
+            VALUES (?, ?, ?, 0, 'pin', NULL, 900, 1, 0)
             """,
             (event_id, key, key.replace("_", " ").title()),
         )
@@ -170,10 +179,12 @@ def add_poi_category(
     conn.execute(
         """
         INSERT INTO poi_category
-            (event_id, key, name, staffed, icon, color, sort_order, visible)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+            (event_id, key, name, staffed, icon, color, sort_order,
+             visible, show_labels)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)
         """,
-        (event_id, key, name, int(staffed), icon or "pin", color, top + 10),
+        (event_id, key, name, int(staffed), icon or "pin", color, top + 10,
+         _labels_default(staffed)),
     )
     return get_poi_category(conn, event_id, key)
 
@@ -207,7 +218,7 @@ def update_poi_category(
             raise CategoryError("A layer needs a name.")
         fields.append("name = ?")
         values.append(name)
-    for flag in ("staffed", "visible"):
+    for flag in ("staffed", "visible", "show_labels"):
         if flag in payload:
             fields.append(f"{flag} = ?")
             values.append(int(bool(payload[flag])))

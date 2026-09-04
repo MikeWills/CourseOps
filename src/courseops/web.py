@@ -24,7 +24,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import (access, admin, categories, db, hub as hub_module, importer,
-               incidents, resources,
+               incidents, labels as poi_labels, resources,
                kml, leaders, progress, symbols, users)
 from .config import Settings
 from .ingest import run_ingest
@@ -155,6 +155,9 @@ def build_state(conn: sqlite3.Connection, event_id: int) -> dict[str, Any]:
     for row in index.order_along_course(poi_rows):
         entry = _row_to_dict(row)
         entry["course_position"] = _course_position(index, row["lat"], row["lon"])
+        # One or two characters for the pin itself. Derived unless the club
+        # typed an override; the client never has to guess.
+        entry["label_text"] = poi_labels.for_poi(row["name"], row["label"])
         pois.append(entry)
 
     roster = []
@@ -224,9 +227,6 @@ def build_state(conn: sqlite3.Connection, event_id: int) -> dict[str, Any]:
         # A club's own wording for the station roles. The keys are fixed
         # because each carries its own status vocabulary; the names are not.
         "role_labels": categories.role_labels(conn, event_id),
-        # A club's own wording for the station roles. The keys are fixed
-        # because each carries its own status vocabulary; the names are not.
-        "role_labels": categories.role_labels(conn, event_id),
         # The layers this event has, and how each draws. Sent rather than
         # assumed, because the set is the club's, not the code's.
         "poi_categories": [
@@ -237,6 +237,9 @@ def build_state(conn: sqlite3.Connection, event_id: int) -> dict[str, Any]:
                 "icon": row["icon"],
                 "color": row["color"],
                 "visible": bool(row["visible"]),
+                # Per layer: a dozen aid stations are worth labelling, fifty
+                # mile markers would bury the map in digits.
+                "show_labels": bool(row["show_labels"]),
             }
             for row in categories.poi_categories(conn, event_id)
         ],

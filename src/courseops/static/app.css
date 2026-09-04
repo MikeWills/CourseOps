@@ -469,6 +469,51 @@ html, body {
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
 }
 
+/* One or two characters, filling the pin. Tabular figures so "11" and "18"
+   are the same width and a row of numbered stations does not jitter.
+
+   Sized to fill the 30px pin rather than sit politely inside it: this is read
+   on a phone at arm's length, outdoors, by someone who is also holding a
+   radio. Timid text here is the same as no text. */
+.poi-label {
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.5px;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+  /* The pin colour is chosen by the club and can come out pale. A dark rim on
+     the glyph keeps the character readable whatever they pick. */
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+}
+
+/* A labelled pin is round, so the characters are not fighting the corners for
+   space, and it reads as a different KIND of marker than a glyph pin. */
+.poi-icon:has(.poi-label) { border-radius: 50%; }
+
+/* The station name beside the pin, once zoomed in past NAME_LABEL_MIN_ZOOM.
+
+   Hidden by default and revealed by a class on the map container, so a zoom
+   changes one class rather than rebuilding every tooltip. `hidden` is not
+   usable here - Leaflet owns these elements and re-shows them. */
+.leaflet-tooltip.poi-name {
+  display: none;
+  /* Opaque, not translucent. Over OSM's road casings and park fills a
+     see-through label is legible on the demo and unreadable on the day. */
+  background: #fff;
+  border: 1px solid var(--navy-700);
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  padding: 2px 7px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--navy-700);
+  white-space: nowrap;
+}
+.leaflet-tooltip.poi-name::before { display: none; }  /* no callout arrow */
+
+.show-poi-names .leaflet-tooltip.poi-name { display: block; }
+
 .leaflet-popup-content { margin: 12px 14px; font-size: 14px; }
 .leaflet-popup-content h3 { margin: 0 0 6px; font-size: 15px; }
 .leaflet-popup-content dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; }

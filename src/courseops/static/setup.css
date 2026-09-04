@@ -357,3 +357,12 @@ table.grid button { min-height: 34px; padding: 0 10px; font-size: 13px; }
   .row > .field { min-width: 100%; }
   table.grid { font-size: 13px; }
 }
+
+/* Two characters is the whole budget - the pin is 24px on the map. The input
+   is sized to match so the field cannot promise more room than the map has. */
+.pin-label {
+  width: 46px;
+  text-align: center;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}

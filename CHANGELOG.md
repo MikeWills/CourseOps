@@ -8,6 +8,33 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **Labels on pins.** Identical pins do not answer the question anyone actually
+  asks of the map, which is "which one is that?" - and hovering each in turn to
+  find out is useless during a net. Each pin on a labelled layer now carries one
+  or two characters: `Aid 3` draws **3**, `Water B` draws **B**, `Start (ALL)`
+  draws **S**.
+
+  The label is derived from the name, never stored, so renaming a station
+  relabels its pin. Derivation is deliberately not "first letter": clubs name
+  stations `Aid 1`, `Aid 2`, `Aid 3`, and taking the first letter blindly
+  labels every pin on the course **A** - which looks like a working feature and
+  tells you nothing. A number in the name wins; otherwise the first word that
+  is not describing the KIND of place. `poi.label` holds an override for the
+  places where the guess comes out wrong or collides, and the Places table
+  shows the result so collisions are visible before race day.
+
+  Labels are per layer, not global: a dozen aid stations are worth labelling,
+  and the same switch on 48 mile markers would bury the map in digits. On for
+  staffed layers by default, and existing events are backfilled to match.
+
+  A labelled pin gives up its glyph - a 24px marker cannot hold both - so it
+  draws larger, round, and above unlabelled pins, which otherwise stack on top
+  by latitude and hide the character.
+
+  Full names beside the pins are available too, under **Place names** in the
+  map's Places list. Off by default, and shown only when zoomed in past street
+  level, where they will not collide.
+
 - **Coordinates and a what3words lookup link on every place.** The Aid stations
   table showed a What3Words box with no way to find out what belonged in it -
   you had to locate the point on some other map first, for all 78 of them. Each
@@ -21,6 +48,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   are word-based, and `w3w://show` has no coordinate form), so it is recorded as
   a known gap in `docs/PLAN.md`. Verified working against real course
   coordinates: it rewrites to the square it resolved.
+
+### Changed
+- **The Layers table saves everything at once**, like the Places table. It had
+  a save button per row that reloaded the whole table, discarding every other
+  edit in progress - the same trap that lost twelve renamed water stops. It
+  mattered more here because this change adds a fourth editable field to that
+  table.
 
 ### Fixed
 - **Editing several places lost all but one of them.** Each row had its own

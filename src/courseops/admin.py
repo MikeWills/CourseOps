@@ -19,8 +19,8 @@ import re
 import sqlite3
 from typing import Any
 
-from . import (access, categories, db, geo, importer, leaders, progress,
-               styling, what3words)
+from . import (access, categories, db, geo, importer, labels, leaders,
+               progress, styling, what3words)
 
 
 def _row(row: sqlite3.Row) -> dict[str, Any]:
@@ -228,6 +228,11 @@ def list_pois(conn: sqlite3.Connection, event_id: int) -> list[dict]:
         entry["layer_color"] = layer["color"] if layer else None
         located = index.locate(row["lat"], row["lon"])
         entry["distance_along_m"] = located.distance_along_m if located else None
+        # What the pin will actually read. Shown in setup so a club can see
+        # two places that came out the same character and override one.
+        entry["label_text"] = labels.for_poi(row["name"], row["label"])
+        entry["label_auto"] = labels.derive(row["name"])
+        entry["show_labels"] = bool(layer["show_labels"]) if layer else False
         out.append(entry)
     return out
 
@@ -258,6 +263,21 @@ def update_poi(conn: sqlite3.Connection, event_id: int, poi_id: int,
             )
         fields.append("what3words = ?")
         values.append(what3words.normalize(words))
+    if "label" in payload:
+        # Stored only when it differs from what we would guess anyway. Keeping
+        # an override that agrees with the guess would silently freeze the
+        # label: rename "Aid 3" to "Aid 4" and the pin would still read 3.
+        override = labels.clean(payload.get("label"))
+        if override and override == labels.derive(
+            (payload.get("name") or "").strip()
+            or conn.execute(
+                "SELECT name FROM poi WHERE id = ? AND event_id = ?",
+                (poi_id, event_id),
+            ).fetchone()["name"]
+        ):
+            override = None
+        fields.append("label = ?")
+        values.append(override)
     if "notes" in payload:
         fields.append("notes = ?")
         values.append((payload.get("notes") or "").strip() or None)
