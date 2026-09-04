@@ -907,7 +907,8 @@ async function loadCourses() {
     <table class="grid"><thead><tr><th><input type="checkbox" id="poi-all"
         aria-label="Select every place"></th>
       <th>Mile</th><th>Name</th><th>Layer</th>
-      <th>Coordinates</th><th>What3Words</th><th></th></tr></thead><tbody>` +
+      <th>Pin</th><th>Coordinates</th><th>What3Words</th>
+      <th></th></tr></thead><tbody>` +
     data.pois.map((p) => `<tr>
       <td><input type="checkbox" data-ppick="${p.id}"
             aria-label="Select ${esc(p.name)}"></td>
@@ -919,6 +920,13 @@ async function loadCourses() {
           S.poiCategories.map((c) => `<option value="${esc(c.key)}"${
             c.key === p.poi_type ? ' selected' : ''}>${esc(c.name)}</option>`).join('')
         }</select></td>
+      <td>${p.show_labels
+        ? `<input value="${esc(p.label || '')}" data-plabel="${p.id}"
+             class="pin-label" maxlength="2"
+             placeholder="${esc(p.label_auto || '')}"
+             title="Drawn on the pin. Blank uses ${esc(p.label_auto || 'nothing')}."
+             aria-label="Pin label for ${esc(p.name)}">`
+        : '<span class="muted" title="Turn labels on for this layer">off</span>'}</td>
       <td class="coords">${p.lat != null
         ? `${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}` : '\u2014'}</td>
       <td class="w3w-cell"><input value="${esc(p.what3words || '')}"
@@ -1011,7 +1019,8 @@ async function loadCourses() {
   }
   /* Every input remembers what it was rendered with, so "changed" is a fact
      rather than a guess, and saving can send only what actually moved. */
-  $('poi-table').querySelectorAll('[data-pname], [data-w3w], [data-player], [data-lcolor]')
+  $('poi-table').querySelectorAll(
+    '[data-pname], [data-w3w], [data-player], [data-plabel], [data-lcolor]')
     .forEach((el) => { el.dataset.original = el.value; });
 
   function dirtyRows() {
@@ -1022,10 +1031,12 @@ async function loadCourses() {
       const id = name.dataset.pname;
       const w3w = tr.querySelector('[data-w3w]');
       const layer = tr.querySelector('[data-player]');
+      const pin = tr.querySelector('[data-plabel]');
       const fields = {};
       if (name.value !== name.dataset.original) fields.name = name.value;
       if (w3w && w3w.value !== w3w.dataset.original) fields.what3words = w3w.value;
       if (layer && layer.value !== layer.dataset.original) fields.poi_type = layer.value;
+      if (pin && pin.value !== pin.dataset.original) fields.label = pin.value;
       if (Object.keys(fields).length) changed.set(id, fields);
     });
     return changed;
@@ -1109,7 +1120,8 @@ async function loadLayers() {
 
   $('layer-table').innerHTML = `
     <table class="grid"><thead><tr><th></th><th>Layer</th><th>Places</th>
-      <th>We staff these</th><th>On by default</th><th></th></tr></thead><tbody>`
+      <th>We staff these</th><th>On by default</th><th>Labels on pins</th>
+      <th></th></tr></thead><tbody>`
     + S.poiCategories.map((c) => `<tr>
         <td><span class="layer-glyph" style="color:${esc(c.color || '#35507a')}"
             >${glyphSvg(c.icon, 20)}</span></td>
@@ -1120,29 +1132,90 @@ async function loadLayers() {
               ${c.staffed ? 'checked' : ''} aria-label="We staff these"></td>
         <td><input type="checkbox" data-lvisible="${esc(c.key)}"
               ${c.visible ? 'checked' : ''} aria-label="On by default"></td>
+        <td><input type="checkbox" data-llabels="${esc(c.key)}"
+              ${c.show_labels ? 'checked' : ''}
+              aria-label="Show labels on ${esc(c.name)} pins"></td>
         <td class="actions">
           <input type="color" value="${esc(c.color || '#35507a')}"
             data-lcolor="${esc(c.key)}" aria-label="Colour" style="width:44px">
-          ${iconBtn('save', {'data-lsave': c.key}, `Save ${c.name}`)}
           ${iconBtn('remove', {'data-ldel': c.key}, `Delete ${c.name}`)}
         </td>
       </tr>`).join('') + '</tbody></table>';
 
-  $('layer-table').querySelectorAll('[data-lsave]').forEach((b) =>
-    b.addEventListener('click', async () => {
-      const key = b.dataset.lsave;
-      const pick = (attr) => $('layer-table').querySelector(`[data-${attr}="${key}"]`);
-      try {
-        await post(`/api/setup/events/${S.eventId}/categories/${key}`, {
-          name: pick('lname').value,
-          color: pick('lcolor').value,
-          staffed: pick('lstaffed').checked,
-          visible: pick('lvisible').checked,
-        });
-        banner('Layer saved.');
-        loadLayers();
-      } catch (err) { banner(err.message, true); }
-    }));
+  /* One save for the whole table, for the same reason the Places table has
+     one: a per-row save had to reload the table to show the result, and that
+     reload discarded every other edit in progress. Renaming several layers
+     and pressing save on one lost the rest.
+
+     Only changed fields are sent, so a save is not a blind overwrite of rows
+     nobody touched. */
+  $('layer-table').querySelectorAll(
+    '[data-lname], [data-lcolor], [data-lstaffed], [data-lvisible], [data-llabels]')
+    .forEach((el) => {
+      el.dataset.original = el.type === 'checkbox'
+        ? String(el.checked) : el.value;
+    });
+
+  function dirtyLayers() {
+    const changed = new Map();
+    $('layer-table').querySelectorAll('tbody tr').forEach((tr) => {
+      const name = tr.querySelector('[data-lname]');
+      if (!name) return;
+      const key = name.dataset.lname;
+      const fields = {};
+      const text = (attr, field) => {
+        const el = tr.querySelector(`[data-${attr}]`);
+        if (el && el.value !== el.dataset.original) fields[field] = el.value;
+      };
+      const flag = (attr, field) => {
+        const el = tr.querySelector(`[data-${attr}]`);
+        if (el && String(el.checked) !== el.dataset.original) {
+          fields[field] = el.checked;
+        }
+      };
+      text('lname', 'name');
+      text('lcolor', 'color');
+      flag('lstaffed', 'staffed');
+      flag('lvisible', 'visible');
+      flag('llabels', 'show_labels');
+      if (Object.keys(fields).length) changed.set(key, fields);
+    });
+    return changed;
+  }
+
+  function refreshLayerDirty() {
+    const count = dirtyLayers().size;
+    $('layer-save-all').hidden = count === 0;
+    $('layer-save-all').textContent =
+      count === 1 ? 'Save 1 change' : `Save ${count} changes`;
+    $('layer-dirty').textContent = count ? 'unsaved' : '';
+  }
+
+  $('layer-table').addEventListener('input', refreshLayerDirty);
+  $('layer-table').addEventListener('change', refreshLayerDirty);
+
+  $('layer-save-all').onclick = async () => {
+    const changed = dirtyLayers();
+    if (!changed.size) return;
+    $('layer-save-all').disabled = true;
+    $('layer-save-all').textContent = `Saving ${changed.size}\u2026`;
+    let saved = 0;
+    try {
+      for (const [key, fields] of changed) {
+        await post(`/api/setup/events/${S.eventId}/categories/${key}`, fields);
+        saved += 1;
+      }
+      banner(`Saved ${saved} layer(s).`);
+    } catch (err) {
+      // How far it got, so you know what still needs retyping.
+      banner(`Saved ${saved} of ${changed.size}, then: ${err.message}`, true);
+    } finally {
+      $('layer-save-all').disabled = false;
+      loadLayers();
+    }
+  };
+
+  refreshLayerDirty();
 
   $('layer-table').querySelectorAll('[data-ldel]').forEach((b) =>
     b.addEventListener('click', async () => {

@@ -411,6 +411,34 @@ listing, which was exactly the friction the plan was trying to avoid. Staged
 features are now drawn on a map, with list and map selection in sync, because
 organizer files are wrong in ways a list of names cannot reveal.
 
+### Pin labels (done)
+
+Pins are labelled with one or two characters derived from the place name, so a
+glance answers "which one is that?".
+
+Decisions taken, so they are not re-litigated:
+
+- **Characters on the pin, not names beside it.** Names collide into a smear at
+  the whole-course zoom, which is the zoom NCS actually sits at. Names are
+  available as an opt-in switch, gated on zoom, and default off.
+- **Derivation is a guess and is never stored.** Storing it would freeze the
+  label when the place is renamed. `poi.label` is an override only, and is
+  cleared when it agrees with the guess.
+- **A number in the name beats a letter.** "Aid 1/2/3" is at least as common as
+  "Alpha/Bravo/Charlie", and first-letter derivation labels the whole course
+  "A". Words describing the kind of place ("aid", "water", "stop") and the race
+  ("ALL", "FULL", "half") are skipped, because the real Mankato export is full
+  of `WATER (ALL)`.
+- **Two characters is the budget.** A marker is 24px; a labelled one is 30px.
+  Three characters do not fit, and text that does not fit is worse than none.
+- **A labelled pin loses its glyph.** They cannot both fit. This is why labels
+  are per layer: in practice one layer is labelled and the rest keep glyphs.
+- **Collisions are surfaced, not solved.** Six places named `WATER (ALL)` all
+  derive `W`, because their names are genuinely identical. The Places table
+  shows each label so a club can see that and rename or override. Inventing
+  distinct labels would put characters on the map that match nothing anyone
+  says on the radio.
+
 ## Known gaps and open threads
 
 - **The what3words coordinate URL is undocumented.** Linking to a square by

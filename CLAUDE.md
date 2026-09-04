@@ -40,7 +40,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 352 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 391 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -89,6 +89,7 @@ src/courseops/
   categories.py   per-event place layers and role names; the `staffed` flag
   styling.py      course colors, line styles, draw order
   what3words.py   normalize/validate W3W strings, no API
+  labels.py       one or two characters for a pin, derived from the name
   access.py       role tokens: ncs writes; liaison + logistics read
   hub.py          per-event fan-out, bounded queues
   web.py          FastAPI: map page, state snapshot, WebSocket
@@ -380,6 +381,27 @@ usability, not style preferences.
   re-renders the whole list silently discards every other edit in progress -
   it cost a real user twelve renames. One save button for the whole table,
   which sends only the fields that actually changed.
+- **A pin label is never the first letter of the name.** Clubs number stations
+  as often as they letter them, so "Aid 1/2/3" through a first-letter rule
+  labels the entire course "A" - a feature that looks like it works and conveys
+  nothing. `labels.derive` takes a number if the name has one, then the first
+  word that is not naming the kind of place ("aid", "water", "stop") or the race
+  ("ALL", "FULL"). Real organizer files are full of `WATER (ALL)`.
+- **The pin label is derived, never stored.** `poi.label` is an override only,
+  and is discarded when it matches the guess - otherwise renaming a station
+  leaves its pin reading the old character. Two characters is the ceiling: the
+  marker is 24px, 30px when labelled.
+- **A labelled pin gives up its glyph, so labelling is per layer.** Both do not
+  fit at marker size. One layer labelled and the rest glyphed is the working
+  arrangement; labels default on for `staffed` layers only, because the same
+  switch across 48 mile markers buries the map in digits.
+- **Labelled markers need a `zIndexOffset`.** Leaflet stacks markers by
+  latitude, so an unlabelled pin a few metres north covers the character
+  someone turned labels on to read.
+- **A new column whose sensible default comes from existing data needs a
+  backfill.** `ALTER TABLE` takes only a constant, so the flag arrives off for
+  every event that already exists - invisible to exactly the people with data.
+  `_BACKFILL` in `db.py` runs alongside `_ADDED_COLUMNS`.
 - **CLI output stays ASCII.** Em dashes become mojibake in the Windows console,
   and a club laptop is the target environment.
 
@@ -451,6 +473,8 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-03** Labels on pins: one or two characters per place, per layer, derived from the name.
+- **2026-09-03** The Layers table now saves every edit at once, like Places.
 - **2026-09-03** Added coordinates and a what3words lookup link to every place in the Aid stations table.
 - **2026-09-03** Fixed: saving one renamed place discarded every other unsaved edit.
 - **2026-09-03** Import accepts dropped files; fixed an Apache template that could never be enabled.
@@ -459,5 +483,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-03** A callsign is now needed only for live tracking, not to start the app.
 - **2026-09-03** Added CI and a release workflow that proves the .exe serves before publishing.
 - **2026-09-03** Read GIS attribute tables from `<description>`; `Type` now files points automatically.
-- **2026-09-03** Import creates the layers a file names; 48 mile markers land in a layer that starts off.
-- **2026-09-03** Fixed: stitch invented a 5.4 km leg and reported a 29.76 mile marathon.

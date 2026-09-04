@@ -39,7 +39,21 @@ _ADDED_COLUMNS: list[tuple[str, str, str]] = [
     ("roster", "op_status_by", "TEXT"),
     ("roster", "bound_key", "TEXT"),
     ("incident", "kind", "TEXT NOT NULL DEFAULT 'pickup'"),
+    ("poi", "label", "TEXT"),
+    ("poi_category", "show_labels", "INTEGER NOT NULL DEFAULT 0"),
 ]
+
+# Columns whose sensible starting value comes from data already in the table.
+# ALTER TABLE can only take a constant default, so without this a new flag
+# arrives switched off for every existing event and the feature it controls is
+# invisible to exactly the people who already have data - who are the ones most
+# likely to want it.
+_BACKFILL: dict[tuple[str, str], str] = {
+    # Labels are for places a person is standing at. Same rule the seed uses
+    # for a new event, applied to events that already exist.
+    ("poi_category", "show_labels"):
+        "UPDATE poi_category SET show_labels = 1 WHERE staffed = 1",
+}
 
 
 def _column_names(conn: sqlite3.Connection, table: str) -> set[str]:
@@ -61,6 +75,9 @@ def _apply_migrations(conn: sqlite3.Connection) -> list[str]:
             continue  # freshly created by schema.sql; already has the column
         if column not in _column_names(conn, table):
             conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
+            backfill = _BACKFILL.get((table, column))
+            if backfill:
+                conn.execute(backfill)
             applied.append(f"{table}.{column}")
     return applied
 

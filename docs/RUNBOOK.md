@@ -112,6 +112,21 @@ courseops style-course mankato2026 2 --order 10     # higher draws on top
 Courses share road for miles. Draw order decides which line wins where they
 overlap — put the one people ask about most on top.
 
+### 4b. Check the labels on the pins
+
+Each pin on a labelled layer carries one or two characters taken from its name,
+so the map can be read at a glance. Look at the Places table in `/setup` before
+event day and check two things:
+
+- **No two pins you care about share a label.** Places named identically in the
+  organizer's file - `WATER (ALL)` six times - all come out the same character.
+  Rename them, or type an override in the Pin column.
+- **The right layers are labelled.** Layers -> "Labels on pins". On for aid
+  stations; off for mile markers, or the map fills with digits.
+
+Turning **Place names** on in the map's Places list adds the full name beside
+each labelled pin once you zoom in past street level.
+
 ### 5. Enter What3Words for each aid station
 
 NCS maintains these. In `/setup` -> Aid stations, every place shows its

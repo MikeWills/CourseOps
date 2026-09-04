@@ -260,6 +260,27 @@ L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
 
 map.on('dragstart', () => setFollowing(false));
 
+/* Below this, aid station names overlap each other into an unreadable smear;
+   at or above it a screen holds a mile or two of course and at most a couple
+   of stations. The characters on the pins stay visible at every zoom - it is
+   only the full names that come and go. */
+const NAME_LABEL_MIN_ZOOM = 14;
+
+function nameLabelsWanted() {
+  // Off unless asked for. The characters on the pins are the answer to
+  // "which one is that?"; the full names are a second opinion, and a map
+  // carrying both all the time is busier than the job needs.
+  return state.layerPrefs['poi-names'] === true;
+}
+
+function syncNameLabels() {
+  map.getContainer().classList.toggle(
+    'show-poi-names',
+    nameLabelsWanted() && map.getZoom() >= NAME_LABEL_MIN_ZOOM);
+}
+map.on('zoomend', syncNameLabels);
+syncNameLabels();
+
 function stationIcon(stationKey) {
   const status = radioStatus(stationKey);
   const category = categoryOf(stationKey);
@@ -391,17 +412,39 @@ function drawPois(pois) {
 
   pois.forEach((poi) => {
     const cat = categoryOfPoi(poi);
+    /* Two characters if this layer is labelled, and the layer glyph if not.
+       They cannot both fit: a pin is 24px, and text that does not fit is
+       worse than no text.
+
+       So a labelled pin gives up its glyph, which is why labels are per
+       layer rather than global. On a labelled layer the colour and the
+       popup carry which layer it is; on every other layer the glyph still
+       does. In practice one layer is labelled - the aid stations - and
+       telling THOSE apart is the whole point. */
+    const label = cat.show_labels ? (poi.label_text || '') : '';
     const marker = L.marker([poi.lat, poi.lon], {
       icon: L.divIcon({
         className: '',
         // The glyph carries the meaning and the colour reinforces it, so two
         // layers a club happens to colour alike are still told apart.
         html: `<div class="poi-icon" style="background:${cssColor(cat.color)}">`
-            + `${glyphSvg(cat.icon, 14)}</div>`,
-        iconSize: [24, 24],
-        iconAnchor: [12, 12],
+            + (label
+                ? `<span class="poi-label">${escapeHtml(label)}</span>`
+                : glyphSvg(cat.icon, 14))
+            + '</div>',
+        // A labelled pin is bigger than a glyph pin. A glyph reads as a shape
+        // at 24px; two characters at that size are a smudge held at arm's
+        // length in sunlight, which is the condition this is read in.
+        iconSize: label ? [30, 30] : [24, 24],
+        iconAnchor: label ? [15, 15] : [12, 12],
       }),
       title: `${poi.name} (${cat.name})`,
+      /* A labelled pin draws above an unlabelled one. Leaflet stacks markers
+         by latitude, so a mile marker a few metres north of an aid station
+         sits on top of it and hides exactly the character someone turned
+         labels on to read. Labelling a layer is a statement that those pins
+         matter more than the ones around them. */
+      zIndexOffset: label ? 1000 : 0,
     });
     const rows = [['Layer', cat.name]];
     if (poi.course_position) {
@@ -419,6 +462,26 @@ function drawPois(pois) {
         return `<dt>${escapeHtml(k)}</dt><dd${cls}>${escapeHtml(String(v))}</dd>`;
       }).join('') + '</dl>'
     );
+    /* Two characters answer "which one is that?" only if you already know
+       the scheme. Zoomed in far enough that they will not collide, show the
+       name as well - the pin says F, the label beside it says Foxtrot.
+
+       Permanent rather than on hover: this is read on a phone in a field,
+       where there is no hover. Visibility is by CSS class on the map
+       container rather than by adding and removing tooltips, so zooming does
+       not churn a hundred DOM nodes. */
+    if (label && poi.name) {
+      marker.bindTooltip(poi.name, {
+        permanent: true,
+        direction: 'right',
+        offset: [17, 0],
+        className: 'poi-name',
+        // Never intercept a tap. The pin and the course underneath it are
+        // both things someone is trying to hit.
+        interactive: false,
+      });
+    }
+
     const layer = state.poiLayers.get(cat.key);
     if (layer) layer.addLayer(marker);
   });
@@ -531,6 +594,20 @@ function renderLayerToggles() {
   const places = document.getElementById('place-layer-list');
   places.innerHTML = '';
   document.getElementById('place-layer-section').hidden = !state.poiCategories.length;
+
+  /* One switch for the names, above the layers, because it is not a layer -
+     it changes how the labelled layers draw rather than whether they draw.
+     Zoom still gates it: switched on at the whole-course view the names
+     would overlap into a smear, which is why the pins carry characters. */
+  places.appendChild(layerToggle(
+    'Place names (zoomed in)',
+    nameLabelsWanted(),
+    (on) => {
+      state.layerPrefs['poi-names'] = on;
+      syncNameLabels();
+      savePrefs();
+    },
+  ));
   state.poiCategories.forEach((cat) => {
     const swatch = `<span class="layer-glyph" style="color:${cssColor(cat.color)}">`
       + `${glyphSvg(cat.icon, 16)}</span>`;

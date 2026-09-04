@@ -57,6 +57,11 @@ CREATE TABLE IF NOT EXISTS poi (
     -- carries licensing terms, which is a poor trade for a field that changes
     -- once per event. Stored as given; validated only loosely.
     what3words TEXT,
+    -- One or two characters drawn on the pin, so a glance answers "which one
+    -- is that?" without opening a popup. Almost always NULL: the label is
+    -- derived from the name (see labels.py), and this holds an override for
+    -- the places where that guess comes out wrong or collides with another.
+    label    TEXT,
     notes    TEXT
 );
 
@@ -90,6 +95,10 @@ CREATE TABLE IF NOT EXISTS poi_category (
     -- Whether the layer starts switched on. A club with a 26-marker mile layer
     -- will want it off by default; aid stations always on.
     visible    INTEGER NOT NULL DEFAULT 1,
+    -- Whether pins in this layer carry their label. Per layer, not global:
+    -- a course has a dozen aid stations worth labelling and fifty mile
+    -- markers that would turn the map into a wall of digits.
+    show_labels INTEGER NOT NULL DEFAULT 0,
     UNIQUE (event_id, key)
 );
 
