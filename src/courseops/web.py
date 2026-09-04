@@ -1367,6 +1367,23 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         await _publish_incident(granted.event_id, row, "status")
         return JSONResponse(incidents.Incident(row).as_dict())
 
+    @app.post("/api/{event_slug}/{token}/incidents/{incident_id}/delete")
+    async def delete_incident(
+        event_slug: str, token: str, incident_id: int, request: Request
+    ) -> JSONResponse:
+        """Remove a pickup or a course note that should never have existed."""
+        conn, granted = require_capability(event_slug, token, access.CAP_INCIDENTS)
+        try:
+            row = incidents.delete(conn, granted.event_id, incident_id)
+        except incidents.IncidentError as exc:
+            conn.close()
+            raise HTTPException(status_code=404, detail=str(exc))
+        conn.close()
+        # Every other browser has this in its list and on its map, and
+        # nothing else will ever mention it again.
+        await _publish_incident(granted.event_id, row, "deleted")
+        return JSONResponse({"deleted": incident_id})
+
     @app.post("/api/{event_slug}/{token}/incidents/{incident_id}")
     async def update_incident(
         event_slug: str, token: str, incident_id: int, request: Request

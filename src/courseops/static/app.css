@@ -563,6 +563,27 @@ html, body {
   #locate-status { bottom: 80px; }
 }
 
+/* Removing an incident is rare and destructive, so the control is quiet: no
+   fill, and red only on hover, where it has to be unmistakable. Sitting inside
+   a row it must not compete with the amber and red that mean status. */
+.incident-delete {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  min-height: 34px;
+  flex: none;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.incident-delete:hover,
+.incident-delete:focus-visible {
+  border-color: var(--silent);
+  color: var(--silent);
+}
+
 /* Operator initials: a log annotation for shift handover, never authentication.
    Only shown to roles that can write. */
 .operator-row {

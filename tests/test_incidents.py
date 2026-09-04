@@ -211,3 +211,53 @@ def test_update_with_nothing_to_change_is_rejected(event):
     row = open_one(conn, event_id)
     with pytest.raises(incidents.IncidentError, match="Nothing to change"):
         incidents.update(conn, event_id, row["id"], by="MW")
+
+
+# --- deleting an oops -------------------------------------------------------
+
+def test_deleting_removes_the_incident_and_its_log(event):
+    """A pin dropped on the wrong road is noise, not history.
+
+    Left in the queue it makes the waiting count lie about how many people are
+    still waiting on us, which is the one number NCS glances at.
+    """
+    conn, event_id = event
+    row = incidents.create(conn, event_id, lat=44.1, lon=-93.9, bib="101")
+    incidents.set_status(conn, event_id, row["id"], "en_route")
+    assert len(incidents.log_for(conn, row["id"])) >= 2
+
+    gone = incidents.delete(conn, event_id, row["id"])
+    assert gone["id"] == row["id"]                 # returned for the broadcast
+    assert incidents.for_event(conn, event_id) == []
+    # The log is the history OF this incident, not an audit trail outliving it.
+    assert incidents.log_for(conn, row["id"]) == []
+
+
+def test_deleting_a_pickup_drops_the_waiting_count(event):
+    conn, event_id = event
+    first = incidents.create(conn, event_id, lat=44.1, lon=-93.9)
+    incidents.create(conn, event_id, lat=44.2, lon=-93.8)
+    assert incidents.waiting_count(conn, event_id) == 2
+    incidents.delete(conn, event_id, first["id"])
+    assert incidents.waiting_count(conn, event_id) == 1
+
+
+def test_deleting_a_course_note_leaves_pickups_alone(event):
+    conn, event_id = event
+    note = incidents.create(conn, event_id, lat=44.1, lon=-93.9, kind="note",
+                            note="Confusing turn")
+    pickup = incidents.create(conn, event_id, lat=44.2, lon=-93.8)
+    incidents.delete(conn, event_id, note["id"])
+    remaining = incidents.for_event(conn, event_id)
+    assert [r["id"] for r in remaining] == [pickup["id"]]
+
+
+def test_deleting_something_from_another_event_is_refused(event, tmp_path):
+    """Event scoping, like every other lookup: a token for one event must not
+    reach into another."""
+    conn, event_id = event
+    other = db.create_event(conn, "other", "Other")
+    row = incidents.create(conn, other, lat=44.1, lon=-93.9)
+    with pytest.raises(incidents.IncidentError):
+        incidents.delete(conn, event_id, row["id"])
+    assert incidents.get(conn, other, row["id"]) is not None

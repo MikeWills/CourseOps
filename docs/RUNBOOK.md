@@ -151,6 +151,17 @@ event day and check two things:
 Turning **Place names** on in the map's Places list adds the full name beside
 each labelled pin once you zoom in past street level.
 
+### Deleting a pickup or a note
+
+Each row has a small x. It asks first, and it cannot be undone.
+
+Use it for an oops - a pin dropped on the wrong road, a pickup called in twice,
+a note started and abandoned. A stray pickup left in the queue makes the waiting
+count wrong, and that count is what says whether anyone is still waiting on us.
+
+Do not use it to tidy away something that really happened: a pickup that was
+made and delivered belongs in the record for the organizer afterwards.
+
 ### Making room on the screen
 
 Click any heading in the side panel to fold that section. Courses, People and
