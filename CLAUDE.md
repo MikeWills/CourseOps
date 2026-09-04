@@ -376,6 +376,10 @@ usability, not style preferences.
   except the live APRS-IS connection works without one, and refusing to boot
   over it turns the Windows download into a console window that flashes and
   vanishes.
+- **Never reload a table that holds unsaved edits.** A per-row save that
+  re-renders the whole list silently discards every other edit in progress -
+  it cost a real user twelve renames. One save button for the whole table,
+  which sends only the fields that actually changed.
 - **CLI output stays ASCII.** Em dashes become mojibake in the Windows console,
   and a club laptop is the target environment.
 

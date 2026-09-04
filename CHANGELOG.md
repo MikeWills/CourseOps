@@ -7,6 +7,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **Editing several places lost all but one of them.** Each row had its own
+  save button, and saving reloaded the whole table from the server - throwing
+  away every other edit in progress. Renaming thirteen water stops and pressing
+  save on the first lost the other twelve, with no warning and nothing to undo.
+  Reported by someone who had just done exactly that.
+
+  There is now one **"Save N changes"** button. Every input remembers what it
+  was rendered with, so "changed" is a fact rather than a guess and only what
+  actually moved is sent. If a save fails part way it says how far it got -
+  "Saved 3 of 9, then: ..." - because "failed" alone leaves you unsure what to
+  retype. The per-row save is gone: two save buttons with different scopes is
+  what caused this.
+
+- **The layer filter reset every time the table reloaded**, because rebuilding
+  the dropdown's options discards the selection. It is restored now, so a save
+  no longer drops you back into all 78 rows.
+
 ### Added
 - **Drag and drop on the course upload** (#13). The control had a dashed
   border, which is the universal "drop files here" signal, and accepted clicks
