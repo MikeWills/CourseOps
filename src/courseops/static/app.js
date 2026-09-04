@@ -340,26 +340,75 @@ function setUpFoldables() {
   document.querySelectorAll('.sheet-section').forEach(makeFoldable);
 }
 
-/* The stations section is one element that lives in two places depending on
-   width. Moving it rather than duplicating it keeps a single source of the
-   list; two copies would drift the moment one was re-rendered. */
+/* What belongs in the right-hand panel depends on the job.
+
+   NCS runs the net, so the stations list is what they read all day. Liaison is
+   embedded with Public Safety and Medics: what they need in front of them is
+   who needs picking up, not whether an aid station has torn down. SAG works
+   that same queue from a vehicle.
+
+   Logistics keeps the stations, because the sweep's position is what says a
+   road is clear and the cones can come up. */
+const SIDE_PANEL_BY_ROLE = {
+  ncs:       { title: 'Stations', sections: ['station-section'] },
+  logistics: { title: 'Stations', sections: ['station-section'] },
+  liaison:   { title: 'Pickups',  sections: ['incident-section', 'note-section'] },
+  sag:       { title: 'Pickups',  sections: ['incident-section', 'note-section'] },
+};
+
+function sidePanelPlan() {
+  return SIDE_PANEL_BY_ROLE[state.role] || SIDE_PANEL_BY_ROLE.ncs;
+}
+
+/* The order the sheet was authored in, so anything moved out to the side panel
+   can be put back exactly where it came from rather than on the end. */
+let sheetOrder = null;
+function rememberSheetOrder() {
+  if (sheetOrder) return;
+  sheetOrder = [...document.getElementById('sheet').children]
+    .filter((el) => el.classList.contains('sheet-section') && el.id)
+    .map((el) => el.id);
+}
+
+/* A section is ONE element that lives in two places depending on width and
+   role. Moved, never duplicated: two copies drift the moment one is
+   re-rendered, and the stale one is the one someone reads. */
 function moveStationsPanel() {
-  const section = document.getElementById('station-section');
   const panel = document.getElementById('stations-panel');
   const sheet = document.getElementById('sheet');
-  if (!section || !panel || !sheet) return;
+  if (!panel || !sheet) return;
+  rememberSheetOrder();
 
-  if (WIDE.matches) {
-    if (section.parentNode !== panel) panel.appendChild(section);
-    panel.hidden = false;
-  } else {
+  const plan = sidePanelPlan();
+  const wanted = WIDE.matches ? plan.sections : [];
+
+  // Anything in the panel that should not be there goes home first, so the
+  // sheet is whole before we decide where things belong.
+  sheetOrder.forEach((id) => {
+    const section = document.getElementById(id);
+    if (!section || wanted.includes(id)) return;
     if (section.parentNode !== sheet) {
-      // Back where it was: before the operator box, which is the last thing
-      // in the sheet and reads as a footer.
-      sheet.insertBefore(section, document.getElementById('operator-box'));
+      // Back in authored order: insert before the first later section that is
+      // still in the sheet, and before the role note either way.
+      const after = sheetOrder
+        .slice(sheetOrder.indexOf(id) + 1)
+        .map((other) => document.getElementById(other))
+        .find((el) => el && el.parentNode === sheet);
+      sheet.insertBefore(section, after || document.getElementById('role-note'));
     }
-    panel.hidden = true;
-  }
+  });
+
+  wanted.forEach((id) => {
+    const section = document.getElementById(id);
+    if (section && section.parentNode !== panel) panel.appendChild(section);
+  });
+
+  const title = document.getElementById('side-panel-title');
+  if (title) title.textContent = plan.title;
+  const reopen = document.getElementById('stations-reopen');
+  if (reopen) reopen.textContent = plan.title;
+
+  panel.hidden = !wanted.length;
   applyPanelState();
 }
 

@@ -7,6 +7,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- **The layer switches moved to the bottom of the panel, on every page.** They
+  are set once before the race and then never touched, while everything above
+  them is read all day - so the operational sections now get the part of the
+  panel that is visible without scrolling.
+- **The right-hand panel follows the job.** NCS and Logistics keep the stations
+  list: for NCS it is what they read all day, and for Logistics the sweep's
+  position is what says a road is clear and the cones can come up. Liaison and
+  SAG get the pickups and course notes instead - Liaison is embedded with
+  Public Safety and Medics, so what they need in front of them is who needs
+  picking up, not whether an aid station has torn down.
+
+  Sections move between the sheet and the panel rather than being duplicated,
+  and go back into the order the sheet was authored in rather than onto the
+  end.
+
 ### Added
 - **A pickup or a course note can be deleted.** For an oops: a pin dropped on
   the wrong road, a pickup called in twice, a note started and abandoned. Those
