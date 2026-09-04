@@ -23,7 +23,7 @@ from fastapi import (FastAPI, File, Form, HTTPException, Request, UploadFile,
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import (access, admin, categories, db, hub as hub_module, importer,
+from . import (access, admin, build, categories, db, hub as hub_module, importer,
                incidents, labels as poi_labels, resources,
                kml, leaders, progress, symbols, users)
 from .config import Settings
@@ -478,6 +478,13 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         return JSONResponse({
             "user": user.as_dict() if user else None,
             "first_run": first_run,
+            # Which build is running. Here rather than on /healthz, which is
+            # unauthenticated and deliberately says nothing beyond liveness and
+            # a version: the exact commit tells anyone who asks precisely which
+            # code is deployed, and that is a free gift to somebody looking for
+            # a version with a known problem.
+            "version": __version__,
+            "build": build.build_id() if user else "",
         })
 
     @app.post("/api/setup/first-user")

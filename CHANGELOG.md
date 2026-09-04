@@ -7,6 +7,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **The running build is shown in the setup header.** The package version was
+  never going to answer the question people actually ask, which is "did my
+  deploy land?" - every deploy of `main` reports 0.1.0, so it cannot tell a
+  landed change from a cached page. The header now shows `git describe`:
+  `v0.1.0-19-g27d54cf`, which carries the tag, how far past it you are, and the
+  exact commit.
+
+  Deliberately NOT on `/healthz`. That endpoint is unauthenticated and there is
+  a test keeping it to liveness and a version: the exact commit tells anyone
+  who asks precisely which code is deployed, which is a free gift to somebody
+  looking for a version with a known problem. It goes on the session endpoint,
+  behind the login, and is blank when signed out.
+
+  Established once, cheaply, and never blocking: an explicit `COURSEOPS_BUILD`
+  wins, then git in the working directory, and an install with neither - a
+  club's wheel, the frozen exe - simply reports its version and claims nothing
+  it cannot support.
+
 ### Fixed
 - **`deploy.sh` was committed without its executable bit**, so every clone got
   a script that could not be run: both the documented manual invocation and the

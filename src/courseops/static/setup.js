@@ -1267,6 +1267,28 @@ function bindSaveAll({ table, button, status, fields, save, noun, reload }) {
 /* Layers and roles share one endpoint but are two independent tables on one
    tab, so each re-renders only itself after a save. Re-rendering both would
    discard unsaved edits in the other one - the same bug, one table over. */
+/* Say which build this is, in the header.
+
+   Fetched from /healthz rather than baked into the page, because the page
+   itself may be the stale thing - a browser holding an old setup.html would
+   confidently show an old version number and answer the question wrongly. */
+function showVersion(info) {
+  const el = $('app-version');
+  if (!info || !info.version) { el.hidden = true; return; }
+  /* `git describe` already begins with the tag, so pairing it with the
+     version prints "v0.1.0 - v0.1.0-20-g...". Show the build alone when it
+     already carries the version, and both when it does not - a container
+     setting COURSEOPS_BUILD to a bare sha still needs the version beside it. */
+  const version = `v${info.version}`;
+  const build = info.build || '';
+  el.textContent = !build ? version
+    : (build.startsWith(version) || build.startsWith(info.version))
+      ? build
+      : `${version} · ${build}`;
+  el.title = 'The version and commit this server is running';
+  el.hidden = false;
+}
+
 async function loadLayers(only) {
   const data = await api(`/api/setup/events/${S.eventId}/categories`);
   S.poiCategories = data.poi_categories;
@@ -1662,6 +1684,7 @@ async function start() {
 (async () => {
   try {
     const data = await api('/api/setup/session');
+    showVersion(data);
     if (data.user) { S.user = data.user; await start(); }
     else showGate(data.first_run);
   } catch (err) {

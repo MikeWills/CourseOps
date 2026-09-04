@@ -393,3 +393,13 @@ td.races { line-height: 1.35; }
   cursor: pointer;
 }
 .race-pick input { margin: 0; }
+
+/* The running build, in the setup header. Quiet: it is reference information,
+   not something anyone acts on mid-task. */
+#app-version {
+  margin-left: auto;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.72);
+  white-space: nowrap;
+}

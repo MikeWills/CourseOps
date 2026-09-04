@@ -400,6 +400,15 @@ not be: `SSH_KEY` is a private key. Add it yourself under Settings -> Secrets
 and variables -> Actions, and never paste it into an issue, a chat, or a pull
 request.
 
+### Confirming a deploy actually landed
+
+Sign in to `/setup` and look at the header. It shows `git describe` of what the
+server is running - `v0.1.0-19-g27d54cf` - so a deploy is confirmed by reading
+it rather than by inferring it from behaviour.
+
+`/healthz` deliberately does not carry the commit. It is unauthenticated, and
+the exact build is not something to hand to anyone who asks.
+
 ### What it checks
 
 The script checks `/healthz` from inside the box, which answers "does the app
