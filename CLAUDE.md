@@ -269,6 +269,18 @@ usability, not style preferences.
   for the whole event. Folded sections and hidden panels are both remembered in
   prefs, because a phone reloads on its own coming back from a dead zone and
   re-opening what someone deliberately folded reads as the screen not working.
+- **The role badge must never compete with the connection badge.** It sits
+  next to the one thing in the top bar that says whether a phone is showing
+  stale data, so it is outlined rather than filled and carries no status
+  colour: nothing about which role you are is an alarm.
+- **A full-screen panel on a phone still stops below the top bar.** The
+  connection badge is there, and it is the only thing that says a phone is
+  showing stale data - covering it hides exactly what someone needs to check
+  before acting on what the panel says.
+- **The sheet's drag grip is not a close button.** It was 42x5 pixels, and
+  while the sheet was open it was the ONLY way out, because the toggle sits
+  under the sheet at a lower z-index. Any control that closes something needs
+  the 44px target like everything else.
 - **The connection badge must stay visible.** It is the only signal that a phone
   is showing stale data. Leaflet's zoom control shares that corner at z-index
   1000; the top bar reserves space for it.
@@ -553,6 +565,8 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-04** Fixed: the panel could not be closed on a phone; it is now full height with an X.
+- **2026-09-04** The role is named in the header, so it is obvious which link you are on.
 - **2026-09-04** Deploy can be run by hand against a branch; fixed a branch deploy installing stale code.
 - **2026-09-04** Fixed: a tablet got the phone layout or a strip of map; three layout tiers now.
 - **2026-09-04** Layers moved to the bottom of the panel; the right panel now follows the role.
@@ -562,4 +576,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-04** Fixed: the lead runner button skipped stations; a stop's races are now stated, not guessed.
 - **2026-09-04** Lead runners can be cleared for a race before the start; undo was never a reset.
 - **2026-09-04** Places can be dragged into the order they are reached; geometry cannot order multi-route events.
-- **2026-09-04** Fixed: a lead runner correction to a station on another course vanished silently.

@@ -40,6 +40,9 @@
   </div>
   <div id="brand-rule"></div>
   <div id="event-name">Loading…</div>
+  <!-- Which link am I on? Four roles see four different screens, and the only
+       thing that said which was a line at the very bottom of the panel. -->
+  <div id="role-badge" hidden></div>
   <div id="conn" class="conn conn--connecting" role="status" aria-live="polite">
     <span id="conn-text">Connecting…</span>
   </div>
@@ -64,10 +67,14 @@
       <div class="tagline">Track the course, run the net.</div>
     </div>
     <button id="sheet-collapse" type="button" class="panel-collapse"
-            aria-label="Hide the layers panel" title="Hide this panel">
-      <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="none"
-           stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
-           stroke-linejoin="round"><path d="M10 3.5L5.5 8l4.5 4.5"/></svg></button>
+            aria-label="Close this panel" title="Close">
+      <svg class="icon-chevron" viewBox="0 0 16 16" width="16" height="16"
+           aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"
+           stroke-linecap="round" stroke-linejoin="round"
+           ><path d="M10 3.5L5.5 8l4.5 4.5"/></svg>
+      <svg class="icon-close" viewBox="0 0 16 16" width="18" height="18"
+           aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"
+           stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>
   </div>
 
   <div class="sheet-section" id="ssid-section" hidden>

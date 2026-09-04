@@ -210,6 +210,28 @@ html, body {
 }
 #sheet.open { transform: translateY(0); }
 
+/* On a phone the panel opens to fill the screen rather than sliding up to two
+   thirds of it. Half a map and half a list is the worst of both: too little
+   map to place anything on, too little list to read without scrolling.
+
+   It stops below the top bar, deliberately. The connection badge lives there
+   and is the only signal that a phone is showing stale data - covering it with
+   a full-screen panel would hide exactly the thing someone needs to know
+   before acting on what the panel says. */
+@media (max-width: 699px) {
+  #sheet.open {
+    top: calc(46px + env(safe-area-inset-top, 0px));
+    max-height: none;
+    border-radius: 0;
+  }
+  /* The header comes along, because it carries the way out. */
+  #sheet.open #sheet-header { display: flex; }
+  /* And the drag grip goes: it was a 5px-tall tap target, against this app's
+     own 44px rule, and while the sheet was open it was the ONLY way to close
+     it - the toggle button sits underneath the sheet at a lower z-index. */
+  #sheet-grip { display: none; }
+}
+
 #sheet-grip {
   width: 42px; height: 5px;
   margin: 8px auto 10px;
@@ -930,6 +952,15 @@ html, body {
 }
 .panel-collapse:hover { background: rgba(255, 255, 255, 0.14); }
 
+/* A chevron reads as "push this aside" next to a sidebar; an X reads as
+   "close this" over a full screen. Same button, same job, different shape. */
+.icon-close { display: none; }
+@media (max-width: 699px) {
+  .panel-collapse { width: 44px; height: 44px; }   /* thumb-sized, in a glove */
+  .icon-chevron { display: none; }
+  .icon-close { display: block; }
+}
+
 #stations-panel { display: none; }
 
 /* The way back on screen. A panel that hides with no visible way to bring it
@@ -992,4 +1023,30 @@ html, body {
   body.stations-hidden #map,
   body.stations-hidden #topbar { right: 0; }
 
+}
+
+/* Which role's link this is.
+
+   Deliberately quiet and outlined rather than filled: it sits beside the
+   connection badge, which is the one thing in the top bar that must never be
+   competed with - it is the only signal that a phone is showing stale data.
+   No status colour here either; nothing about a role is an alarm. */
+#role-badge {
+  flex: none;
+  padding: 3px 9px;
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  color: rgba(255, 255, 255, 0.94);
+}
+
+/* On a phone the event name and the connection badge already fill the bar, so
+   the role drops to the initials-width version rather than pushing the badge
+   off the edge. */
+@media (max-width: 460px) {
+  #role-badge { padding: 3px 7px; font-size: 11px; }
+  #event-name { min-width: 0; }
 }

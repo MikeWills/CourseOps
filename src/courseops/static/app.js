@@ -448,8 +448,13 @@ function setPanel(name, showing) {
   applyPanelState();
 }
 
-document.getElementById('sheet-collapse')
-  .addEventListener('click', () => setPanel('sheet', false));
+/* The same control closes the panel whichever shape it is in. On a phone the
+   panel IS the sheet, so hiding a sidebar that does not exist would be a
+   button that does nothing - which is what the tiny drag grip amounted to. */
+document.getElementById('sheet-collapse').addEventListener('click', () => {
+  if (SIDEBAR.matches) setPanel('sheet', false);
+  else setSheet(false);
+});
 document.getElementById('sheet-reopen')
   .addEventListener('click', () => setPanel('sheet', true));
 document.getElementById('stations-reopen')
@@ -1857,6 +1862,19 @@ function applyState(data) {
       data.can_write
         ? `Signed in as ${data.role_label}.`
         : `Signed in as ${data.role_label} — view only.`;
+
+    /* The role, in the header, where it is visible without scrolling the
+       panel. Four roles see four different screens - which is exactly what
+       makes it hard to tell at a glance which link someone opened, whether
+       that is a volunteer on the wrong link or somebody testing all four. */
+    const badge = document.getElementById('role-badge');
+    badge.textContent = data.can_write
+      ? data.role_label
+      : `${data.role_label} · view only`;
+    badge.title = data.can_write
+      ? `You are on the ${data.role_label} link`
+      : `You are on the ${data.role_label} link, which is read-only`;
+    badge.hidden = false;
   }
 
   document.getElementById('event-name').textContent = data.event.name;
