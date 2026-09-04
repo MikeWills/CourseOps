@@ -8,7 +8,7 @@ import pytest
 
 from courseops import db, importer, leaders, progress
 
-REAL = Path(__file__).parent / "fixtures" / "mankato_marathon.kml"
+COURSE = Path(__file__).parent / "fixtures" / "consumer_export_course.kml"
 MILE = 1609.344
 
 
@@ -18,7 +18,7 @@ def race(tmp_path):
     conn = db.connect(tmp_path / "t.sqlite3")
     db.init_schema(conn)
     event_id = db.create_event(conn, "e", "Event")
-    importer.stage_file(conn, event_id, REAL)
+    importer.stage_file(conn, event_id, COURSE)
     line = next(r["id"] for r in importer.pending_features(conn, event_id)
                 if r["geom_type"] == "linestring")
     course_id, _, _ = importer.assign_course(conn, event_id, [line], name="Full")

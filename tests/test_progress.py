@@ -8,16 +8,16 @@ import pytest
 
 from courseops import db, geo, importer, progress
 
-REAL = Path(__file__).parent / "fixtures" / "mankato_marathon.kml"
+COURSE = Path(__file__).parent / "fixtures" / "consumer_export_course.kml"
 MILE = 1609.344
 
 
 @pytest.fixture
-def mankato(tmp_path):
+def course_file(tmp_path):
     conn = db.connect(tmp_path / "t.sqlite3")
     db.init_schema(conn)
-    event_id = db.create_event(conn, "mankato", "Mankato")
-    importer.stage_file(conn, event_id, REAL)
+    event_id = db.create_event(conn, "course_file", "Example Marathon")
+    importer.stage_file(conn, event_id, COURSE)
     line = next(r["id"] for r in importer.pending_features(conn, event_id)
                 if r["geom_type"] == "linestring")
     importer.assign_course(conn, event_id, [line], name="Full")
@@ -65,8 +65,8 @@ def test_degenerate_line_returns_none():
 
 # --- against the real course ------------------------------------------------
 
-def test_every_vertex_of_the_real_course_snaps_cleanly(mankato):
-    conn, event_id = mankato
+def test_every_vertex_of_the_course_snaps_cleanly(course_file):
+    conn, event_id = course_file
     index = progress.CourseIndex.for_event(conn, event_id)
     course = index._courses[0]
 
@@ -77,8 +77,8 @@ def test_every_vertex_of_the_real_course_snaps_cleanly(mankato):
         assert located.distance_along_m == pytest.approx(course.totals[i], abs=1.0)
 
 
-def test_start_and_finish_of_the_real_course(mankato):
-    conn, event_id = mankato
+def test_start_and_finish_of_the_course(course_file):
+    conn, event_id = course_file
     index = progress.CourseIndex.for_event(conn, event_id)
     course = index._courses[0]
 
@@ -86,27 +86,43 @@ def test_start_and_finish_of_the_real_course(mankato):
     finish = index.locate(course.coords[-1][1], course.coords[-1][0])
 
     assert start.distance_along_m == pytest.approx(0.0, abs=1.0)
-    assert start.remaining_m / MILE == pytest.approx(26.4, abs=0.1)
+    assert start.remaining_m / MILE == pytest.approx(26.27, abs=0.1)
     assert finish.remaining_m == pytest.approx(0.0, abs=1.0)
     assert finish.fraction == pytest.approx(1.0, abs=0.001)
 
 
-def test_a_station_far_from_the_course_gets_no_mile_figure(mankato):
+def _off_course(index, metres: float):
+    """A point `metres` north of the course's midpoint.
+
+    Derived rather than hardcoded: a magic lat/lon is only "1.7 km off the
+    route" for one particular route, and silently becomes something else the
+    day the fixture is regenerated.
+    """
+    course = index._courses[0]
+    lon, lat = course.coords[len(course.coords) // 2]
+    return lat + metres / 111_320.0, lon
+
+
+def test_a_station_far_from_the_course_gets_no_mile_figure(course_file):
     """Better no number than a plausible wrong one - someone will act on it."""
-    conn, event_id = mankato
+    conn, event_id = course_file
     index = progress.CourseIndex.for_event(conn, event_id)
+    lat, lon = _off_course(index, 1_700)
 
-    assert index.locate(44.16, -93.95) is None       # ~1.7 km off the route
+    assert index.locate(lat, lon) is None
 
 
-def test_tolerance_is_adjustable(mankato):
-    conn, event_id = mankato
+def test_tolerance_is_adjustable(course_file):
+    conn, event_id = course_file
+    index = progress.CourseIndex.for_event(conn, event_id)
+    lat, lon = _off_course(index, 1_700)
+
     lenient = progress.CourseIndex.for_event(conn, event_id, max_offset_m=3000)
-    assert lenient.locate(44.16, -93.95) is not None
+    assert lenient.locate(lat, lon) is not None
 
 
-def test_fraction_and_remaining_agree_with_length(mankato):
-    conn, event_id = mankato
+def test_fraction_and_remaining_agree_with_length(course_file):
+    conn, event_id = course_file
     index = progress.CourseIndex.for_event(conn, event_id)
     course = index._courses[0]
     midpoint = course.coords[len(course.coords) // 2]
@@ -126,7 +142,7 @@ def test_the_nearest_course_wins(tmp_path):
     conn = db.connect(tmp_path / "t.sqlite3")
     db.init_schema(conn)
     event_id = db.create_event(conn, "e", "Event")
-    importer.stage_file(conn, event_id, REAL)
+    importer.stage_file(conn, event_id, COURSE)
     lines = [r["id"] for r in importer.pending_features(conn, event_id)
              if r["geom_type"] == "linestring"]
     importer.assign_course(conn, event_id, [lines[0]], name="Full")
@@ -184,8 +200,8 @@ def aid_stations_at_miles(conn, event_id, index, plan):
     ).fetchall()
 
 
-def test_greek_letters_sort_wrong_by_name_but_right_by_course(mankato):
-    conn, event_id = mankato
+def test_greek_letters_sort_wrong_by_name_but_right_by_course(course_file):
+    conn, event_id = course_file
     index = progress.CourseIndex.for_event(conn, event_id)
     rows = aid_stations_at_miles(conn, event_id, index, [
         ("Alpha", 2.5), ("Beta", 5.0), ("Gamma", 8.5),
@@ -200,9 +216,9 @@ def test_greek_letters_sort_wrong_by_name_but_right_by_course(mankato):
     assert by_course == ["Alpha", "Beta", "Gamma", "Delta", "Epsilon"]
 
 
-def test_numbered_stations_sort_wrong_by_name_but_right_by_course(mankato):
+def test_numbered_stations_sort_wrong_by_name_but_right_by_course(course_file):
     """'Aid 10' sorts before 'Aid 2' as a string."""
-    conn, event_id = mankato
+    conn, event_id = course_file
     index = progress.CourseIndex.for_event(conn, event_id)
     rows = aid_stations_at_miles(conn, event_id, index, [
         ("Aid 2", 4.0), ("Aid 10", 20.0),
@@ -214,8 +230,8 @@ def test_numbered_stations_sort_wrong_by_name_but_right_by_course(mankato):
         ["Aid 2", "Aid 10"]
 
 
-def test_places_off_the_course_sink_to_the_end(mankato):
-    conn, event_id = mankato
+def test_places_off_the_course_sink_to_the_end(course_file):
+    conn, event_id = course_file
     index = progress.CourseIndex.for_event(conn, event_id)
     aid_stations_at_miles(conn, event_id, index, [("Alpha", 2.5), ("Beta", 9.0)])
     conn.execute(
@@ -232,10 +248,10 @@ def test_places_off_the_course_sink_to_the_end(mankato):
     assert ordered == ["Alpha", "Beta", "Overflow Parking"]
 
 
-def test_posting_a_station_at_an_aid_station_gives_it_a_position(mankato):
+def test_posting_a_station_at_an_aid_station_gives_it_a_position(course_file):
     """Most aid station operators never beacon, so their only position is the
     station they are posted at."""
-    conn, event_id = mankato
+    conn, event_id = course_file
     index = progress.CourseIndex.for_event(conn, event_id)
     rows = aid_stations_at_miles(conn, event_id, index, [("Alpha", 6.0)])
     db.upsert_roster_entry(conn, event_id, "N0AAA-1", "Aid Alpha",
@@ -248,15 +264,15 @@ def test_posting_a_station_at_an_aid_station_gives_it_a_position(mankato):
     assert located.distance_along_m / MILE == pytest.approx(6.0, abs=0.1)
 
 
-def test_posting_to_an_unknown_poi_is_rejected(mankato):
-    conn, event_id = mankato
+def test_posting_to_an_unknown_poi_is_rejected(course_file):
+    conn, event_id = course_file
     db.upsert_roster_entry(conn, event_id, "N0AAA-1", "Aid Alpha", "aid_station")
     with pytest.raises(ValueError, match="No POI with id"):
         db.assign_station_to_poi(conn, event_id, "N0AAA-1", 9999)
 
 
-def test_posting_can_be_cleared(mankato):
-    conn, event_id = mankato
+def test_posting_can_be_cleared(course_file):
+    conn, event_id = course_file
     index = progress.CourseIndex.for_event(conn, event_id)
     rows = aid_stations_at_miles(conn, event_id, index, [("Alpha", 6.0)])
     db.upsert_roster_entry(conn, event_id, "N0AAA-1", "Aid Alpha", "aid_station")
