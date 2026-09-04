@@ -245,6 +245,12 @@ usability, not style preferences.
   exists. Tokens are also scoped to their event: valid elsewhere means nothing.
 - **Never interpolate marker movement in the client** (same rule as the plan).
   `setLatLng`, not an animated transition.
+- **On a phone the role's sections go to the TOP of the sheet instead.** Same
+  list as the side panel, because it is the same decision: there is no second
+  panel at that width, so without this the one thing a role exists to look at
+  opens below the fold. `desiredSheetOrder(wide)` takes the width as an
+  argument rather than reading the media query, so the phone ordering can be
+  checked without a phone - which is the only way it gets checked at all here.
 - **What goes in the right-hand panel depends on the ROLE, not just width.**
   `SIDE_PANEL_BY_ROLE` in `app.js`: NCS and Logistics get stations, Liaison and
   SAG get the pickup queue. Liaison is with Public Safety and Medics and needs
@@ -565,6 +571,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-04** On a phone each role's own section opens first, rather than below the fold.
 - **2026-09-04** Fixed: the panel could not be closed on a phone; it is now full height with an X.
 - **2026-09-04** The role is named in the header, so it is obvious which link you are on.
 - **2026-09-04** Deploy can be run by hand against a branch; fixed a branch deploy installing stale code.
@@ -574,5 +581,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-04** Station roles are open and on their own tab; a deleted role no longer comes back.
 - **2026-09-04** Panel sections fold and stay folded; stations get their own panel on desktop.
 - **2026-09-04** Fixed: the lead runner button skipped stations; a stop's races are now stated, not guessed.
-- **2026-09-04** Lead runners can be cleared for a race before the start; undo was never a reset.
-- **2026-09-04** Places can be dragged into the order they are reached; geometry cannot order multi-route events.
