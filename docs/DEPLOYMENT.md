@@ -161,12 +161,48 @@ Two Pi-specific cautions, neither about performance:
 
 ## 1. Install
 
+This section is the **first-time** setup. Once it is done, updates are
+`deploy/deploy.sh` (section 4a) and you never repeat these steps.
+
+### Letting the server read a private repository
+
+The repository is private, so the server needs its own read access before it
+can clone or fetch anything. As the `courseops` user, make a key and give
+GitHub the public half:
+
+```bash
+sudo -u courseops ssh-keygen -t ed25519 -f /opt/courseops/.ssh/id_github -N ""
+sudo -u courseops cat /opt/courseops/.ssh/id_github.pub
+```
+
+Paste that into the repository under **Settings -> Deploy keys -> Add deploy
+key**, and **leave "Allow write access" unticked** - the server only ever reads.
+
+Then tell git to use it:
+
+```bash
+sudo -u courseops tee /opt/courseops/.ssh/config >/dev/null <<'EOF'
+Host github.com
+    IdentityFile /opt/courseops/.ssh/id_github
+    IdentitiesOnly yes
+EOF
+sudo -u courseops chmod 600 /opt/courseops/.ssh/config
+sudo -u courseops ssh -T git@github.com   # expect "successfully authenticated"
+```
+
+> **Two different keys, and it is worth keeping them straight.** This one lets
+> the **server read GitHub**, and is a *GitHub deploy key*. The one in section
+> 4a lets **GitHub reach the server**, and is an *SSH key in your repository
+> secrets*. They point in opposite directions and neither substitutes for the
+> other. If you only ever deploy by hand you still need this one; you do not
+> need that one.
+
 ```bash
 sudo useradd --system --home /opt/courseops --shell /usr/sbin/nologin courseops
 sudo mkdir -p /opt/courseops
 sudo chown courseops:courseops /opt/courseops
 
-sudo -u courseops git clone <repo-url> /opt/courseops
+sudo -u courseops git clone git@github.com:YOURNAME/CourseOps.git /opt/courseops
 cd /opt/courseops
 sudo -u courseops python3 -m venv .venv
 sudo -u courseops .venv/bin/pip install -e .
@@ -261,6 +297,100 @@ Simplest end-to-end check: open the NCS link on a phone, confirm the badge top
 right reads **Live** in green, and confirm the ◎ button places a blue dot. If
 the badge says *Reconnecting*, the WebSocket is not proxied. If the location dot
 reports *needs HTTPS*, the forwarded scheme is not reaching the app.
+
+## 4a. Deploying from GitHub
+
+Pushing a version tag builds the release and deploys it to the server over SSH.
+Tags rather than merges: `main` stays free for work in progress, what is running
+is always a version you can name, and rolling back is deploying the previous tag
+instead of an archaeology exercise.
+
+The script that does the work is [`deploy/deploy.sh`](../deploy/deploy.sh).
+**There is nothing to upload** - it arrives with the clone in section 1, so it
+is already at `/opt/courseops/deploy/deploy.sh`. It updates an install that
+already exists; it does not replace the first-time setup above.
+
+It runs perfectly well by hand, and running it by hand once is how you should
+prove it before letting a workflow do it unattended:
+
+```bash
+sudo -u courseops /opt/courseops/deploy/deploy.sh v0.1.0
+```
+
+If that works, automating it is only a matter of adding the secrets below. If it
+does not, you have found the problem at a keyboard rather than at 03:00.
+
+It backs the database up with `.backup` first, keeps the last ten of those,
+installs the tag, restarts the service, and then **verifies `/healthz` and rolls
+back to the previous commit if it does not answer**. Nobody is watching a deploy
+at 03:00, and a half-working one that leaves the app down until somebody notices
+is worse than one that refuses.
+
+### The deploy key
+
+Make a key that exists only for this, on your own machine:
+
+```bash
+ssh-keygen -t ed25519 -f ~/.ssh/courseops_deploy -C "github-deploy" -N ""
+```
+
+Put the **public** half on the server, restricted so that a stolen key cannot be
+used as a shell. `command=` means this key can run exactly one thing regardless
+of what the client asks for:
+
+```bash
+# /home/courseops/.ssh/authorized_keys  (or wherever that user's home is)
+command="/opt/courseops/deploy/deploy.sh ${SSH_ORIGINAL_COMMAND##* }",\
+no-agent-forwarding,no-port-forwarding,no-pty,no-X11-forwarding ssh-ed25519 AAAA... github-deploy
+```
+
+The deploy needs to restart the service, which needs root. Give it that one
+command and nothing else:
+
+```bash
+# sudo visudo -f /etc/sudoers.d/courseops
+courseops ALL=(root) NOPASSWD: /bin/systemctl restart courseops
+```
+
+### Repository settings
+
+Under **Settings -> Secrets and variables -> Actions**, as *secrets*:
+
+| Secret | Value |
+|---|---|
+| `SSH_HOST` | the server's hostname or IP |
+| `SSH_USER` | `courseops` |
+| `SSH_KEY` | the **private** half of the key above |
+| `SSH_PORT` | only if sshd is not on 22 |
+| `DEPLOY_PATH` | only if the install is not at `/opt/courseops` |
+
+These names match the ones used by the other projects here deliberately - one
+convention to remember rather than a per-project dialect.
+
+And as a *variable* (not a secret - it is public anyway):
+
+| Variable | Value |
+|---|---|
+| `PUBLIC_URL` | `https://courseops.example.org`, to check from outside |
+
+Finally create an **Environment** named `production` under Settings ->
+Environments. That is where the secrets live, and it is what lets you require a
+click before anything touches the server. Worth having even alone: a deliberate
+approval before deploying to a box a club depends on costs one second.
+
+### What it checks
+
+The script checks `/healthz` from inside the box, which answers "does the app
+work" - it opens the database rather than only confirming the process is up,
+because those are different claims and a deploy that proves only the first will
+leave a broken version running.
+
+The workflow then checks `PUBLIC_URL/healthz` from outside, which is a different
+question again: it exercises Apache, TLS and DNS, and catches the case where the
+app is perfectly healthy and nobody can reach it. A failure there is *not* rolled
+back automatically, because the app is fine - the proxy is not.
+
+---
 
 ## 5. Backups
 

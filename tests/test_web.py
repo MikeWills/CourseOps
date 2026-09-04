@@ -1117,3 +1117,33 @@ def test_every_static_asset_the_pages_reference_is_packaged():
     assert referenced, "no assets found - the check itself is broken"
     missing = sorted(name for name in referenced if not (static / name).exists())
     assert not missing, f"referenced but not present: {missing}"
+
+
+def test_healthz_reports_ok_and_a_version(setup):
+    """What the deploy checks before deciding to keep a new version."""
+    app, _, _, _ = setup
+    with TestClient(app) as client:
+        response = client.get("/healthz")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "ok"
+    assert body["version"]
+
+
+def test_healthz_needs_no_token(setup):
+    """A deploy has no event token, and neither does a monitor."""
+    app, _, _, _ = setup
+    with TestClient(app) as client:
+        assert client.get("/healthz").status_code == 200
+
+
+def test_healthz_says_nothing_about_the_event(setup):
+    """Reachable without authentication, so it reports liveness and a version
+    and no more - not event names, not counts."""
+    app, _, _, _ = setup
+    with TestClient(app) as client:
+        body = client.get("/healthz").json()
+
+    assert set(body) == {"status", "version"}
+    assert "m2026" not in str(body)
