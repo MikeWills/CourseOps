@@ -8,6 +8,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **Say which races each place serves.** A Races column in the Places table,
+  one checkbox per course. Left blank, a place is "not stated" and falls back
+  to the old proximity guess, so existing events are unchanged.
+- **Clear a race's lead runners.** Undo removes one report, which is right for
+  a mis-tap during the race and useless the morning of it: a club that
+  rehearsed the panel, or ran last year's event on the same database, starts
+  with a leader already halfway round, and pressing undo eleven times is not a
+  reset. Scoped to one race and division, so clearing one that has not started
+  cannot take out one that has.
+
+### Fixed
+- **The "Passed X" button skipped stations - A, B, C, D, I.** Which race a stop
+  belonged to was decided by snapping it to the nearest course line, which
+  picks exactly ONE race for a stop that may serve three. Every stop that
+  happened to sit closer to another route's line was dropped from this race's
+  progression, silently, and the button offered the wrong next station all day.
+  A stop now serves whichever races the club states.
+
+### Added
 - **Drag the places into the order they are actually reached.** Geometry cannot
   work this out once an event has more than one route. Each place is snapped to
   whichever course line is nearest, and where routes share pavement that is a

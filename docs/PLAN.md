@@ -451,11 +451,11 @@ coin flip, so the list interleaves miles measured on different races.
 - **Both the Places table and the lead runner progression use it**, or "the
   next station" would disagree with the list the club just arranged.
 
-**Still guessed: which race a stop belongs to.** Leaders are grouped per course
-using the same proximity snap, so a stop can be listed under the wrong race.
-The sighting picker deliberately offers every station so NCS can work around
-it, and any station can now be named. Assigning stops to courses explicitly
-would remove the guess; it is not done.
+**Which race a stop serves is now stated, not guessed** (`poi_course`). A stop
+serves any number of races, because one water stop routinely serves several -
+the organizer's file says so, naming them "WATER (ALL)". A place with nothing
+stated falls back to the proximity snap, which keeps existing events working;
+that fallback picks exactly one race and is what made a progression skip stops.
 
 ## Known gaps and open threads
 

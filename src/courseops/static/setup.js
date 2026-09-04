@@ -852,6 +852,9 @@ async function loadCourses() {
   const data = await api(`/api/setup/events/${S.eventId}/courses`);
   S.pois = data.pois;
 
+  // The Places table needs these to offer a checkbox per race.
+  S.courses = data.courses;
+
   $('course-table').innerHTML = data.courses.length ? `
     <table class="grid"><thead><tr><th>Course</th><th>Distance</th><th>Line</th>
       <th>Bib colour</th><th></th></tr></thead><tbody>` +
@@ -911,7 +914,7 @@ async function loadCourses() {
     <table class="grid"><thead><tr><th></th><th><input type="checkbox" id="poi-all"
         aria-label="Select every place"></th>
       <th>Mile</th><th>Name</th><th>Layer</th>
-      <th>Pin</th><th>Coordinates</th><th>What3Words</th>
+      <th>Races</th><th>Pin</th><th>Coordinates</th><th>What3Words</th>
       <th></th></tr></thead><tbody>` +
     data.pois.map((p) => `<tr data-row="${p.id}">
       <td class="grip-cell">${iconBtn('grip', {'data-grip': p.id},
@@ -929,6 +932,14 @@ async function loadCourses() {
           S.poiCategories.map((c) => `<option value="${esc(c.key)}"${
             c.key === p.poi_type ? ' selected' : ''}>${esc(c.name)}</option>`).join('')
         }</select></td>
+      <td class="races">${S.courses.length ? S.courses.map((c) => `
+        <label class="race-pick"><input type="checkbox" data-prace="${p.id}"
+            value="${c.id}"${(p.course_ids || []).includes(c.id) ? ' checked' : ''}
+            aria-label="${esc(p.name)} serves ${esc(c.name)}"
+          ><span>${esc(c.name)}</span></label>`).join('')
+        : '<span class="muted">no courses</span>'}
+        <input type="hidden" data-pcourses="${p.id}"
+          value="${(p.course_ids || []).join(',')}"></td>
       <td>${p.show_labels
         ? `<input value="${esc(p.label || '')}" data-plabel="${p.id}"
              class="pin-label" maxlength="2"
@@ -1026,6 +1037,28 @@ async function loadCourses() {
       refreshPoiSelection();
     });
   }
+  /* Races are several checkboxes but one stored value, so they write into a
+     hidden field. bindSaveAll then sees an ordinary changed field and needs to
+     know nothing about lists.
+
+     Left blank, a place is "not stated" and the lead runner panel falls back
+     to snapping it onto the nearest course line. That fallback is the thing
+     this replaces - it picks exactly ONE race for a stop that may serve three,
+     which made a race's progression skip stops - but it has to stay, because
+     it is what every event created before this has. */
+  $('poi-table').querySelectorAll('[data-prace]').forEach((box) => {
+    box.addEventListener('change', () => {
+      const row = box.closest('tr');
+      const chosen = [...row.querySelectorAll('[data-prace]:checked')]
+        .map((c) => c.value);
+      const hidden = row.querySelector('[data-pcourses]');
+      hidden.value = chosen.join(',');
+      // The hidden input is not what changed, so nothing has fired the input
+      // event the dirty tracker listens for.
+      hidden.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  });
+
   /* Drag a row to set the running order.
 
      Geometry cannot do this once an event has more than one route. Each place
@@ -1115,6 +1148,7 @@ async function loadCourses() {
       { attr: 'w3w', name: 'what3words' },
       { attr: 'player', name: 'poi_type' },
       { attr: 'plabel', name: 'label' },
+      { attr: 'pcourses', name: 'course_ids' },
     ],
     save: (id, payload) =>
       post(`/api/setup/events/${S.eventId}/pois/${id}`, payload),

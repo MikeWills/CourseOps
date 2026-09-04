@@ -1478,6 +1478,28 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
             await _publish_leaders(granted.event_id)
         return JSONResponse({"removed": removed})
 
+    @app.post("/api/{event_slug}/{token}/leaders/reset")
+    async def reset_leader(event_slug: str, token: str, request: Request) -> JSONResponse:
+        """Clear every sighting for one race and division.
+
+        Undo walks back one report at a time, which is no use to a club that
+        rehearsed the panel the week before and wants a clean start.
+        """
+        conn, granted = require_capability(event_slug, token, access.CAP_LEADERS)
+        body = await _json_body(request, conn)
+        try:
+            removed = leaders.clear_sightings(
+                conn, granted.event_id,
+                int(body.get("course_id")), str(body.get("division", "")),
+            )
+        except (ValueError, TypeError) as exc:
+            conn.close()
+            raise HTTPException(status_code=400, detail=str(exc))
+        conn.close()
+        if removed:
+            await _publish_leaders(granted.event_id)
+        return JSONResponse({"removed": removed})
+
     @app.post("/api/{event_slug}/{token}/course/{course_id}/bib-color")
     async def set_bib_color(
         event_slug: str, token: str, course_id: int, request: Request
