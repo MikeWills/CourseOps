@@ -637,7 +637,93 @@ function renderReview(features) {
     row.querySelector('input').addEventListener('change', () =>
       togglePick(Number(row.dataset.id)));
   });
+
+  renderBulkBar();
 }
+
+/* One file can stage ninety features - a real organizer's points file carried
+   78 - and ticking them one at a time is not review, it is data entry that
+   gets abandoned half way. */
+function suggestedPlaces() {
+  return S.staged.filter(
+    (f) => f.geom_type === 'point'
+        && f.suggestion && f.suggestion.startsWith('poi:'));
+}
+
+function renderBulkBar() {
+  const suggested = suggestedPlaces();
+  const button = $('accept-suggested');
+  button.hidden = suggested.length === 0;
+  if (suggested.length) {
+    // Name the layers rather than just a count: accepting 78 assignments
+    // blind is not a decision, and the exporter can be wrong.
+    const layers = [...new Set(suggested.map((f) => f.suggestion.slice(4)))];
+    const names = layers
+      .map((key) => (S.poiCategories.find((c) => c.key === key) || {}).name || key);
+    button.textContent =
+      `Accept ${suggested.length} suggested (${names.join(', ')})`;
+  }
+  updatePickCount();
+}
+
+function updatePickCount() {
+  $('pick-count').textContent = S.picked.size
+    ? `${S.picked.size} selected` : '';
+}
+
+function setAllPicked(on) {
+  S.picked.clear();
+  if (on) S.staged.forEach((f) => S.picked.add(f.id));
+  S.staged.forEach((f) => {
+    const row = $('review-list').querySelector(`[data-id="${f.id}"]`);
+    if (row) {
+      row.classList.toggle('is-picked', on);
+      row.querySelector('input').checked = on;
+    }
+    const layer = S.layers.get(f.id);
+    if (layer && layer.setStyle) {
+      layer.setStyle(on ? {color: '#FF6A13', weight: 6}
+                        : {color: '#0B2545', weight: 4});
+    }
+  });
+  $('review-actions').hidden = S.picked.size === 0;
+  updatePickCount();
+}
+
+$('pick-all').addEventListener('click', () => setAllPicked(true));
+$('pick-none').addEventListener('click', () => setAllPicked(false));
+
+/* Assign every place the file already classified, grouped by layer.
+   The exporter stated what each point is, so this is accepting its word rather
+   than guessing - and it is still a person pressing the button, which is the
+   rule that keeps a parking lot from filing itself as an aid station. */
+$('accept-suggested').addEventListener('click', async () => {
+  const groups = new Map();
+  suggestedPlaces().forEach((f) => {
+    const key = f.suggestion.slice(4);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(f);
+  });
+
+  let assigned = 0;
+  try {
+    for (const [key, features] of groups) {
+      // One call per layer, in sequence. In parallel they would race on the
+      // same staged rows and the counts would come back wrong.
+      await post(`/api/setup/events/${S.eventId}/assign`, {
+        kind: 'poi',
+        ids: features.map((f) => f.id),
+        poi_type: key,
+        // No name: each place keeps the label the import gave it, which for
+        // an attribute-carrying file is already "MM 12" rather than the race.
+        name: '',
+      });
+      assigned += features.length;
+    }
+    banner(`Assigned ${assigned} place(s) into ${groups.size} layer(s).`);
+    loadStaged();
+  } catch (err) { banner(err.message, true); }
+});
 
 function togglePick(id) {
   if (S.picked.has(id)) S.picked.delete(id); else S.picked.add(id);
@@ -766,7 +852,49 @@ async function loadCourses() {
   /* Sorting a flat import one row at a time is the kind of chore that gets
      abandoned half-finished, and a half-sorted map lies about what is where. */
   const picked = () => [...$('poi-table').querySelectorAll('[data-ppick]:checked')]
+    .filter((c) => c.closest('tr').style.display !== 'none')
     .map((c) => Number(c.dataset.ppick));
+
+  /* A flat import can leave eighty places in one table, and finding the four
+     that belong somewhere else means scrolling past seventy-six that do not.
+     Filtering is on the name AND the layer, because both are how someone
+     thinks about these: "the mile markers" and "Alpha" are the same search. */
+  function applyPoiFilter() {
+    const needle = ($('poi-filter').value || '').trim().toLowerCase();
+    const wantLayer = $('poi-filter-layer').value;
+    let shown = 0;
+    $('poi-table').querySelectorAll('tbody tr').forEach((tr) => {
+      const name = (tr.querySelector('[data-pname]') || {}).value || '';
+      const layer = tr.querySelector('[data-player]');
+      const layerName = layer ? layer.options[layer.selectedIndex].text : '';
+      // The two narrow together, which is what makes splitting one imported
+      // layer practical: pick "Mile markers", type "FULL", and you have the
+      // 29 that belong to the marathon rather than all 48.
+      const matchesLayer = !wantLayer || (layer && layer.value === wantLayer);
+      const hit = matchesLayer && (!needle
+        || name.toLowerCase().includes(needle)
+        || layerName.toLowerCase().includes(needle));
+      tr.style.display = hit ? '' : 'none';
+      // A hidden row must not stay selected. Moving something you cannot see
+      // because it matched a filter you have since changed is the kind of
+      // surprise that makes people stop trusting bulk actions.
+      if (!hit) {
+        const box = tr.querySelector('[data-ppick]');
+        if (box) box.checked = false;
+      }
+      if (hit) shown += 1;
+    });
+    const total = $('poi-table').querySelectorAll('tbody tr').length;
+    $('poi-shown').textContent = (needle || wantLayer)
+      ? `${shown} of ${total} shown` : '';
+    refreshPoiSelection();
+  }
+
+  $('poi-filter').oninput = applyPoiFilter;
+  $('poi-filter-layer').onchange = applyPoiFilter;
+  $('poi-filter-layer').innerHTML = '<option value="">All layers</option>'
+    + S.poiCategories.map((c) =>
+        `<option value="${esc(c.key)}">${esc(c.name)}</option>`).join('');
 
   function refreshPoiSelection() {
     const n = picked().length;
@@ -781,13 +909,17 @@ async function loadCourses() {
     c.addEventListener('change', refreshPoiSelection));
   if ($('poi-all')) {
     $('poi-all').addEventListener('change', (ev) => {
+      // Visible rows only. With a filter applied, "select all" meaning
+      // "including the seventy you filtered out" would be a trap.
       $('poi-table').querySelectorAll('[data-ppick]').forEach((c) => {
-        c.checked = ev.target.checked;
+        if (c.closest('tr').style.display !== 'none') {
+          c.checked = ev.target.checked;
+        }
       });
       refreshPoiSelection();
     });
   }
-  refreshPoiSelection();
+  applyPoiFilter();
 
   $('poi-table').querySelectorAll('[data-savep]').forEach((b) =>
     b.addEventListener('click', async () => {

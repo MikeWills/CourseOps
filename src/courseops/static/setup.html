@@ -141,6 +141,13 @@
         the map or in the list, then choose what it is.
       </p>
       <div id="review-map"></div>
+
+      <div class="review-bulk">
+        <button id="accept-suggested" class="primary" type="button" hidden></button>
+        <button id="pick-all" type="button">Select all</button>
+        <button id="pick-none" type="button">Select none</button>
+        <span id="pick-count" class="muted"></span>
+      </div>
       <div id="review-list"></div>
       <div id="review-actions" class="card" hidden>
         <div class="row">
@@ -172,6 +179,15 @@
       Organizer KML is usually one flat list, so everything arrives in a single
       layer. Tick the ones that belong together and move them in one go.
     </p>
+    <div class="row">
+      <label class="field" style="max-width:200px"><span>Layer</span>
+        <select id="poi-filter-layer"><option value="">All layers</option></select>
+      </label>
+      <label class="field" style="max-width:260px"><span>Name contains</span>
+        <input id="poi-filter" type="search" placeholder="FULL, Alpha, 12...">
+      </label>
+      <span id="poi-shown" class="muted"></span>
+    </div>
     <div id="poi-bulk" class="row" hidden>
       <span id="poi-selected" class="muted"></span>
       <label class="field" style="max-width:220px"><span>Move to layer</span>

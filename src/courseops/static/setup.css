@@ -156,6 +156,14 @@ button:disabled { opacity: 0.65; cursor: progress; }
    The form underneath would post to a nonexistent event and fail with
    something unhelpful, so it is hidden outright rather than merely warned
    over - the banner alone left a live form sitting under it. */
+.review-bulk {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0;
+}
+
 .icon-picker {
   display: flex;
   flex-wrap: wrap;
