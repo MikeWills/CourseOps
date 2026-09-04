@@ -8,6 +8,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **A pickup or a course note can be deleted.** For an oops: a pin dropped on
+  the wrong road, a pickup called in twice, a note started and abandoned. Those
+  are not history, they are noise, and a stray pickup left in the queue makes
+  the waiting count lie about how many people are still waiting on us - which
+  is the one number NCS glances at.
+
+  A hard delete rather than another status. The queue and its count are read as
+  "who is still waiting", and a status that has to be filtered out of both is a
+  second chance to get that filter wrong - this app already made that mistake
+  once with course notes. Confirmed, because it cannot be undone, and the
+  removal is broadcast so every other browser drops the row and its map marker
+  rather than holding one nothing will mention again.
+
+### Fixed
+- **The course note list kept a deleted note's row in the DOM.** `renderNotes`
+  returned early on an empty list without clearing the host, so the last note
+  stayed behind - invisible while the section is hidden, and wrong the moment
+  anything read the list rather than the count.
+
+### Added
 - **Every panel section folds, and stays folded.** The layer switches are set
   once before the race and then never touched, but they sat at the top of the
   panel pushing the lead runners, the pickup queue and the stations below the

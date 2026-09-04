@@ -233,6 +233,33 @@ def get(conn: sqlite3.Connection, event_id: int, incident_id: int) -> sqlite3.Ro
     return row
 
 
+def delete(conn: sqlite3.Connection, event_id: int, incident_id: int) -> sqlite3.Row:
+    """Remove an incident entirely. Returns the row as it was.
+
+    For an oops: a pin dropped on the wrong road, a pickup called in twice, a
+    note started and abandoned. Those are not history, they are noise, and
+    leaving them in the queue makes the count lie about how many people are
+    still waiting.
+
+    A hard delete, not a "cancelled" status. The queue and its count are read
+    as "who is still waiting"; another status that has to be filtered out of
+    both is a second chance to get that filter wrong, and this app has already
+    made that mistake once with course notes.
+
+    The row is returned because the caller has to tell every other browser
+    which one to drop - by the time the delete has happened there is nothing
+    left to look up.
+    """
+    row = get(conn, event_id, incident_id)          # raises if it is not ours
+    # incident_log cascades on this, which is right: the log is the history OF
+    # this incident, not an audit trail that outlives it.
+    conn.execute(
+        "DELETE FROM incident WHERE id = ? AND event_id = ?",
+        (incident_id, event_id),
+    )
+    return row
+
+
 def for_event(
     conn: sqlite3.Connection, event_id: int, include_closed: bool = True
 ) -> list[sqlite3.Row]:

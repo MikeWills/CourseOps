@@ -40,7 +40,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 411 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 415 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -342,6 +342,13 @@ usability, not style preferences.
   `access.py` is the whole policy; each endpoint names what it needs via
   `require_capability`. SAG holds `incidents` only - never widen a field role by
   adding it to a second place.
+- **An incident is deleted, never "cancelled".** The pickup queue and its
+  count are read as "who is still waiting", so a status that has to be filtered
+  out of both is a second chance to get that filter wrong - which this app got
+  wrong once already with notes. Deleting publishes the removal, because every
+  other browser holds the row AND a map marker and nothing will mention it
+  again. `incident_log` cascades: it is the history OF an incident, not an
+  audit trail that outlives it.
 - **A course note is not a pickup.** `incident.kind` separates them. The pickup
   queue and its count are read as "who is still waiting", so a note must never
   appear there. Notes have no status workflow; their audience is the organizer
@@ -524,6 +531,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-04** Pickups and course notes can be deleted; the removal reaches every browser.
 - **2026-09-04** Station roles are open and on their own tab; a deleted role no longer comes back.
 - **2026-09-04** Panel sections fold and stay folded; stations get their own panel on desktop.
 - **2026-09-04** Fixed: the lead runner button skipped stations; a stop's races are now stated, not guessed.
@@ -533,4 +541,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-03** Station roles save all at once; the three setup tables now share one save-all.
 - **2026-09-03** Labels on pins: one or two characters per place, per layer, derived from the name.
 - **2026-09-03** The Layers table now saves every edit at once, like Places.
-- **2026-09-03** Added coordinates and a what3words lookup link to every place in the Aid stations table.

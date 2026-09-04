@@ -1396,6 +1396,54 @@ async function editIncident(id, fields) {
    by urgency and the count means "still waiting". A note is a record for the
    organizer afterwards; nobody is waiting on it, so putting it in that queue
    would make the count lie about how many people are still out there. */
+function forgetIncident(id) {
+  state.incidents.delete(id);
+  const marker = state.incidentMarkers.get(id);
+  if (marker) {
+    map.removeLayer(marker);
+    state.incidentMarkers.delete(id);
+  }
+}
+
+/* Deleting is for an oops: a pin dropped on the wrong road, a pickup called in
+   twice, a note started and abandoned. Confirmed, because it cannot be undone
+   and the row it removes may be someone else's report. */
+async function deleteIncident(incident) {
+  const what = incident.kind === 'note'
+    ? (incident.note || 'this course note')
+    : `the pickup${incident.bib ? ` for bib ${incident.bib}` : ''}`;
+  if (!confirm(`Delete ${what}?\n\nThis cannot be undone.`)) return;
+  try {
+    const response = await fetch(
+      `/api/${M.slug}/${M.token}/incidents/${incident.id}/delete`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}) });
+    if (!response.ok) throw new Error('refused');
+    // Do not wait for the broadcast to come back round: on a flaky phone that
+    // is the difference between the row going and the row appearing stuck.
+    forgetIncident(incident.id);
+    renderIncidents();
+  } catch (err) {
+    setLocateStatus('Could not delete');
+  }
+}
+
+/* A small x, matching the setup screens. Icon-only, so it carries both a title
+   and an aria-label, and the label names the row rather than only the verb. */
+function deleteButton(incident, label) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'incident-delete';
+  button.title = `Delete ${label}`;
+  button.setAttribute('aria-label', `Delete ${label}`);
+  button.innerHTML =
+    '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" '
+    + 'fill="none" stroke="currentColor" stroke-width="1.6" '
+    + 'stroke-linecap="round"><path d="M4.2 4.2l7.6 7.6M11.8 4.2l-7.6 7.6"/></svg>';
+  button.addEventListener('click', () => deleteIncident(incident));
+  return button;
+}
+
 function renderIncidents() {
   const all = [...state.incidents.values()];
   const pickups = all.filter((i) => (i.kind || 'pickup') === 'pickup');
@@ -1523,6 +1571,9 @@ function renderPickups(pickups) {
       }));
 
       fields.append(bib, note);
+      fields.appendChild(deleteButton(
+        incident,
+        incident.bib ? `the pickup for bib ${incident.bib}` : 'this pickup'));
       row.appendChild(fields);
     } else if (incident.note) {
       const note = document.createElement('p');
@@ -1566,7 +1617,13 @@ function renderNotes(notes) {
   section.hidden = !notes.length;
   document.getElementById('note-count').textContent =
     notes.length ? `(${notes.length})` : '';
-  if (!notes.length) return;
+  if (!notes.length) {
+    // Clear before returning. Bailing out early left the last note's row in
+    // the DOM: invisible while the section is hidden, and wrong the moment
+    // anything reads the list rather than the count.
+    host.innerHTML = '';
+    return;
+  }
 
   const list = notes.slice().sort(
     (a, b) => String(b.reported_at).localeCompare(String(a.reported_at)));
@@ -1617,6 +1674,8 @@ function renderNotes(notes) {
       const fields = document.createElement('div');
       fields.className = 'incident-fields';
       fields.appendChild(field);
+      fields.appendChild(
+        deleteButton(incident, incident.note || 'this course note'));
       row.appendChild(fields);
     }
 
@@ -1798,6 +1857,13 @@ function connect() {
       return;
     }
     if (message.type === 'incident') {
+      if (message.change === 'deleted') {
+        // Every browser holding this has it in a list AND on the map, and
+        // nothing will ever mention it again - so both have to go here.
+        forgetIncident(message.id);
+        renderIncidents();
+        return;
+      }
       state.incidents.set(message.id, message);
       upsertIncidentMarker(message);
       renderIncidents();
