@@ -102,8 +102,10 @@ src/courseops/
   cli.py          courseops entry point
 tests/fixtures/packets.txt          packet corpus, `expectation|raw` per line
 tests/fixtures/messy_course.kml     synthetic KML with real organizer defects
-tests/fixtures/mankato_marathon.kml REAL MapMyRun export, 26.4 mi; the only
-                                    realistic course we have - use it for Phase 5
+tests/fixtures/consumer_export_course.kml  synthetic, but with a real export's
+                                    defects: duplicate points, straight-line
+                                    gaps, identically named placemarks.
+                                    Regenerate with tools/make_course_fixture.py
 docs/PLAN.md                        plan, decisions, known gaps
 docs/RUNBOOK.md                     event-day procedure for the club
 ```
@@ -421,7 +423,7 @@ Rules that keep this honest:
   "Growing the chain only from the tail folded the course back on itself" is
   what stops it being reintroduced.
 - **A real-data finding gets a test, not a note.** Facts about a real file
-  (distance, point count, gaps) belong in `test_real_course.py`, so a change
+  (distance, point count, gaps) belong in `test_exported_course.py`, so a change
   that breaks the assumption fails loudly rather than drifting.
 - **Never let CLAUDE.md hold content.** It is an index and a rule list. Detail
   lives in `docs/`; history lives in `CHANGELOG.md`.

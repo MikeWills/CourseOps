@@ -7,6 +7,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- **Replaced the real organizer's course file with a synthetic one** generated
+  by `tools/make_course_fixture.py`, ahead of making the repository public. The
+  original was a genuine MapMyRun export of somebody else's race, and however
+  publicly the route is published, the file was not ours to redistribute.
+
+  The findings it produced are kept, because they are the valuable part: the
+  generator reproduces the same defect profile deliberately - 1415 points, 157
+  consecutive duplicates, 13 straight-line gaps with a 1,241 m longest,
+  point-to-point rather than a loop, no folders, no aid stations, and
+  identically-named placemarks separated only by a `<styleUrl>` containing an
+  underscore. That last one is not decoration: `_` is a word character, so a
+  ``-anchored hint pattern cannot match inside `start_marker`, which was a
+  real bug and is what this keeps fixed.
+
+  Two tests were hardening against the old geometry with a hardcoded lat/lon
+  "1.7 km off the route". That is only true of one route, so the off-course
+  point is now derived from the course itself and survives regeneration.
+
 ### Fixed
 - **The Windows release build failed on the icon.** PyInstaller needs `.ico` on
   Windows and the spec pointed at a `.png`. It built here because Pillow was
