@@ -380,7 +380,14 @@ usability, not style preferences.
 - **Never reload a table that holds unsaved edits.** A per-row save that
   re-renders the whole list silently discards every other edit in progress -
   it cost a real user twelve renames. One save button for the whole table,
-  which sends only the fields that actually changed.
+  which sends only the fields that actually changed. `bindSaveAll` in
+  `setup.js` is the one implementation; wire a new editable table to it rather
+  than writing a fourth copy, and never add a second save button at a
+  different scope - two scopes is how the original bug happened.
+- **Two tables on one tab must re-render independently.** Layers and roles
+  share an endpoint, and reloading both after saving either wiped edits from a
+  table the user had not touched - the same bug, one table over. `loadLayers`
+  takes which half to re-render.
 - **A pin label is never the first letter of the name.** Clubs number stations
   as often as they letter them, so "Aid 1/2/3" through a first-letter rule
   labels the entire course "A" - a feature that looks like it works and conveys
@@ -473,6 +480,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-03** Station roles save all at once; the three setup tables now share one save-all.
 - **2026-09-03** Labels on pins: one or two characters per place, per layer, derived from the name.
 - **2026-09-03** The Layers table now saves every edit at once, like Places.
 - **2026-09-03** Added coordinates and a what3words lookup link to every place in the Aid stations table.
@@ -482,4 +490,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-03** Added a single-file Windows .exe; pip stays the route for Linux and macOS.
 - **2026-09-03** A callsign is now needed only for live tracking, not to start the app.
 - **2026-09-03** Added CI and a release workflow that proves the .exe serves before publishing.
-- **2026-09-03** Read GIS attribute tables from `<description>`; `Type` now files points automatically.

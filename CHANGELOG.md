@@ -50,6 +50,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   coordinates: it rewrites to the square it resolved.
 
 ### Changed
+- **Station roles save all at once too**, and the three editable tables in
+  setup now share one implementation (`bindSaveAll`) rather than three copies
+  of the same dirty-tracking. Renaming a role used to reload the whole Layers
+  tab, so it discarded unsaved edits in the *layers* table above it as well -
+  the same data loss, one table over. Layers and roles now re-render
+  independently.
 - **The Layers table saves everything at once**, like the Places table. It had
   a save button per row that reloaded the whole table, discarding every other
   edit in progress - the same trap that lost twelve renamed water stops. It
