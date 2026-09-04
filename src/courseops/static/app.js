@@ -448,8 +448,13 @@ function setPanel(name, showing) {
   applyPanelState();
 }
 
-document.getElementById('sheet-collapse')
-  .addEventListener('click', () => setPanel('sheet', false));
+/* The same control closes the panel whichever shape it is in. On a phone the
+   panel IS the sheet, so hiding a sidebar that does not exist would be a
+   button that does nothing - which is what the tiny drag grip amounted to. */
+document.getElementById('sheet-collapse').addEventListener('click', () => {
+  if (SIDEBAR.matches) setPanel('sheet', false);
+  else setSheet(false);
+});
 document.getElementById('sheet-reopen')
   .addEventListener('click', () => setPanel('sheet', true));
 document.getElementById('stations-reopen')

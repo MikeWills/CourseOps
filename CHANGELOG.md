@@ -7,6 +7,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **The panel could not be closed on a phone.** The only close control while it
+  was open was the drag grip - a 42x5 pixel target, against this app's own
+  44px rule - because the toggle button sits underneath the open sheet at a
+  lower z-index. Reported from an actual handset, which is the only place it
+  shows up.
+
+### Changed
+- **On a phone the panel now opens full height with an X**, rather than sliding
+  up over two thirds of the screen. Half a map and half a list is the worst of
+  both: too little map to place anything on, too little list to read without
+  scrolling. The same control that pushes the sidebar aside on a laptop closes
+  the panel on a phone, and it is 44px square there.
+
+  It stops below the top bar deliberately. The connection badge lives there and
+  is the only signal that a phone is showing stale data - covering it with a
+  full-screen panel would hide exactly the thing someone needs to check before
+  acting on what the panel says.
+
 ### Added
 - **The role is named in the header.** Four roles see four different screens,
   and the only thing that said which one you were looking at was a line at the

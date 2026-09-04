@@ -210,6 +210,28 @@ html, body {
 }
 #sheet.open { transform: translateY(0); }
 
+/* On a phone the panel opens to fill the screen rather than sliding up to two
+   thirds of it. Half a map and half a list is the worst of both: too little
+   map to place anything on, too little list to read without scrolling.
+
+   It stops below the top bar, deliberately. The connection badge lives there
+   and is the only signal that a phone is showing stale data - covering it with
+   a full-screen panel would hide exactly the thing someone needs to know
+   before acting on what the panel says. */
+@media (max-width: 699px) {
+  #sheet.open {
+    top: calc(46px + env(safe-area-inset-top, 0px));
+    max-height: none;
+    border-radius: 0;
+  }
+  /* The header comes along, because it carries the way out. */
+  #sheet.open #sheet-header { display: flex; }
+  /* And the drag grip goes: it was a 5px-tall tap target, against this app's
+     own 44px rule, and while the sheet was open it was the ONLY way to close
+     it - the toggle button sits underneath the sheet at a lower z-index. */
+  #sheet-grip { display: none; }
+}
+
 #sheet-grip {
   width: 42px; height: 5px;
   margin: 8px auto 10px;
@@ -929,6 +951,15 @@ html, body {
   cursor: pointer;
 }
 .panel-collapse:hover { background: rgba(255, 255, 255, 0.14); }
+
+/* A chevron reads as "push this aside" next to a sidebar; an X reads as
+   "close this" over a full screen. Same button, same job, different shape. */
+.icon-close { display: none; }
+@media (max-width: 699px) {
+  .panel-collapse { width: 44px; height: 44px; }   /* thumb-sized, in a glove */
+  .icon-chevron { display: none; }
+  .icon-close { display: block; }
+}
 
 #stations-panel { display: none; }
 

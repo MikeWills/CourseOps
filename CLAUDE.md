@@ -273,6 +273,14 @@ usability, not style preferences.
   next to the one thing in the top bar that says whether a phone is showing
   stale data, so it is outlined rather than filled and carries no status
   colour: nothing about which role you are is an alarm.
+- **A full-screen panel on a phone still stops below the top bar.** The
+  connection badge is there, and it is the only thing that says a phone is
+  showing stale data - covering it hides exactly what someone needs to check
+  before acting on what the panel says.
+- **The sheet's drag grip is not a close button.** It was 42x5 pixels, and
+  while the sheet was open it was the ONLY way out, because the toggle sits
+  under the sheet at a lower z-index. Any control that closes something needs
+  the 44px target like everything else.
 - **The connection badge must stay visible.** It is the only signal that a phone
   is showing stale data. Leaflet's zoom control shares that corner at z-index
   1000; the top bar reserves space for it.
@@ -557,6 +565,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-04** Fixed: the panel could not be closed on a phone; it is now full height with an X.
 - **2026-09-04** The role is named in the header, so it is obvious which link you are on.
 - **2026-09-04** Deploy can be run by hand against a branch; fixed a branch deploy installing stale code.
 - **2026-09-04** Fixed: a tablet got the phone layout or a strip of map; three layout tiers now.
