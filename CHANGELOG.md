@@ -18,6 +18,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   nobody is watching a deploy at 03:00, and one that half-works and leaves the
   app down is worse than one that refuses.
 
+- The deployment guide now covers **giving the server read access to a private
+  repository**, which it always needed and never mentioned: `git clone` in the
+  install steps would simply fail. Two keys point in opposite directions here -
+  one lets the server read GitHub, the other lets GitHub reach the server - so
+  the docs name them apart rather than calling both "the deploy key".
+
 - **A `/healthz` endpoint.** Opens the database rather than only confirming the
   process is up, because those are different claims and a deploy that proves
   only the first will happily leave a broken version running. Needs no token, so

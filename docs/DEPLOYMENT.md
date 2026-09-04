@@ -161,12 +161,48 @@ Two Pi-specific cautions, neither about performance:
 
 ## 1. Install
 
+This section is the **first-time** setup. Once it is done, updates are
+`deploy/deploy.sh` (section 4a) and you never repeat these steps.
+
+### Letting the server read a private repository
+
+The repository is private, so the server needs its own read access before it
+can clone or fetch anything. As the `courseops` user, make a key and give
+GitHub the public half:
+
+```bash
+sudo -u courseops ssh-keygen -t ed25519 -f /opt/courseops/.ssh/id_github -N ""
+sudo -u courseops cat /opt/courseops/.ssh/id_github.pub
+```
+
+Paste that into the repository under **Settings -> Deploy keys -> Add deploy
+key**, and **leave "Allow write access" unticked** - the server only ever reads.
+
+Then tell git to use it:
+
+```bash
+sudo -u courseops tee /opt/courseops/.ssh/config >/dev/null <<'EOF'
+Host github.com
+    IdentityFile /opt/courseops/.ssh/id_github
+    IdentitiesOnly yes
+EOF
+sudo -u courseops chmod 600 /opt/courseops/.ssh/config
+sudo -u courseops ssh -T git@github.com   # expect "successfully authenticated"
+```
+
+> **Two different keys, and it is worth keeping them straight.** This one lets
+> the **server read GitHub**, and is a *GitHub deploy key*. The one in section
+> 4a lets **GitHub reach the server**, and is an *SSH key in your repository
+> secrets*. They point in opposite directions and neither substitutes for the
+> other. If you only ever deploy by hand you still need this one; you do not
+> need that one.
+
 ```bash
 sudo useradd --system --home /opt/courseops --shell /usr/sbin/nologin courseops
 sudo mkdir -p /opt/courseops
 sudo chown courseops:courseops /opt/courseops
 
-sudo -u courseops git clone <repo-url> /opt/courseops
+sudo -u courseops git clone git@github.com:YOURNAME/CourseOps.git /opt/courseops
 cd /opt/courseops
 sudo -u courseops python3 -m venv .venv
 sudo -u courseops .venv/bin/pip install -e .
@@ -269,12 +305,20 @@ Tags rather than merges: `main` stays free for work in progress, what is running
 is always a version you can name, and rolling back is deploying the previous tag
 instead of an archaeology exercise.
 
-The script that does the work is [`deploy/deploy.sh`](../deploy/deploy.sh), and
-it runs perfectly well by hand if you would rather not automate at all:
+The script that does the work is [`deploy/deploy.sh`](../deploy/deploy.sh).
+**There is nothing to upload** - it arrives with the clone in section 1, so it
+is already at `/opt/courseops/deploy/deploy.sh`. It updates an install that
+already exists; it does not replace the first-time setup above.
+
+It runs perfectly well by hand, and running it by hand once is how you should
+prove it before letting a workflow do it unattended:
 
 ```bash
-sudo -u courseops /opt/courseops/deploy/deploy.sh v0.1.1
+sudo -u courseops /opt/courseops/deploy/deploy.sh v0.1.0
 ```
+
+If that works, automating it is only a matter of adding the secrets below. If it
+does not, you have found the problem at a keyboard rather than at 03:00.
 
 It backs the database up with `.backup` first, keeps the last ten of those,
 installs the tag, restarts the service, and then **verifies `/healthz` and rolls
