@@ -23,6 +23,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   Below 860px there is no room for two panels and the section moves back into
   the sheet where it started. It is the SAME element either way, moved rather
   than duplicated: two copies would drift the moment one was re-rendered.
+- **Station roles can be added and removed, on their own tab.** The set was
+  fixed at seven, so a club fielding a Liaison - the operator embedded with
+  Public Safety, who is a person on the roster and not only a link role - had
+  no way to say so without editing Python. Roles now work like place layers:
+  add, rename, delete, with a refusal while anyone on the roster still holds
+  one and a count saying how many would have to move first.
+
+  A role a club adds has no status wording of its own, so it uses the generic
+  "Not started / Active / Closed". The seven defaults keep theirs, because an
+  aid station is "Torn down" where a sweep is "Finished".
+
+### Fixed
+- **A deleted station role came back on the next page load.** Seeding ran on
+  every read rather than only into an event with none - the same trap the place
+  layers already avoid, and for the same reason: a thing that reappears after
+  you remove it teaches people not to trust the screen.
 
 ### Added
 - **Say which races each place serves.** A Races column in the Places table,

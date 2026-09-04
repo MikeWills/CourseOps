@@ -366,3 +366,70 @@ def test_every_suggestion_names_a_layer_that_exists(event):
     for feature in features:
         key = feature.suggest().removeprefix("poi:")
         assert key in layers, f"{feature.attributes['Type']} -> {key} has no layer"
+
+
+# --- station roles are open --------------------------------------------------
+
+def test_a_club_can_add_a_role_the_defaults_lack(event):
+    """Liaison is the obvious one: the operator embedded with Public Safety is
+    a person on the roster, not only a link role."""
+    conn, event_id = event
+    row = categories.add_roster_role(conn, event_id, "Liaison")
+    assert row["key"] == "liaison"
+    names = [r["name"] for r in categories.roster_roles(conn, event_id)]
+    assert "Liaison" in names
+
+
+def test_an_added_role_survives_being_read_back(event):
+    """Roles used to be filtered to the built-in list on the way out, so an
+    added role existed in the database and could never appear anywhere."""
+    conn, event_id = event
+    categories.add_roster_role(conn, event_id, "Liaison")
+    keys = {r["key"] for r in categories.roster_roles(conn, event_id)}
+    assert "liaison" in keys
+
+
+def test_an_added_role_gets_the_generic_status_wording(event):
+    conn, event_id = event
+    categories.add_roster_role(conn, event_id, "Liaison")
+    assert db.op_status_label("liaison", "active") == "Active"
+    # while a built-in keeps its own
+    assert db.op_status_label("aid_station", "closed") == "Torn down"
+
+
+def test_a_deleted_role_stays_deleted(event):
+    """Seeding ran on every read, so a deleted role came straight back - the
+    same trap the place layers already avoid."""
+    conn, event_id = event
+    categories.roster_roles(conn, event_id)
+    assert categories.delete_roster_role(conn, event_id, "shadow") == 0
+    keys = {r["key"] for r in categories.roster_roles(conn, event_id)}
+    assert "shadow" not in keys
+
+
+def test_a_role_in_use_cannot_be_deleted(event):
+    """Otherwise the people holding it stay in the database with a role
+    nothing can name, and no error says why."""
+    conn, event_id = event
+    categories.roster_roles(conn, event_id)
+    conn.execute(
+        "INSERT INTO roster (event_id, station_key, display_label, category)"
+        " VALUES (?, 'N0CALL-7', 'Sweep 1', 'sweep')", (event_id,))
+    assert categories.delete_roster_role(conn, event_id, "sweep") == 1
+    keys = {r["key"] for r in categories.roster_roles(conn, event_id)}
+    assert "sweep" in keys
+
+
+def test_duplicate_role_names_are_refused(event):
+    conn, event_id = event
+    categories.roster_roles(conn, event_id)
+    with pytest.raises(categories.CategoryError):
+        categories.add_roster_role(conn, event_id, "Sweep")
+
+
+def test_an_added_role_can_be_renamed(event):
+    conn, event_id = event
+    categories.add_roster_role(conn, event_id, "Liaison")
+    row = categories.rename_roster_role(conn, event_id, "liaison", "PS Liaison")
+    assert row["name"] == "PS Liaison"
+    assert row["key"] == "liaison"          # the key never moves

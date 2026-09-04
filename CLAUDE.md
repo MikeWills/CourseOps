@@ -40,7 +40,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 403 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 411 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -361,6 +361,15 @@ usability, not style preferences.
   `poi_type == 'aid_station'`. Who can be posted somewhere, where a lead runner
   can be sighted, which places are worth a What3Words address. Getting this
   wrong is silent: the club renames a layer and a feature quietly empties.
+- **Station roles are open too, not a fixed seven.** A club fields roles the
+  defaults lack - Liaison being the obvious one - and the list was closed in
+  two places at once: `roster_roles` filtered its own rows against
+  DEFAULT_ROSTER_ROLES on the way out, so an added role could never appear
+  anywhere. An added role has no entry in `db.OP_STATUS_LABELS` and falls back
+  to the generic wording, which is why that fallback exists.
+- **Seed defaults ONLY into an event that has none.** True of place layers and
+  now of roles: seeding on every read resurrects what a club deleted. Getting
+  this wrong is invisible until someone deletes something and it comes back.
 - **A layer's key never changes; its name is free.** `poi.poi_type` holds the
   key, so renaming is display-only and no place has to move. Same for station
   roles, whose keys carry their status vocabulary.
@@ -515,6 +524,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-04** Station roles are open and on their own tab; a deleted role no longer comes back.
 - **2026-09-04** Panel sections fold and stay folded; stations get their own panel on desktop.
 - **2026-09-04** Fixed: the lead runner button skipped stations; a stop's races are now stated, not guessed.
 - **2026-09-04** Lead runners can be cleared for a race before the start; undo was never a reset.
@@ -524,4 +534,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-03** Labels on pins: one or two characters per place, per layer, derived from the name.
 - **2026-09-03** The Layers table now saves every edit at once, like Places.
 - **2026-09-03** Added coordinates and a what3words lookup link to every place in the Aid stations table.
-- **2026-09-03** Fixed: saving one renamed place discarded every other unsaved edit.
