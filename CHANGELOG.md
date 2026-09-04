@@ -8,6 +8,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Fixed
+- **`deploy.sh` was committed without its executable bit**, so every clone got
+  a script that could not be run: both the documented manual invocation and the
+  deploy over SSH failed with "Permission denied" on a file that looks entirely
+  normal in a listing. Git stores that bit, and `core.filemode` is off by
+  default on Windows, so it was never set in the first place. There was not a
+  single executable file in the repository.
+
+### Fixed
 - **The deploy script assumed the app was installed at `/opt/courseops`.** It
   is wherever the club put it - this one lives under a mounted data volume -
   so the first deploy would have changed directory somewhere else entirely and
