@@ -457,6 +457,35 @@ the organizer's file says so, naming them "WATER (ALL)". A place with nothing
 stated falls back to the proximity snap, which keeps existing events working;
 that fallback picks exactly one race and is what made a progression skip stops.
 
+### Live tracking is a switch, and off by default (done)
+
+Turning the APRS-IS feed on was a systemd edit. It is now a switch in
+`/setup` -> Tracking, because the person responsible for the net is not
+necessarily the person with a shell on the server, and this is something
+switched on the morning of an event and off again afterwards.
+
+Decisions taken:
+
+- **Off by default, for privacy rather than cost.** The buddy filter asks for
+  each operator's callsign wherever they are, not only on the course. A feed
+  left running records where volunteers live and work, which is the same
+  concern that made this a buddy filter rather than an area filter.
+- **Persisted on the event, not held in memory.** A deploy restarts the
+  service; a feed that failed to come back mid-event looks exactly like a quiet
+  net, and nobody goes looking.
+- **Still exactly one connection.** Enabling one feed stops any other, and
+  enabling a running one is a no-op, so a double press cannot double the
+  connections.
+- **Refuse rather than fail silently.** No usable callsign means the switch
+  will not move, with the message from settings that says what to put in
+  `.env`. A switch reading "on" with nothing behind it is worse than no switch.
+- **The filter is shown.** An empty or wrong filter is the commonest silent
+  failure here: the feed connects, nothing matches, and the map stays blank
+  while everything reports healthy.
+
+**Never exercised against real traffic.** Every run so far has been with the
+feed off. This is the largest untested claim in the project.
+
 ## Known gaps and open threads
 
 - **The what3words coordinate URL is undocumented.** Linking to a square by

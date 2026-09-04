@@ -5,6 +5,17 @@ are mirrored into `CLAUDE.md`; this file is the complete record.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Changed
+- **Documentation audited against the code.** `CLAUDE.md` still said the repo
+  was private; it has been public since the organizer's KML was purged from the
+  history. `build.py` and `resources.py` were missing from the module index.
+  The README said running the server opens an APRS-IS connection, which stopped
+  being true when the feed became a switch. The status now also records the two
+  things that are not true yet: this has never run at a live event, and the
+  feed has never met real traffic.
+
 ## [0.1.2] - 2026-09-04
 
 v0.1.1 was an interim tag cut before the version was bumped; its contents are a subset of this release.

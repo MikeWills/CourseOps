@@ -24,14 +24,26 @@ below is the short list of things that cost real time when violated.
 Phases 1-6 complete, plus a browser setup application. APRS-IS ingest,
 KML/KMZ import, the live map with role-gated access, the NCS panel, course-relative
 position, incidents, lead runners, and `/setup` for organizations, events,
-courses, roster, links and administrators. Repo: private, `MikeWills/CourseOps`.
+courses, roster, links and administrators.
+
+Repo: **public**, `MikeWills/CourseOps`. It was private until the organizer's
+KML was purged from the history; nothing that arrives from a third party goes
+in it.
+
+Deployed at `courseops.wx0mik.radio`, under
+`/mnt/volume_nyc3_01/opt/courseops`. Pushing a version tag deploys it; Actions
+-> deploy -> Run workflow deploys a branch.
 
 **Setup is done in the browser**, not the CLI. Only two things stay in a
-terminal: the callsign in `.env`, and `courseops serve`.
+terminal: the callsign in `.env`, and `courseops serve`. The APRS-IS feed is a
+switch in the UI and is OFF until someone turns it on.
+
+**Never tested against real APRS traffic.** Every run so far has had the feed
+off. That is the largest untested claim here.
 
 Phases: 1 ingest ✅ · 2 KML import ✅ · 3 live map ✅ · 4 roster/NCS panel ✅ ·
 4a What3Words ✅ · 5 course-relative position ✅ · 6 incidents ✅ ·
-7 replay (backlogged, issue #2) · 8 deployment ✅
+7 replay (backlogged, issue #2) · 8 deployment ✅ (automatic, on a version tag)
 
 ## Commands
 
@@ -90,6 +102,8 @@ src/courseops/
   styling.py      course colors, line styles, draw order
   what3words.py   normalize/validate W3W strings, no API
   labels.py       one or two characters for a pin, derived from the name
+  build.py        which commit is running; "" rather than failing without git
+  resources.py    paths to shipped files; correct inside the frozen build
   access.py       role tokens: ncs writes; liaison + logistics read
   hub.py          per-event fan-out, bounded queues
   web.py          FastAPI: map page, state snapshot, WebSocket
