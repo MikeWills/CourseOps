@@ -47,6 +47,11 @@ const state = {
   poiCategories: [],          // the club's own layer definitions
   visibleCourses: new Set(),
   layerPrefs: {},
+  // Section headings that are folded shut, by section key.
+  foldedSections: new Set(),
+  // Whether each desktop panel is showing. Not per section: these are the
+  // panels themselves, and hiding one gives the map the width back.
+  panelState: { sheet: true, stations: true },
   socket: null,
   reconnectDelay: 1000,
   opStatuses: ['pending', 'active', 'closed'],
@@ -90,6 +95,12 @@ function savePrefs() {
       courses: [...state.visibleCourses],
       initials: state.operatorInitials,
       sortPickupsBy: state.sortPickupsBy,
+      // Which sections are folded and which panels are hidden. A club sets the
+      // layers once and then wants them out of the way for six hours, so this
+      // has to survive the refresh that a phone coming back from a dead zone
+      // performs on its own.
+      folded: [...state.foldedSections],
+      panels: state.panelState,
     }));
   } catch (e) { /* not worth bothering the user about */ }
 }
@@ -259,6 +270,135 @@ L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
 }).addTo(map);
 
 map.on('dragstart', () => setFollowing(false));
+
+/* ---------- panels -------------------------------------------------------
+
+   Two problems, both about a screen that has to be read at a glance for six
+   hours.
+
+   The layer switches are set once before the race and then never touched, but
+   they sit at the top of the panel pushing the lead runners, the pickup queue
+   and the stations below the fold. So every section folds, and stays folded.
+
+   And on a desktop the stations list is what NCS reads all day, while sharing
+   one column with everything else. So on a wide screen it moves to its own
+   panel on the right. Below 860px there is no room for two, and the section
+   moves back into the sheet where it started - the SAME element either way,
+   because two copies would drift the moment one of them was updated. */
+
+const WIDE = window.matchMedia('(min-width: 860px)');
+
+function foldKey(section) {
+  return section.id || (section.querySelector('h2') || {}).textContent || '?';
+}
+
+function applyFold(section) {
+  const folded = state.foldedSections.has(foldKey(section));
+  section.classList.toggle('is-folded', folded);
+  const head = section.querySelector('.section-head');
+  if (head) head.setAttribute('aria-expanded', String(!folded));
+}
+
+/* The heading becomes the control. A separate chevron button next to a
+   heading is a smaller tap target for the same job, and on a phone in a glove
+   that matters more than the tidiness. */
+function makeFoldable(section) {
+  const h2 = section.querySelector(':scope > h2');
+  if (!h2 || section.dataset.foldable) return;
+  section.dataset.foldable = '1';
+
+  const body = document.createElement('div');
+  body.className = 'section-body';
+  while (h2.nextSibling) body.appendChild(h2.nextSibling);
+  section.appendChild(body);
+
+  h2.classList.add('section-head');
+  h2.setAttribute('role', 'button');
+  h2.setAttribute('tabindex', '0');
+  h2.insertAdjacentHTML('beforeend',
+    '<svg class="fold-chevron" viewBox="0 0 16 16" width="14" height="14" '
+    + 'aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" '
+    + 'stroke-linecap="round" stroke-linejoin="round">'
+    + '<path d="M4 6l4 4 4-4"/></svg>');
+
+  const toggle = () => {
+    const key = foldKey(section);
+    if (state.foldedSections.has(key)) state.foldedSections.delete(key);
+    else state.foldedSections.add(key);
+    applyFold(section);
+    savePrefs();
+  };
+  h2.addEventListener('click', toggle);
+  h2.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); toggle(); }
+  });
+
+  applyFold(section);
+}
+
+function setUpFoldables() {
+  document.querySelectorAll('.sheet-section').forEach(makeFoldable);
+}
+
+/* The stations section is one element that lives in two places depending on
+   width. Moving it rather than duplicating it keeps a single source of the
+   list; two copies would drift the moment one was re-rendered. */
+function moveStationsPanel() {
+  const section = document.getElementById('station-section');
+  const panel = document.getElementById('stations-panel');
+  const sheet = document.getElementById('sheet');
+  if (!section || !panel || !sheet) return;
+
+  if (WIDE.matches) {
+    if (section.parentNode !== panel) panel.appendChild(section);
+    panel.hidden = false;
+  } else {
+    if (section.parentNode !== sheet) {
+      // Back where it was: before the operator box, which is the last thing
+      // in the sheet and reads as a footer.
+      sheet.insertBefore(section, document.getElementById('operator-box'));
+    }
+    panel.hidden = true;
+  }
+  applyPanelState();
+}
+
+function applyPanelState() {
+  const wide = WIDE.matches;
+  const showSheet = state.panelState.sheet !== false;
+  const showStations = state.panelState.stations !== false;
+
+  document.body.classList.toggle('sheet-hidden', wide && !showSheet);
+  document.body.classList.toggle('stations-hidden', wide && !showStations);
+
+  // The way back has to stay on screen. A panel that can be hidden with no
+  // visible way to bring it back is a panel someone loses for the whole event.
+  const sheetReopen = document.getElementById('sheet-reopen');
+  const stationsReopen = document.getElementById('stations-reopen');
+  if (sheetReopen) sheetReopen.hidden = !(wide && !showSheet);
+  if (stationsReopen) {
+    stationsReopen.hidden = !(wide && !showStations
+      && !document.getElementById('stations-panel').hidden);
+  }
+  map.invalidateSize();
+}
+
+function setPanel(name, showing) {
+  state.panelState[name] = showing;
+  savePrefs();
+  applyPanelState();
+}
+
+document.getElementById('sheet-collapse')
+  .addEventListener('click', () => setPanel('sheet', false));
+document.getElementById('sheet-reopen')
+  .addEventListener('click', () => setPanel('sheet', true));
+document.getElementById('stations-reopen')
+  .addEventListener('click', () => setPanel('stations', true));
+document.getElementById('stations-collapse')
+  .addEventListener('click', () => setPanel('stations', false));
+
+WIDE.addEventListener('change', moveStationsPanel);
 
 /* Below this, aid station names overlap each other into an unreadable smear;
    at or above it a screen holds a mile or two of course and at most a couple
@@ -1585,6 +1725,14 @@ function applyState(data) {
     state.visibleCourses = new Set(
       prefs.courses || data.courses.map((c) => c.id)
     );
+    /* Restore how the panels were left. A phone coming back from a dead zone
+       reloads on its own, and re-opening six sections someone deliberately
+       folded is the kind of small betrayal that makes a screen feel unreliable. */
+    state.foldedSections = new Set(prefs.folded || []);
+    state.panelState = Object.assign(
+      { sheet: true, stations: true }, prefs.panels || {});
+    setUpFoldables();
+    moveStationsPanel();
     showOperatorBox();
     document.getElementById('role-note').textContent =
       data.can_write

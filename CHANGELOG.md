@@ -8,6 +8,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **Every panel section folds, and stays folded.** The layer switches are set
+  once before the race and then never touched, but they sat at the top of the
+  panel pushing the lead runners, the pickup queue and the stations below the
+  fold for the whole event. Click a heading to fold it. The state is
+  remembered, because a phone coming back from a dead zone reloads on its own
+  and re-opening six sections someone deliberately folded is the kind of small
+  betrayal that makes a screen feel unreliable.
+- **On a desktop the stations list gets its own panel on the right**, which is
+  what NCS is reading all day. Both panels collapse, giving the map the width
+  back, with a labelled button to bring each one back - a panel that hides with
+  no visible way to return is a panel someone loses for the event.
+
+  Below 860px there is no room for two panels and the section moves back into
+  the sheet where it started. It is the SAME element either way, moved rather
+  than duplicated: two copies would drift the moment one was re-rendered.
+
+### Added
 - **Say which races each place serves.** A Races column in the Places table,
   one checkbox per course. Left blank, a place is "not stated" and falls back
   to the old proximity guess, so existing events are unchanged.
