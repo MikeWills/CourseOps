@@ -8,6 +8,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **"Accept N suggested" on the course review screen.** A real points file
+  stages 78 places, and ticking them one at a time is not review, it is data
+  entry that gets abandoned half way. The button names the layers it is about
+  to use rather than asking for trust in a count - accepting 78 assignments
+  blind is not a decision, and an exporter can be wrong. Select all / select
+  none are there too, for the cases it cannot decide.
+
+- **Filtering on the Places table, by layer and by name.** They narrow
+  together, which is what makes splitting an imported layer practical: choose
+  "Mile markers", type "FULL", and you have the 26 that belong to the marathon
+  rather than all 48. Select-all then takes the visible rows only - "select
+  all" meaning "including the fifty you filtered out" would be a trap - and a
+  row hidden by a filter is deselected, so nothing moves that you cannot see.
+
+### Added
 - **Deployment from GitHub on a version tag**, over SSH. `main` stays free for
   work in progress, what is running is always a version you can name, and
   rolling back is deploying the previous tag.
