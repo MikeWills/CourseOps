@@ -434,3 +434,75 @@ def test_set_poi_courses_refuses_a_course_from_another_event(race):
     conn, event_id, course_id, index = race
     with pytest.raises(ValueError):
         admin.set_poi_courses(conn, event_id, poi_id(conn, "Alpha"), [9999])
+
+
+def _line(lat, n=101):
+    """A straight east-west line at a given latitude."""
+    return {"type": "LineString",
+            "coordinates": [[i * 0.001, lat] for i in range(n)]}
+
+
+def test_stops_snapping_to_another_route_are_skipped_until_stated(tmp_path):
+    """Reproduces "A, B, C, D, I" exactly, rather than the degenerate case.
+
+    Two routes running parallel about 55 m apart. Some stops sit on one line,
+    some on the other - which is what happens where routes share road and the
+    organizer's points were digitised off whichever trace was to hand.
+
+    Snapping assigns each stop to ONE route, so the Full's progression contains
+    only the stops that happened to land nearest the Full's line. The others
+    vanish from it, and "the next station" jumps over them.
+    """
+    import json
+    from courseops import admin, db, leaders, progress
+
+    conn = db.connect(tmp_path / "skip.sqlite3")
+    db.init_schema(conn)
+    event_id = db.create_event(conn, "skip", "Skip")
+
+    for name, lat in [("Full", 0.0), ("Half", 0.0005)]:
+        conn.execute(
+            "INSERT INTO course (event_id, name, geojson, distance_m)"
+            " VALUES (?, ?, ?, 11000)",
+            (event_id, name, json.dumps(_line(lat))))
+    full = conn.execute(
+        "SELECT id FROM course WHERE name = 'Full'").fetchone()["id"]
+
+    # A-D sit on the Full's line; H and I sit on the Half's, though every one
+    # of them is a stop the Full's runners pass.
+    for name, lat, lon in [("A", 0.0, 0.010), ("B", 0.0, 0.020),
+                           ("C", 0.0, 0.030), ("D", 0.0, 0.040),
+                           ("H", 0.0005, 0.050), ("I", 0.0, 0.060)]:
+        conn.execute(
+            "INSERT INTO poi (event_id, name, poi_type, lat, lon)"
+            " VALUES (?, ?, 'aid_station', ?, ?)", (event_id, name, lat, lon))
+
+    index = progress.CourseIndex.for_event(conn, event_id)
+
+    def sequence():
+        """Walk the Full's progression, reporting each 'next' as passed."""
+        seen = []
+        for _ in range(10):
+            entry = next(e for e in leaders.for_event(conn, event_id, index)
+                         if e.course_id == full and e.division == "male")
+            if not entry.next_poi_id:
+                break
+            seen.append(entry.next_poi_name)
+            leaders.record_sighting(conn, event_id, full, "male",
+                                    entry.next_poi_id)
+        return seen
+
+    # The bug, exactly as reported: H snapped to the Half, so the Full's
+    # progression jumps straight over it - A, B, C, D, I.
+    assert sequence() == ["A", "B", "C", "D", "I"]
+
+    leaders.clear_sightings(conn, event_id, full, "male")
+
+    # State the truth - every stop serves the Full - and nothing is skipped.
+    for name in ["A", "B", "C", "D", "H", "I"]:
+        pid = conn.execute(
+            "SELECT id FROM poi WHERE event_id = ? AND name = ?",
+            (event_id, name)).fetchone()["id"]
+        admin.set_poi_courses(conn, event_id, pid, [full])
+
+    assert sequence() == ["A", "B", "C", "D", "H", "I"]
