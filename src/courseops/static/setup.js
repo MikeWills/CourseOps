@@ -541,31 +541,90 @@ $('event-form').addEventListener('submit', async (ev) => {
 
 /* ---------- course import and review ------------------------------------- */
 
-$('course-file').addEventListener('change', async (ev) => {
-  const file = ev.target.files[0];
-  if (!file || !needEvent()) return;
-  $('import-status').hidden = false;
-  $('import-status').textContent = `Reading ${file.name}…`;
+/* The upload has always looked like a drop zone - a dashed border says exactly
+   that - while accepting clicks only. Dropping a file did nothing at all: no
+   import, no error, nothing to say whether the file was wrong, the app was
+   broken, or you missed. A control that promises something it does not do is
+   worse than a plain button.
 
+   Files arrive from an organizer by email, so dragging one out of a mail client
+   is the natural gesture. */
+const uploadZone = $('upload-zone');
+
+['dragenter', 'dragover'].forEach((name) =>
+  uploadZone.addEventListener(name, (ev) => {
+    ev.preventDefault();
+    uploadZone.classList.add('is-over');
+  }));
+
+['dragleave', 'drop'].forEach((name) =>
+  uploadZone.addEventListener(name, () =>
+    uploadZone.classList.remove('is-over')));
+
+uploadZone.addEventListener('drop', (ev) => {
+  ev.preventDefault();
+  importFiles([...(ev.dataTransfer ? ev.dataTransfer.files : [])]);
+});
+
+/* Import several files one after another.
+
+   In sequence, not in parallel: import is additive and each file stages into
+   the same event, so concurrent uploads race on the review list and the counts
+   come back wrong. An organizer's courses routinely arrive as one file per
+   race, so dropping four at once is the normal case rather than the clever one.
+*/
+async function importFiles(files) {
+  if (!files.length || !needEvent()) return;
+
+  const usable = files.filter((f) => /\.(kml|kmz)$/i.test(f.name));
+  const rejected = files.filter((f) => !/\.(kml|kmz)$/i.test(f.name));
+  if (rejected.length) {
+    // Say so rather than ignoring them. A dropped .gpx failing in silence is
+    // indistinguishable from the app being broken - see issue #1 for GPX.
+    banner(`Not a KML or KMZ: ${rejected.map((f) => f.name).join(", ")}`, true);
+  }
+  if (!usable.length) return;
+
+  for (const [index, file] of usable.entries()) {
+    $('import-status').hidden = false;
+    $('import-status').textContent = usable.length > 1
+      ? `Reading ${file.name} (${index + 1} of ${usable.length})…`
+      : `Reading ${file.name}…`;
+    try {
+      await uploadCourseFile(file);
+    } catch (err) {
+      banner(`${file.name}: ${err.message}`, true);
+      break;      // stop rather than plough on; the rest may depend on this one
+    }
+  }
+  $('import-status').hidden = true;
+  $('course-file').value = '';
+  loadStaged();
+}
+
+$('course-file').addEventListener('change', (ev) => {
+  importFiles([...ev.target.files]);
+});
+
+/* Upload one file. Throws so the caller can stop a run of several rather than
+   ploughing on after a failure that the rest may depend on. */
+async function uploadCourseFile(file) {
   const form = new FormData();
   form.append('file', file);
-  try {
-    const response = await fetch(`/api/setup/events/${S.eventId}/import`,
-      {method: 'POST', body: form});
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.detail || 'Import failed');
-    const kinds = Object.entries(data.by_type)
-      .map(([k, n]) => `${n} ${k}`).join(', ');
-    $('import-status').textContent =
-      `${data.filename}: ${data.total} features (${kinds}).`
-      + (data.warnings.length ? ` ${data.warnings.length} warning(s).` : '');
-    renderReview(data.features);
-  } catch (err) {
-    $('import-status').textContent = err.message;
-    banner(err.message, true);
-  }
-  ev.target.value = '';
-});
+  const response = await fetch(`/api/setup/events/${S.eventId}/import`,
+    {method: 'POST', body: form});
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.detail || 'Import failed');
+
+  const kinds = Object.entries(data.by_type)
+    .map(([k, n]) => `${n} ${k}`).join(', ');
+  banner(`${data.filename}: ${data.total} features (${kinds}).`);
+  // Warnings are the interesting part - a layer created from the file's own
+  // attributes, or segments that could not be joined - so they get their own
+  // line rather than being reduced to a count.
+  (data.warnings || []).forEach((w) => banner(w, true));
+  return data;
+}
 
 /* The review screen offers whatever layers this event has, so importing a
    medic or mile-marker layer needs no code change. "Course" stays first and
