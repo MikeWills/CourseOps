@@ -328,6 +328,12 @@ is worse than one that refuses.
 
 ### The deploy key
 
+> **The paths below say `/opt/courseops`, but the install is wherever you put
+> it** - a VPS with a mounted data volume often has it somewhere like
+> `/mnt/data/courseops`. Substitute yours throughout. `deploy.sh` works this
+> out from its own location, so it needs no telling; the `command=` restriction
+> and the sudoers line below are the two places you must write the real path.
+
 Make a key that exists only for this, on your own machine:
 
 ```bash

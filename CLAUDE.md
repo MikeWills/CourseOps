@@ -40,7 +40,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 420 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 421 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -217,6 +217,11 @@ usability, not style preferences.
   an invalid token still gets 404.
 - **Operator initials are a log annotation, never identity.** Free text, kept in
   the browser, truncated server-side. Nothing may start trusting it as auth.
+- **Nothing in `deploy/` may hardcode the install path.** It is wherever the
+  club put it - this deployment lives under a mounted data volume, not
+  `/opt`. `deploy.sh` derives `APP_DIR` from its own location; the only places
+  a real path must be written are the `command=` restriction in
+  `authorized_keys` and the sudoers line.
 - **`git checkout <branch>` on the server does not deploy that branch.** The
   working copy is on a detached HEAD, so a local branch there is whatever it
   was at clone time: the deploy reports success and installs stale code.
@@ -571,6 +576,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-04** Fixed: deploy.sh assumed /opt/courseops; the install path is now derived.
 - **2026-09-04** On a phone each role's own section opens first, rather than below the fold.
 - **2026-09-04** Fixed: the panel could not be closed on a phone; it is now full height with an X.
 - **2026-09-04** The role is named in the header, so it is obvious which link you are on.
@@ -580,4 +586,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-04** Pickups and course notes can be deleted; the removal reaches every browser.
 - **2026-09-04** Station roles are open and on their own tab; a deleted role no longer comes back.
 - **2026-09-04** Panel sections fold and stay folded; stations get their own panel on desktop.
-- **2026-09-04** Fixed: the lead runner button skipped stations; a stop's races are now stated, not guessed.
