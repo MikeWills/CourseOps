@@ -439,6 +439,24 @@ Decisions taken, so they are not re-litigated:
   distinct labels would put characters on the map that match nothing anyone
   says on the radio.
 
+### Ordering places (done)
+
+Geometry orders places by distance along the nearest course. That works for one
+route and breaks for more than one: where routes share pavement the snap is a
+coin flip, so the list interleaves miles measured on different races.
+
+- **The club's order wins.** `poi.sort_order`, set by dragging in setup.
+- **0 means unplaced and sorts last**, by distance. An event nobody has ordered
+  is unchanged, and a later import lands at the end rather than the middle.
+- **Both the Places table and the lead runner progression use it**, or "the
+  next station" would disagree with the list the club just arranged.
+
+**Still guessed: which race a stop belongs to.** Leaders are grouped per course
+using the same proximity snap, so a stop can be listed under the wrong race.
+The sighting picker deliberately offers every station so NCS can work around
+it, and any station can now be named. Assigning stops to courses explicitly
+would remove the guess; it is not done.
+
 ## Known gaps and open threads
 
 - **The what3words coordinate URL is undocumented.** Linking to a square by

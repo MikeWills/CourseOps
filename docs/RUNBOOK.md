@@ -112,6 +112,20 @@ courseops style-course mankato2026 2 --order 10     # higher draws on top
 Courses share road for miles. Draw order decides which line wins where they
 overlap — put the one people ask about most on top.
 
+### 4a. Put the places in the order they are reached
+
+`/setup` -> Aid stations. Drag a row by the grip on its left, or focus the grip
+and use the arrow keys. The order saves as you go and says "Order saved."
+
+Do this whenever the event has more than one route. The app orders places by
+distance along the nearest course line, and where the routes share road it
+cannot tell which race a stop belongs to - so the starting order interleaves
+three races. The Mile column names the course each figure was measured on,
+which is how you spot it.
+
+This order is what the lead runner panel calls "the next station", so getting
+it right before the event is what makes that panel useful during it.
+
 ### 4b. Check the labels on the pins
 
 Each pin on a labelled layer carries one or two characters taken from its name,
@@ -126,6 +140,20 @@ event day and check two things:
 
 Turning **Place names** on in the map's Places list adds the full name beside
 each labelled pin once you zoom in past street level.
+
+### Correcting a lead runner
+
+The panel shows the leader wherever they were **last reported**. There is no
+separate "finished" state to clear - position is only ever the last sighting.
+
+- **They are actually back at H:** pick H from the **At...** dropdown on that
+  row. The new sighting is later, so it wins.
+- **A mis-tap:** press **Undo**, which removes the most recent sighting only.
+  Press it again to walk further back.
+
+The dropdown lists every staffed place, not only the ones on that race, because
+the app infers which race a stop belongs to from how close it is to each course
+line - and where routes share road that is a guess. Pick the station you mean.
 
 ### 5. Enter What3Words for each aid station
 

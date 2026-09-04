@@ -740,6 +740,19 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     # so with the parameterised route first this one is never reached - the
     # word "move" gets parsed as a poi_id and the request 422s. The failure
     # is quiet in the UI, which just does nothing.
+    # Literal before parameterised, for the same reason as /pois/move below.
+    @app.post("/api/setup/events/{event_id}/pois/reorder")
+    async def setup_reorder_pois(event_id: int, request: Request) -> JSONResponse:
+        conn, user = require_event_admin(request, event_id)
+        body = await _json_body(request, conn)
+        try:
+            count = _guard(
+                admin.reorder_pois, conn, event_id, body.get("poi_ids") or [])
+            conn.commit()
+        finally:
+            conn.close()
+        return JSONResponse({"ordered": count})
+
     @app.post("/api/setup/events/{event_id}/pois/move")
     async def setup_move_pois(event_id: int, request: Request) -> JSONResponse:
         conn, user = require_event_admin(request, event_id)

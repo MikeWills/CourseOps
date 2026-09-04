@@ -236,25 +236,42 @@ def for_event(
     ).fetchall()
     poi_rows = staffed_places(conn, event_id)
 
-    # Aid stations in course order, each with its distance along.
-    stations = []
+    # Every staffed place in the event, whatever course it snapped to.
+    #
+    # NCS can report the leader at ANY station - the picker offers all of them,
+    # because which race a stop belongs to is inferred from proximity and that
+    # is a coin flip where routes share pavement. So the lookups used to NAME a
+    # sighting have to cover everything. Building them from one course's
+    # stations meant a correction to a station that snapped elsewhere was
+    # stored and then displayed as nothing at all: the report vanished, and the
+    # leader appeared stuck where they were.
+    known = {}
     for row in poi_rows:
         located = index.locate(row["lat"], row["lon"])
-        if located is not None:
-            stations.append((located.distance_along_m, located.course_id, row))
-    stations.sort(key=lambda item: item[0])
+        known[row["id"]] = (
+            row["name"],
+            located.distance_along_m if located else None,
+            located.course_id if located else None,
+        )
+
+    # Ordered the way the club reads them: their own order where they set one,
+    # distance along the course otherwise. This is what "the next station"
+    # means, so it has to agree with the list in setup.
+    ordered = index.order_along_course(poi_rows)
 
     results: list[Leader] = []
     for course in courses:
-        on_course = [s for s in stations if s[1] == course["id"]]
+        on_course = [
+            row for row in ordered if known[row["id"]][2] == course["id"]
+        ]
         for division in divisions:
             results.append(
-                _leader_for(conn, event_id, course, division, on_course)
+                _leader_for(conn, event_id, course, division, on_course, known)
             )
     return results
 
 
-def _leader_for(conn, event_id, course, division, stations) -> Leader:
+def _leader_for(conn, event_id, course, division, stations, known) -> Leader:
     base = dict(
         course_id=course["id"],
         course_name=course["name"],
@@ -264,8 +281,13 @@ def _leader_for(conn, event_id, course, division, stations) -> Leader:
     )
 
     reports = sightings(conn, event_id, course["id"], division)
-    distance_by_poi = {row["id"]: distance for distance, _, row in stations}
-    name_by_poi = {row["id"]: row["name"] for _, _, row in stations}
+    # `known` covers every staffed place in the event, so a sighting recorded
+    # at a station that snapped to another course is still named.
+    distance_by_poi = {poi_id: d for poi_id, (_, d, _) in known.items()}
+    name_by_poi = {poi_id: n for poi_id, (n, _, _) in known.items()}
+    positions = [
+        (distance_by_poi.get(row["id"]), row) for row in stations
+    ]
 
     if not reports:
         # Nothing reported yet: the useful thing is which station to expect them
@@ -273,9 +295,9 @@ def _leader_for(conn, event_id, course, division, stations) -> Leader:
         first = stations[0] if stations else None
         return Leader(
             **base,
-            next_poi_id=first[2]["id"] if first else None,
-            next_poi_name=first[2]["name"] if first else None,
-            next_distance_m=first[0] if first else None,
+            next_poi_id=first["id"] if first else None,
+            next_poi_name=first["name"] if first else None,
+            next_distance_m=distance_by_poi.get(first["id"]) if first else None,
         )
 
     latest = reports[-1]
@@ -301,13 +323,28 @@ def _leader_for(conn, event_id, course, division, stations) -> Leader:
                 if MIN_PACE_MPS <= candidate <= MAX_PACE_MPS:
                     pace = candidate
 
+    # The next station is the one after the last SIGHTING in the club's order,
+    # not the next one further down the course. Those differ the moment an
+    # order is set by hand, which is the whole reason it exists.
     following = None
-    if last_distance is not None:
-        following = next((s for s in stations if s[0] > last_distance + 1.0), None)
+    seen = [i for i, (_, row) in enumerate(positions)
+            if row["id"] == latest["poi_id"]]
+    if seen:
+        following = next((p for p in positions[seen[0] + 1:]), None)
+    elif last_distance is not None:
+        # The sighting was at a station that is not on this course at all - a
+        # correction typed against the wrong race, or a stop the snap put
+        # elsewhere. Name it, but do not guess what comes next.
+        following = None
 
     eta = None
-    if following is not None and pace:
-        eta = (following[0] - last_distance) / pace
+    if (following is not None and pace
+            and following[0] is not None and last_distance is not None):
+        gap = following[0] - last_distance
+        # A hand-set order can run against the geometry, and a negative gap
+        # would produce an ETA in the past. No figure beats a wrong one.
+        if gap > 0:
+            eta = gap / pace
 
     return Leader(
         **base,
@@ -318,8 +355,8 @@ def _leader_for(conn, event_id, course, division, stations) -> Leader:
         last_by=latest["by"],
         bib=latest["bib"],
         pace_mps=pace,
-        next_poi_id=following[2]["id"] if following else None,
-        next_poi_name=following[2]["name"] if following else None,
+        next_poi_id=following[1]["id"] if following else None,
+        next_poi_name=following[1]["name"] if following else None,
         next_distance_m=following[0] if following else None,
         eta_seconds=eta,
     )

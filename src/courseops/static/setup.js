@@ -227,6 +227,10 @@ const ICONS = {
        + '<path d="M10.6 3.6H4.2a1.6 1.6 0 0 0-1.6 1.6v6.4"/>', 'Copy link'],
   password: ['<circle cx="6.2" cy="9.8" r="2.6"/>'
            + '<path d="M8.1 8L13.4 2.7M11.4 4.7l1.5 1.5"/>', 'Set a password'],
+  // Two columns of dots: the conventional "drag me" grip. Recognised without
+  // explanation, which a label on every row could not be.
+  grip: ['<path d="M6.2 4.2h.01M9.8 4.2h.01M6.2 8h.01M9.8 8h.01'
+       + 'M6.2 11.8h.01M9.8 11.8h.01"/>', 'Reorder'],
 };
 
 /* Icon-only buttons are invisible to a screen reader and to anyone who does not
@@ -904,15 +908,20 @@ async function loadCourses() {
     + `&lat=${lat.toFixed(6)}&lng=${lon.toFixed(6)}`;
 
   $('poi-table').innerHTML = data.pois.length ? `
-    <table class="grid"><thead><tr><th><input type="checkbox" id="poi-all"
+    <table class="grid"><thead><tr><th></th><th><input type="checkbox" id="poi-all"
         aria-label="Select every place"></th>
       <th>Mile</th><th>Name</th><th>Layer</th>
       <th>Pin</th><th>Coordinates</th><th>What3Words</th>
       <th></th></tr></thead><tbody>` +
-    data.pois.map((p) => `<tr>
+    data.pois.map((p) => `<tr data-row="${p.id}">
+      <td class="grip-cell">${iconBtn('grip', {'data-grip': p.id},
+        `Reorder ${p.name} - drag, or use the arrow keys`)}</td>
       <td><input type="checkbox" data-ppick="${p.id}"
             aria-label="Select ${esc(p.name)}"></td>
-      <td>${p.distance_along_m != null ? miles(p.distance_along_m) : '—'}</td>
+      <td class="mile">${p.distance_along_m != null
+        ? `${miles(p.distance_along_m)}<br><span class="muted"
+             >${esc(p.course_name || '')}</span>`
+        : '—'}</td>
       <td><input value="${esc(p.name)}" data-pname="${p.id}" style="width:150px"></td>
       <td><span class="layer-glyph" style="color:${esc(p.layer_color || '#35507a')}"
             >${glyphSvg(p.layer_icon || 'pin', 16)}</span>
@@ -1017,6 +1026,84 @@ async function loadCourses() {
       refreshPoiSelection();
     });
   }
+  /* Drag a row to set the running order.
+
+     Geometry cannot do this once an event has more than one route. Each place
+     is snapped to whichever course line is nearest - a coin flip where routes
+     share pavement - so the list interleaves miles measured on three different
+     races. Which stop follows which is a fact the club holds; this is where
+     they say it.
+
+     The order is taken from the DOM after a move, so it stays correct with a
+     filter applied: hidden rows keep their positions and simply travel with
+     whatever is around them. */
+  const poiTableEl = $('poi-table');
+
+  async function persistOrder() {
+    const ids = [...poiTableEl.querySelectorAll('tbody tr[data-row]')]
+      .map((tr) => Number(tr.dataset.row));
+    if (!ids.length) return;
+    try {
+      await post(`/api/setup/events/${S.eventId}/pois/reorder`, { poi_ids: ids });
+      $('poi-order-note').textContent = 'Order saved.';
+    } catch (err) {
+      // Say so. A silently unsaved order looks identical to a saved one until
+      // the page is reloaded, which is the worst moment to find out.
+      $('poi-order-note').textContent = `Order NOT saved: ${err.message}`;
+      banner(err.message, true);
+    }
+  }
+
+  let dragRow = null;
+
+  poiTableEl.querySelectorAll('[data-grip]').forEach((grip) => {
+    const row = grip.closest('tr');
+    // The row is only draggable while the grip is held. A permanently
+    // draggable row swallows text selection in the inputs inside it.
+    grip.addEventListener('mousedown', () => { row.draggable = true; });
+    grip.addEventListener('touchstart', () => { row.draggable = true; },
+      { passive: true });
+
+    /* Arrow keys do the same job. Drag and drop is unusable with a keyboard,
+       and unreliable on a touch screen - and this is a table someone may well
+       be sorting on a tablet the morning of the race. */
+    grip.addEventListener('keydown', (ev) => {
+      const step = ev.key === 'ArrowUp' ? -1 : ev.key === 'ArrowDown' ? 1 : 0;
+      if (!step) return;
+      ev.preventDefault();
+      const sibling = step < 0
+        ? row.previousElementSibling : row.nextElementSibling;
+      if (!sibling) return;
+      if (step < 0) row.parentNode.insertBefore(row, sibling);
+      else row.parentNode.insertBefore(sibling, row);
+      grip.focus();
+      persistOrder();
+    });
+  });
+
+  poiTableEl.addEventListener('dragstart', (ev) => {
+    dragRow = ev.target.closest('tr[data-row]');
+    if (dragRow) dragRow.classList.add('is-dragging');
+  });
+
+  poiTableEl.addEventListener('dragover', (ev) => {
+    if (!dragRow) return;
+    ev.preventDefault();
+    const over = ev.target.closest('tr[data-row]');
+    if (!over || over === dragRow) return;
+    const box = over.getBoundingClientRect();
+    const after = (ev.clientY - box.top) > box.height / 2;
+    over.parentNode.insertBefore(dragRow, after ? over.nextSibling : over);
+  });
+
+  poiTableEl.addEventListener('dragend', () => {
+    if (!dragRow) return;
+    dragRow.classList.remove('is-dragging');
+    dragRow.draggable = false;
+    dragRow = null;
+    persistOrder();
+  });
+
   /* Save the table as a unit. A save button per row used to reload the whole
      list, discarding every other edit in progress. */
   bindSaveAll({

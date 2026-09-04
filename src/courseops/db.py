@@ -40,6 +40,7 @@ _ADDED_COLUMNS: list[tuple[str, str, str]] = [
     ("roster", "bound_key", "TEXT"),
     ("incident", "kind", "TEXT NOT NULL DEFAULT 'pickup'"),
     ("poi", "label", "TEXT"),
+    ("poi", "sort_order", "INTEGER NOT NULL DEFAULT 0"),
     ("poi_category", "show_labels", "INTEGER NOT NULL DEFAULT 0"),
 ]
 

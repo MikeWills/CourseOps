@@ -366,3 +366,16 @@ table.grid button { min-height: 34px; padding: 0 10px; font-size: 13px; }
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
+
+/* Reordering places.
+   The grip is the only draggable part of the row: a row that is draggable all
+   over swallows text selection in the inputs inside it. */
+.grip-cell { width: 28px; padding-right: 0; }
+.grip-cell .icon-btn { cursor: grab; color: var(--ink-soft); }
+.grip-cell .icon-btn:active { cursor: grabbing; }
+tr.is-dragging { opacity: 0.45; background: #eaf2fb; }
+
+/* The mile never appears without the course it was measured on - the snap is
+   a coin flip where routes share pavement. */
+td.mile { line-height: 1.25; white-space: nowrap; }
+td.mile .muted { font-size: 11px; }

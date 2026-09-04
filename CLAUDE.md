@@ -40,7 +40,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 391 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 398 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -258,6 +258,21 @@ usability, not style preferences.
 - **No mile figure beats a wrong one.** A station further than
   `progress.DEFAULT_MAX_OFFSET_M` from every course reports `None`, and the
   client shows the callsign instead. Someone acts on this number.
+- **Geometry cannot order places once an event has more than one route.**
+  Each place snaps to whichever course line is nearest, and where routes share
+  pavement that is a coin flip - so distances from different races interleave
+  into one meaningless list. `poi.sort_order` is the club's own order, set by
+  dragging in setup, and it wins. 0 means "never placed by hand" and sorts
+  LAST, so an unordered event is unchanged and a later import lands at the end
+  where it is visible. The lead runner progression uses the same order, or
+  "the next station" disagrees with the list the club just arranged.
+- **A lead runner sighting may be at ANY station.** The picker offers all of
+  them on purpose, because which race a stop belongs to is inferred from
+  proximity. So anything that NAMES a sighting must be built from every staffed
+  place, not from one course's stations - building it per course meant a
+  correction was stored and then displayed as nothing, and the leader looked
+  stuck. There is no "finished" state to reset: position is only ever the last
+  sighting, so a later sighting is the correction.
 - **Order aid stations by course position, never by name.** Greek letters sort
   Alpha, Beta, Delta, Epsilon, Gamma; "Aid 10" sorts before "Aid 2"; place names
   do not sort at all. `CourseIndex.order_along_course()`.
@@ -480,6 +495,8 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-04** Places can be dragged into the order they are reached; geometry cannot order multi-route events.
+- **2026-09-04** Fixed: a lead runner correction to a station on another course vanished silently.
 - **2026-09-03** Station roles save all at once; the three setup tables now share one save-all.
 - **2026-09-03** Labels on pins: one or two characters per place, per layer, derived from the name.
 - **2026-09-03** The Layers table now saves every edit at once, like Places.
@@ -488,5 +505,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-03** Import accepts dropped files; fixed an Apache template that could never be enabled.
 - **2026-09-03** Made a large import reviewable: select-all, bulk accept, and filtering.
 - **2026-09-03** Added a single-file Windows .exe; pip stays the route for Linux and macOS.
-- **2026-09-03** A callsign is now needed only for live tracking, not to start the app.
-- **2026-09-03** Added CI and a release workflow that proves the .exe serves before publishing.
