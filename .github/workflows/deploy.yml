@@ -9,11 +9,11 @@
 # that cannot even build never reaches the server.
 #
 # Repository secrets required:
-#   DEPLOY_HOST   hostname or IP of the server
-#   DEPLOY_USER   the user that owns /opt/courseops (courseops)
-#   DEPLOY_KEY    private half of an SSH key whose public half is in that
+#   SSH_HOST   hostname or IP of the server
+#   SSH_USER   the user that owns /opt/courseops (courseops)
+#   SSH_KEY    private half of an SSH key whose public half is in that
 #                 user's authorized_keys
-#   DEPLOY_PORT   optional, defaults to 22
+#   SSH_PORT   optional, defaults to 22
 #
 # See docs/DEPLOYMENT.md for how to create that key and why it is restricted to
 # a single command.
@@ -48,20 +48,20 @@ jobs:
       - name: Set up the SSH key
         run: |
           mkdir -p ~/.ssh
-          printf '%s\n' "${{ secrets.DEPLOY_KEY }}" > ~/.ssh/id_deploy
+          printf '%s\n' "${{ secrets.SSH_KEY }}" > ~/.ssh/id_deploy
           chmod 600 ~/.ssh/id_deploy
           # Pin the host key rather than accepting whatever answers. Without
           # this, StrictHostKeyChecking=no would deploy happily to anything
           # holding the address.
-          ssh-keyscan -p "${{ secrets.DEPLOY_PORT || 22 }}" \
-            -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+          ssh-keyscan -p "${{ secrets.SSH_PORT || 22 }}" \
+            -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
       - name: Deploy
         run: |
           ssh -i ~/.ssh/id_deploy \
-              -p "${{ secrets.DEPLOY_PORT || 22 }}" \
-              "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
-              "/opt/courseops/deploy/deploy.sh ${{ steps.target.outputs.tag }}"
+              -p "${{ secrets.SSH_PORT || 22 }}" \
+              "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
+              "${{ secrets.DEPLOY_PATH || '/opt/courseops' }}/deploy/deploy.sh ${{ steps.target.outputs.tag }}"
 
       # The deploy script already checks health from inside the box and rolls
       # back if it fails. This checks from outside, which is a different

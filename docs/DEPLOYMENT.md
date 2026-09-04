@@ -358,10 +358,14 @@ Under **Settings -> Secrets and variables -> Actions**, as *secrets*:
 
 | Secret | Value |
 |---|---|
-| `DEPLOY_HOST` | the server's hostname or IP |
-| `DEPLOY_USER` | `courseops` |
-| `DEPLOY_KEY` | the **private** half of the key above |
-| `DEPLOY_PORT` | only if sshd is not on 22 |
+| `SSH_HOST` | the server's hostname or IP |
+| `SSH_USER` | `courseops` |
+| `SSH_KEY` | the **private** half of the key above |
+| `SSH_PORT` | only if sshd is not on 22 |
+| `DEPLOY_PATH` | only if the install is not at `/opt/courseops` |
+
+These names match the ones used by the other projects here deliberately - one
+convention to remember rather than a per-project dialect.
 
 And as a *variable* (not a secret - it is public anyway):
 
