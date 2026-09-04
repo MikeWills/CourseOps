@@ -7,6 +7,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- **On a phone, each role's own section opens first.** There is no second panel
+  at that width, so what a role exists to look at was landing below the fold:
+  SAG scrolling past the lead runners to reach the pickup queue, Logistics
+  scrolling past both to find the sweep - and Logistics is the role most likely
+  to be on a phone, out on the course rather than at a desk.
+
+  Stations lead for Net Control and Logistics, pickups and course notes for
+  Liaison and SAG - the same split as the side panel on a laptop, which is
+  where that decision already lived. Alerts stay first regardless, because they
+  are alerts, and the layer switches stay last.
+
 ### Fixed
 - **The panel could not be closed on a phone.** The only close control while it
   was open was the drag grip - a 42x5 pixel target, against this app's own

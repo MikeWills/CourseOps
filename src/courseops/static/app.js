@@ -380,6 +380,34 @@ function rememberSheetOrder() {
 /* A section is ONE element that lives in two places depending on width and
    role. Moved, never duplicated: two copies drift the moment one is
    re-rendered, and the stale one is the one someone reads. */
+/* The order the sheet should be in for this role at this width.
+
+   On a wide screen the role's own sections live in the side panel, so the
+   sheet is everything else in authored order.
+
+   On a phone there is no second panel - and a phone is where Logistics
+   in particular will be, out on the course rather than at a desk - so those
+   same sections go to the TOP of the sheet instead. Otherwise the one thing
+   the role exists to look at opens below the fold: SAG scrolling past the
+   lead runners to reach the pickup queue, Logistics scrolling past both to
+   find the sweep.
+
+   Alerts stay first regardless. They are alerts.
+
+   `wide` is a parameter rather than read straight from the media query so the
+   phone ordering can be checked without a phone. */
+function desiredSheetOrder(wide = WIDE.matches) {
+  const plan = sidePanelPlan();
+  const promoted = plan.sections.filter((id) => sheetOrder.includes(id));
+  if (wide) return sheetOrder.filter((id) => !promoted.includes(id));
+
+  const alerts = ['ssid-section'].filter((id) => sheetOrder.includes(id));
+  const lifted = promoted.filter((id) => !alerts.includes(id));
+  const rest = sheetOrder.filter(
+    (id) => !alerts.includes(id) && !lifted.includes(id));
+  return [...alerts, ...lifted, ...rest];
+}
+
 function moveStationsPanel() {
   const panel = document.getElementById('stations-panel');
   const sheet = document.getElementById('sheet');
@@ -388,21 +416,14 @@ function moveStationsPanel() {
 
   const plan = sidePanelPlan();
   const wanted = WIDE.matches ? plan.sections : [];
+  const roleNote = document.getElementById('role-note');
 
-  // Anything in the panel that should not be there goes home first, so the
-  // sheet is whole before we decide where things belong.
-  sheetOrder.forEach((id) => {
+  // Lay the sheet out in one pass. Inserting each section before the role note
+  // in the order we want leaves them in that order, and moves anything that
+  // was in the panel back at the same time.
+  desiredSheetOrder().forEach((id) => {
     const section = document.getElementById(id);
-    if (!section || wanted.includes(id)) return;
-    if (section.parentNode !== sheet) {
-      // Back in authored order: insert before the first later section that is
-      // still in the sheet, and before the role note either way.
-      const after = sheetOrder
-        .slice(sheetOrder.indexOf(id) + 1)
-        .map((other) => document.getElementById(other))
-        .find((el) => el && el.parentNode === sheet);
-      sheet.insertBefore(section, after || document.getElementById('role-note'));
-    }
+    if (section && !wanted.includes(id)) sheet.insertBefore(section, roleNote);
   });
 
   wanted.forEach((id) => {
