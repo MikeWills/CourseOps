@@ -40,7 +40,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 422 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 429 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -217,6 +217,12 @@ usability, not style preferences.
   an invalid token still gets 404.
 - **Operator initials are a log annotation, never identity.** Free text, kept in
   the browser, truncated server-side. Nothing may start trusting it as auth.
+- **`/healthz` is unauthenticated and stays minimal.** Liveness and a version,
+  nothing else - there is a test asserting the exact key set. The deployed
+  COMMIT in particular belongs behind the login (`/api/setup/session`), because
+  it tells anyone who asks precisely which code is running. `build.py`
+  establishes it once, cheaply, and returns "" rather than failing when there
+  is no git.
 - **A script added from Windows is not executable.** `core.filemode` is off
   there, so it commits as 100644 and the failure appears only on the server, as
   "Permission denied" on a file that looks fine in a listing. Use
@@ -581,6 +587,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-04** The running build is shown in the setup header, so a deploy can be confirmed.
 - **2026-09-04** Fixed: deploy.sh was committed non-executable, so no clone could run it.
 - **2026-09-04** Fixed: deploy.sh assumed /opt/courseops; the install path is now derived.
 - **2026-09-04** On a phone each role's own section opens first, rather than below the fold.
@@ -590,4 +597,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-04** Fixed: a tablet got the phone layout or a strip of map; three layout tiers now.
 - **2026-09-04** Layers moved to the bottom of the panel; the right panel now follows the role.
 - **2026-09-04** Pickups and course notes can be deleted; the removal reaches every browser.
-- **2026-09-04** Station roles are open and on their own tab; a deleted role no longer comes back.

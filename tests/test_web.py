@@ -1131,6 +1131,21 @@ def test_healthz_reports_ok_and_a_version(setup):
     assert body["version"]
 
 
+def test_the_build_is_not_published_to_anonymous_callers(setup):
+    """The exact commit says precisely which code is deployed, which is a free
+    gift to anyone looking for a version with a known problem.
+
+    /healthz is unauthenticated, so it keeps to liveness and a version. The
+    build belongs behind the login, where it answers the question it exists
+    for: did my deploy land?
+    """
+    app, _, _, _ = setup
+    with TestClient(app) as client:
+        assert "build" not in client.get("/healthz").json()
+        # Signed out, the session endpoint says nothing either.
+        assert client.get("/api/setup/session").json()["build"] == ""
+
+
 def test_healthz_needs_no_token(setup):
     """A deploy has no event token, and neither does a monitor."""
     app, _, _, _ = setup
