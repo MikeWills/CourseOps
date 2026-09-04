@@ -42,6 +42,7 @@ _ADDED_COLUMNS: list[tuple[str, str, str]] = [
     ("poi", "label", "TEXT"),
     ("poi", "sort_order", "INTEGER NOT NULL DEFAULT 0"),
     ("roster_role", "sort_order", "INTEGER NOT NULL DEFAULT 0"),
+    ("event", "ingest_enabled", "INTEGER NOT NULL DEFAULT 0"),
     ("poi_category", "show_labels", "INTEGER NOT NULL DEFAULT 0"),
 ]
 
@@ -395,6 +396,27 @@ OP_STATUS_LABELS = {
 DEFAULT_OP_STATUS_LABELS = {
     "pending": "Not started", "active": "Active", "closed": "Closed",
 }
+
+
+def set_ingest_enabled(conn: sqlite3.Connection, slug: str, enabled: bool) -> None:
+    """Record whether an event's APRS-IS feed should be running.
+
+    Persisted because a deploy restarts the service: a feed that failed to come
+    back mid-event looks exactly like a quiet net, and nobody goes looking.
+    """
+    conn.execute(
+        "UPDATE event SET ingest_enabled = ? WHERE slug = ?",
+        (1 if enabled else 0, slug),
+    )
+
+
+def events_wanting_ingest(conn: sqlite3.Connection) -> list[str]:
+    """Slugs whose feed should be running, in a stable order."""
+    return [
+        row["slug"] for row in conn.execute(
+            "SELECT slug FROM event WHERE ingest_enabled = 1 ORDER BY id"
+        ).fetchall()
+    ]
 
 
 def op_status_label(category: str, op_status: str) -> str:

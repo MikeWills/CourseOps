@@ -20,6 +20,14 @@ CREATE TABLE IF NOT EXISTS event (
     -- to also pick up un-rostered stations near the course.
     aprs_filter_extra TEXT,
     is_active         INTEGER NOT NULL DEFAULT 1,
+    -- Whether this event's APRS-IS feed should be running.
+    --
+    -- Persisted rather than held in memory because a deploy restarts the
+    -- service, and a feed that quietly failed to come back during an event
+    -- would look exactly like a quiet net. Off by default: outside race day
+    -- the filter matches each operator's callsign wherever they are, so
+    -- running it continuously would log where volunteers live and work.
+    ingest_enabled    INTEGER NOT NULL DEFAULT 0,
     created_at        TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
 );
 

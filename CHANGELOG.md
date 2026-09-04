@@ -5,7 +5,39 @@ are mirrored into `CLAUDE.md`; this file is the complete record.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [0.1.2] - 2026-09-04
+
+v0.1.1 was an interim tag cut before the version was bumped; its contents are a subset of this release.
+
+
+### Added
+- **Live tracking is a switch in setup, on a Tracking tab.** It was a systemd
+  edit, which is a poor fit for something turned on the morning of an event and
+  off again afterwards - and the person responsible for the net is not
+  necessarily the person with a shell on the server.
+
+  The state is stored on the event, not held in memory, because a deploy
+  restarts the service: a feed that quietly failed to come back mid-event looks
+  exactly like a quiet net, and nobody goes looking.
+
+  Off by default, and the tab says why: the filter asks for each operator's
+  callsign wherever they are, so a feed left running records where volunteers
+  are every day. That is not what anyone agreed to by joining a roster.
+
+  The tab also shows the filter the roster produces. An empty or wrong filter
+  is the commonest silent failure here - the feed connects, nothing matches,
+  and the map stays blank while everything reports healthy.
+
+  Turning it on is refused outright when there is no usable callsign, with the
+  message from settings that says what to put in `.env`, rather than starting a
+  task that dies and leaving the switch showing "on".
+
+### Fixed
+- **The tag and the package version could disagree.** `v0.1.1` was cut while
+  both `pyproject.toml` and `__init__.py` still said 0.1.0 - nothing tags
+  automatically and nothing was checking. The release workflow now refuses a
+  tag that does not match the packaged version, and a test keeps the two
+  declarations in step.
 
 ### Added
 - **The running build is shown in the setup header.** The package version was
@@ -80,7 +112,6 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   opened the wrong link - and it makes testing the four links a matter of
   looking rather than remembering which tab is which.
 
-## [Unreleased]
 
 ### Fixed
 - **Deploying a branch would have silently installed stale code.** The script

@@ -202,6 +202,7 @@ async function refreshTab(name) {
     if (name === 'course') return loadStaged();
     if (name === 'stations') return loadCourses();
     if (name === 'layers' || name === 'roles') return loadLayers();
+    if (name === 'tracking') return loadTracking();
     if (name === 'roster') return loadRoster();
     if (name === 'links') return loadLinks();
   } catch (err) { banner(err.message, true); }
@@ -1267,6 +1268,73 @@ function bindSaveAll({ table, button, status, fields, save, noun, reload }) {
 /* Layers and roles share one endpoint but are two independent tables on one
    tab, so each re-renders only itself after a save. Re-rendering both would
    discard unsaved edits in the other one - the same bug, one table over. */
+/* The APRS-IS feed, on or off.
+
+   A switch rather than a systemd edit because the person responsible for the
+   net is not necessarily the person with a shell on the server - and this is
+   something that gets turned on the morning of an event and off again after,
+   which is a poor fit for anything requiring root. */
+/* The settings message is multi-line and tells someone at a terminal
+   what to put in .env. Only its first line fits a status row. */
+function firstLine(text) {
+  return String(text || '').split(/[\r\n]/)[0];
+}
+
+async function loadTracking() {
+  if (!needEvent()) return;
+  try {
+    render(await api(`/api/setup/events/${S.eventId}/tracking`));
+  } catch (err) {
+    banner(err.message, true);
+  }
+
+  function render(state) {
+    const box = $('tracking-on');
+    box.checked = state.enabled;
+    box.disabled = false;
+
+    /* "On" and "running" are different claims, and saying only the first is
+       how a dead feed passes for a quiet net. */
+    let label = state.enabled
+      ? (state.running ? 'Tracking on' : 'Tracking on \u2014 but not connected')
+      : 'Tracking off';
+    $('tracking-label').textContent = label;
+
+    const bits = [];
+    bits.push(state.has_callsign
+      ? `Connecting as ${state.callsign}, receive only.`
+      : firstLine(state.callsign_problem
+                  || 'No callsign, so tracking cannot start.'));
+    bits.push(state.tracked === 1
+      ? '1 station on the roster is expected to beacon.'
+      : `${state.tracked} stations on the roster are expected to beacon.`);
+    $('tracking-detail').textContent = bits.join(' ');
+
+    const err = $('tracking-error');
+    err.textContent = state.error ? `Last attempt stopped: ${state.error}` : '';
+    err.hidden = !state.error;
+
+    $('tracking-filter').textContent = state.filter || '(empty)';
+  }
+
+  $('tracking-on').onchange = async (ev) => {
+    const wanted = ev.target.checked;
+    ev.target.disabled = true;
+    try {
+      render(await post(`/api/setup/events/${S.eventId}/tracking`,
+                        { enabled: wanted }));
+      banner(wanted ? 'Tracking on.' : 'Tracking off.');
+    } catch (err) {
+      banner(err.message, true);
+      // Put the switch back where it was: leaving it showing a state the
+      // server refused is how someone believes a feed is running.
+      ev.target.checked = !wanted;
+    } finally {
+      ev.target.disabled = false;
+    }
+  };
+}
+
 /* Say which build this is, in the header.
 
    Fetched from /healthz rather than baked into the page, because the page

@@ -40,7 +40,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 429 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 437 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -116,6 +116,22 @@ docs/RUNBOOK.md                     event-day procedure for the club
 These cost real debugging time if violated. Most are load-bearing for event-day
 usability, not style preferences.
 
+- **The feed is OFF unless someone turns it on, and that is a privacy
+  decision.** The buddy filter asks for each operator's callsign wherever they
+  are, not only on the course, so a feed left running records where volunteers
+  live and work. `event.ingest_enabled` is persisted rather than held in
+  memory: a deploy restarts the service, and a feed that failed to come back
+  mid-event looks exactly like a quiet net.
+- **Turning tracking on must start exactly one connection.** `start_ingest`
+  stops any other feed first - APRS-IS bans clients that open several - and is
+  a no-op if that feed is already running, so a double press cannot double the
+  connections. Refuse to enable without a usable callsign rather than starting
+  a task that dies: a switch reading "on" with nothing behind it is worse than
+  no switch.
+- **Nothing tags a release automatically.** The deploy workflow REACTS to a
+  tag; it never creates one. Bump `pyproject.toml` and `__init__.py`, commit,
+  then tag - the release workflow refuses a tag that disagrees with the
+  packaged version, because v0.1.1 once shipped saying 0.1.0.
 - **Receive-only, forever.** Passcode `-1` grants read access and no transmit
   capability. The club needs a callsign and no secret. Never add a real passcode.
 - **One APRS-IS connection for the whole server.** Browsers connect to our
@@ -587,6 +603,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-04** Live tracking is a switch in setup, off by default, with the roster's filter shown.
 - **2026-09-04** The running build is shown in the setup header, so a deploy can be confirmed.
 - **2026-09-04** Fixed: deploy.sh was committed non-executable, so no clone could run it.
 - **2026-09-04** Fixed: deploy.sh assumed /opt/courseops; the install path is now derived.
@@ -596,4 +613,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-04** Deploy can be run by hand against a branch; fixed a branch deploy installing stale code.
 - **2026-09-04** Fixed: a tablet got the phone layout or a strip of map; three layout tiers now.
 - **2026-09-04** Layers moved to the bottom of the panel; the right panel now follows the role.
-- **2026-09-04** Pickups and course notes can be deleted; the removal reaches every browser.

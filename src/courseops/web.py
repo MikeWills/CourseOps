@@ -284,24 +284,40 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     """
     @contextlib.asynccontextmanager
     async def lifespan(application: FastAPI):
-        for slug in ingest_events or []:
-            task = asyncio.create_task(_ingest_for(slug), name=f"ingest:{slug}")
-            application.state.ingest_tasks.append(task)
+        # A slug on the command line means "run this one now", so it is
+        # recorded as the desired state rather than kept only in memory -
+        # otherwise the switch in the UI would show "off" for a feed that is
+        # plainly running.
+        conn = db.connect(settings.db_path)
+        try:
+            db.init_schema(conn)
+            for slug in ingest_events or []:
+                db.set_ingest_enabled(conn, slug, True)
+            wanted = db.events_wanting_ingest(conn)
+        finally:
+            conn.close()
+
+        for slug in wanted:
+            await _start_ingest(slug)
         try:
             yield
         finally:
-            for task in application.state.ingest_tasks:
-                task.cancel()
-            for task in application.state.ingest_tasks:
-                with contextlib.suppress(asyncio.CancelledError):
-                    await task
+            for slug in list(application.state.ingest_tasks):
+                await _stop_ingest(slug)
 
     app = FastAPI(
         title="Course Ops", docs_url=None, redoc_url=None, lifespan=lifespan
     )
     app.state.settings = settings
     app.state.hub = hub_module.Hub()
-    app.state.ingest_tasks = []
+    # slug -> task. A dict rather than a list because the feed is now started
+    # and stopped while the server runs, and "is this one already going?" has
+    # to be answerable without scanning.
+    app.state.ingest_tasks = {}
+    # Why the last attempt stopped, if it did. A feed that fails to start is
+    # the kind of failure nobody notices until the net is quiet for the wrong
+    # reason, so it is kept and shown rather than only logged.
+    app.state.ingest_errors = {}
 
     # A setup change during an event has to reach the field, not wait for
     # someone to pull to refresh.
@@ -819,6 +835,98 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
                 ],
                 "ignored": sorted(db.excluded_station_keys(conn, event_id)),
             })
+        finally:
+            conn.close()
+
+    def _tracking_state(conn, event_id: int) -> dict:
+        """Everything needed to answer "is the feed on, and if not, why not?".
+
+        The last part is the point. A switch that says "on" while nothing
+        arrives is worse than no switch: the failure looks like a quiet net,
+        and a quiet net on race day is something people act on.
+        """
+        row = conn.execute(
+            "SELECT slug, ingest_enabled FROM event WHERE id = ?", (event_id,)
+        ).fetchone()
+        if row is None:
+            raise ValueError("No such event.")
+        slug = row["slug"]
+        tracked = db.tracked_station_keys(conn, event_id)
+        # callsign_problem says WHY it cannot be used, not merely that it
+        # cannot - "still the placeholder N0CALL" is a different fix from
+        # "not set", and the person reading this is not at a terminal.
+        problem = settings.callsign_problem
+        return {
+            "enabled": bool(row["ingest_enabled"]),
+            "running": slug in app.state.ingest_tasks,
+            "callsign": settings.callsign or "",
+            "has_callsign": problem is None,
+            "callsign_problem": problem or "",
+            "tracked": len(tracked),
+            "filter": access_filter_preview(tracked),
+            "error": app.state.ingest_errors.get(slug, ""),
+        }
+
+    def access_filter_preview(tracked) -> str:
+        """The APRS-IS filter this roster produces, for the operator to see.
+
+        Shown because the commonest silent failure here is an empty or wrong
+        filter: the feed connects, nothing matches, and the map stays blank
+        while everything reports healthy.
+        """
+        try:
+            from .aprsis import build_filter
+            return build_filter(sorted(tracked))
+        except Exception:                              # noqa: BLE001
+            return ""
+
+    @app.get("/api/setup/events/{event_id}/tracking")
+    async def setup_tracking(event_id: int, request: Request) -> JSONResponse:
+        conn, user = require_event_admin(request, event_id)
+        try:
+            return JSONResponse(_guard(_tracking_state, conn, event_id))
+        finally:
+            conn.close()
+
+    @app.post("/api/setup/events/{event_id}/tracking")
+    async def setup_set_tracking(event_id: int, request: Request) -> JSONResponse:
+        """Turn this event's APRS-IS feed on or off.
+
+        Off outside race day is the intended state, not an oversight: the
+        filter matches each operator's callsign wherever they are, so a feed
+        left running logs where volunteers live and work for as long as it is
+        up. See docs/PLAN.md.
+        """
+        conn, user = require_event_admin(request, event_id)
+        body = await _json_body(request, conn)
+        wanted = bool(body.get("enabled"))
+        try:
+            state = _guard(_tracking_state, conn, event_id)
+            slug = conn.execute(
+                "SELECT slug FROM event WHERE id = ?", (event_id,)
+            ).fetchone()["slug"]
+
+            if wanted and not state["has_callsign"]:
+                # Refuse rather than start a task that dies immediately: the
+                # switch would sit at "on" with nothing behind it. The message
+                # is the one from settings, which says what to do about it.
+                raise HTTPException(
+                    status_code=400,
+                    detail=" ".join(
+                        state["callsign_problem"].split()))
+            db.set_ingest_enabled(conn, slug, wanted)
+            conn.commit()
+        finally:
+            conn.close()
+
+        if wanted:
+            await app.state.start_ingest(slug)
+        else:
+            await app.state.stop_ingest(slug)
+
+        conn = get_conn()
+        try:
+            return JSONResponse(_tracking_state(conn, event_id))
         finally:
             conn.close()
 
@@ -1642,5 +1750,47 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
             )
 
         await run_ingest(settings, slug, on_position=on_position)
+
+    async def _supervise_ingest(slug: str) -> None:
+        """Run one feed, and remember why it stopped."""
+        try:
+            await _ingest_for(slug)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:                       # noqa: BLE001
+            # A missing callsign lands here, and so does anything APRS-IS does
+            # that the client cannot recover from. Losing it to the log alone
+            # means the switch says "on" and nothing arrives.
+            app.state.ingest_errors[slug] = str(exc) or exc.__class__.__name__
+            log.error("Ingest for %r stopped: %s", slug, exc)
+        finally:
+            app.state.ingest_tasks.pop(slug, None)
+
+    async def _start_ingest(slug: str) -> None:
+        """Start one feed, replacing any other.
+
+        APRS-IS bans clients that open many connections, so there is exactly
+        one for the whole server - which means turning a feed on turns any
+        other one off, rather than quietly running two.
+        """
+        if slug in app.state.ingest_tasks:
+            return
+        for running in list(app.state.ingest_tasks):
+            if running != slug:
+                await _stop_ingest(running)
+        app.state.ingest_errors.pop(slug, None)
+        app.state.ingest_tasks[slug] = asyncio.create_task(
+            _supervise_ingest(slug), name=f"ingest:{slug}")
+
+    async def _stop_ingest(slug: str) -> None:
+        task = app.state.ingest_tasks.pop(slug, None)
+        if task is None:
+            return
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+
+    app.state.start_ingest = _start_ingest
+    app.state.stop_ingest = _stop_ingest
 
     return app

@@ -69,3 +69,19 @@ def test_an_absurd_build_string_is_truncated(monkeypatch):
     """It goes in a header. Nothing here should be able to make that unusable."""
     monkeypatch.setenv("COURSEOPS_BUILD", "x" * 500)
     assert len(build.build_id()) <= 40
+
+
+def test_the_declared_version_matches_the_package_metadata():
+    """Two places say the version and they must agree.
+
+    They drifted once already: v0.1.1 was tagged while both still said 0.1.0,
+    so the header showed "v0.1.0 - v0.1.1", which is exactly the confusion this
+    display exists to prevent.
+    """
+    import re
+    import pathlib
+
+    pyproject = (pathlib.Path(__file__).resolve().parents[1] / "pyproject.toml")
+    declared = re.search(r'(?m)^version = "([^"]+)"',
+                         pyproject.read_text(encoding="utf-8")).group(1)
+    assert declared == build.__version__
