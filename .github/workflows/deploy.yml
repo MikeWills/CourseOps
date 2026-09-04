@@ -1,0 +1,82 @@
+# Deploy a tagged release to the production server over SSH.
+#
+# Runs only on a version tag, never on a merge to main. main stays free for work
+# in progress, and what is running is always a named version you can point at -
+# which also makes rolling back "deploy the previous tag" rather than an
+# archaeology exercise.
+#
+# It waits for the release build to have produced its artefacts first, so a tag
+# that cannot even build never reaches the server.
+#
+# Repository secrets required:
+#   DEPLOY_HOST   hostname or IP of the server
+#   DEPLOY_USER   the user that owns /opt/courseops (courseops)
+#   DEPLOY_KEY    private half of an SSH key whose public half is in that
+#                 user's authorized_keys
+#   DEPLOY_PORT   optional, defaults to 22
+#
+# See docs/DEPLOYMENT.md for how to create that key and why it is restricted to
+# a single command.
+name: deploy
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to deploy, e.g. v0.1.1"
+        required: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # A GitHub Environment is what lets you require an approval before this
+    # runs, and where the secrets live. Even alone, a deliberate click before
+    # touching a server that a club depends on is worth having.
+    environment: production
+
+    steps:
+      - name: Work out what we are deploying
+        id: target
+        run: |
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          if [ -z "$TAG" ]; then echo "no tag to deploy"; exit 1; fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Deploying $TAG"
+
+      - name: Set up the SSH key
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_KEY }}" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          # Pin the host key rather than accepting whatever answers. Without
+          # this, StrictHostKeyChecking=no would deploy happily to anything
+          # holding the address.
+          ssh-keyscan -p "${{ secrets.DEPLOY_PORT || 22 }}" \
+            -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Deploy
+        run: |
+          ssh -i ~/.ssh/id_deploy \
+              -p "${{ secrets.DEPLOY_PORT || 22 }}" \
+              "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
+              "/opt/courseops/deploy/deploy.sh ${{ steps.target.outputs.tag }}"
+
+      # The deploy script already checks health from inside the box and rolls
+      # back if it fails. This checks from outside, which is a different
+      # question: it exercises Apache, TLS and DNS, and catches the case where
+      # the app is fine but nobody can reach it.
+      - name: Check it from the outside
+        if: ${{ vars.PUBLIC_URL != '' }}
+        run: |
+          for attempt in $(seq 1 10); do
+            if curl --silent --fail --max-time 10 "${{ vars.PUBLIC_URL }}/healthz"; then
+              echo; echo "reachable over the public address"
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "deployed, but not reachable at ${{ vars.PUBLIC_URL }}"
+          echo "the app rolled itself back only if IT was unhealthy - check Apache"
+          exit 1

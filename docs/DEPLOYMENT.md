@@ -262,6 +262,88 @@ right reads **Live** in green, and confirm the ◎ button places a blue dot. If
 the badge says *Reconnecting*, the WebSocket is not proxied. If the location dot
 reports *needs HTTPS*, the forwarded scheme is not reaching the app.
 
+## 4a. Deploying from GitHub
+
+Pushing a version tag builds the release and deploys it to the server over SSH.
+Tags rather than merges: `main` stays free for work in progress, what is running
+is always a version you can name, and rolling back is deploying the previous tag
+instead of an archaeology exercise.
+
+The script that does the work is [`deploy/deploy.sh`](../deploy/deploy.sh), and
+it runs perfectly well by hand if you would rather not automate at all:
+
+```bash
+sudo -u courseops /opt/courseops/deploy/deploy.sh v0.1.1
+```
+
+It backs the database up with `.backup` first, keeps the last ten of those,
+installs the tag, restarts the service, and then **verifies `/healthz` and rolls
+back to the previous commit if it does not answer**. Nobody is watching a deploy
+at 03:00, and a half-working one that leaves the app down until somebody notices
+is worse than one that refuses.
+
+### The deploy key
+
+Make a key that exists only for this, on your own machine:
+
+```bash
+ssh-keygen -t ed25519 -f ~/.ssh/courseops_deploy -C "github-deploy" -N ""
+```
+
+Put the **public** half on the server, restricted so that a stolen key cannot be
+used as a shell. `command=` means this key can run exactly one thing regardless
+of what the client asks for:
+
+```bash
+# /home/courseops/.ssh/authorized_keys  (or wherever that user's home is)
+command="/opt/courseops/deploy/deploy.sh ${SSH_ORIGINAL_COMMAND##* }",\
+no-agent-forwarding,no-port-forwarding,no-pty,no-X11-forwarding ssh-ed25519 AAAA... github-deploy
+```
+
+The deploy needs to restart the service, which needs root. Give it that one
+command and nothing else:
+
+```bash
+# sudo visudo -f /etc/sudoers.d/courseops
+courseops ALL=(root) NOPASSWD: /bin/systemctl restart courseops
+```
+
+### Repository settings
+
+Under **Settings -> Secrets and variables -> Actions**, as *secrets*:
+
+| Secret | Value |
+|---|---|
+| `DEPLOY_HOST` | the server's hostname or IP |
+| `DEPLOY_USER` | `courseops` |
+| `DEPLOY_KEY` | the **private** half of the key above |
+| `DEPLOY_PORT` | only if sshd is not on 22 |
+
+And as a *variable* (not a secret - it is public anyway):
+
+| Variable | Value |
+|---|---|
+| `PUBLIC_URL` | `https://courseops.example.org`, to check from outside |
+
+Finally create an **Environment** named `production` under Settings ->
+Environments. That is where the secrets live, and it is what lets you require a
+click before anything touches the server. Worth having even alone: a deliberate
+approval before deploying to a box a club depends on costs one second.
+
+### What it checks
+
+The script checks `/healthz` from inside the box, which answers "does the app
+work" - it opens the database rather than only confirming the process is up,
+because those are different claims and a deploy that proves only the first will
+leave a broken version running.
+
+The workflow then checks `PUBLIC_URL/healthz` from outside, which is a different
+question again: it exercises Apache, TLS and DNS, and catches the case where the
+app is perfectly healthy and nobody can reach it. A failure there is *not* rolled
+back automatically, because the app is fine - the proxy is not.
+
+---
+
 ## 5. Backups
 
 The SQLite file is the entire record — positions, incidents, status history,

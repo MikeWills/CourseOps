@@ -7,6 +7,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **Deployment from GitHub on a version tag**, over SSH. `main` stays free for
+  work in progress, what is running is always a version you can name, and
+  rolling back is deploying the previous tag.
+
+  `deploy/deploy.sh` does the work and runs by hand just as well. It backs the
+  database up with `.backup` first and keeps the last ten, installs the tag,
+  restarts, then **verifies `/healthz` and rolls back if it does not answer** -
+  nobody is watching a deploy at 03:00, and one that half-works and leaves the
+  app down is worse than one that refuses.
+
+- **A `/healthz` endpoint.** Opens the database rather than only confirming the
+  process is up, because those are different claims and a deploy that proves
+  only the first will happily leave a broken version running. Needs no token, so
+  it deliberately reports liveness and a version and nothing about the event.
+
 ### Changed
 - **Replaced the real organizer's course file with a synthetic one** generated
   by `tools/make_course_fixture.py`, ahead of making the repository public. The

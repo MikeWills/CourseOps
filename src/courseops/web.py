@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import importlib.metadata as _metadata
 import logging
 import re
 import sqlite3
@@ -31,6 +32,11 @@ from .ingest import run_ingest
 log = logging.getLogger(__name__)
 
 STATIC_DIR = resources.package_file("static")
+
+try:
+    __version__ = _metadata.version("courseops")
+except Exception:            # running from a source tree with no install
+    __version__ = "0.0.0+source"
 
 SESSION_COOKIE = "courseops_session"
 
@@ -417,6 +423,31 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
             max_age=users.SESSION_DAYS * 24 * 3600,
             path="/",
         )
+
+    @app.get("/healthz")
+    async def healthz() -> JSONResponse:
+        """Is this instance actually working? Used by the deploy to decide
+        whether to keep a new version or roll back.
+
+        Checks the database rather than just answering, because "the process is
+        up" and "the app works" are different claims and a deploy that only
+        proves the first will happily leave a broken version running.
+
+        Deliberately says nothing about the event: this is reachable without a
+        token, so it reports liveness and a version and no more. An unauthorised
+        caller learns that Course Ops is here, which they already knew from the
+        page they are looking at.
+        """
+        try:
+            conn = get_conn()
+            try:
+                conn.execute("SELECT 1 FROM event LIMIT 1").fetchone()
+            finally:
+                conn.close()
+        except Exception:
+            log.exception("Health check could not reach the database")
+            return JSONResponse({"status": "error"}, status_code=503)
+        return JSONResponse({"status": "ok", "version": __version__})
 
     @app.get("/setup")
     async def setup_page(request: Request) -> HTMLResponse:
