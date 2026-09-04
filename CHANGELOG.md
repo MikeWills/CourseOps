@@ -7,7 +7,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed
+- **The Windows release build failed on the icon.** PyInstaller needs `.ico` on
+  Windows and the spec pointed at a `.png`. It built here because Pillow was
+  installed and silently converted it; CI has no Pillow, which is the machine
+  that decides. Now points at the `favicon.ico` that `tools/make_icons.py`
+  already generates, and was rebuilt with Pillow uninstalled to reproduce CI's
+  conditions.
 
 ## [0.1.0] - 2026-09-03
 
