@@ -67,6 +67,7 @@ const state = {
   mePositionAt: 0,      // when the browser last gave us a fix
   meAccuracyM: null,    // and how good it said that fix was
   ssidAlerts: [],
+  nearby: new Map(),          // station_key -> what was heard near the course (NCS only)
   leaders: [],
   divisions: [{value: 'male', label: 'First male'},
               {value: 'female', label: 'First female'}],
@@ -1021,6 +1022,22 @@ function renderStations() {
     });
     row.appendChild(locate);
 
+    // A matched station can be unmatched: the undo for pointing Aid 3 at the
+    // wrong radio. The button names both so the wrong row is not unmatched.
+    const entry = state.roster.get(stationKey);
+    if (can('ssid') && entry && entry.bound_key) {
+      const unmatch = document.createElement('button');
+      unmatch.type = 'button';
+      unmatch.className = 'station-unmatch';
+      unmatch.textContent = `Unmatch ${entry.bound_key}`;
+      unmatch.title = `${entry.display_label} is matched to ${entry.bound_key}; undo that`;
+      unmatch.setAttribute('aria-label', unmatch.title);
+      unmatch.addEventListener('click', () => resolveSsid('unbind', {
+        station_key: entry.station_key,
+      }));
+      row.appendChild(unmatch);
+    }
+
     // Second axis on its own line, so it can never be misread as radio status.
     const opRow = document.createElement('div');
     opRow.className = 'station-op';
@@ -1077,68 +1094,121 @@ function renderSsidAlerts() {
   const section = document.getElementById('ssid-section');
   const host = document.getElementById('ssid-alerts');
   const badge = document.getElementById('sheet-badge');
-  const alerts = state.ssidAlerts || [];
 
-  section.hidden = alerts.length === 0;
-  badge.hidden = alerts.length === 0;
-  badge.textContent = alerts.length ? String(alerts.length) : '';
-  if (!alerts.length) return;
+  // NCS only. These are stations the roster does not know - some of them the
+  // public driving past - and the only thing to do with them is match or
+  // dismiss, which is NCS's job. Nobody else needs the list.
+  if (!can('ssid')) {
+    section.hidden = true;
+    badge.hidden = true;
+    return;
+  }
+
+  // Two sources, one list. Alerts are stored positions under a rostered
+  // callsign on the wrong SSID; nearby is everything else heard around the
+  // course, held in memory on the server. Anything the roster has since
+  // learned about drops out of both.
+  const known = new Set();
+  state.roster.forEach((entry, key) => {
+    known.add(key);
+    if (entry.station_key) known.add(entry.station_key);
+    if (entry.bound_key) known.add(entry.bound_key);
+  });
+  const alerts = (state.ssidAlerts || []).filter((a) => !known.has(a.station_key));
+  const nearby = [...state.nearby.values()].filter((n) => !known.has(n.station_key));
+  const items = alerts.map((a) => ({...a, kind: 'alert'}))
+    .concat(nearby.map((n) => ({...n, kind: 'nearby'})));
+
+  section.hidden = items.length === 0;
+  badge.hidden = items.length === 0;
+  badge.textContent = items.length ? String(items.length) : '';
+  if (!items.length) return;
+
+  // Every roster entry is a candidate: the person with the radio is often not
+  // the person whose callsign is on the roster.
+  const rosterEntries = [...state.roster.values()]
+    .sort((a, b) => String(a.display_label).localeCompare(String(b.display_label)));
 
   host.innerHTML = '';
-  alerts.forEach((alert) => {
+  items.forEach((item) => {
     const box = document.createElement('div');
     box.className = 'ssid-alert';
+
+    const located = item.course_position;
+    const where = located
+      ? `${formatMile(located.distance_along_m)} of ${located.course_name}`
+      : (item.kind === 'nearby' ? 'not near a course' : '');
+    const age = item.received_at ? formatAge(ageSeconds(item.received_at))
+      : (item.last_at ? formatAge(ageSeconds(item.last_at)) : '');
 
     const head = document.createElement('div');
     head.className = 'ssid-head';
     head.innerHTML =
-      `<span class="ssid-key">${escapeHtml(alert.station_key)}</span>` +
-      `<span class="ssid-meta">${escapeHtml(alert.symbol)} · ` +
-      `${alert.packets} pos</span>`;
+      `<span class="ssid-key">${escapeHtml(item.station_key)}</span>` +
+      `<span class="ssid-meta">${escapeHtml(item.symbol)} · ` +
+      `${item.packets} pos${age ? ' · ' + escapeHtml(age) : ''}</span>`;
     box.appendChild(head);
 
     const why = document.createElement('p');
     why.className = 'ssid-why';
-    why.textContent = alert.looks_like_infrastructure
-      ? 'Transmitting under a rostered callsign, but looks like fixed equipment.'
-      : 'Transmitting under a rostered callsign, but this SSID is not on the roster.';
+    why.textContent = item.kind === 'alert'
+      ? (item.looks_like_infrastructure
+        ? 'A rostered callsign, but this looks like fixed equipment.'
+        : 'A rostered callsign on an SSID the roster does not name.')
+      : (item.looks_like_infrastructure
+        ? `Heard near the course; looks like fixed equipment.${where ? ' ' + where + '.' : ''}`
+        : `Heard near the course, not on the roster.${where ? ' ' + where + '.' : ''}`);
     box.appendChild(why);
-
-    if (!can('ssid')) {
-      const note = document.createElement('p');
-      note.className = 'muted';
-      note.textContent = 'Net Control can resolve this.';
-      box.appendChild(note);
-      host.appendChild(box);
-      return;
-    }
 
     const actions = document.createElement('div');
     actions.className = 'ssid-actions';
 
-    // Adopting is offered per roster entry sharing the callsign, so the label
-    // says who it actually is rather than making NCS work it out.
-    alert.roster_candidates.forEach((candidate) => {
+    // The obvious matches first: roster entries sharing this callsign.
+    (item.roster_candidates || []).forEach((candidate) => {
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'ssid-adopt';
       button.textContent = `This is ${candidate.display_label}`;
-      button.title = `Point ${candidate.station_key} at ${alert.station_key}`;
+      button.title = `Point ${candidate.station_key} at ${item.station_key}`;
       button.addEventListener('click', () => resolveSsid('adopt', {
         from_station_key: candidate.station_key,
-        to_station_key: alert.station_key,
+        to_station_key: item.station_key,
       }));
       actions.appendChild(button);
     });
 
+    // Then anyone at all. A select rather than a button per entry: a roster
+    // has thirty rows and this list may have a dozen stations on it.
+    const pick = document.createElement('select');
+    pick.className = 'ssid-pick';
+    pick.setAttribute('aria-label', `Who is ${item.station_key}`);
+    const first = document.createElement('option');
+    first.value = '';
+    first.textContent = 'This is…';
+    pick.appendChild(first);
+    rosterEntries.forEach((entry) => {
+      const option = document.createElement('option');
+      option.value = entry.station_key;
+      option.textContent = `${entry.display_label} (${entry.station_key})`;
+      pick.appendChild(option);
+    });
+    pick.addEventListener('change', () => {
+      if (!pick.value) return;
+      resolveSsid('adopt', {
+        from_station_key: pick.value,
+        to_station_key: item.station_key,
+      });
+    });
+    actions.appendChild(pick);
+
     const ignore = document.createElement('button');
     ignore.type = 'button';
     ignore.className = 'ssid-ignore';
-    ignore.textContent = alert.looks_like_infrastructure
-      ? 'Ignore (equipment)' : 'Ignore';
+    ignore.textContent = 'Ignore';
+    ignore.title = `Keep ${item.station_key} off the map for this event`;
     ignore.addEventListener('click', () => resolveSsid('ignore', {
-      station_key: alert.station_key,
-      reason: alert.symbol,
+      station_key: item.station_key,
+      reason: item.symbol,
     }));
     actions.appendChild(ignore);
 
@@ -1943,6 +2013,7 @@ function applyState(data) {
   if (Array.isArray(data.divisions)) state.divisions = data.divisions;
   state.leaders = data.leaders || [];
   state.ssidAlerts = data.ssid_alerts || [];
+  state.nearby = new Map((data.nearby || []).map((n) => [n.station_key, n]));
   // Which places can report a lead runner is the layer's `staffed` flag, not a
   // hardcoded 'aid_station' - the server already answers it that way, and the
   // two disagreeing would mean a staffed Traffic control post could be sighted
@@ -2074,6 +2145,11 @@ function connect() {
       state.positions.set(message.station_key, message);
       upsertStationMarker(message.station_key);
       renderStations();
+    }
+    if (message.type === 'nearby') {
+      // Only ever sent to a role that can act on it; the server checks.
+      state.nearby.set(message.station_key, message);
+      renderSsidAlerts();
     }
   });
 

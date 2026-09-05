@@ -429,6 +429,21 @@ can see who marked Aid 3 torn down and when. It is a note in a log, not a login.
 Changes appear on the Liaison and Logistics views within a second. Those roles
 can report an incident of their own, and nothing else.
 
+### Needs attention
+
+Only the NCS view has this section. It lists every station beaconing near
+the course that the roster does not know - a rostered callsign on a different
+SSID, or a different callsign altogether: a borrowed rig, a club tracker, a
+spouse's mobile. Nothing about them is stored until you act.
+
+- **This is …** - the buttons offer roster entries sharing the callsign;
+  the drop-down offers everyone. From that moment their positions are
+  stored and they are on the map.
+- **Ignore** - keeps that station off the list for this event. Use it for
+  digipeaters, igates and passers-by.
+- **Unmatch** - on a matched station's roster row, the undo for pointing Aid
+  3 at the wrong radio.
+
 ### What NCS watches
 
 The **station list** sorts with whatever needs attention first: silent, then

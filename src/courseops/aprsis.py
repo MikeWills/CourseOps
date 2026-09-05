@@ -35,13 +35,18 @@ def build_filter(
     station_keys: list[str],
     extra: str | None = None,
     wildcard: bool = True,
+    area: tuple[float, float, float] | None = None,
 ) -> str:
-    """Server-side filter for a known roster.
+    """Server-side filter for a known roster, plus the area around the course.
 
-    A buddy filter is the right tool: the club knows its callsigns in advance,
-    so we ask APRS-IS for exactly those people. That cuts inbound traffic by
-    orders of magnitude versus filtering client-side, and avoids incidentally
-    storing the location of the public.
+    A buddy filter is the first half: the club knows its callsigns in advance,
+    so we ask APRS-IS for exactly those people. The second half is a radius
+    around the course (`area` is (lat, lon, radius_km)), because the person
+    with the radio is often not the person whose callsign is on the roster -
+    a borrowed rig, a club tracker, a spouse's mobile - and NCS has to be able
+    to SEE who is beaconing near the course to match them up. What the area
+    delivers is held in memory and never stored until NCS assigns it; see
+    ingest.handle_line.
 
     **Wildcard by default**, asking for every SSID of each rostered callsign.
     A volunteer who signs up as WX0MIK-1 but beacons WX0MIK-5 would otherwise
@@ -63,6 +68,9 @@ def build_filter(
     clauses = []
     for i in range(0, len(targets), BUDDIES_PER_CLAUSE):
         clauses.append("b/" + "/".join(targets[i:i + BUDDIES_PER_CLAUSE]))
+    if area is not None:
+        lat, lon, radius_km = area
+        clauses.append(f"r/{lat:.4f}/{lon:.4f}/{max(1, round(radius_km))}")
     if extra and extra.strip():
         clauses.append(extra.strip())
     return " ".join(clauses)

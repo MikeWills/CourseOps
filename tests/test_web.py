@@ -833,8 +833,10 @@ def test_ignoring_clears_the_alert(setup):
     assert data["ssid_alerts"] == []
 
 
-def test_adopting_across_callsigns_is_refused(setup):
-    """Guards a mis-click that would silently reassign someone else's identity."""
+def test_adopting_across_callsigns_binds_rather_than_renames(setup):
+    """The person with the radio is often not the person whose callsign is on
+    the roster. The entry keeps what a human typed and is BOUND to the heard
+    station, which is undoable - see test_nearby for the unmatch."""
     app, tokens, db_path, event_id = setup
     conn = db.connect(db_path)
     db.upsert_roster_entry(conn, event_id, "WX0MIK-1", "Aid 3", "aid_station")
@@ -845,8 +847,10 @@ def test_adopting_across_callsigns_is_refused(setup):
             f"/api/m2026/{tokens['ncs']}/ssid/adopt",
             json={"from_station_key": "WX0MIK-1", "to_station_key": "N0CALL-5"},
         )
-    assert response.status_code == 400
-    assert "different callsign" in response.json()["detail"]
+        assert response.status_code == 200
+        data = client.get(f"/api/m2026/{tokens['ncs']}/state").json()
+    entry = next(r for r in data["roster"] if r["station_key"] == "WX0MIK-1")
+    assert entry["tracking_key"] == "N0CALL-5"
 
 
 def test_read_only_roles_see_alerts_but_cannot_resolve_them(setup):
