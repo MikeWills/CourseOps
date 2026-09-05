@@ -447,5 +447,5 @@ running the first.
 | Issue | What it is | When it matters |
 |---|---|---|
 | [#3](https://github.com/MikeWills/CourseOps/issues/3) | OSM's tile policy does not cover a service hosted for many clubs. One URL to change, but the map style affects legibility, so the palette needs rechecking. | Before a second organization shares the box |
-| [#4](https://github.com/MikeWills/CourseOps/issues/4) | Backups are whole-database, so restoring one club rolls back the others, and a backup contains every club's data. | Before a second organization, or before offboarding one |
+| [#4](https://github.com/MikeWills/CourseOps/issues/4) | No way to archive a finished event and take its positions off the live server. The backup above is a backup, not an archive: it holds everything and stays on the box. | Before the first real event's positions have sat here for months |
 | [#5](https://github.com/MikeWills/CourseOps/issues/5) | Resource limits, a signup path (including password reset, which needs email), and static asset caching after an update. | When it is offered rather than run |

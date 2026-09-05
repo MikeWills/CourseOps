@@ -560,8 +560,14 @@ Things discovered but not yet acted on. Each is a real constraint, not a wish.
   A club running on a LAN without TLS still loses it.
 - **OpenStreetMap tile policy** — issue #3. Fine for one club; not for a hosted
   multi-club service.
-- **Per-organization backup and export** — issue #4. The current backup is
-  whole-database.
+- **No way to archive a finished event off the live server** — issue #4,
+  reframed 2026-09-05. The feed records where volunteers live and work, and
+  after an event those positions sit in the live database indefinitely. The
+  fix is a per-event archive - a SQLite file in the same schema holding one
+  event, viewable by running the app against it - followed by a separate,
+  confirmed delete. Nothing install-scoped (users, sessions, tokens) travels.
+  The organization-level export and restore that #4 used to be is now part
+  of #5, because it needs a second club to design against.
 - **Multi-tenant rough edges** — issue #5. Resource limits, a signup path with
   password reset, and static asset caching.
 - ~~**Hand-drawn courses cut corners.**~~ Decided 2026-09-05: accepted, not a
