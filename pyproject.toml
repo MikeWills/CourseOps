@@ -1,6 +1,6 @@
 [project]
 name = "courseops"
-version = "0.2.0"
+version = "0.3.0"
 description = "Web-based APRS tracking and course map for marathon-style events"
 requires-python = ">=3.11"
 license = "MIT"
