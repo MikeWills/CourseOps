@@ -116,6 +116,35 @@ def test_an_empty_event_still_renders(event):
     assert "Nothing to report." in html
 
 
+def test_each_note_gets_a_small_map_with_the_course_under_it(event):
+    """The browser draws them from the same tiles as the live map: no new
+    dependency and nothing leaves the server. A note without Leaflet still
+    says where in words."""
+    conn, event_id = event
+    incidents.create(conn, event_id, lat=44.1705, lon=-93.99, kind="note", note="x")
+    data = report.build(conn, event_id)
+    assert [c["name"] for c in data.courses] == ["Half"]
+    html = report.render(data)
+    assert 'class="mini" data-lat="44.170500" data-lon="-93.990000"' in html
+    assert "leaflet@1.9.4" in html
+    assert "tile.openstreetmap.org" in html
+
+
+def test_a_course_name_cannot_break_out_of_the_courses_block(event):
+    conn, event_id = event
+    conn.execute("UPDATE course SET name = ? WHERE event_id = ?",
+                 ("</script><script>alert(1)</script>", event_id))
+    incidents.create(conn, event_id, lat=44.1705, lon=-93.99, kind="note", note="x")
+    html = report.render(report.build(conn, event_id))
+    assert "<script>alert(1)" not in html
+
+
+def test_courses_are_not_loaded_when_there_is_nothing_to_draw(event):
+    conn, event_id = event
+    incidents.create(conn, event_id, lat=44.121, lon=-93.99)     # a pickup only
+    assert report.build(conn, event_id).courses == []
+
+
 def test_the_time_zone_cannot_break_out_of_the_script(event):
     """The zone is admin-typed text. Inside <script> HTML escaping does not
     protect, so it must never be interpolated there at all."""

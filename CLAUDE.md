@@ -52,6 +52,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
+./.venv/Scripts/python.exe -m pytest -q                 # 466 tests, no network
 ./.venv/Scripts/python.exe -m pytest -q                 # 463 tests, no network
 ./.venv/Scripts/python.exe -m pytest -q                 # 462 tests, no network
 ./.venv/Scripts/python.exe -m pytest -q                 # 471 tests, no network
@@ -206,6 +207,10 @@ usability, not style preferences.
   sorting is status rank then longest-waiting.
 - **Never block incident creation on a dialog.** A pickup is called in before
   the bib is known. Create first, fill the bib in after.
+- **The report's small maps are drawn by the browser, never fetched by the
+  server.** Same Leaflet, same OSM tiles as the live map, so the page adds no
+  dependency and sends nothing anywhere the live map does not already. A
+  static-map API would be a new third party receiving incident coordinates.
 - **The report page carries no names, and times in the EVENT's zone.** It
   goes to the organizer, who needs counts and places, not which volunteer
   reported what. Timestamps are stored UTC and formatted by the browser with
