@@ -56,7 +56,18 @@ html, body {
   -webkit-text-size-adjust: 100%;
 }
 
-#map { position: absolute; inset: 0; }   /* full-bleed */
+/* Full-bleed, and its OWN stacking context. Leaflet puts its controls at
+   z-index 1000 and its popups at 700; without `isolation`, those compete with
+   the top bar (500), the sheet (700) and the stations panel (550) directly,
+   and the zoom buttons floated over the open sheet on a phone - and over the
+   header's connection badge, which is the one thing that says a phone is
+   showing stale data. Isolated, everything inside the map stays under
+   everything laid over it, whatever Leaflet numbers its layers. */
+#map { position: absolute; inset: 0; isolation: isolate; }
+
+/* Leaflet's top controls start 10px from the map's top edge, which is under
+   the top bar. Push them below it - the same height the open sheet uses. */
+#map .leaflet-top { top: calc(46px + env(safe-area-inset-top, 0px)); }
 
 /* --- top bar ------------------------------------------------------------ */
 
@@ -67,9 +78,10 @@ html, body {
   display: flex;
   align-items: center;
   gap: 9px;
-  /* Right padding clears Leaflet's zoom control, which sits in the same
-     corner at a higher z-index and would otherwise hide the status badge. */
-  padding: calc(6px + env(safe-area-inset-top, 0px)) 60px 6px 12px;
+  /* The zoom control used to share this row and the right padding cleared
+     it; it now sits below the bar (see #map .leaflet-top), so the badges get
+     the width back - on a phone the event name was truncating to "2026 ...". */
+  padding: calc(6px + env(safe-area-inset-top, 0px)) 12px 6px 12px;
   background: var(--navy-700);
   color: #fff;
   /* Safety orange as a thin rule: brand presence without competing with the

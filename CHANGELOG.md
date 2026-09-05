@@ -7,6 +7,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **On a phone the zoom buttons sat over the header and over the open panel.**
+  Leaflet places its controls at z-index 1000 inside the map, and the map was
+  not its own stacking context, so they competed with the top bar (500) and
+  the sheet (700) directly: the + button covered the connection badge - the
+  one thing that says a phone is showing stale data - and both buttons floated
+  over the panel once it was open. `#map` is now `isolation: isolate`, so
+  whatever Leaflet numbers its layers they stay under everything laid over
+  the map, and the controls start below the top bar rather than 10px from the
+  top of the screen. The bar's right padding that used to clear the buttons
+  is gone, which gives the event name back its width.
+
 ## [0.1.3] - 2026-09-04
 
 ### Added
