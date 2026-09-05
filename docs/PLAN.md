@@ -90,7 +90,7 @@ that open many connections or reconnect in a tight loop.
 4. **Roster / NCS panel** — dual status axes, staleness scoped to `expects_aprs` *(complete)*
 5. **Course-relative position** — "Full-back at mile 14.2" *(complete)*
 6. **Incidents** — pin, bib, status workflow, operator initials, role-gated writes *(complete)*
-7. **Replay** — scrub the event afterward
+7. ~~**Replay**~~ — dropped 2026-09-05; the report page answers the after-event questions
 8. **Deployment** — Apache reverse proxy, Let's Encrypt, systemd *(complete;
    see `docs/DEPLOYMENT.md`)*
 
@@ -395,16 +395,16 @@ NCS is at a workstation.
 Pace outside 3:00-30:00 per mile is discarded as a clock artifact rather than
 shown; reports arrive in bursts and a bad ETA is worse than none.
 
-### Phase 7 - replay (backlogged, issue #2)
+### Phase 7 - replay (dropped)
 
-A time slider over a finished event. Backlogged deliberately: it is the only
-phase that produces nothing on race day, and it is better designed against real
-event data than an imagined one.
+Dropped 2026-09-05, issue #2 closed. A time slider over a finished event was
+the one phase that produced nothing on race day, and once the report page
+existed the after-event questions the club actually has - how many pickups,
+when, where, what went wrong at which corner - were answered without it.
 
-`position`, `raw_packet`, `incident_log`, `lead_sighting` and now
-`roster_status_log` all keep full history, so an event is reconstructable
-whether or not replay is ever built. A cheaper alternative worth weighing first
-is a post-event CSV export rather than a scrubbing UI.
+Nothing was removed to drop it: `position`, `raw_packet`, `incident_log`,
+`lead_sighting` and `roster_status_log` keep full history, so an event is still
+reconstructable by hand from the database if a question ever needs it.
 
 ## Setup application and tenancy
 
@@ -560,8 +560,14 @@ Things discovered but not yet acted on. Each is a real constraint, not a wish.
   A club running on a LAN without TLS still loses it.
 - **OpenStreetMap tile policy** — issue #3. Fine for one club; not for a hosted
   multi-club service.
-- **Per-organization backup and export** — issue #4. The current backup is
-  whole-database.
+- **No way to archive a finished event off the live server** — issue #4,
+  reframed 2026-09-05. The feed records where volunteers live and work, and
+  after an event those positions sit in the live database indefinitely. The
+  fix is a per-event archive - a SQLite file in the same schema holding one
+  event, viewable by running the app against it - followed by a separate,
+  confirmed delete. Nothing install-scoped (users, sessions, tokens) travels.
+  The organization-level export and restore that #4 used to be is now part
+  of #5, because it needs a second club to design against.
 - **Multi-tenant rough edges** — issue #5. Resource limits, a signup path with
   password reset, and static asset caching.
 - ~~**Hand-drawn courses cut corners.**~~ Decided 2026-09-05: accepted, not a
@@ -589,7 +595,7 @@ Things discovered but not yet acted on. Each is a real constraint, not a wish.
   is set in the UI and saved, but every timestamp is stored UTC and displayed as
   a relative age ("8 minutes ago"), which needs no zone. It becomes load-bearing
   the moment anything shows a clock time - a start time, a lead-runner ETA as
-  wall clock, or Phase 7 replay scrubbing to "07:42". Capturing it now means
+  wall clock. Capturing it now means
   those do not have to guess, and means an event is not silently assumed to be
   in the browser's zone - NCS may be running the net from another state.
 - **Binding picks one SSID and keeps it.** A bare-callsign roster entry binds
@@ -599,7 +605,9 @@ Things discovered but not yet acted on. Each is a real constraint, not a wish.
   NCS to press "This is <label>" on the new SSID, which rebinds. There is no UI
   for unbinding without a new SSID to point at; `db.unbind_station` exists for
   when that turns out to be needed.
-- **Non-ham volunteers cannot be tracked today** - issue #6. Bike medics, race
+- **Non-ham volunteers cannot be tracked today** - issue #6, **a future
+  feature: decided 2026-09-05 that it is not being built for the first event.**
+  The design below stands for when it is. Bike medics, race
   staff and non-licensed drivers have no callsign, and APRS is the only tracking
   mechanism. The medic is often the person NCS most wants to locate.
 
@@ -663,9 +671,9 @@ Things discovered but not yet acted on. Each is a real constraint, not a wish.
   timestamp and never arrival time - or a medic returning to coverage looks
   freshly located somewhere they left. Out-of-order and duplicate points come
   from the same mechanism.
-- **Course notes have no export** - issue #7. Their whole value is the organizer
-  reading them after the event, which currently means reading them off a screen
-  before the database is cleared.
+- ~~**Course notes have no export**~~ - done 2026-09-05, issue #7. The report
+  page (`report.py`) is one printable page for the race lead: pickup counts by
+  stop and window, and every course note with a small map, no names.
 - ~~**Place types were a fixed list.**~~ Resolved: `poi_category` is per-event
   data with no limit, and `staffed` replaced the hardcoded `aid_station` check.
   The remaining constraint is display, not storage: past a handful of layers,
