@@ -605,7 +605,9 @@ Things discovered but not yet acted on. Each is a real constraint, not a wish.
   NCS to press "This is <label>" on the new SSID, which rebinds. There is no UI
   for unbinding without a new SSID to point at; `db.unbind_station` exists for
   when that turns out to be needed.
-- **Non-ham volunteers cannot be tracked today** - issue #6. Bike medics, race
+- **Non-ham volunteers cannot be tracked today** - issue #6, **a future
+  feature: decided 2026-09-05 that it is not being built for the first event.**
+  The design below stands for when it is. Bike medics, race
   staff and non-licensed drivers have no callsign, and APRS is the only tracking
   mechanism. The medic is often the person NCS most wants to locate.
 
