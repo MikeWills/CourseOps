@@ -10,7 +10,7 @@ Event-day operating procedure: `docs/RUNBOOK.md`.
 Deployment behind Apache with TLS: `docs/DEPLOYMENT.md`.
 Brand, palette and logo decisions: `docs/DESIGN.md`.
 Complete history with the reasoning behind each fix: `CHANGELOG.md`.
-Open work is tracked as GitHub issues: #1 GPX import, #2 replay,
+Open work is tracked as GitHub issues: #2 replay,
 #3 map tiles, #4 per-organization backup, #5 multi-tenant hosting,
 #6 tracking non-ham volunteers, #7 incident and course-note export.
 Issues #3-#5 are triggered by hosting a SECOND organization, not the first.
@@ -41,7 +41,7 @@ switch in the UI and is OFF until someone turns it on.
 **Never tested against real APRS traffic.** Every run so far has had the feed
 off. That is the largest untested claim here.
 
-Phases: 1 ingest ✅ · 2 KML import ✅ · 3 live map ✅ · 4 roster/NCS panel ✅ ·
+Phases: 1 ingest ✅ · 2 KML/GPX import ✅ · 3 live map ✅ · 4 roster/NCS panel ✅ ·
 4a What3Words ✅ · 5 course-relative position ✅ · 6 incidents ✅ ·
 7 replay (backlogged, issue #2) · 8 deployment ✅ (automatic, on a version tag)
 
@@ -52,7 +52,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 453 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 471 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -93,6 +93,7 @@ src/courseops/
   ingest.py       feed -> parse -> store; on_position hook for Phase 3 WebSocket
   geo.py          haversine, line length, segment stitching; (lon, lat) order
   kml.py          KML/KMZ parsing, hardened; classification is advisory only
+  gpx.py          GPX tracks/routes/waypoints into the same features as KML
   importer.py     two-phase import: stage for review, then commit assignments
   units.py        metric storage -> US customary display
   progress.py     snap a station onto a course: "mile 14.2 of Full"
@@ -219,8 +220,10 @@ usability, not style preferences.
 - **KML is untrusted third-party input.** It comes from the race organizer and
   will arrive by web upload. Parse with `defusedxml`, keep the KMZ decompression
   and size guards, and never swap back to stdlib `ElementTree.fromstring`.
-- **Coordinates are (lon, lat)** in `geo.py`, `kml.py` and GeoJSON — the reverse
-  of how everyone speaks. The database stores `lat`/`lon` as named columns.
+- **Coordinates are (lon, lat)** in `geo.py`, `kml.py`, `gpx.py` and GeoJSON —
+  the reverse of how everyone speaks. The database stores `lat`/`lon` as named
+  columns. GPX is the trap: it writes `lat=".." lon=".."` as attributes,
+  lat-first, and `gpx.py` is the one place that turns them around.
 - **`geo.stitch` must grow the chain at both ends.** Growing only from the tail
   silently folds a course back on itself when the file lists a middle segment
   first. This was a real bug; there is a regression test.
@@ -672,6 +675,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-05** GPX course import: tracks, routes and waypoints through the same review as KML (#1).
 - **2026-09-04** Fixed: returning to the app on a phone could scroll the header away and show the closed panel.
 - **2026-09-04** Fixed: a place's popup showed the organizer's whole HTML document as its notes.
 - **2026-09-04** Fixed: on a phone the zoom buttons covered the header and floated over the open panel.
@@ -681,4 +685,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-04** Live tracking is a switch in setup, off by default, with the roster's filter shown.
 - **2026-09-04** The running build is shown in the setup header, so a deploy can be confirmed.
 - **2026-09-04** Fixed: deploy.sh was committed non-executable, so no clone could run it.
-- **2026-09-04** Fixed: deploy.sh assumed /opt/courseops; the install path is now derived.

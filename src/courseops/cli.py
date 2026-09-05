@@ -805,9 +805,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("callsign")
     p.set_defaults(func=cmd_remove_station)
 
-    p = sub.add_parser("import", help="stage a KML/KMZ file for review")
+    p = sub.add_parser("import", help="stage a KML/KMZ/GPX file for review")
     p.add_argument("event")
-    p.add_argument("file", help="path to a .kml or .kmz file")
+    p.add_argument("file", help="path to a .kml, .kmz or .gpx file")
     p.set_defaults(func=cmd_import)
 
     p = sub.add_parser("review", help="list staged features awaiting assignment")

@@ -684,7 +684,8 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         # Written to a temp file because the parser takes a path: it has to
         # detect KMZ by reading the zip header, not by trusting the extension.
         import tempfile
-        suffix = ".kmz" if (file.filename or "").lower().endswith(".kmz") else ".kml"
+        lowered = (file.filename or "").lower()
+        suffix = next((ext for ext in (".kmz", ".gpx") if lowered.endswith(ext)), ".kml")
         tmp = pathlib.Path(tempfile.mkdtemp()) / f"upload{suffix}"
         tmp.write_bytes(payload)
         try:
