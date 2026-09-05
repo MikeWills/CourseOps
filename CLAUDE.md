@@ -52,6 +52,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
+./.venv/Scripts/python.exe -m pytest -q                 # 463 tests, no network
 ./.venv/Scripts/python.exe -m pytest -q                 # 462 tests, no network
 ./.venv/Scripts/python.exe -m pytest -q                 # 471 tests, no network
 
