@@ -7,14 +7,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-### Changed
-- **The Operator box asks for a callsign rather than initials.** That is how
-  a ham signs a log and what the net already calls them by. It stays free
-  text - a name or initials still work for anyone without one - and the only
-  thing that changed underneath is that something shaped like a callsign is
-  uppercased so `wx0mik` and `WX0MIK` are not two people in the log, while a
-  name is left exactly as typed. Room for 24 characters, matching what the
-  server already kept.
+## [0.3.0] - 2026-09-05
+
 ### Added
 - **Net Control sees every station beaconing near the course, and matches
   them to the roster.** The person with the radio is often not the person
@@ -33,6 +27,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   back to waiting; the next match or heard SSID takes it.
 
 ### Changed
+- **The Operator box asks for a callsign rather than initials.** That is how
+  a ham signs a log and what the net already calls them by. It stays free
+  text - a name or initials still work for anyone without one - and the only
+  thing that changed underneath is that something shaped like a callsign is
+  uppercased so `wx0mik` and `WX0MIK` are not two people in the log, while a
+  name is left exactly as typed. Room for 24 characters, matching what the
+  server already kept.
 - **A roster entry can be matched to a different callsign.** It used to be
   refused. It is done by binding, never by renaming: what a human typed
   survives, the status log stays on one key, and it is undoable.
