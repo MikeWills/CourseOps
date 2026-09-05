@@ -32,7 +32,8 @@ def app_with_events(tmp_path, monkeypatch):
     running: set[str] = set()
     started: list[str] = []
 
-    async def fake_feed(settings, slug, on_position=None, max_packets=None):
+    async def fake_feed(settings, slug, on_position=None, max_packets=None,
+                        on_nearby=None):
         started.append(slug)
         running.add(slug)
         try:
@@ -125,7 +126,8 @@ def test_a_feed_that_dies_records_why(app_with_events, monkeypatch):
     the failure looks like a quiet net, and people act on a quiet net."""
     app, _, _, _ = app_with_events
 
-    async def explodes(settings, slug, on_position=None, max_packets=None):
+    async def explodes(settings, slug, on_position=None, max_packets=None,
+                       on_nearby=None):
         raise RuntimeError("no callsign configured")
 
     monkeypatch.setattr(web, "run_ingest", explodes)

@@ -7,6 +7,33 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **Net Control sees every station beaconing near the course, and matches
+  them to the roster.** The person with the radio is often not the person
+  whose callsign is on the roster - a borrowed rig, a club tracker, a
+  spouse's mobile - and the buddy filter could not hear them at all. The feed
+  now asks APRS-IS for a radius around the course (its extent plus a mile) as
+  well as the roster's callsigns. What arrives that the roster does not know
+  is held in memory, sent only to the NCS view under "Needs attention", and
+  written to the database only once NCS says who it is: "This is Aid 3"
+  offers every roster entry, not just those sharing the callsign. **Ignore**
+  keeps a station off the list for the event. A restart empties the list,
+  which costs one beacon interval. Nothing about the public is stored - not
+  a position, not a raw packet.
+- **Unmatch.** A matched station shows an "Unmatch" button on its roster row
+  for NCS, the undo for pointing Aid 3 at the wrong radio. The entry goes
+  back to waiting; the next match or heard SSID takes it.
+
+### Changed
+- **A roster entry can be matched to a different callsign.** It used to be
+  refused. It is done by binding, never by renaming: what a human typed
+  survives, the status log stays on one key, and it is undoable.
+- **"Needs attention" is Net Control's alone.** Other roles used to see it
+  with a note that NCS could resolve it; there is nothing they can do with
+  it, and it now lists the public.
+- **The Ignore button says Ignore.** It used to say "Ignore (equipment)" for
+  a digipeater, which read as a different action.
+
 ### Fixed
 - **"Needs attention" did not appear until the page was refreshed.** Found on
   the first real feed. The SSID alerts are computed from stored positions and

@@ -925,7 +925,30 @@ body {
 .ssid-why { margin: 4px 0 8px; font-size: 13px; color: var(--ink); }
 
 .ssid-actions { display: flex; flex-wrap: wrap; gap: 6px; }
-.ssid-adopt, .ssid-ignore {
+.ssid-adopt, .ssid-pick {
+  min-height: 38px;
+  max-width: 100%;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+  font: inherit;
+  font-size: 14px;
+  color: var(--ink);
+}
+.station-unmatch {
+  margin: 2px 0 4px;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.ssid-ignore {
   min-height: 38px;
   padding: 0 10px;
   border-radius: 8px;

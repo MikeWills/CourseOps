@@ -1310,6 +1310,11 @@ async function loadTracking() {
     bits.push(state.tracked === 1
       ? '1 station on the roster is expected to beacon.'
       : `${state.tracked} stations on the roster are expected to beacon.`);
+    if (state.area_mi) {
+      bits.push(`Plus every station within ${state.area_mi} mi of the course centre `
+        + '(the course plus a mile), shown to Net Control to match or ignore; '
+        + 'nothing about them is stored until matched.');
+    }
     $('tracking-detail').textContent = bits.join(' ');
 
     const err = $('tracking-error');

@@ -55,8 +55,15 @@ def handle_line(
     log_all_raw: bool = True,
     base_callsigns: set[str] | None = None,
     excluded: set[str] | None = None,
+    nearby: list[PositionReport] | None = None,
 ) -> PositionReport | None:
-    """Parse and store one line. Returns the report if it was stored."""
+    """Parse and store one line. Returns the report if it was stored.
+
+    A report from a station the roster does not know is NOT stored and not
+    logged - not even raw. The area filter delivers the public, and the deal
+    is that they are seen, in memory, by NCS, and written down only once NCS
+    says who they are. It goes into `nearby` for the caller to hand on.
+    """
     try:
         report = parse_packet(line)
     except Rejected as rejection:
@@ -88,10 +95,12 @@ def handle_line(
         if known:
             stats.unexpected_ssid.add(report.station_key)
 
-    if (roster_keys or base_callsigns) and not known:
+    # The roster is the allowlist. With no roster at all nothing is known and
+    # nothing is stored, which is what makes an area filter safe to run.
+    if not known:
         stats.not_rostered += 1
-        if log_all_raw:
-            db.log_raw_packet(conn, event_id, report.received_at, line, "not_rostered")
+        if nearby is not None:
+            nearby.append(report)
         return None
 
     db.insert_position(conn, event_id, report)
@@ -118,11 +127,46 @@ def _now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+# How far beyond the course's own extent the area filter reaches. A mile is
+# enough to catch someone parked at a trailhead or driving to their station
+# without pulling in the next town over.
+AREA_MARGIN_M = 1609.344
+
+# How often the ingest loop re-reads who is on the roster. NCS binds a station
+# heard nearby to a roster entry mid-event, and from then on its packets have
+# to be STORED rather than held in memory - so membership cannot be a snapshot
+# taken when the feed started. Re-read on an unknown packet, at most this often.
+MEMBERSHIP_REFRESH_S = 5.0
+
+
+class Membership:
+    """Who the roster knows, re-read cheaply while the feed runs."""
+
+    def __init__(self, conn: sqlite3.Connection, event_id: int) -> None:
+        self._conn = conn
+        self._event_id = event_id
+        self._read_at = 0.0
+        self.refresh(force=True)
+
+    def refresh(self, force: bool = False) -> None:
+        import time
+        now = time.monotonic()
+        if not force and now - self._read_at < MEMBERSHIP_REFRESH_S:
+            return
+        self._read_at = now
+        conn, event_id = self._conn, self._event_id
+        self.roster_keys = set(db.all_station_keys(conn, event_id))
+        self.roster_keys |= db.bound_station_keys(conn, event_id)
+        self.base_callsigns = db.rostered_base_callsigns(conn, event_id)
+        self.excluded = db.excluded_station_keys(conn, event_id)
+
+
 async def run_ingest(
     settings: Settings,
     event_slug: str,
     on_position: PositionHandler | None = None,
     max_packets: int | None = None,
+    on_nearby: PositionHandler | None = None,
 ) -> IngestStats:
     """Connect to APRS-IS for one event and store what arrives.
 
@@ -144,19 +188,23 @@ async def run_ingest(
     # check accepts anyone on the roster, since an area filter can legitimately
     # deliver a rostered operator who was not expected to report.
     filter_keys = db.tracked_station_keys(conn, event["id"])
-    roster_keys = set(db.all_station_keys(conn, event["id"]))
-    base_callsigns = db.rostered_base_callsigns(conn, event["id"])
-    excluded = db.excluded_station_keys(conn, event["id"])
-    if not filter_keys and not event["aprs_filter_extra"]:
+    membership = Membership(conn, event["id"])
+    from . import progress
+    area = progress.CourseIndex.for_event(conn, event["id"]).area(AREA_MARGIN_M)
+    if not filter_keys and not event["aprs_filter_extra"] and area is None:
         raise SystemExit(
-            f"Event {event_slug!r} has no APRS-expecting roster entries and no "
-            "extra filter. Add stations, or an area filter, before ingesting."
+            f"Event {event_slug!r} has no APRS-expecting roster entries, no "
+            "course and no extra filter. Add stations or a course before ingesting."
         )
 
-    aprs_filter = aprsis.build_filter(filter_keys, event["aprs_filter_extra"])
+    aprs_filter = aprsis.build_filter(
+        filter_keys, event["aprs_filter_extra"],
+        area=(area[0], area[1], area[2] / 1000.0) if area else None,
+    )
     log.info(
         "Ingesting event %r (%d rostered, %d expected to beacon, %d excluded)",
-        event_slug, len(roster_keys), len(filter_keys), len(excluded),
+        event_slug, len(membership.roster_keys), len(filter_keys),
+        len(membership.excluded),
     )
 
     stats = IngestStats()
@@ -166,10 +214,18 @@ async def run_ingest(
             settings.host, settings.port, settings.callsign,
             settings.passcode, aprs_filter,
         ):
+            nearby: list[PositionReport] = []
             report = handle_line(
-                conn, event["id"], roster_keys, line, stats,
-                base_callsigns=base_callsigns, excluded=excluded,
+                conn, event["id"], membership.roster_keys, line, stats,
+                base_callsigns=membership.base_callsigns,
+                excluded=membership.excluded, nearby=nearby,
             )
+            if nearby:
+                # Unknown to the roster as of the last read. NCS may have
+                # assigned it since, so re-read before deciding it is news.
+                membership.refresh()
+                if nearby[0].station_key not in membership.roster_keys                         and on_nearby is not None:
+                    await on_nearby(event["id"], nearby[0])
             if report is not None:
                 log.info(
                     "%s  %.5f,%.5f  %s",

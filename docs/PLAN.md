@@ -280,6 +280,16 @@ UI for moving a marker yet. Today the fix is for NCS or SAG to delete it.
 
 ## Key domain decisions
 
+- **The area around the course is heard, and only matched stations are
+  stored.** Decided 2026-09-05, on the first live feed. The buddy filter was
+  chosen to avoid storing the public's location, and it also could not hear
+  the person on the roster when they were using someone else's radio - which
+  turned out to be common. The resolution keeps the privacy posture and fixes
+  the operational one: the feed asks for the roster PLUS a radius (course
+  extent plus a mile); what the roster does not know is held in memory, shown
+  only to NCS, and stored only once NCS says who it is. "Buddy filter, not
+  area filter" is superseded by "area filter, seen not stored".
+
 - **Receive-only, passcode `-1`.** Grants read access and no transmit capability.
   The club needs a callsign and no secret at all.
 - **Buddy filter, not area filter.** The roster is known in advance, so ask APRS-IS

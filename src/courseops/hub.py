@@ -33,6 +33,10 @@ QUEUE_MAXSIZE = 64
 @dataclass(eq=False)
 class Subscription:
     event_id: int
+    # What the browser on the other end may see. Most messages go to every
+    # role; the stations heard near the course go only to a role that can act
+    # on them, because they are the public and nobody else needs a list of them.
+    capabilities: frozenset = frozenset()
     queue: asyncio.Queue = field(
         default_factory=lambda: asyncio.Queue(maxsize=QUEUE_MAXSIZE)
     )
@@ -45,8 +49,8 @@ class Hub:
     def __init__(self) -> None:
         self._subscribers: dict[int, set[Subscription]] = defaultdict(set)
 
-    def subscribe(self, event_id: int) -> Subscription:
-        sub = Subscription(event_id=event_id)
+    def subscribe(self, event_id: int, capabilities=()) -> Subscription:
+        sub = Subscription(event_id=event_id, capabilities=frozenset(capabilities))
         self._subscribers[event_id].add(sub)
         log.debug("Subscriber added for event %s (%d total)",
                   event_id, len(self._subscribers[event_id]))
@@ -58,9 +62,16 @@ class Hub:
     def subscriber_count(self, event_id: int) -> int:
         return len(self._subscribers.get(event_id, ()))
 
-    async def publish(self, event_id: int, message: dict[str, Any]) -> None:
-        """Fan a message out. Never blocks on a slow subscriber."""
+    async def publish(
+        self, event_id: int, message: dict[str, Any], requires: str | None = None
+    ) -> None:
+        """Fan a message out. Never blocks on a slow subscriber.
+
+        `requires` names a capability a subscriber must hold to receive it.
+        """
         for sub in list(self._subscribers.get(event_id, ())):
+            if requires is not None and requires not in sub.capabilities:
+                continue
             try:
                 sub.queue.put_nowait(message)
             except asyncio.QueueFull:

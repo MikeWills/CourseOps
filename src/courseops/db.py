@@ -666,11 +666,29 @@ def change_station_key(
             raise ValueError(f"{old_key} is not on this event's roster.")
         return row
 
+    # A different callsign altogether: the person on the roster is using a
+    # radio that is not theirs - a borrowed rig, a club tracker, a spouse's
+    # mobile. Bind rather than rename, for the same reason as the bare
+    # callsign above: what a human typed stays, the status log stays on one
+    # key, and it is undoable.
     if old_key.split("-", 1)[0] != new_key.split("-", 1)[0]:
-        raise ValueError(
-            f"{new_key} is a different callsign from {old_key}; "
-            "add it as a new roster entry instead."
+        taken = conn.execute(
+            "SELECT station_key FROM roster"
+            " WHERE event_id = ? AND (station_key = ? OR bound_key = ?)",
+            (event_id, new_key, new_key),
+        ).fetchone()
+        if taken is not None:
+            raise ValueError(f"{new_key} already belongs to {taken['station_key']}.")
+        cur = conn.execute(
+            "UPDATE roster SET bound_key = ? WHERE event_id = ? AND station_key = ?",
+            (new_key, event_id, old_key),
         )
+        if cur.rowcount == 0:
+            raise ValueError(f"{old_key} is not on this event's roster.")
+        return conn.execute(
+            "SELECT * FROM roster WHERE event_id = ? AND station_key = ?",
+            (event_id, old_key),
+        ).fetchone()
     existing = conn.execute(
         "SELECT 1 FROM roster WHERE event_id = ? AND station_key = ?",
         (event_id, new_key),
