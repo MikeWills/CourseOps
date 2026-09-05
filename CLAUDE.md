@@ -10,7 +10,7 @@ Event-day operating procedure: `docs/RUNBOOK.md`.
 Deployment behind Apache with TLS: `docs/DEPLOYMENT.md`.
 Brand, palette and logo decisions: `docs/DESIGN.md`.
 Complete history with the reasoning behind each fix: `CHANGELOG.md`.
-Open work is tracked as GitHub issues: #2 replay,
+Open work is tracked as GitHub issues:
 #3 map tiles, #4 per-organization backup, #5 multi-tenant hosting,
 #6 tracking non-ham volunteers.
 Issues #3-#5 are triggered by hosting a SECOND organization, not the first.
@@ -43,7 +43,7 @@ off. That is the largest untested claim here.
 
 Phases: 1 ingest ✅ · 2 KML/GPX import ✅ · 3 live map ✅ · 4 roster/NCS panel ✅ ·
 4a What3Words ✅ · 5 course-relative position ✅ · 6 incidents ✅ ·
-7 replay (backlogged, issue #2) · 8 deployment ✅ (automatic, on a version tag)
+7 replay (dropped) · 8 deployment ✅ (automatic, on a version tag)
 
 ## Commands
 

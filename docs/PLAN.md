@@ -90,7 +90,7 @@ that open many connections or reconnect in a tight loop.
 4. **Roster / NCS panel** — dual status axes, staleness scoped to `expects_aprs` *(complete)*
 5. **Course-relative position** — "Full-back at mile 14.2" *(complete)*
 6. **Incidents** — pin, bib, status workflow, operator initials, role-gated writes *(complete)*
-7. **Replay** — scrub the event afterward
+7. ~~**Replay**~~ — dropped 2026-09-05; the report page answers the after-event questions
 8. **Deployment** — Apache reverse proxy, Let's Encrypt, systemd *(complete;
    see `docs/DEPLOYMENT.md`)*
 
@@ -395,16 +395,16 @@ NCS is at a workstation.
 Pace outside 3:00-30:00 per mile is discarded as a clock artifact rather than
 shown; reports arrive in bursts and a bad ETA is worse than none.
 
-### Phase 7 - replay (backlogged, issue #2)
+### Phase 7 - replay (dropped)
 
-A time slider over a finished event. Backlogged deliberately: it is the only
-phase that produces nothing on race day, and it is better designed against real
-event data than an imagined one.
+Dropped 2026-09-05, issue #2 closed. A time slider over a finished event was
+the one phase that produced nothing on race day, and once the report page
+existed the after-event questions the club actually has - how many pickups,
+when, where, what went wrong at which corner - were answered without it.
 
-`position`, `raw_packet`, `incident_log`, `lead_sighting` and now
-`roster_status_log` all keep full history, so an event is reconstructable
-whether or not replay is ever built. A cheaper alternative worth weighing first
-is a post-event CSV export rather than a scrubbing UI.
+Nothing was removed to drop it: `position`, `raw_packet`, `incident_log`,
+`lead_sighting` and `roster_status_log` keep full history, so an event is still
+reconstructable by hand from the database if a question ever needs it.
 
 ## Setup application and tenancy
 
@@ -589,7 +589,7 @@ Things discovered but not yet acted on. Each is a real constraint, not a wish.
   is set in the UI and saved, but every timestamp is stored UTC and displayed as
   a relative age ("8 minutes ago"), which needs no zone. It becomes load-bearing
   the moment anything shows a clock time - a start time, a lead-runner ETA as
-  wall clock, or Phase 7 replay scrubbing to "07:42". Capturing it now means
+  wall clock. Capturing it now means
   those do not have to guess, and means an event is not silently assumed to be
   in the browser's zone - NCS may be running the net from another state.
 - **Binding picks one SSID and keeps it.** A bare-callsign roster entry binds
