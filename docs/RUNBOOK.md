@@ -422,9 +422,10 @@ were the other.
 Closed stations dim and sink to the bottom of the list, so what is still running
 stays at the top.
 
-**Type your initials** in the Operator box at the bottom of the panel, once per
-shift. They are stamped on every status change with a timestamp, so a handover
-can see who marked Aid 3 torn down and when. It is a note in a log, not a login.
+**Type your callsign** in the Operator box at the bottom of the panel, once per
+shift. It is stamped on every status change with a timestamp, so a handover
+can see who marked Aid 3 torn down and when. It is a note in a log, not a
+login - a name or initials does the same job for anyone without a callsign.
 
 Changes appear on the Liaison and Logistics views within a second. Those roles
 can report an incident of their own, and nothing else.

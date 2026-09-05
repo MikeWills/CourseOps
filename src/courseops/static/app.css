@@ -663,7 +663,7 @@ body {
   color: var(--silent);
 }
 
-/* Operator initials: a log annotation for shift handover, never authentication.
+/* Operator callsign: a log annotation for shift handover, never authentication.
    Only shown to roles that can write. */
 .operator-row {
   display: flex;
@@ -673,7 +673,7 @@ body {
 }
 .operator-row span { flex: 1; }
 #operator-initials {
-  width: 90px;
+  width: 130px;
   min-height: 40px;
   padding: 6px 10px;
   border: 1px solid var(--line);
