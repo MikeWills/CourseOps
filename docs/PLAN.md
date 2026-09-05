@@ -554,11 +554,17 @@ Things discovered but not yet acted on. Each is a real constraint, not a wish.
   whole-database.
 - **Multi-tenant rough edges** — issue #5. Resource limits, a signup path with
   password reset, and static asset caching.
-- **Hand-drawn courses cut corners.** The Mankato export has 13 straight-line
-  gaps over 200 m (largest 1241 m) where the route builder used direct/offroad
-  mode. Chords are shorter than the road, so Phase 5 mile figures drift on such
-  files. GIS-sourced courses should not have this; `test_real_course.py` asserts
-  the shape of the problem.
+- ~~**Hand-drawn courses cut corners.**~~ Decided 2026-09-05: accepted, not a
+  gap. The Mankato export has 13 straight-line gaps over 200 m (largest
+  1241 m) where the route builder used direct/offroad mode, so the line is
+  shorter than the road and Phase 5 mile figures drift on such files. The
+  club's position is that the course line exists to *see the route*; the
+  authoritative distance information is the mile-marker places the organizer
+  supplies, and those are exact regardless of how the line was drawn. So
+  nothing will smooth, snap or re-measure a course, and a snapped mile figure
+  is a convenience with the course name beside it, never the number someone
+  plans around. `test_real_course.py` still asserts the shape of the file so
+  a change in the organizer's export is noticed.
 - **Course files carry no aid stations.** True of the MapMyRun export and likely
   of others, so aid station locations and their What3Words addresses are a
   manual step regardless of file format. A test asserts this so we notice if a

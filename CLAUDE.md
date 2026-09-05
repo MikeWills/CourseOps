@@ -422,8 +422,10 @@ usability, not style preferences.
   do not sort at all. `CourseIndex.order_along_course()`.
 - **The course name always travels with the mile.** Routes share road, so the
   snap is a coin flip there; "mile 14.2" alone would mislead.
-- **Mile figures inherit the course geometry's accuracy.** A hand-drawn route
-  that cuts corners is shorter than the road. Never silently smooth it.
+- **Mile figures inherit the course geometry's accuracy, and that is
+  accepted.** A hand-drawn route that cuts corners is shorter than the road.
+  Never smooth, snap or re-measure it: the line is there to see the route, and
+  the organizer's mile-marker places carry the real distances.
 - **Icons: regenerate with `python tools/make_icons.py`, never by hand.** iOS
   ignores SVG and the manifest for home screen icons; Android crops maskable
   icons to the central 80%. Full-bleed sources keep square corners because both
