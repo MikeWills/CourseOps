@@ -273,8 +273,11 @@ usability, not style preferences.
   permission and each endpoint names what it needs, so widening a role is a
   change to `ROLE_CAPABILITIES`. A valid token lacking the capability gets 403;
   an invalid token still gets 404.
-- **Operator initials are a log annotation, never identity.** Free text, kept in
-  the browser, truncated server-side. Nothing may start trusting it as auth.
+- **The operator callsign is a log annotation, never identity.** Asked for as
+  a callsign because that is how a ham signs a log, but it is free text - a
+  name or initials work - kept in the browser, truncated server-side. Nothing
+  may start trusting it as auth, and nothing may validate it as a callsign:
+  the one check is whether to uppercase it.
 - **`/healthz` is unauthenticated and stays minimal.** Liveness and a version,
   nothing else - there is a test asserting the exact key set. The deployed
   COMMIT in particular belongs behind the login (`/api/setup/session`), because
@@ -711,6 +714,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-05** The Operator box asks for a callsign; still free text, so a name works too.
 - **2026-09-05** NCS sees every station near the course and matches it to anyone on the roster; Unmatch undoes it.
 - **2026-09-05** Fixed: "Needs attention" only appeared after a refresh; an unknown station now announces itself live.
 - **2026-09-05** After-event report page for the race lead: pickups counted, notes listed, no names (#7).
@@ -720,4 +724,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-04** Fixed: on a phone the zoom buttons covered the header and floated over the open panel.
 - **2026-09-04** Every role can report a pickup or course note; only NCS and SAG work the queue.
 - **2026-09-04** "Here" drops the pin at your own location, beside the map tap rather than replacing it.
-- **2026-09-04** The locate button is a crosshair, and no longer hidden behind the stations panel.

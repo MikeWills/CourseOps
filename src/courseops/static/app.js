@@ -2292,15 +2292,28 @@ document.getElementById('locate-btn').addEventListener('click', () => {
   );
 });
 
-/* ---------- operator initials ------------------------------------------- */
+/* ---------- operator callsign ------------------------------------------ */
 
 /* Typed once per shift and kept in this browser. It annotates who changed a
    status so a handover can see what happened; it is NOT authentication and
-   nothing should ever start trusting it as identity. */
+   nothing should ever start trusting it as identity.
+
+   Asked for as a callsign, because that is how a ham signs a log and it is
+   what the net already calls them by - but it stays free text, so a name or
+   initials work for anyone without one. */
 const initialsInput = document.getElementById('operator-initials');
 
+// Looks like a callsign: 1-2 prefix characters, a digit, 1-4 letters, an
+// optional SSID. Loose on purpose; it only decides whether to uppercase.
+const CALLSIGN_SHAPE = /^[a-z0-9]{1,2}\d[a-z]{1,4}(-\d{1,2})?$/i;
+
 initialsInput.addEventListener('input', () => {
-  state.operatorInitials = initialsInput.value.trim().toUpperCase().slice(0, 12);
+  let value = initialsInput.value.trim().slice(0, 24);
+  // A callsign is written in capitals wherever it appears, so typing one in
+  // lowercase should not make the log look like two people. A name is left
+  // exactly as typed.
+  if (CALLSIGN_SHAPE.test(value)) value = value.toUpperCase();
+  state.operatorInitials = value;
   savePrefs();
 });
 
