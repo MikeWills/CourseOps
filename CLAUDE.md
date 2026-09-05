@@ -52,7 +52,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 441 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 453 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -528,6 +528,12 @@ usability, not style preferences.
   water stop from a mile marker - every placemark being named after its race.
   `kml.attributes_from_description` reads it, and `Type` beats every text hint
   because the file is stating what the thing is.
+- **A placemark's `<description>` never reaches `poi.notes` raw.** For an
+  ArcGIS file it is an entire HTML document, and it was showing verbatim in
+  the popup on a phone. `kml.description_notes` is the one place that decides
+  what a description is worth: nothing for an exporter's attribute table
+  (already consumed at staging), stripped text for a hand-written one.
+  `db._clean_html_notes` catches events imported before that existed.
 - **Import may create layers; it may never create places.** The exporter has
   already decided the layers, so creating them saves retyping. Places still
   stage as pending for a human, which is what stops a parking lot filing itself
@@ -653,6 +659,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-04** Fixed: a place's popup showed the organizer's whole HTML document as its notes.
 - **2026-09-04** Fixed: on a phone the zoom buttons covered the header and floated over the open panel.
 - **2026-09-04** Every role can report a pickup or course note; only NCS and SAG work the queue.
 - **2026-09-04** "Here" drops the pin at your own location, beside the map tap rather than replacing it.
@@ -662,4 +669,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-04** Fixed: deploy.sh was committed non-executable, so no clone could run it.
 - **2026-09-04** Fixed: deploy.sh assumed /opt/courseops; the install path is now derived.
 - **2026-09-04** On a phone each role's own section opens first, rather than below the fold.
-- **2026-09-04** Fixed: the panel could not be closed on a phone; it is now full height with an X.

@@ -89,8 +89,35 @@ def init_schema(conn: sqlite3.Connection) -> list[str]:
     conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
     applied = _apply_migrations(conn)
     _adopt_orphan_events(conn)
+    _clean_html_notes(conn)
     _seed_categories(conn)
     return applied
+
+
+def _clean_html_notes(conn: sqlite3.Connection) -> None:
+    """Strip markup out of place notes imported before the importer did.
+
+    Import used to copy a placemark's <description> straight into poi.notes.
+    For an ArcGIS export that is an entire HTML document - the attribute
+    table, an inline stylesheet, a script - and every one of those pins showed
+    it verbatim in its popup. The importer no longer does that; this catches
+    the events that already have data. Idempotent: cleaned notes carry no
+    tags, so the next start finds nothing to do.
+    """
+    from . import kml   # here, not at the top: kml is a leaf and db is not
+
+    # A poi table without notes only exists in the migration tests, but a
+    # startup step must never be the thing that refuses to start.
+    if "notes" not in _column_names(conn, "poi"):
+        return
+    rows = conn.execute(
+        "SELECT id, notes FROM poi WHERE notes LIKE '%<%>%'"
+    ).fetchall()
+    for row in rows:
+        conn.execute(
+            "UPDATE poi SET notes = ? WHERE id = ?",
+            (kml.description_notes(row["notes"]), row["id"]),
+        )
 
 
 def _seed_categories(conn: sqlite3.Connection) -> None:

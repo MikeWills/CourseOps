@@ -231,6 +231,37 @@ def attributes_from_description(description: str | None) -> dict[str, str]:
     return found
 
 
+_TAG = re.compile(r"<[^>]+>")
+_BREAK = re.compile(r"<\s*(?:br|/p|/div|/tr|/li)\b[^>]*>", re.I)
+_WS = re.compile(r"[ \t\r\f\v]+")
+_BLANKS = re.compile(r"\n\s*\n+")
+MAX_NOTES_LENGTH = 500
+
+
+def description_notes(description: str | None) -> str | None:
+    """What a description is worth showing a volunteer, or None.
+
+    An exporter's attribute table is worth nothing here. Everything in it was
+    either consumed at import (Type became the layer, Race the course) or is
+    noise (SHAPE=Point, NUM=<Null>), and shown raw it is a page of markup in
+    a popup somebody opened to find out where the water is. A hand-written
+    description - Google My Maps, a club's own file - is kept, with any markup
+    stripped, because those say things like "behind the church, use the
+    side gate".
+    """
+    if not description:
+        return None
+    if attributes_from_description(description):
+        return None
+    text = _BREAK.sub("\n", description)
+    text = _TAG.sub("", text)
+    text = unescape(text)
+    text = _WS.sub(" ", text)
+    text = "\n".join(line.strip() for line in text.split("\n"))
+    text = _BLANKS.sub("\n", text).strip()
+    return text[:MAX_NOTES_LENGTH] or None
+
+
 def _local(tag: str) -> str:
     """Strip the namespace: '{http://...}Placemark' -> 'placemark'."""
     return tag.rpartition("}")[2].lower()

@@ -8,6 +8,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Fixed
+- **A place's popup showed the organizer's entire HTML document as its
+  notes.** Import copied each placemark's `<description>` straight into
+  `poi.notes`. For an ArcGIS export that is a whole page - the attribute
+  table, an inline stylesheet, a script - and on the phone it filled the
+  screen someone had opened to find out where the water was. The attribute
+  table had already done its job at staging (Type became the layer); nothing
+  in it belongs in a popup. `kml.description_notes` now decides what a
+  description is worth showing: nothing for an exporter's table, and plain
+  text with the markup stripped for a hand-written one, because those say
+  things like "behind the church, use the side gate". Places imported before
+  the fix are cleaned on the next start.
 - **On a phone the zoom buttons sat over the header and over the open panel.**
   Leaflet places its controls at z-index 1000 inside the map, and the map was
   not its own stacking context, so they competed with the top bar (500) and
