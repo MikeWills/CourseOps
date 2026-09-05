@@ -588,7 +588,7 @@ Things discovered but not yet acted on. Each is a real constraint, not a wish.
   mechanism. The medic is often the person NCS most wants to locate.
 
   The finding that decides the design: **a web page cannot track a phone
-  reliably in the background.** iOS Safari suspends JavaScript when the tab is
+  reliably in the background.** iOS suspends JavaScript when the tab is
   not foreground or the phone locks, and Android Chrome throttles it hard. So
   "open this link and we will track you" stops the moment the phone is pocketed,
   and stops *silently* - leaving a dot that looks live. That is the same failure

@@ -357,12 +357,14 @@ usability, not style preferences.
   invisible, with no error, on the layout NCS actually uses. Offset by the same
   `clamp()` the map is, and put it back under `body.stations-hidden`.
 - **`body` is `position: fixed`. `overflow: hidden` is not enough on iOS.**
-  Safari scrolls the document to anything reaching past the viewport - the
+  WebKit scrolls the document to anything reaching past the viewport - the
   closed sheet, translated 102% below - and does so on its own when the app
   comes back from the background. The symptom is the header gone off the top
   and the "closed" panel showing along the bottom. The closed sheet is also
   `visibility: hidden`; the sidebar tier sets it visible again because a
-  sidebar is never closed.
+  sidebar is never closed. "iOS" here means every browser on it - Chrome and
+  Firefox on iOS are WebKit underneath, by Apple's rule - so there is no
+  browser to switch to.
 - **`#map` is its own stacking context (`isolation: isolate`). Keep it.**
   Leaflet numbers its controls 1000 and its popups 700, and without isolation
   those compete with the top bar (500), the stations panel (550) and the sheet
