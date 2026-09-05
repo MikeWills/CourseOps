@@ -444,6 +444,9 @@ spouse's mobile. Nothing about them is stored until you act.
   digipeaters, igates and passers-by.
 - **Unmatch** - on a matched station's roster row, the undo for pointing Aid
   3 at the wrong radio.
+- **Ignored** - a folded section below, listing everything ignored this
+  event. **Unignore** is the undo for a mis-tap; the station comes back the
+  next time it beacons.
 
 ### What NCS watches
 
