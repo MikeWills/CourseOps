@@ -7,6 +7,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-09-05
+
 ### Added
 - **An Ignored list on the NCS view, folded by default, with Unignore.**
   Ignoring is one tap and its effect is silence - the station drops out of
