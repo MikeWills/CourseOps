@@ -541,8 +541,10 @@ feed off. This is the largest untested claim in the project.
 
 Things discovered but not yet acted on. Each is a real constraint, not a wish.
 
-- **GPX import** - GitHub issue #1. Consumer route tools (MapMyRun, Strava,
-  Garmin) often export GPX only. Parser swap feeding the existing staging.
+- ~~**GPX import**~~ - done 2026-09-05, issue #1. `gpx.py` reads tracks,
+  routes and waypoints into the same features KML produces; dispatch is on the
+  root element, so the extension does not matter. Point density is warned
+  about, never thinned - simplification stays a separate decision.
 - ~~**Geolocation requires HTTPS.**~~ Resolved by Phase 8: Apache terminates
   TLS with a Let's Encrypt certificate, so the field roles' location dot works.
   A club running on a LAN without TLS still loses it.

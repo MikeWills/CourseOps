@@ -7,6 +7,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **GPX course import** (issue #1). Consumer route tools - MapMyRun, Strava,
+  Garmin Connect - export GPX and sometimes nothing else, and the first event's
+  route arrived that way. `<trk>` segments and `<rte>` become assignable
+  courses, `<wpt>` become assignable places, all through the same staging and
+  review as KML; nothing downstream changed. Multi-segment tracks stage one
+  numbered feature per segment so the existing stitching joins them, including
+  a segment drawn backwards. Dispatch is on the root element rather than the
+  filename, so a route a phone saved as `.xml` still reads. Same hardening as
+  KML: `defusedxml`, the size cap, entity-expansion and XXE tests.
+
+  GPX writes coordinates lat-first as attributes, the reverse of KML's
+  `lon,lat` text; a test pins that they leave the parser as (lon, lat). A
+  recording rather than a drawn route can carry thousands of points - it
+  imports intact with a warning, because import never thins a file on its own.
+
 ## [0.1.5] - 2026-09-04
 
 ### Fixed

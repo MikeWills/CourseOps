@@ -4,14 +4,14 @@
 *Track the course, run the net.*
 
 A web map for marathon-style events: race courses and aid stations from the
-organizer's KML/KMZ files, overlaid with live APRS positions of the ham radio
+organizer's KML, KMZ or GPX files, overlaid with live APRS positions of the ham radio
 operators supporting the event.
 
 There are phone apps, and there are full situational-awareness platforms like TAK.
 This aims at the gap between them — something a radio club can stand up for a race
 without much effort.
 
-**Status: early development.** APRS-IS ingest, KML/KMZ course import, the live
+**Status: early development.** APRS-IS ingest, KML/KMZ/GPX course import, the live
 map, incidents, lead runner tracking and a browser setup application all work.
 See [releases](../../releases/latest) for the Windows download. Not yet run at
 a live event, and the live APRS-IS feed has not yet been exercised against real
@@ -132,7 +132,7 @@ Open **http://localhost:8000/setup**. The first visit asks you to create a
 system administrator; after that you sign in.
 
 Everything else is forms: create an organization and an event, upload the
-organizer's KML or KMZ and assign each feature by looking at it on a map, name
+organizer's KML, KMZ or GPX and assign each feature by looking at it on a map, name
 the aid stations and add their What3Words, build the roster, set bib colours,
 and copy the access links to send out.
 
@@ -262,8 +262,14 @@ half course and the water stops usually arrive as separate files:
 
 ```bash
 courseops import m2026 SpringMarathon-Full.kmz
+courseops import m2026 half.gpx           # GPX from MapMyRun, Strava, Garmin
 courseops review m2026        # lists what was found, with advisory suggestions
 ```
+
+GPX is read into the same review: tracks and routes become assignable courses,
+waypoints become assignable places. A recorded GPX (an actual run rather than a
+drawn route) can carry thousands of points; it imports intact with a warning,
+because import never thins a file on its own.
 
 Nothing becomes a course or an aid station until you say so. Organizer KML is
 reliably messy - placemarks named "Untitled Path", routes split across several

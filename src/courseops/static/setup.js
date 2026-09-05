@@ -581,12 +581,12 @@ uploadZone.addEventListener('drop', (ev) => {
 async function importFiles(files) {
   if (!files.length || !needEvent()) return;
 
-  const usable = files.filter((f) => /\.(kml|kmz)$/i.test(f.name));
-  const rejected = files.filter((f) => !/\.(kml|kmz)$/i.test(f.name));
+  const usable = files.filter((f) => /\.(kml|kmz|gpx)$/i.test(f.name));
+  const rejected = files.filter((f) => !/\.(kml|kmz|gpx)$/i.test(f.name));
   if (rejected.length) {
-    // Say so rather than ignoring them. A dropped .gpx failing in silence is
-    // indistinguishable from the app being broken - see issue #1 for GPX.
-    banner(`Not a KML or KMZ: ${rejected.map((f) => f.name).join(", ")}`, true);
+    // Say so rather than ignoring them. A dropped file failing in silence is
+    // indistinguishable from the app being broken.
+    banner(`Not a KML, KMZ or GPX: ${rejected.map((f) => f.name).join(", ")}`, true);
   }
   if (!usable.length) return;
 

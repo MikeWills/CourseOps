@@ -254,7 +254,7 @@ CREATE TABLE IF NOT EXISTS import_batch (
     id          INTEGER PRIMARY KEY,
     event_id    INTEGER NOT NULL REFERENCES event(id) ON DELETE CASCADE,
     filename    TEXT    NOT NULL,
-    source_kind TEXT    NOT NULL,  -- kml | kmz
+    source_kind TEXT    NOT NULL,  -- kml | kmz | gpx
     imported_at TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
 );
 

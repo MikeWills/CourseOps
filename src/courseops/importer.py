@@ -110,10 +110,15 @@ def ensure_layers_for(
 def stage_file(
     conn: sqlite3.Connection, event_id: int, path: str | Path
 ) -> ImportSummary:
-    """Parse a KML/KMZ and stage its features for review. Raises kml.KmlError."""
+    """Parse a KML/KMZ/GPX and stage its features for review. Raises kml.KmlError."""
     file_path = Path(path)
     features = kml.load(file_path)
-    source_kind = "kmz" if zipfile.is_zipfile(file_path) else "kml"
+    if zipfile.is_zipfile(file_path):
+        source_kind = "kmz"
+    elif file_path.suffix.lower() == ".gpx":
+        source_kind = "gpx"
+    else:
+        source_kind = "kml"
 
     cur = conn.execute(
         "INSERT INTO import_batch (event_id, filename, source_kind) VALUES (?, ?, ?)",

@@ -391,6 +391,12 @@ def parse_kml_bytes(data: bytes) -> list[KmlFeature]:
         # defusedxml raises its own types for entity-expansion attempts.
         raise KmlError(f"Rejected XML: {type(exc).__name__}: {exc}") from exc
 
+    # Dispatch on the root element, not the filename: a route saved as .xml
+    # from a phone, or a KML renamed .gpx, both still read.
+    if _local(root.tag) == "gpx":
+        from . import gpx   # gpx imports this module's feature type
+        return gpx.features_from_root(root)
+
     features: list[KmlFeature] = []
     _walk(root, [], features)
     if not features and _local(root.tag) == "placemark":
@@ -429,7 +435,7 @@ def read_kmz(path: Path) -> bytes:
 
 
 def load(path: str | Path) -> list[KmlFeature]:
-    """Parse a .kml or .kmz file into features. Raises KmlError."""
+    """Parse a .kml, .kmz or .gpx file into features. Raises KmlError."""
     file_path = Path(path)
     if not file_path.is_file():
         raise KmlError(f"No such file: {file_path}")
@@ -454,6 +460,7 @@ def load(path: str | Path) -> list[KmlFeature]:
     if not features:
         raise KmlError(
             "No placemarks with usable geometry were found. The file may be an "
-            "image overlay, a network link to a remote KML, or styling only."
+            "image overlay, a network link to a remote KML, styling only, or a "
+            "GPX with no tracks, routes or waypoints."
         )
     return features

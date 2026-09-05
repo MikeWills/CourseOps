@@ -40,8 +40,10 @@ them like door keys. Send each to the right group and no other.
 
 ### 1. Get the course files from the organizer
 
-Ask for **KML or KMZ**. If they can only send GPX, that is not supported yet
-(GitHub issue #1) — ask them to export KML, or send the file to the developer.
+Ask for **KML, KMZ or GPX** - whatever their tool exports. MapMyRun, Strava
+and Garmin usually give GPX. If they offer a choice, the *planned* route beats a
+*recording* of someone running it: a recording carries GPS noise and thousands
+of points, and the import will say so.
 
 Expect several files (full course, half, 10K, water stops) exported from
 different tools. That is normal; import is additive.
@@ -68,7 +70,7 @@ the course once one is imported.
 
 ### 3. Import and review the course
 
-**In the browser:** the Course tab. Choose the KML or KMZ, and every feature it
+**In the browser:** the Course tab. Choose the KML, KMZ or GPX, and every feature it
 found is drawn on a map. Click a line or a pin — on the map or in the list — and
 say what it is.
 

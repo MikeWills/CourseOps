@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Synthetic. Covers what the issue asked for: a multi-segment track with the
+     middle segment listed first and one segment drawn backwards, a planned
+     route, waypoints with and without a description, a waypoint using cmt
+     instead of desc, and a track with no name. Coordinates are lat-first as
+     GPX writes them; nothing here is a real course. -->
+<gpx version="1.1" creator="tests" xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata><name>Spring Marathon</name></metadata>
+
+  <wpt lat="34.732" lon="-86.575">
+    <ele>190.0</ele>
+    <name>Water Stop 1</name>
+    <desc>Corner of Oak and 3rd</desc>
+  </wpt>
+  <wpt lat="34.7300" lon="-86.5800">
+    <name>Start</name>
+  </wpt>
+  <wpt lat="34.7400" lon="-86.5700">
+    <name>Parking</name>
+    <cmt>Overflow lot, opens 5am</cmt>
+  </wpt>
+  <wpt lat="34.7410" lon="-86.5710"></wpt>
+
+  <rte>
+    <name>10K</name>
+    <desc>Planned route</desc>
+    <rtept lat="34.730" lon="-86.580"></rtept>
+    <rtept lat="34.732" lon="-86.578"></rtept>
+    <rtept lat="34.734" lon="-86.576"></rtept>
+    <rtept lat="34.736" lon="-86.574"></rtept>
+  </rte>
+
+  <trk>
+    <name>Half Marathon</name>
+    <!-- Middle segment first, and the last one reversed. -->
+    <trkseg>
+      <trkpt lat="34.740" lon="-86.570"><ele>200</ele><time>2026-04-01T07:00:10Z</time></trkpt>
+      <trkpt lat="34.745" lon="-86.565"><ele>201</ele><time>2026-04-01T07:00:20Z</time></trkpt>
+      <trkpt lat="34.750" lon="-86.560"><ele>202</ele><time>2026-04-01T07:00:30Z</time></trkpt>
+    </trkseg>
+    <trkseg>
+      <trkpt lat="34.730" lon="-86.580"></trkpt>
+      <trkpt lat="34.735" lon="-86.575"></trkpt>
+      <trkpt lat="34.740" lon="-86.570"></trkpt>
+    </trkseg>
+    <trkseg>
+      <trkpt lat="34.760" lon="-86.550"></trkpt>
+      <trkpt lat="34.755" lon="-86.555"></trkpt>
+      <trkpt lat="34.750" lon="-86.560"></trkpt>
+    </trkseg>
+  </trk>
+
+  <trk>
+    <trkseg>
+      <trkpt lat="34.700" lon="-86.600"></trkpt>
+      <trkpt lat="34.701" lon="-86.601"></trkpt>
+    </trkseg>
+  </trk>
+</gpx>
