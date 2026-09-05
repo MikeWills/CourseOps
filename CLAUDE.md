@@ -653,6 +653,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-04** Fixed: on a phone the zoom buttons covered the header and floated over the open panel.
 - **2026-09-04** Every role can report a pickup or course note; only NCS and SAG work the queue.
 - **2026-09-04** "Here" drops the pin at your own location, beside the map tap rather than replacing it.
 - **2026-09-04** The locate button is a crosshair, and no longer hidden behind the stations panel.
@@ -662,4 +663,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-04** Fixed: deploy.sh assumed /opt/courseops; the install path is now derived.
 - **2026-09-04** On a phone each role's own section opens first, rather than below the fold.
 - **2026-09-04** Fixed: the panel could not be closed on a phone; it is now full height with an X.
-- **2026-09-04** The role is named in the header, so it is obvious which link you are on.
