@@ -7,6 +7,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-09-04
+
 ### Fixed
 - **Coming back to the app on a phone could leave the header off the top and
   the closed panel showing along the bottom.** The closed sheet is translated
