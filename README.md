@@ -44,9 +44,12 @@ traffic.
 - **APRS-IS rather than a radio/TNC.** This covers operators using phone apps as
   well as RF trackers reaching the network through igates, with no hardware.
 - **Good network citizenship.** One connection for the whole server, a server-side
-  buddy filter limited to your roster, and backed-off reconnects.
-- **Privacy.** The buddy filter means only rostered operators — people who
-  consented by signing up — are requested and stored.
+  filter (your roster's callsigns plus a radius around the course), and
+  backed-off reconnects.
+- **Privacy.** Only rostered operators — people who consented by signing up —
+  are stored. Anyone else heard near the course is held in memory and shown
+  only to Net Control, so a volunteer using a borrowed radio can be matched to
+  their roster entry; nothing about them is written down until that happens.
 
 ## Requirements
 

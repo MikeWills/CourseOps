@@ -113,6 +113,23 @@ class CourseIndex:
             )
         return cls(courses, max_offset_m)
 
+    def area(self, margin_m: float) -> tuple[float, float, float] | None:
+        """A circle covering every course plus a margin: (lat, lon, radius_m).
+
+        Centre of the bounding box of all courses, radius to its far corner
+        plus the margin. What the APRS-IS radius filter asks for. None when
+        the event has no course yet - there is no area to speak of, and the
+        buddy filter alone is the right thing until one is imported.
+        """
+        coords = [c for course in self._courses for c in course.coords]
+        box = geo.bounds(coords)
+        if box is None:
+            return None
+        min_lon, min_lat, max_lon, max_lat = box
+        centre = ((min_lon + max_lon) / 2, (min_lat + max_lat) / 2)
+        half_diagonal = geo.haversine_m(centre, (max_lon, max_lat))
+        return centre[1], centre[0], half_diagonal + margin_m
+
     def order_along_course(self, rows: list) -> list:
         """Sort places into the order they are reached.
 

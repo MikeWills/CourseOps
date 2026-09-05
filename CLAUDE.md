@@ -52,7 +52,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 488 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 504 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -192,8 +192,13 @@ usability, not style preferences.
   invisible. Ingest therefore matches on the base callsign too - both halves are
   needed or the wildcard is pointless. The cost is the operator's digipeater
   arriving; `station_exclusion` is how it is dismissed.
-- **Buddy filter, not area filter.** We know the roster in advance. This avoids
-  incidentally storing the public's location.
+- **Buddy filter PLUS an area filter; the area is seen, never stored.** The
+  feed asks for the roster's callsigns and for a radius around the course
+  (its extent plus `ingest.AREA_MARGIN_M`). Anything heard that the roster
+  does not know is held in memory (`app.state.nearby`), sent only to a role
+  holding `CAP_SSID`, and written to the database only once NCS matches it
+  to a roster entry. Not a position, not a raw packet, for anyone else. The
+  roster is the allowlist: with nobody on it, nothing is stored at all.
 - **Lead runner sightings are reports, not measurements.** There is no tracker
   on the front runner. Store the sighting; derive position, pace and ETA from it.
 - **Reject an implausible pace rather than publishing it.** NCS enters reports in
@@ -451,6 +456,18 @@ usability, not style preferences.
   above a live form still lets someone fill it in and post to
   `/events/null/...`. `gateOnEvent()` hides the panel body, and restores only
   what it hid - elements hidden for their own reasons must stay hidden.
+- **A roster entry can be matched to ANY heard station, by binding.** The
+  person with the radio is often not the person whose callsign is on the
+  roster. `change_station_key` binds across callsigns via `bound_key` and
+  never renames; `unbind_station` is the undo, and NCS has an Unmatch button.
+- **Membership is re-read while the feed runs.** `ingest.Membership` refreshes
+  who the roster knows when an unknown packet arrives (at most every 5 s),
+  because NCS matches stations mid-event and from then on their packets must
+  be stored. A snapshot taken at feed start would keep them in memory forever.
+- **The hub can gate a message on a capability.** `hub.publish(...,
+  requires=CAP_SSID)` reaches only subscribers whose role holds it; the
+  WebSocket subscribes with the role's capabilities. Anything about the
+  public goes out that way and no other.
 - **A roster entry may be a bare callsign; `bound_key` is the SSID heard.**
   Anything joining a roster row to a position must go through
   `db.tracking_key()`, or a bare entry and its own packets show as two stations
@@ -694,6 +711,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-05** NCS sees every station near the course and matches it to anyone on the roster; Unmatch undoes it.
 - **2026-09-05** Fixed: "Needs attention" only appeared after a refresh; an unknown station now announces itself live.
 - **2026-09-05** After-event report page for the race lead: pickups counted, notes listed, no names (#7).
 - **2026-09-05** GPX course import: tracks, routes and waypoints through the same review as KML (#1).
@@ -703,4 +721,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-04** Every role can report a pickup or course note; only NCS and SAG work the queue.
 - **2026-09-04** "Here" drops the pin at your own location, beside the map tap rather than replacing it.
 - **2026-09-04** The locate button is a crosshair, and no longer hidden behind the stations panel.
-- **2026-09-04** Live tracking is a switch in setup, off by default, with the roster's filter shown.

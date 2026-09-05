@@ -27,6 +27,7 @@ from . import (access, admin, build, categories, db, hub as hub_module, importer
                incidents, labels as poi_labels, report, resources,
                kml, leaders, progress, symbols, users)
 from .config import Settings
+from . import ingest as ingest_module
 from .ingest import run_ingest
 
 log = logging.getLogger(__name__)
@@ -118,6 +119,46 @@ def make_position_handler(hub, roster_by_key: dict, known_keys: set[str], index)
             await hub.publish(event_id, {"type": "resync"})
 
     return on_position
+
+
+# The most stations held in memory per event. The area filter can deliver a
+# whole town's worth on a busy band; beyond this the oldest is dropped, and
+# it will be heard again if it is still there.
+NEARBY_MAX = 200
+
+
+def make_nearby_handler(hub, store: dict, index):
+    """Stations heard near the course that the roster does not know.
+
+    Held in memory only and sent only to a role that can act on them. This is
+    the deal that makes an area filter acceptable: the public is SEEN by NCS,
+    so a borrowed rig or a club tracker can be matched to the person using
+    it, and nothing about anyone is written down until NCS says who they are.
+    A restart empties the list, which costs one beacon interval.
+    """
+    async def on_nearby(event_id: int, report) -> None:
+        entries = store.setdefault(event_id, {})
+        previous = entries.get(report.station_key)
+        located = index.locate(report.lat, report.lon)
+        entry = {
+            "station_key": report.station_key,
+            "received_at": report.received_at,
+            "lat": report.lat,
+            "lon": report.lon,
+            "symbol": symbols.describe(report.symbol_table, report.symbol_code),
+            "looks_like_infrastructure": symbols.is_infrastructure(
+                report.symbol_table, report.symbol_code),
+            "packets": (previous["packets"] + 1) if previous else 1,
+            "course_position": located.as_dict() if located else None,
+        }
+        entries[report.station_key] = entry
+        if len(entries) > NEARBY_MAX:
+            oldest = min(entries.values(), key=lambda e: e["received_at"])
+            entries.pop(oldest["station_key"], None)
+        await hub.publish(event_id, {"type": "nearby", **entry},
+                          requires=access.CAP_SSID)
+
+    return on_nearby
 
 
 def _ssid_alerts(conn: sqlite3.Connection, event_id: int) -> list[dict[str, Any]]:
@@ -347,6 +388,9 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     # and stopped while the server runs, and "is this one already going?" has
     # to be answerable without scanning.
     app.state.ingest_tasks = {}
+    # Stations heard near the course that the roster does not know, per
+    # event. Memory only, on purpose - see make_nearby_handler.
+    app.state.nearby = {}
     # Why the last attempt stopped, if it did. A feed that fails to start is
     # the kind of failure nobody notices until the net is quiet for the wrong
     # reason, so it is kept and shown rather than only logged.
@@ -899,22 +943,25 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
             raise ValueError("No such event.")
         slug = row["slug"]
         tracked = db.tracked_station_keys(conn, event_id)
+        area = progress.CourseIndex.for_event(conn, event_id).area(
+            ingest_module.AREA_MARGIN_M)
         # callsign_problem says WHY it cannot be used, not merely that it
         # cannot - "still the placeholder N0CALL" is a different fix from
         # "not set", and the person reading this is not at a terminal.
         problem = settings.callsign_problem
         return {
+            "area_mi": round(area[2] / 1609.344, 1) if area else None,
             "enabled": bool(row["ingest_enabled"]),
             "running": slug in app.state.ingest_tasks,
             "callsign": settings.callsign or "",
             "has_callsign": problem is None,
             "callsign_problem": problem or "",
             "tracked": len(tracked),
-            "filter": access_filter_preview(tracked),
+            "filter": access_filter_preview(tracked, area),
             "error": app.state.ingest_errors.get(slug, ""),
         }
 
-    def access_filter_preview(tracked) -> str:
+    def access_filter_preview(tracked, area=None) -> str:
         """The APRS-IS filter this roster produces, for the operator to see.
 
         Shown because the commonest silent failure here is an empty or wrong
@@ -923,7 +970,9 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         """
         try:
             from .aprsis import build_filter
-            return build_filter(sorted(tracked))
+            return build_filter(
+                sorted(tracked),
+                area=(area[0], area[1], area[2] / 1000.0) if area else None)
         except Exception:                              # noqa: BLE001
             return ""
 
@@ -1397,7 +1446,28 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         # Per capability, so the client shows exactly the controls this role can
         # actually use. A button the server would refuse is worse than no button.
         payload["capabilities"] = sorted(granted.capabilities)
+        # The public, heard near the course. Only for a role that can match or
+        # dismiss them; nobody else needs a list of who is driving past.
+        if granted.can(access.CAP_SSID):
+            payload["nearby"] = _nearby_for(granted.event_id)
         return JSONResponse(payload)
+
+    def _nearby_for(event_id: int) -> list[dict[str, Any]]:
+        conn = get_conn()
+        try:
+            known = set(db.all_station_keys(conn, event_id))
+            known |= db.bound_station_keys(conn, event_id)
+            known |= db.excluded_station_keys(conn, event_id)
+        finally:
+            conn.close()
+        entries = app.state.nearby.get(event_id, {})
+        for key in [k for k in entries if k in known]:
+            entries.pop(key, None)         # assigned or dismissed since heard
+        return sorted(
+            entries.values(),
+            key=lambda e: (e["course_position"] is None,
+                           (e["course_position"] or {}).get("offset_m", 0)),
+        )
 
     # --- writes ------------------------------------------------------------
     #
@@ -1586,8 +1656,30 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         payload = {"station_key": row["station_key"],
                    "display_label": row["display_label"]}
         conn.close()
+        app.state.nearby.get(granted.event_id, {}).pop(
+            str(body.get("to_station_key", "")).strip().upper(), None)
         await _publish_state_hint(granted.event_id)
         return JSONResponse(payload)
+
+    @app.post("/api/{event_slug}/{token}/ssid/unbind")
+    async def unbind_ssid(event_slug: str, token: str, request: Request) -> JSONResponse:
+        """Undo a match: the roster entry goes back to waiting for a station."""
+        conn, granted = require_capability(event_slug, token, access.CAP_SSID)
+        body = await _json_body(request, conn)
+        station_key = str(body.get("station_key", "")).strip().upper()
+        row = conn.execute(
+            "SELECT * FROM roster WHERE event_id = ? AND station_key = ?",
+            (granted.event_id, station_key),
+        ).fetchone()
+        if row is None:
+            conn.close()
+            raise HTTPException(status_code=404, detail=f"{station_key} is not on the roster.")
+        db.unbind_station(conn, granted.event_id, station_key)
+        conn.close()
+        await _publish_state_hint(granted.event_id)
+        return JSONResponse({"station_key": row["station_key"],
+                             "display_label": row["display_label"],
+                             "was": row["bound_key"]})
 
     @app.post("/api/{event_slug}/{token}/ssid/ignore")
     async def ignore_ssid(event_slug: str, token: str, request: Request) -> JSONResponse:
@@ -1601,6 +1693,7 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         db.exclude_station(conn, granted.event_id, station_key,
                            body.get("reason") or "dismissed from the map")
         conn.close()
+        app.state.nearby.get(granted.event_id, {}).pop(station_key.upper(), None)
         await _publish_state_hint(granted.event_id)
         return JSONResponse({"ignored": station_key.upper()})
 
@@ -1755,7 +1848,8 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
             return
 
         await websocket.accept()
-        subscription = app.state.hub.subscribe(granted.event_id)
+        subscription = app.state.hub.subscribe(
+            granted.event_id, granted.capabilities)
         try:
             while True:
                 message = await subscription.queue.get()
@@ -1793,7 +1887,9 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
 
         on_position = make_position_handler(
             app.state.hub, roster_by_key, known_keys, index)
-        await run_ingest(settings, slug, on_position=on_position)
+        on_nearby = make_nearby_handler(app.state.hub, app.state.nearby, index)
+        await run_ingest(settings, slug, on_position=on_position,
+                         on_nearby=on_nearby)
 
     async def _supervise_ingest(slug: str) -> None:
         """Run one feed, and remember why it stopped."""
