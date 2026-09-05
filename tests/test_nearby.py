@@ -242,3 +242,39 @@ def test_unmatching_is_ncs_only_and_undoes_a_match(app_with_nearby):
         assert undone.json()["was"] == "W1AW-9"
         ncs = client.get(f"/api/m2026/{tokens['ncs']}/state").json()
     assert next(r for r in ncs["roster"] if r["station_key"] == "K0JZP")["tracking_key"] == "K0JZP"
+
+
+# --- the ignored list: undo for a mis-tap -----------------------------------
+
+def test_ncs_sees_the_ignored_list_and_can_unignore(app_with_nearby):
+    """Ignoring is one tap and its effect is silence, so a mistake is
+    invisible unless the ignored stations can be seen somewhere."""
+    app, tokens, _ = app_with_nearby
+    with TestClient(app) as client:
+        client.post(f"/api/m2026/{tokens['ncs']}/ssid/ignore",
+                    json={"station_key": "W1AW-9", "reason": "Digipeater"})
+        ncs = client.get(f"/api/m2026/{tokens['ncs']}/state").json()
+        assert [(r["station_key"], r["reason"]) for r in ncs["ignored"]] == [("W1AW-9", "Digipeater")]
+        for role in ("sag", "liaison", "logistics"):
+            assert "ignored" not in client.get(f"/api/m2026/{tokens[role]}/state").json(), role
+
+        refused = client.post(f"/api/m2026/{tokens['sag']}/ssid/unignore",
+                              json={"station_key": "W1AW-9"})
+        assert refused.status_code == 403
+        undone = client.post(f"/api/m2026/{tokens['ncs']}/ssid/unignore",
+                             json={"station_key": "w1aw-9"})
+        assert undone.status_code == 200
+        assert client.get(f"/api/m2026/{tokens['ncs']}/state").json()["ignored"] == []
+        again = client.post(f"/api/m2026/{tokens['ncs']}/ssid/unignore",
+                            json={"station_key": "W1AW-9"})
+        assert again.status_code == 404
+
+
+def test_an_ignored_station_is_dropped_and_not_logged(event):
+    conn, event_id = event
+    db.exclude_station(conn, event_id, "W1AW-9", "Digipeater")
+    nearby = []
+    report, stats = _feed(conn, event_id, _packet("W1AW-9"), nearby=nearby)
+    assert report is None and nearby == []
+    assert stats.excluded == 1
+    assert conn.execute("SELECT COUNT(*) FROM raw_packet").fetchone()[0] == 0

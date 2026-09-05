@@ -925,7 +925,15 @@ body {
 .ssid-why { margin: 4px 0 8px; font-size: 13px; color: var(--ink); }
 
 .ssid-actions { display: flex; flex-wrap: wrap; gap: 6px; }
-.ssid-adopt, .ssid-pick {
+.ssid-adopt, .ignored-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  border-bottom: 1px solid #edf1f5;
+}
+.ignored-row .ssid-meta { flex: 1; }
+.ssid-pick {
   min-height: 38px;
   max-width: 100%;
   padding: 4px 8px;

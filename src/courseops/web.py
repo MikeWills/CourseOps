@@ -1450,6 +1450,16 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         # dismiss them; nobody else needs a list of who is driving past.
         if granted.can(access.CAP_SSID):
             payload["nearby"] = _nearby_for(granted.event_id)
+            # What has been ignored, so a mis-tap on Ignore can be undone.
+            # An ignored station is silent in every other list, which is the
+            # point of ignoring it and also what makes the mistake invisible.
+            conn = get_conn()
+            try:
+                payload["ignored"] = [
+                    _row_to_dict(row) for row in db.exclusions(conn, granted.event_id)
+                ]
+            finally:
+                conn.close()
         return JSONResponse(payload)
 
     def _nearby_for(event_id: int) -> list[dict[str, Any]]:
@@ -1696,6 +1706,22 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         app.state.nearby.get(granted.event_id, {}).pop(station_key.upper(), None)
         await _publish_state_hint(granted.event_id)
         return JSONResponse({"ignored": station_key.upper()})
+
+    @app.post("/api/{event_slug}/{token}/ssid/unignore")
+    async def unignore_ssid(event_slug: str, token: str, request: Request) -> JSONResponse:
+        """Undo an Ignore. The station comes back the next time it is heard."""
+        conn, granted = require_capability(event_slug, token, access.CAP_SSID)
+        body = await _json_body(request, conn)
+        station_key = str(body.get("station_key", "")).strip()
+        if not station_key:
+            conn.close()
+            raise HTTPException(status_code=400, detail="A station_key is required.")
+        removed = db.unexclude_station(conn, granted.event_id, station_key)
+        conn.close()
+        if not removed:
+            raise HTTPException(status_code=404, detail=f"{station_key.upper()} was not ignored.")
+        await _publish_state_hint(granted.event_id)
+        return JSONResponse({"unignored": station_key.upper()})
 
     @app.get("/api/{event_slug}/{token}/station-log")
     async def station_log(

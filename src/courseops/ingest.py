@@ -78,12 +78,12 @@ def handle_line(
             )
         return None
 
-    # An SSID explicitly dismissed before the event - the operator's own
-    # digipeater or igate, which the wildcard filter drags in.
+    # A station NCS has ignored. Dropped here, at the door, and not written
+    # anywhere - not even raw. Ignoring is meant to be the end of it until
+    # somebody unignores, and the membership refresh picks that up within
+    # seconds without a reconnect.
     if excluded and report.station_key in excluded:
         stats.excluded += 1
-        if log_all_raw:
-            db.log_raw_packet(conn, event_id, report.received_at, line, "excluded")
         return None
 
     # Accept any SSID of a rostered callsign, not just the exact one on the

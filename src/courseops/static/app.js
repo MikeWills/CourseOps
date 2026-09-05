@@ -67,6 +67,7 @@ const state = {
   mePositionAt: 0,      // when the browser last gave us a fix
   meAccuracyM: null,    // and how good it said that fix was
   ssidAlerts: [],
+  ignored: [],                // station_exclusion rows (NCS only)
   nearby: new Map(),          // station_key -> what was heard near the course (NCS only)
   leaders: [],
   divisions: [{value: 'male', label: 'First male'},
@@ -1217,6 +1218,42 @@ function renderSsidAlerts() {
   });
 }
 
+/* The undo for Ignore. Ignoring is one tap and its effect is silence - the
+   station drops out of every other list - so a mis-tap on a legitimate
+   station is invisible unless the ignored ones can be seen somewhere. NCS
+   only, folded by default. */
+function renderIgnored() {
+  const section = document.getElementById('ignored-section');
+  const host = document.getElementById('ignored-list');
+  const rows = can('ssid') ? (state.ignored || []) : [];
+  section.hidden = rows.length === 0;
+  document.getElementById('ignored-count').textContent =
+    rows.length ? `(${rows.length})` : '';
+  if (!rows.length) { host.innerHTML = ''; return; }
+
+  host.innerHTML = '';
+  rows.forEach((row) => {
+    const line = document.createElement('div');
+    line.className = 'ignored-row';
+    const meta = [row.reason, row.added_at ? `${formatAge(ageSeconds(row.added_at))} ago` : '']
+      .filter(Boolean).join(' · ');
+    line.innerHTML =
+      `<span class="ssid-key">${escapeHtml(row.station_key)}</span>` +
+      `<span class="ssid-meta">${escapeHtml(meta)}</span>`;
+    const undo = document.createElement('button');
+    undo.type = 'button';
+    undo.className = 'ssid-adopt';
+    undo.textContent = 'Unignore';
+    undo.title = `Let ${row.station_key} back onto the list`;
+    undo.setAttribute('aria-label', undo.title);
+    undo.addEventListener('click', () => resolveSsid('unignore', {
+      station_key: row.station_key,
+    }));
+    line.appendChild(undo);
+    host.appendChild(line);
+  });
+}
+
 /* ---------- lead runners ------------------------------------------------- */
 
 /* The counterpart to the sweep: the sweep says when an aid station may close,
@@ -2013,6 +2050,7 @@ function applyState(data) {
   if (Array.isArray(data.divisions)) state.divisions = data.divisions;
   state.leaders = data.leaders || [];
   state.ssidAlerts = data.ssid_alerts || [];
+  state.ignored = data.ignored || [];
   state.nearby = new Map((data.nearby || []).map((n) => [n.station_key, n]));
   // Which places can report a lead runner is the layer's `staffed` flag, not a
   // hardcoded 'aid_station' - the server already answers it that way, and the
@@ -2033,7 +2071,9 @@ function applyState(data) {
     /* Restore how the panels were left. A phone coming back from a dead zone
        reloads on its own, and re-opening six sections someone deliberately
        folded is the kind of small betrayal that makes a screen feel unreliable. */
-    state.foldedSections = new Set(prefs.folded || []);
+    // The ignored list starts folded: it is a safety net, opened only when
+    // something that should be on the map is not.
+    state.foldedSections = new Set(prefs.folded || ['ignored-section']);
     state.panelState = Object.assign(
       { sheet: true, stations: true }, prefs.panels || {});
     setUpFoldables();
@@ -2085,6 +2125,7 @@ function applyState(data) {
   document.getElementById('pin-actions').hidden = !can('incident_report');
   document.getElementById('pin-kind').hidden = !can('incident_report');
   renderSsidAlerts();
+  renderIgnored();
   renderLeaders();
   renderIncidents();
   renderStations();

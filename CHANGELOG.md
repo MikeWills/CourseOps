@@ -7,6 +7,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **An Ignored list on the NCS view, folded by default, with Unignore.**
+  Ignoring is one tap and its effect is silence - the station drops out of
+  every other list - so a mis-tap on a legitimate station was invisible.
+  The list shows what was ignored, why, and when; Unignore lets a station
+  back, and it reappears the next time it is heard.
+
+### Changed
+- **An ignored station's packets are dropped at the door and not logged.**
+  They were still being written to `raw_packet` as "excluded", which for a
+  station in the public is exactly what ignoring was supposed to stop.
+
 ## [0.3.0] - 2026-09-05
 
 ### Added
