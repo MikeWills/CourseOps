@@ -605,6 +605,12 @@ what is stored is the incident's location. The blue locate dot never does.
 
 ## After the event
 
+**Give the race lead the report.** Setup -> Events -> **Report** next to the
+event. One page: how many pickups and when, how many near each water stop, and
+every course note with where and when. Print it or screenshot it. It carries
+no names, so it can go straight to the organizer.
+
+
 ```bash
 # Ctrl-C to stop the server
 ```

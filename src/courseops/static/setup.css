@@ -221,6 +221,8 @@ table.grid th {
 table.grid td { padding: 8px; border-bottom: 1px solid #eef1f5; vertical-align: middle; }
 table.grid tr:last-child td { border-bottom: 0; }
 table.grid .actions { text-align: right; white-space: nowrap; }
+/* A text link, not an icon: it opens a page rather than acting on the row. */
+table.grid .report-link { margin-right: 8px; font-weight: 600; color: #0b5fa5; }
 table.grid button { min-height: 34px; padding: 0 10px; font-size: 13px; }
 
 /* Square, so a row of them reads as a group of controls rather than a wall of

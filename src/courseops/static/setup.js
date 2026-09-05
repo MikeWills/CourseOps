@@ -386,6 +386,8 @@ async function loadEvents() {
         <td class="actions">
           <button type="button" data-pick="${e.id}" aria-pressed="${e.id === S.eventId}"
             >${e.id === S.eventId ? 'Selected' : 'Select'}</button>
+          <a class="report-link" href="/setup/events/${e.id}/report" target="_blank"
+             rel="noopener" title="After-event report for ${esc(e.name)}">Report</a>
           ${iconBtn('edit', {'data-edite': e.id}, `Edit ${e.name}`)}
           ${S.user.is_system_admin
             ? iconBtn('remove', {'data-del': e.id}, `Delete ${e.name}`) : ''}

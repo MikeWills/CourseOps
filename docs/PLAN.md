@@ -566,7 +566,10 @@ Things discovered but not yet acted on. Each is a real constraint, not a wish.
 - **Point density.** A recorded GPX can carry thousands of points where a
   GIS-drawn KML carries dozens. Simplification is a separate decision; import
   must not silently discard fidelity.
-- **The event time zone is stored but nothing reads it yet.** `event.timezone`
+- ~~**The event time zone is stored but nothing reads it yet.**~~ The report
+  page (issue #7, 2026-09-05) reads it: times are formatted by the browser in
+  that zone. Everything below still holds for anything server-rendered.
+- **The event time zone was stored before anything read it.** `event.timezone`
   is set in the UI and saved, but every timestamp is stored UTC and displayed as
   a relative age ("8 minutes ago"), which needs no zone. It becomes load-bearing
   the moment anything shows a clock time - a start time, a lead-runner ETA as

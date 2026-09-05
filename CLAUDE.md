@@ -12,7 +12,7 @@ Brand, palette and logo decisions: `docs/DESIGN.md`.
 Complete history with the reasoning behind each fix: `CHANGELOG.md`.
 Open work is tracked as GitHub issues: #2 replay,
 #3 map tiles, #4 per-organization backup, #5 multi-tenant hosting,
-#6 tracking non-ham volunteers, #7 incident and course-note export.
+#6 tracking non-ham volunteers.
 Issues #3-#5 are triggered by hosting a SECOND organization, not the first.
 
 **Starting a fresh session?** Read `docs/PLAN.md` first - it carries the
@@ -52,7 +52,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 471 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 484 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -98,6 +98,7 @@ src/courseops/
   units.py        metric storage -> US customary display
   progress.py     snap a station onto a course: "mile 14.2 of Full"
   incidents.py    pickups by bib, status workflow, change log
+  report.py       the after-event page for the race lead: counts, notes, no names
   leaders.py      first male/female per race, from aid station reports
   categories.py   per-event place layers and role names; the `staffed` flag
   styling.py      course colors, line styles, draw order
@@ -203,6 +204,15 @@ usability, not style preferences.
   sorting is status rank then longest-waiting.
 - **Never block incident creation on a dialog.** A pickup is called in before
   the bib is known. Create first, fill the bib in after.
+- **The report's small maps are drawn by the browser, never fetched by the
+  server.** Same Leaflet, same OSM tiles as the live map, so the page adds no
+  dependency and sends nothing anywhere the live map does not already. A
+  static-map API would be a new third party receiving incident coordinates.
+- **The report page carries no names, and times in the EVENT's zone.** It
+  goes to the organizer, who needs counts and places, not which volunteer
+  reported what. Timestamps are stored UTC and formatted by the browser with
+  `Intl.DateTimeFormat` in `event.timezone` - a Windows Python has no zone
+  database without a fifth dependency, and the browser always does.
 - **Keep medical detail out of incidents.** Bib, location, status, short
   operational note. Narrative descriptions of a runner's condition would make this
   a system storing health information about identifiable people.
@@ -675,6 +685,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-05** After-event report page for the race lead: pickups counted, notes listed, no names (#7).
 - **2026-09-05** GPX course import: tracks, routes and waypoints through the same review as KML (#1).
 - **2026-09-04** Fixed: returning to the app on a phone could scroll the header away and show the closed panel.
 - **2026-09-04** Fixed: a place's popup showed the organizer's whole HTML document as its notes.
@@ -684,4 +695,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-04** The locate button is a crosshair, and no longer hidden behind the stations panel.
 - **2026-09-04** Live tracking is a switch in setup, off by default, with the roster's filter shown.
 - **2026-09-04** The running build is shown in the setup header, so a deploy can be confirmed.
-- **2026-09-04** Fixed: deploy.sh was committed non-executable, so no clone could run it.
