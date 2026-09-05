@@ -357,12 +357,14 @@ usability, not style preferences.
   invisible, with no error, on the layout NCS actually uses. Offset by the same
   `clamp()` the map is, and put it back under `body.stations-hidden`.
 - **`body` is `position: fixed`. `overflow: hidden` is not enough on iOS.**
-  Safari scrolls the document to anything reaching past the viewport - the
+  WebKit scrolls the document to anything reaching past the viewport - the
   closed sheet, translated 102% below - and does so on its own when the app
   comes back from the background. The symptom is the header gone off the top
   and the "closed" panel showing along the bottom. The closed sheet is also
   `visibility: hidden`; the sidebar tier sets it visible again because a
-  sidebar is never closed.
+  sidebar is never closed. "iOS" here means every browser on it - Chrome and
+  Firefox on iOS are WebKit underneath, by Apple's rule - so there is no
+  browser to switch to.
 - **`#map` is its own stacking context (`isolation: isolate`). Keep it.**
   Leaflet numbers its controls 1000 and its popups 700, and without isolation
   those compete with the top bar (500), the stations panel (550) and the sheet
@@ -420,8 +422,10 @@ usability, not style preferences.
   do not sort at all. `CourseIndex.order_along_course()`.
 - **The course name always travels with the mile.** Routes share road, so the
   snap is a coin flip there; "mile 14.2" alone would mislead.
-- **Mile figures inherit the course geometry's accuracy.** A hand-drawn route
-  that cuts corners is shorter than the road. Never silently smooth it.
+- **Mile figures inherit the course geometry's accuracy, and that is
+  accepted.** A hand-drawn route that cuts corners is shorter than the road.
+  Never smooth, snap or re-measure it: the line is there to see the route, and
+  the organizer's mile-marker places carry the real distances.
 - **Icons: regenerate with `python tools/make_icons.py`, never by hand.** iOS
   ignores SVG and the manifest for home screen icons; Android crops maskable
   icons to the central 80%. Full-bleed sources keep square corners because both

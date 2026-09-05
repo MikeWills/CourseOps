@@ -51,7 +51,7 @@ html, body {
   height: 100%;
   overflow: hidden;                 /* the map scrolls, the page never does */
 }
-/* overflow: hidden is not enough on iOS. Safari scrolls the document anyway
+/* overflow: hidden is not enough on iOS. WebKit scrolls the document anyway
    when something reaches past the viewport - and the closed sheet does, being
    translated 102% below it - which it does on its own when the app comes
    back from the background and the visual viewport is re-laid out. The
