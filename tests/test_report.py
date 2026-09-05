@@ -114,3 +114,14 @@ def test_an_empty_event_still_renders(event):
     html = report.render(report.build(conn, event_id))
     assert "No pickups." in html
     assert "Nothing to report." in html
+
+
+def test_the_time_zone_cannot_break_out_of_the_script(event):
+    """The zone is admin-typed text. Inside <script> HTML escaping does not
+    protect, so it must never be interpolated there at all."""
+    conn, event_id = event
+    conn.execute("UPDATE event SET timezone = ? WHERE id = ?",
+                 ("</script><script>alert(1)</script>", event_id))
+    html = report.render(report.build(conn, event_id))
+    assert "<script>alert(1)" not in html
+    assert "&lt;/script&gt;" in html

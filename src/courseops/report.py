@@ -205,7 +205,10 @@ def render(report: Report) -> str:
    back to the reader's own zone and say so, rather than showing UTC without
    a label - a time with the wrong zone on it is worse than none. */
 (function () {{
-  var tz = {report.timezone!r};
+  /* Read from the escaped element, never interpolated into this script: a
+     zone name is admin-typed text, and text inside a <script> is the one
+     place HTML escaping does not protect. */
+  var tz = document.getElementById("tz").textContent;
   var opts = {{ hour: "2-digit", minute: "2-digit", hour12: false }};
   var fmt;
   try {{ fmt = new Intl.DateTimeFormat(undefined, Object.assign({{ timeZone: tz }}, opts)); }}
