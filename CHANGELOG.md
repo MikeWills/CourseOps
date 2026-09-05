@@ -7,6 +7,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **Coming back to the app on a phone could leave the header off the top and
+  the closed panel showing along the bottom.** The closed sheet is translated
+  102% below the viewport, and iOS Safari scrolls the document to reach it
+  regardless of `overflow: hidden` - which it did on its own when the app
+  returned from the background and the visual viewport was re-laid out.
+  Tapping Layers sometimes put it right only because the transform change
+  happened to reset the scroll. `body` is now `position: fixed`, which Safari
+  cannot scroll; the closed sheet is `visibility: hidden` so it is not
+  reachable, focusable or read out; and on `pageshow`/becoming visible the
+  scroll is reset and Leaflet re-measures the map.
+
 ## [0.1.4] - 2026-09-04
 
 ### Fixed

@@ -343,6 +343,19 @@ usability, not style preferences.
   `right: 12px` put it underneath the panel on every screen over 1000px -
   invisible, with no error, on the layout NCS actually uses. Offset by the same
   `clamp()` the map is, and put it back under `body.stations-hidden`.
+- **`body` is `position: fixed`. `overflow: hidden` is not enough on iOS.**
+  Safari scrolls the document to anything reaching past the viewport - the
+  closed sheet, translated 102% below - and does so on its own when the app
+  comes back from the background. The symptom is the header gone off the top
+  and the "closed" panel showing along the bottom. The closed sheet is also
+  `visibility: hidden`; the sidebar tier sets it visible again because a
+  sidebar is never closed.
+- **`#map` is its own stacking context (`isolation: isolate`). Keep it.**
+  Leaflet numbers its controls 1000 and its popups 700, and without isolation
+  those compete with the top bar (500), the stations panel (550) and the sheet
+  (700) directly - the zoom buttons floated over the open panel on a phone.
+  Isolated, nothing inside the map can draw over anything laid on top of it,
+  whatever z-index Leaflet picks next.
 - **The connection badge must stay visible.** It is the only signal that a phone
   is showing stale data. Leaflet's zoom control shares that corner at z-index
   1000; the top bar reserves space for it.
@@ -659,6 +672,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-04** Fixed: returning to the app on a phone could scroll the header away and show the closed panel.
 - **2026-09-04** Fixed: a place's popup showed the organizer's whole HTML document as its notes.
 - **2026-09-04** Fixed: on a phone the zoom buttons covered the header and floated over the open panel.
 - **2026-09-04** Every role can report a pickup or course note; only NCS and SAG work the queue.
@@ -668,4 +682,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-04** The running build is shown in the setup header, so a deploy can be confirmed.
 - **2026-09-04** Fixed: deploy.sh was committed non-executable, so no clone could run it.
 - **2026-09-04** Fixed: deploy.sh assumed /opt/courseops; the install path is now derived.
-- **2026-09-04** On a phone each role's own section opens first, rather than below the fold.

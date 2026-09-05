@@ -2247,6 +2247,23 @@ function setSheet(open) {
 sheetToggle.addEventListener('click', () => setSheet(!sheet.classList.contains('open')));
 document.getElementById('sheet-grip').addEventListener('click', () => setSheet(false));
 
+/* ---------- coming back ------------------------------------------------- */
+
+/* A phone comes back from the background with a re-laid-out viewport, and iOS
+   Safari can leave the document scrolled - header off the top, the closed
+   sheet showing along the bottom. body is position: fixed so that should
+   never happen, but if anything does nudge the scroll (focusing a field does,
+   on iOS) this puts it back and lets Leaflet re-measure the map, which is
+   also stale after a background/foreground cycle. */
+function restoreViewport() {
+  window.scrollTo(0, 0);
+  map.invalidateSize();
+}
+window.addEventListener('pageshow', restoreViewport);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') restoreViewport();
+});
+
 /* ---------- go ---------------------------------------------------------- */
 
 (async () => {

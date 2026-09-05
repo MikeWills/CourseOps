@@ -50,6 +50,17 @@ html, body {
   margin: 0;
   height: 100%;
   overflow: hidden;                 /* the map scrolls, the page never does */
+}
+/* overflow: hidden is not enough on iOS. Safari scrolls the document anyway
+   when something reaches past the viewport - and the closed sheet does, being
+   translated 102% below it - which it does on its own when the app comes
+   back from the background and the visual viewport is re-laid out. The
+   result was the header off the top of the screen and the "closed" sheet
+   showing along the bottom, with nothing to explain it. A fixed body cannot
+   be scrolled by the browser at all. */
+body {
+  position: fixed;
+  inset: 0;
   font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   color: var(--ink);
   background: var(--paper);
@@ -219,9 +230,12 @@ html, body {
   border-radius: 14px 14px 0 0;
   box-shadow: 0 -3px 14px rgba(0, 0, 0, 0.2);
   transform: translateY(102%);
-  transition: transform 180ms ease-out;
+  /* Closed is closed: not scrollable-to, not focusable, not in the
+     accessibility tree. The delay keeps it visible for the slide-out. */
+  visibility: hidden;
+  transition: transform 180ms ease-out, visibility 0s linear 180ms;
 }
-#sheet.open { transform: translateY(0); }
+#sheet.open { transform: translateY(0); visibility: visible; transition-delay: 0s; }
 
 /* On a phone the panel opens to fill the screen rather than sliding up to two
    thirds of it. Half a map and half a list is the worst of both: too little
@@ -604,6 +618,7 @@ html, body {
     border-top: 0;
     border-right: 1px solid var(--line);
     transform: none;
+    visibility: visible;   /* a sidebar is never "closed" - see the phone rule */
     padding-top: 64px;
   }
   #sheet-grip { display: none; }
