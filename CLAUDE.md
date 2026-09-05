@@ -52,7 +52,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 484 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 488 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -180,6 +180,11 @@ usability, not style preferences.
   someone invisible with no error; `ssid_alerts` puts it in front of NCS
   unprompted. Anything that depends on remembering to run a check will be
   forgotten on race morning.
+- **Anything computed from stored positions and sent in the snapshot goes
+  stale live.** The SSID alerts did: a marker for an unknown station arrived
+  by WebSocket, the alert about it waited for a refresh. `make_position_handler`
+  publishes one `resync` the first time a station the roster does not know is
+  heard. Once per station, never per packet - an igate beacons all day.
 - **`station_exclusion` must hide stored positions too**, not just gate ingest -
   otherwise "ignore" leaves the thing on the map.
 - **The filter is a WILDCARD per callsign (`b/WX0MIK*`), not per SSID.** A
@@ -689,6 +694,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-05** Fixed: "Needs attention" only appeared after a refresh; an unknown station now announces itself live.
 - **2026-09-05** After-event report page for the race lead: pickups counted, notes listed, no names (#7).
 - **2026-09-05** GPX course import: tracks, routes and waypoints through the same review as KML (#1).
 - **2026-09-04** Fixed: returning to the app on a phone could scroll the header away and show the closed panel.
@@ -698,4 +704,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-04** "Here" drops the pin at your own location, beside the map tap rather than replacing it.
 - **2026-09-04** The locate button is a crosshair, and no longer hidden behind the stations panel.
 - **2026-09-04** Live tracking is a switch in setup, off by default, with the roster's filter shown.
-- **2026-09-04** The running build is shown in the setup header, so a deploy can be confirmed.

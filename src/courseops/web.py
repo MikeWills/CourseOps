@@ -87,6 +87,39 @@ def _course_position(index: "progress.CourseIndex", lat: float, lon: float):
     return located.as_dict() if located else None
 
 
+def make_position_handler(hub, roster_by_key: dict, known_keys: set[str], index):
+    """The ingest callback: fan a position out, and announce a new station.
+
+    The SSID alerts ("Needs attention") are computed from stored positions
+    and sent with the state snapshot, so a station the roster does not name
+    used to reach every browser as a marker while the alert about it waited
+    for someone to refresh. That defeats the alert: a wrong SSID is a silent
+    failure, and the whole point is to put it in front of NCS unprompted.
+
+    So the first packet from a station the roster does not know triggers one
+    resync, which reloads the snapshot and with it the alerts. Once per
+    station for the life of the feed - not per packet, which would have every
+    browser reloading on every beacon from an igate.
+    """
+    announced: set[str] = set()
+
+    async def on_position(event_id: int, report) -> None:
+        await hub.publish(
+            event_id,
+            hub_module.position_message(
+                report,
+                roster_by_key.get(report.station_key),
+                _course_position(index, report.lat, report.lon),
+            ),
+        )
+        key = report.station_key
+        if key not in known_keys and key not in announced:
+            announced.add(key)
+            await hub.publish(event_id, {"type": "resync"})
+
+    return on_position
+
+
 def _ssid_alerts(conn: sqlite3.Connection, event_id: int) -> list[dict[str, Any]]:
     """Callsigns transmitting on an SSID the roster does not name.
 
@@ -1750,22 +1783,16 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         roster_by_key = {
             row["station_key"]: row for row in db.roster_for_event(conn, event["id"])
         }
+        known_keys = set(db.all_station_keys(conn, event["id"]))
+        known_keys |= db.bound_station_keys(conn, event["id"])
         # Course geometry is loaded once for the life of the ingest task rather
         # than per packet. Courses are set up before the event and do not change
         # while it runs; restart the server if one is re-imported mid-event.
         index = progress.CourseIndex.for_event(conn, event["id"])
         conn.close()
 
-        async def on_position(event_id: int, report) -> None:
-            await app.state.hub.publish(
-                event_id,
-                hub_module.position_message(
-                    report,
-                    roster_by_key.get(report.station_key),
-                    _course_position(index, report.lat, report.lon),
-                ),
-            )
-
+        on_position = make_position_handler(
+            app.state.hub, roster_by_key, known_keys, index)
         await run_ingest(settings, slug, on_position=on_position)
 
     async def _supervise_ingest(slug: str) -> None:

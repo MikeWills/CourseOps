@@ -7,6 +7,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **"Needs attention" did not appear until the page was refreshed.** Found on
+  the first real feed. The SSID alerts are computed from stored positions and
+  sent with the state snapshot; a live packet from a station the roster did
+  not name updated its marker and nothing else, so the alert about it waited
+  for someone to reload - which defeats an alert whose whole purpose is to
+  surface a wrong SSID unprompted. The first packet from an unknown station
+  now triggers one resync, which carries the alerts to every browser. Once per
+  station for the life of the feed, not per packet.
+
 ## [0.2.0] - 2026-09-05
 
 ### Added
