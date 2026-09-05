@@ -155,3 +155,53 @@ def test_course_distance_reads_in_miles(event_db):
         conn, event_id, [part1["id"]], name="Half"
     )
     assert units.format_distance(distance_m).endswith(" mi")
+
+
+def test_assign_poi_drops_an_exporter_attribute_table(event_db):
+    """An ArcGIS description is an HTML document. It classified the place at
+    staging; nothing in it belongs in a popup."""
+    conn, event_id = event_db
+    importer.stage_file(conn, event_id, FIXTURE)
+    water = staged(conn, event_id, "Water Stop 1")
+    conn.execute(
+        "UPDATE import_feature SET description = ? WHERE id = ?",
+        ("<html><body><table><tr><td>Type</td><td>WATER</td></tr>"
+         "</table></body></html>", water["id"]),
+    )
+
+    poi_id = importer.assign_poi(conn, event_id, water["id"], "aid_station")
+
+    row = conn.execute("SELECT notes FROM poi WHERE id = ?", (poi_id,)).fetchone()
+    assert row["notes"] is None
+
+
+def test_existing_html_notes_are_cleaned_on_startup(event_db):
+    """Events imported before the fix already carry the markup. Re-running
+    init_schema - which every start does - strips it, and leaves alone notes
+    that are plain text."""
+    from courseops import db
+    conn, event_id = event_db
+    conn.execute(
+        "INSERT INTO poi (event_id, name, poi_type, lat, lon, notes)"
+        " VALUES (?, 'Start', 'start', 44.1, -93.9, ?)",
+        (event_id, "<html><body><table><tr><td>Type</td><td>Start</td></tr>"
+                   "</table></body></html>"),
+    )
+    conn.execute(
+        "INSERT INTO poi (event_id, name, poi_type, lat, lon, notes)"
+        " VALUES (?, 'Aid 2', 'aid_station', 44.2, -93.9, ?)",
+        (event_id, "Behind the church <b>use the side gate</b>"),
+    )
+    conn.execute(
+        "INSERT INTO poi (event_id, name, poi_type, lat, lon, notes)"
+        " VALUES (?, 'Aid 3', 'aid_station', 44.3, -93.9, 'Plain text')",
+        (event_id,),
+    )
+
+    db.init_schema(conn)
+
+    notes = dict(conn.execute(
+        "SELECT name, notes FROM poi WHERE event_id = ?", (event_id,)).fetchall())
+    assert notes == {"Start": None,
+                     "Aid 2": "Behind the church use the side gate",
+                     "Aid 3": "Plain text"}

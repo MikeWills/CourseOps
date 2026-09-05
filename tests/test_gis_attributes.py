@@ -82,3 +82,41 @@ def test_a_line_is_not_classified_by_the_point_attribute():
         attributes=kml.attributes_from_description(ESRI),
     )
     assert not feature.suggest().startswith("poi:")
+
+
+# --- what a description is worth showing --------------------------------------
+
+def test_an_attribute_table_yields_no_notes():
+    """Everything in the table was used at import or is noise, and shown raw it
+    is a page of markup in the popup someone opened to find the water."""
+    assert kml.description_notes(ESRI) is None
+
+
+def test_a_full_arcgis_document_yields_no_notes():
+    """The real export wraps the table in a whole document - head, inline
+    styles, a script - which is what reached the map."""
+    doc = ('<html xmlns:fo="http://www.w3.org/1999/XSL/Format"><head>'
+           '<META http-equiv="Content-Type" content="text/html"></head>'
+           '<body style="margin:0px">' + ESRI +
+           '<script type="text/javascript">function changeImage(a, b) {}'
+           '</script></body></html>')
+    assert kml.description_notes(doc) is None
+
+
+@pytest.mark.parametrize("description, expected", [
+    (None, None),
+    ("", None),
+    ("   ", None),
+    ("Corner of Oak and 3rd", "Corner of Oak and 3rd"),
+    ("<p>Behind the church.</p><p>Use the side gate.</p>",
+     "Behind the church.\nUse the side gate."),
+    ("Water &amp; gels<br>Portaloo 50m north", "Water & gels\nPortaloo 50m north"),
+    ("<div>  lots   of   space  </div>", "lots of space"),
+])
+def test_a_hand_written_description_is_kept_as_text(description, expected):
+    """Google My Maps and a club's own file say useful things, in markup."""
+    assert kml.description_notes(description) == expected
+
+
+def test_notes_are_capped():
+    assert len(kml.description_notes("x" * 2000)) == kml.MAX_NOTES_LENGTH

@@ -355,7 +355,9 @@ def assign_poi(
         " VALUES (?, ?, ?, ?, ?, ?, ?)",
         (
             event_id, name or row["name"], poi_type, lat, lon,
-            what3words, row["description"],
+            # Never the raw description: for an ArcGIS file that is a whole
+            # HTML document, and it was reaching the map popup verbatim.
+            what3words, kml.description_notes(row["description"]),
         ),
     )
     poi_id = int(cur.lastrowid)
