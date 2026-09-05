@@ -669,9 +669,9 @@ Things discovered but not yet acted on. Each is a real constraint, not a wish.
   timestamp and never arrival time - or a medic returning to coverage looks
   freshly located somewhere they left. Out-of-order and duplicate points come
   from the same mechanism.
-- **Course notes have no export** - issue #7. Their whole value is the organizer
-  reading them after the event, which currently means reading them off a screen
-  before the database is cleared.
+- ~~**Course notes have no export**~~ - done 2026-09-05, issue #7. The report
+  page (`report.py`) is one printable page for the race lead: pickup counts by
+  stop and window, and every course note with a small map, no names.
 - ~~**Place types were a fixed list.**~~ Resolved: `poi_category` is per-event
   data with no limit, and `staffed` replaced the hardcoded `aid_station` check.
   The remaining constraint is display, not storage: past a handful of layers,
