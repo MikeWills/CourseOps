@@ -1208,3 +1208,24 @@ def test_healthz_says_nothing_about_the_event(setup):
 
     assert set(body) == {"status", "version"}
     assert "m2026" not in str(body)
+
+
+# --- the after-event report (issue #7) --------------------------------------
+
+def test_the_report_needs_an_admin_session(setup):
+    app, _, _, event_id = setup
+    with TestClient(app) as client:
+        assert client.get(f"/setup/events/{event_id}/report").status_code == 401
+
+
+def test_the_report_page_is_served_to_an_admin(setup):
+    app, _, db_path, event_id = setup
+    _make_admin(db_path)
+    with TestClient(app) as client:
+        client.post("/api/setup/login",
+                    json={"username": "mike", "password": "a-long-enough-password"})
+        response = client.get(f"/setup/events/{event_id}/report")
+    assert response.status_code == 200
+    assert "text/html" in response.headers["content-type"]
+    assert "Spring Marathon" in response.text
+    assert "Course notes" in response.text

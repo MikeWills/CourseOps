@@ -24,7 +24,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import (access, admin, build, categories, db, hub as hub_module, importer,
-               incidents, labels as poi_labels, resources,
+               incidents, labels as poi_labels, report, resources,
                kml, leaders, progress, symbols, users)
 from .config import Settings
 from .ingest import run_ingest
@@ -482,6 +482,19 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         return _page(
             html.replace("{{FIRST_RUN}}", "true" if needs_first_user else "false")
         )
+
+    # The after-event page for the race lead: pickups counted, notes listed,
+    # no names. Behind the admin login - it is the club that prints or
+    # screenshots this and hands it over, not the organizer following a link.
+    @app.get("/setup/events/{event_id}/report")
+    async def setup_report(event_id: int, request: Request) -> HTMLResponse:
+        conn, user = require_event_admin(request, event_id)
+        try:
+            data = report.build(conn, event_id)
+        finally:
+            conn.close()
+        return HTMLResponse(report.render(data),
+                            headers={"Cache-Control": "no-cache, must-revalidate"})
 
     @app.get("/api/setup/session")
     async def whoami(request: Request) -> JSONResponse:

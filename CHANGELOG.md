@@ -8,6 +8,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **An after-event report page for the race lead** (issue #7). One printable,
+  screenshot-able page per event, behind the admin login, linked from the
+  Events tab: how many pickups and over what window, how many near each water
+  stop (and how many between stops), and every course note with where and
+  when. Where is "near Aid 4, mile 9.1 of Half" - a lat/lon is not something a
+  route committee can act on. No names: not who reported, not who dispatched,
+  and never a runner's. Times are stored UTC and shown in the event's time
+  zone by the browser, which makes this the first thing that actually reads
+  the `event.timezone` the setup screen has been saving.
 - **GPX course import** (issue #1). Consumer route tools - MapMyRun, Strava,
   Garmin Connect - export GPX and sometimes nothing else, and the first event's
   route arrived that way. `<trk>` segments and `<rte>` become assignable
