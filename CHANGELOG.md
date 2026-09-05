@@ -7,6 +7,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-09-04
+
 ### Fixed
 - **A place's popup showed the organizer's entire HTML document as its
   notes.** Import copied each placemark's `<description>` straight into
