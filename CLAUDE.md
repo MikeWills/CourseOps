@@ -52,7 +52,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 506 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 508 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -263,6 +263,10 @@ usability, not style preferences.
 - **SAG is a fourth role, and the only field role that writes.** They work the
   pickup queue from a vehicle: en route, picked up, dropped off, and the bib
   once they can read it. Nothing else.
+- **Staff is the link that gets forwarded.** Fifth role, zero capabilities:
+  sees everything a field role sees, cannot report, never receives the
+  nearby or ignored lists. Anything a stranger could do with a link they were
+  handed has to be nothing, or the link has to be tracked.
 - **Liaison and Logistics are different teams, not one role.** Liaison is
   embedded with Public Safety and Medics; Logistics is in the field doing traffic
   control, cone placement and teardown. Separate links so one can be revoked
@@ -397,7 +401,7 @@ usability, not style preferences.
 - **The viewer's own position is local only** - never sent to the server, never
   stored, never visible to other viewers.
 - **"Ops" in Course Ops is the product name, not the Logistics team.** Roles are
-  NCS / Liaison / Logistics.
+  NCS / SAG / Liaison / Logistics / Staff.
 - **Navy is chrome; the map stays light.** Field roles read it outdoors for six
   hours. Never theme the map surface dark without a user toggle and dark tiles.
 - **No mile figure beats a wrong one.** A station further than
@@ -714,6 +718,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-05** A Staff link: the whole picture, read-only, for race staff and the organizer.
 - **2026-09-05** Removed the what3words lookup links; the undocumented URL stopped working.
 - **2026-09-05** An Ignored list (folded, NCS only) with Unignore, the undo for a mis-tap.
 - **2026-09-05** The Operator box asks for a callsign; still free text, so a name works too.
@@ -723,4 +728,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-05** GPX course import: tracks, routes and waypoints through the same review as KML (#1).
 - **2026-09-04** Fixed: returning to the app on a phone could scroll the header away and show the closed panel.
 - **2026-09-04** Fixed: a place's popup showed the organizer's whole HTML document as its notes.
-- **2026-09-04** Fixed: on a phone the zoom buttons covered the header and floated over the open panel.

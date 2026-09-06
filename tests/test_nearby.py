@@ -278,3 +278,24 @@ def test_an_ignored_station_is_dropped_and_not_logged(event):
     assert report is None and nearby == []
     assert stats.excluded == 1
     assert conn.execute("SELECT COUNT(*) FROM raw_packet").fetchone()[0] == 0
+
+
+# --- the staff link: read everything, change nothing ------------------------
+
+def test_staff_see_the_whole_picture_and_none_of_the_ncs_lists(app_with_nearby):
+    app, tokens, _ = app_with_nearby
+    with TestClient(app) as client:
+        state = client.get(f"/api/m2026/{tokens['staff']}/state").json()
+        assert state["role"] == "staff" and state["can_write"] is False
+        assert state["capabilities"] == []
+        assert "roster" in state and "incidents" in state and "pois" in state
+        assert "nearby" not in state and "ignored" not in state
+        refused = [
+            client.post(f"/api/m2026/{tokens['staff']}/incidents",
+                        json={"lat": 44.1, "lon": -94.0}),
+            client.post(f"/api/m2026/{tokens['staff']}/station/K0JZP/status",
+                        json={"op_status": "active"}),
+            client.post(f"/api/m2026/{tokens['staff']}/ssid/ignore",
+                        json={"station_key": "W1AW-9"}),
+        ]
+    assert [r.status_code for r in refused] == [403, 403, 403]

@@ -337,6 +337,7 @@ public view. Permission is per capability rather than one write flag:
 | SAG | Report an incident, and work the pickup queue - en route, picked up, dropped off, and the bib |
 | Liaison | Report an incident. Embedded with Public Safety and Medics |
 | Logistics | Report an incident. Traffic control, cones, teardown |
+| Staff | Nothing. The whole picture, read-only - the link to hand to race staff and the organizer |
 
 **Every role can report; only NCS and SAG work the queue.** All four teams are
 somewhere an incident can happen, and a report that has to be relayed over the

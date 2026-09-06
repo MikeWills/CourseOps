@@ -196,11 +196,11 @@ def test_client_assets_are_served(setup):
 # --- roles ------------------------------------------------------------------
 
 def test_each_role_gets_its_own_link(setup):
-    """Four different teams, so any one link can be revoked without cutting
-    off the others."""
+    """Four different teams plus one for everyone else, so any one link can
+    be revoked without cutting off the others."""
     _, tokens, _, _ = setup
-    assert set(tokens) == {"ncs", "sag", "liaison", "logistics"}
-    assert len(set(tokens.values())) == 4
+    assert set(tokens) == {"ncs", "sag", "liaison", "logistics", "staff"}
+    assert len(set(tokens.values())) == 5
 
 
 def test_logistics_may_report_and_nothing_else(setup):

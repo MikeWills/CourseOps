@@ -25,19 +25,23 @@ ROLE_NCS = "ncs"
 ROLE_SAG = "sag"
 ROLE_LIAISON = "liaison"
 ROLE_LOGISTICS = "logistics"
-ROLES = (ROLE_NCS, ROLE_SAG, ROLE_LIAISON, ROLE_LOGISTICS)
+ROLE_STAFF = "staff"
+ROLES = (ROLE_NCS, ROLE_SAG, ROLE_LIAISON, ROLE_LOGISTICS, ROLE_STAFF)
 
 # Four teams doing four different jobs, each with its own link so one can be
-# revoked without cutting off the others:
+# revoked without cutting off the others - and one link for everyone else:
 #   Net Control - runs the net
 #   SAG         - drives the course collecting runners who cannot continue
 #   Liaison     - embedded with Public Safety and Medics
 #   Logistics   - out on the course: traffic control, cone placement, teardown
+#   Staff       - race staff, the organizer, anyone who should see the whole
+#                 picture and change none of it. The link to hand around.
 ROLE_LABELS = {
     ROLE_NCS: "Net Control",
     ROLE_SAG: "SAG",
     ROLE_LIAISON: "Liaison",
     ROLE_LOGISTICS: "Logistics",
+    ROLE_STAFF: "Staff",
 }
 
 # --- capabilities -----------------------------------------------------------
@@ -88,6 +92,11 @@ ROLE_CAPABILITIES = {
     # in and locating yourself is only ever the shortcut beside it.
     ROLE_LIAISON: frozenset({CAP_INCIDENT_REPORT}),
     ROLE_LOGISTICS: frozenset({CAP_INCIDENT_REPORT}),
+    # Nothing. Staff see everything the field roles see and cannot touch any
+    # of it - not even report - because this is the link that gets forwarded
+    # to people the club has never met, and a link that can write is a link
+    # that has to be tracked. It also never receives the nearby list.
+    ROLE_STAFF: frozenset(),
 }
 
 # Kept for the roster filter and anything asking the old yes/no question.
