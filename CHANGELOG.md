@@ -7,6 +7,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-09-05
+
 ### Changed
 - **The Events tab says what its controls do.** "Selected" is now "Working
   on this" - it names what the other tabs are pointed at, which is what the
