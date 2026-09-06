@@ -117,6 +117,7 @@ function savePrefs() {
    the sweep is the back of the pack, so its position is what says a road
    segment is clear and the cones can come up. */
 function defaultLayers(role) {
+  // Staff get the full picture, read-only: every layer on, like NCS.
   const field = role === 'liaison' || role === 'logistics';
   return {
     aid_station_ops: !field,
@@ -364,6 +365,8 @@ const SIDE_PANEL_BY_ROLE = {
   ncs:       { title: 'Stations', sections: ['station-section'] },
   logistics: { title: 'Stations', sections: ['station-section'] },
   liaison:   { title: 'Pickups',  sections: ['incident-section', 'note-section'] },
+  // Staff read the whole picture; the stations list is the most-read part.
+  staff:     { title: 'Stations', sections: ['station-section'] },
   sag:       { title: 'Pickups',  sections: ['incident-section', 'note-section'] },
 };
 

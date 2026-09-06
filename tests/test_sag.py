@@ -27,7 +27,14 @@ def test_every_role_may_report_an_incident():
     A report that has to be relayed to whoever holds the right link is a
     report that arrives late or not at all."""
     assert all(_access(role).can(access.CAP_INCIDENT_REPORT)
-               for role in access.ROLES)
+               for role in access.ROLES if role != access.ROLE_STAFF)
+
+
+def test_staff_can_do_nothing_at_all():
+    """The link that gets forwarded to people the club has never met. It sees
+    everything and changes nothing - not even a report."""
+    assert not _access(access.ROLE_STAFF).capabilities
+    assert not _access(access.ROLE_STAFF).can_write
 
 
 def test_only_ncs_and_sag_work_the_queue():

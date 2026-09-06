@@ -7,6 +7,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **A Staff link: the whole picture, read-only.** A fifth role for race
+  staff, the organizer, and anyone who should see everything and change
+  nothing - not even report, because this is the link that gets forwarded to
+  people the club has never met. Every layer on by default like NCS; the
+  stations list first on a phone; no write controls anywhere; never sent the
+  NCS-only lists. It appears on the Links tab of every event, existing ones
+  included.
 ### Removed
 - **The `///` link beside each place's What3Words field.** It opened
   what3words at the place's coordinates through a URL form what3words never
