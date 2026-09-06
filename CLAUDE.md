@@ -714,6 +714,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-05** Removed the what3words lookup links; the undocumented URL stopped working.
 - **2026-09-05** An Ignored list (folded, NCS only) with Unignore, the undo for a mis-tap.
 - **2026-09-05** The Operator box asks for a callsign; still free text, so a name works too.
 - **2026-09-05** NCS sees every station near the course and matches it to anyone on the roster; Unmatch undoes it.
@@ -723,4 +724,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-04** Fixed: returning to the app on a phone could scroll the header away and show the closed panel.
 - **2026-09-04** Fixed: a place's popup showed the organizer's whole HTML document as its notes.
 - **2026-09-04** Fixed: on a phone the zoom buttons covered the header and floated over the open panel.
-- **2026-09-04** Every role can report a pickup or course note; only NCS and SAG work the queue.

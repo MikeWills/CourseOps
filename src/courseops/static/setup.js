@@ -895,24 +895,10 @@ async function loadCourses() {
       loadCourses();
     }));
 
-  /* Open the what3words map on a square, so the words can be read off and
-     pasted into the field beside this link.
-
-     We deliberately do not integrate the what3words API - it is paid, and a
-     club should not need an account (see docs/PLAN.md). A link costs nothing
-     and turns "go and find this point on a map somehow" into one click.
-
-     This lat/lng form of the URL is NOT documented by what3words; the
-     documented links are word-based, and the app URI scheme (w3w://show)
-     has no coordinate form at all. Verified working 2026-09-03: the site
-     rewrites the URL to the square it resolved, e.g.
-       ?lat=44.1636&lng=-93.9994  ->  /clip.apples.leap?zoom=19&lat=...
-     If it ever stops resolving, the fallback is the coordinates in the
-     column beside it, which are ours and cannot break. */
-  const w3wLookup = (lat, lon) =>
-    `https://what3words.com/?maptype=roadmap&zoom=19`
-    + `&lat=${lat.toFixed(6)}&lng=${lon.toFixed(6)}`;
-
+  /* No link to what3words: the only URL form that took coordinates was
+     undocumented and stopped working. The coordinates column is ours and
+     cannot break - type them into the site or app to read the words off.
+     The paid API stays out (docs/PLAN.md). */
   $('poi-table').innerHTML = data.pois.length ? `
     <table class="grid"><thead><tr><th></th><th><input type="checkbox" id="poi-all"
         aria-label="Select every place"></th>
@@ -954,11 +940,7 @@ async function loadCourses() {
         ? `${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}` : '\u2014'}</td>
       <td class="w3w-cell"><input value="${esc(p.what3words || '')}"
             data-w3w="${p.id}" placeholder="filled.count.soap"
-            style="width:150px">${p.lat != null
-        ? `<a class="w3w-link" target="_blank" rel="noopener"
-              href="${w3wLookup(p.lat, p.lon)}"
-              title="Open what3words at ${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}"
-              >///</a>` : ''}</td>
+            style="width:150px"></td>
       <td class="actions">${iconBtn('remove', {'data-delp': p.id},
         `Delete ${p.name}`)}</td>
     </tr>`).join('') + '</tbody></table>'

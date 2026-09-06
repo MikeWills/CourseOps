@@ -346,14 +346,6 @@ table.grid button { min-height: 34px; padding: 0 10px; font-size: 13px; }
   color: var(--ink-soft);
 }
 .w3w-cell { white-space: nowrap; }
-.w3w-link {
-  margin-left: 6px;
-  font-weight: 700;
-  text-decoration: none;
-  color: var(--navy-700);
-  letter-spacing: -1px;
-}
-.w3w-link:hover, .w3w-link:focus { text-decoration: underline; }
 
 @media (max-width: 640px) {
   .row > .field { min-width: 100%; }

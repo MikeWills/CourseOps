@@ -7,6 +7,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Removed
+- **The `///` link beside each place's What3Words field.** It opened
+  what3words at the place's coordinates through a URL form what3words never
+  documented, and it has stopped working - which the note in `docs/PLAN.md`
+  said it might. The coordinates column stays and cannot break; the field
+  stays; the paid API stays out.
+
 ## [0.3.1] - 2026-09-05
 
 ### Added
