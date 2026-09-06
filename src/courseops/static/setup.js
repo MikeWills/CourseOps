@@ -375,7 +375,7 @@ async function loadEvents() {
     return;
   }
   host.innerHTML = '<table class="grid"><thead><tr><th>Event</th><th>Date</th>'
-    + '<th>Course</th><th>Aid</th><th>Roster</th><th></th></tr></thead><tbody>'
+    + '<th>Courses</th><th>Places</th><th>Roster</th><th></th></tr></thead><tbody>'
     + S.events.map((e) => `<tr${e.id === S.eventId ? ' style="background:#eaf2fb"' : ''}>
         <td><strong>${esc(e.name)}</strong><br><span class="muted">${esc(e.slug)}</span></td>
         <td>${esc(e.event_date || '')}<br>
@@ -385,9 +385,13 @@ async function loadEvents() {
         <td>${e.counts.roster}</td>
         <td class="actions">
           <button type="button" data-pick="${e.id}" aria-pressed="${e.id === S.eventId}"
-            >${e.id === S.eventId ? 'Selected' : 'Select'}</button>
+            title="${e.id === S.eventId
+              ? 'The other tabs are working on this event'
+              : 'Point the other tabs at this event'}"
+            >${e.id === S.eventId ? 'Working on this' : 'Work on this'}</button>
           <a class="report-link" href="/setup/events/${e.id}/report" target="_blank"
-             rel="noopener" title="After-event report for ${esc(e.name)}">Report</a>
+             rel="noopener" title="Pickups, notes and maps to hand the race lead afterwards"
+             >After-event report</a>
           ${iconBtn('edit', {'data-edite': e.id}, `Edit ${e.name}`)}
           ${S.user.is_system_admin
             ? iconBtn('remove', {'data-del': e.id}, `Delete ${e.name}`) : ''}
