@@ -220,9 +220,10 @@ line - and where routes share road that is a guess. Pick the station you mean.
 ### 5. Enter What3Words for each aid station
 
 NCS maintains these. In `/setup` -> Aid stations, every place shows its
-coordinates and a `///` link beside the What3Words box. The link opens the
-what3words map already centred on that square, so the job is: click `///`,
-copy the three words, paste them back. No hunting for the point on a map.
+coordinates beside the What3Words box. Put the coordinates into the what3words
+site or app, copy the three words it shows, paste them back. (There used to be
+a link that did the first step; what3words changed their site and it stopped
+working, so the coordinates are the reliable route.)
 
 Or from the command line:
 

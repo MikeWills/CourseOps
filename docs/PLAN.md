@@ -539,15 +539,11 @@ feed off. This is the largest untested claim in the project.
 
 ## Known gaps and open threads
 
-- **The what3words coordinate URL is undocumented.** Linking to a square by
-  latitude and longitude - `what3words.com/?maptype=roadmap&zoom=19&lat=..&lng=..`
-  - is what the Aid stations table uses to turn "look this up somehow" into one
-  click. It works: the site rewrites the URL to the square it resolved, verified
-  2026-09-03 against real course coordinates. But what3words documents only
-  word-based links, and the `w3w://show` app URI scheme has no coordinate form
-  at all, so nothing obliges them to keep it. If it breaks, the coordinates in
-  the column beside the link are ours and still do the job; there is no reason
-  to reach for the paid API over it.
+- ~~**The what3words coordinate URL is undocumented.**~~ It broke, as this
+  note said it might, and the links were removed 2026-09-05. The Aid stations
+  table still shows each place's coordinates, which are ours and cannot
+  break: type them into the what3words site or app to read the words off.
+  The manual What3Words field stays; the paid API stays out.
 
 Things discovered but not yet acted on. Each is a real constraint, not a wish.
 
