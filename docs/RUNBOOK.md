@@ -221,10 +221,18 @@ line - and where routes share road that is a guess. Pick the station you mean.
 ### 5. Enter What3Words for each aid station
 
 NCS maintains these. In `/setup` -> Aid stations, every place shows its
-coordinates beside the What3Words box. Put the coordinates into the what3words
-site or app, copy the three words it shows, paste them back. (There used to be
-a link that did the first step; what3words changed their site and it stopped
+coordinates beside the What3Words box, with a copy button. Copy them, paste
+them into the search box on the what3words site or app, and type the three
+words it shows back into the box here. Once words are in the box, the link
+beside it opens that square on what3words - check it is the right corner of
+the right intersection before saving. (There used to be a link that did the
+first step from the coordinates; what3words changed their site and it stopped
 working, so the coordinates are the reliable route.)
+
+To share the list, tick the rows - the box at the top of the table ticks
+every row shown, so filter to a layer first - and press **Export CSV**. The
+file has layer, name, coordinates and What3Words, and opens in any
+spreadsheet.
 
 Or from the command line:
 
@@ -375,7 +383,8 @@ Confirm before going live:
 ### Send the links
 
 Send each role link to that group only. **[CLUB]** _Which channel — group text,
-email, printed card?_
+email, printed card?_ The button beside Copy opens that role's view in a new
+tab, which is the quick way to see what a group will see before sending.
 
 Tell recipients:
 

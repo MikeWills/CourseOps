@@ -232,7 +232,35 @@ const ICONS = {
   // explanation, which a label on every row could not be.
   grip: ['<path d="M6.2 4.2h.01M9.8 4.2h.01M6.2 8h.01M9.8 8h.01'
        + 'M6.2 11.8h.01M9.8 11.8h.01"/>', 'Reorder'],
+  // A box with an arrow leaving it: "opens somewhere else".
+  open: ['<path d="M7 3.4H4.2a1.6 1.6 0 0 0-1.6 1.6v6.8a1.6 1.6 0 0 0 1.6 1.6H11'
+       + 'a1.6 1.6 0 0 0 1.6-1.6V9M9.4 2.6h4v4M13.4 2.6L7.6 8.4"/>', 'Open'],
 };
+
+/* The documented what3words URL: the three words after the host. The form
+   that took coordinates was never documented and broke (docs/PLAN.md); this
+   one is what the site itself hands out when you share a square. The shape
+   check mirrors what3words.normalize on the server: three dotted words, no
+   digits, optional leading slashes. */
+function w3wUrl(value) {
+  const m = /^\/{0,3}([^\W\d_]+)\.([^\W\d_]+)\.([^\W\d_]+)$/u
+    .exec((value || '').trim());
+  return m ? `https://what3words.com/${m[1]}.${m[2]}.${m[3]}` : '';
+}
+
+/* An anchor dressed as an icon button, for a control that goes somewhere
+   rather than does something. Same label rule as iconBtn. */
+function iconLink(kind, attrs, label) {
+  const [path, fallback] = ICONS[kind];
+  const text = label || fallback;
+  const pairs = Object.entries(attrs)
+    .map(([k, v]) => `${k}="${esc(String(v))}"`).join(' ');
+  return `<a class="icon-btn" ${pairs} target="_blank" rel="noopener" `
+    + `title="${esc(text)}" aria-label="${esc(text)}">`
+    + '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" '
+    + 'fill="none" stroke="currentColor" stroke-width="1.5" '
+    + `stroke-linecap="round" stroke-linejoin="round">${path}</svg></a>`;
+}
 
 /* Icon-only buttons are invisible to a screen reader and to anyone who does not
    recognise the shape, so every one carries both an aria-label and a title -
@@ -899,10 +927,13 @@ async function loadCourses() {
       loadCourses();
     }));
 
-  /* No link to what3words: the only URL form that took coordinates was
-     undocumented and stopped working. The coordinates column is ours and
-     cannot break - type them into the site or app to read the words off.
-     The paid API stays out (docs/PLAN.md). */
+  /* Two routes to what3words, neither of them the paid API (docs/PLAN.md).
+     Coordinates go OUT by a copy button: the site's search box takes
+     "lat, lon" and shows the words, which get typed back into the box here.
+     Words come BACK as a link, built from the documented URL form, so a
+     square can be checked on the map before the words are read out on air.
+     The coordinate URL form that used to do the first step was undocumented
+     and broke; the coordinates column is ours and cannot. */
   $('poi-table').innerHTML = data.pois.length ? `
     <table class="grid"><thead><tr><th></th><th><input type="checkbox" id="poi-all"
         aria-label="Select every place"></th>
@@ -941,10 +972,16 @@ async function loadCourses() {
              aria-label="Pin label for ${esc(p.name)}">`
         : '<span class="muted" title="Turn labels on for this layer">off</span>'}</td>
       <td class="coords">${p.lat != null
-        ? `${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}` : '\u2014'}</td>
+        ? `<span>${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}</span>${
+            iconBtn('copy', {'data-copyc': `${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}`},
+              `Copy the coordinates of ${p.name}`)}`
+        : '\u2014'}</td>
       <td class="w3w-cell"><input value="${esc(p.what3words || '')}"
             data-w3w="${p.id}" placeholder="filled.count.soap"
-            style="width:150px"></td>
+            style="width:150px">${iconLink('open', {
+              'data-w3wopen': p.id, href: w3wUrl(p.what3words),
+              ...(w3wUrl(p.what3words) ? {} : {hidden: ''}),
+            }, `Open ${p.name} on what3words`)}</td>
       <td class="actions">${iconBtn('remove', {'data-delp': p.id},
         `Delete ${p.name}`)}</td>
     </tr>`).join('') + '</tbody></table>'
@@ -1014,6 +1051,26 @@ async function loadCourses() {
     .map((c) => `<option value="${esc(c.key)}">${esc(c.name)}</option>`).join('');
   $('poi-table').querySelectorAll('[data-ppick]').forEach((c) =>
     c.addEventListener('change', refreshPoiSelection));
+
+  $('poi-table').querySelectorAll('[data-copyc]').forEach((b) =>
+    b.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(b.dataset.copyc);
+        banner('Coordinates copied - paste them into the what3words search.');
+      } catch (err) {
+        banner('Could not copy - select the coordinates and copy them manually.', true);
+      }
+    }));
+  // The link follows what is typed, before it is saved: the point of it is
+  // to check the square before committing the words.
+  $('poi-table').querySelectorAll('[data-w3w]').forEach((input) =>
+    input.addEventListener('input', () => {
+      const a = $('poi-table').querySelector(`[data-w3wopen="${input.dataset.w3w}"]`);
+      if (!a) return;
+      const url = w3wUrl(input.value);
+      a.href = url;
+      a.hidden = !url;
+    }));
   if ($('poi-all')) {
     $('poi-all').addEventListener('change', (ev) => {
       // Visible rows only. With a filter applied, "select all" meaning
@@ -1478,6 +1535,45 @@ $('poi-move').addEventListener('click', async () => {
   } catch (err) { banner(err.message, true); }
 });
 
+/* The same selection the Move button acts on, out as a CSV: layer, name,
+   coordinates, what3words. The list of stops with their words is what gets
+   shared with the organizer and read from on air, and a spreadsheet is the
+   form everyone can open. Built from the table as it stands, unsaved edits
+   included, so what is exported is what is on the screen. */
+function csvField(value) {
+  const text = String(value == null ? '' : value);
+  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+$('poi-export').addEventListener('click', () => {
+  const rows = [...$('poi-table').querySelectorAll('[data-ppick]:checked')]
+    .map((c) => c.closest('tr'))
+    .map((tr) => {
+      const layer = tr.querySelector('[data-player]');
+      return [
+        layer ? layer.options[layer.selectedIndex].text : '',
+        tr.querySelector('[data-pname]').value,
+        (tr.querySelector('.coords span') || {}).textContent || '',
+        tr.querySelector('[data-w3w]').value.trim(),
+      ];
+    });
+  if (!rows.length) return;
+  const lines = [['Layer', 'Name', 'Coordinates', 'What3Words'], ...rows]
+    .map((r) => r.map(csvField).join(','));
+  // CRLF is what RFC 4180 asks for and what Excel expects.
+  const blob = new Blob([lines.join('\r\n') + '\r\n'],
+    {type: 'text/csv;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  const event = (S.events || []).find((e) => e.id === S.eventId);
+  a.download = `${event ? event.slug : 'places'}-places.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(a.href);
+  banner(`Exported ${rows.length} place(s).`);
+});
+
 $('layer-form').addEventListener('submit', async (ev) => {
   ev.preventDefault();
   $('layer-error').hidden = true;
@@ -1602,6 +1698,7 @@ async function loadLinks() {
       <input class="link-url" readonly value="${esc(url)}">
       <div class="link-actions">
         ${iconBtn('copy', {'data-copy': url}, `Copy the ${l.role_label} link`)}
+        ${iconLink('open', {href: url}, `Open the ${l.role_label} view in a new tab`)}
         <button type="button" class="danger" data-reissue="${esc(l.role)}"
           >Revoke &amp; reissue</button>
       </div>
