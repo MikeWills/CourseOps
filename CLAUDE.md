@@ -730,6 +730,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-06** Places: type a position in the # column; dragging 78 rows was the clunky part.
 - **2026-09-06** Each viewer can arrange the course stack on their own map; the club's order is the default and the fallback.
 - **2026-09-06** Layers tab: drag to reorder; it is the order of the map's Places switches, nothing more.
 - **2026-09-06** Courses tab: drag to set the draw order; the top of the list draws on top.
@@ -739,4 +740,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-06** Aid stations: copy the coordinates, open the words on what3words, export the ticked rows as CSV; Links: open in a new tab.
 - **2026-09-06** Staff are no longer sent pickups or course notes; the organizer gets the counts from the report.
 - **2026-09-05** A Staff link: the whole picture, read-only, for race staff and the organizer.
-- **2026-09-05** Removed the what3words lookup links; the undocumented URL stopped working.

@@ -1018,6 +1018,7 @@ async function loadCourses() {
   $('poi-table').innerHTML = data.pois.length ? `
     <table class="grid"><thead><tr><th></th><th><input type="checkbox" id="poi-all"
         aria-label="Select every place"></th>
+      <th title="Position in the running order">#</th>
       <th>Mile</th><th>Name</th><th>Layer</th>
       <th>Races</th><th>Pin</th><th>Coordinates</th><th>What3Words</th>
       <th></th></tr></thead><tbody>` +
@@ -1026,6 +1027,10 @@ async function loadCourses() {
         `Reorder ${p.name} - drag, or use the arrow keys`)}</td>
       <td><input type="checkbox" data-ppick="${p.id}"
             aria-label="Select ${esc(p.name)}"></td>
+      <td><input type="number" class="pos" data-ppos="${p.id}" min="1"
+            inputmode="numeric"
+            title="Position in the running order - type a number to move ${esc(p.name)} there"
+            aria-label="Position of ${esc(p.name)} in the running order"></td>
       <td class="mile">${p.distance_along_m != null
         ? `${miles(p.distance_along_m)}<br><span class="muted"
              >${esc(p.course_name || '')}</span>`
@@ -1197,7 +1202,44 @@ async function loadCourses() {
      The order is taken from the DOM after a move, so it stays correct with a
      filter applied: hidden rows keep their positions and simply travel with
      whatever is around them. */
-  bindReorder($('poi-table'), async (ids) => {
+  /* Typing the position beats dragging once a table is 78 rows long: the
+     drop target is off screen, so a drag becomes scroll, hold, wait, miss.
+     A number is also the only way to say "put this one 40th" in one action.
+
+     The number is the position in the WHOLE list, not in what the filter is
+     showing - filter to one layer and the numbers tell you where those stops
+     sit among all of them, which is the question being asked. Drag remains,
+     for nudging a row one or two places.
+
+     A box, not a dropdown of 78: typing "42" is one action, and finding 42 in
+     a list of 78 is not. */
+  const poiRows = () => [...$('poi-table').querySelectorAll('tbody tr[data-row]')];
+
+  function renumberPois() {
+    const rows = poiRows();
+    rows.forEach((tr, i) => {
+      const box = tr.querySelector('[data-ppos]');
+      if (!box) return;
+      box.value = String(i + 1);
+      box.max = String(rows.length);
+      box.dataset.was = String(i + 1);
+    });
+  }
+
+  function movePoiTo(row, wanted) {
+    const rows = poiRows();
+    const total = rows.length;
+    // Clamp rather than refuse: 0 means "first" and 999 means "last" to
+    // everyone who types them, and an error message here would just be a
+    // second thing to clear before the move happens.
+    const to = Math.min(Math.max(wanted, 1), total) - 1;
+    const others = rows.filter((tr) => tr !== row);
+    row.parentNode.insertBefore(row, others[to] || null);
+    persistPoiOrder();          // renumbers before it sends
+  }
+
+  const poiOrderPersist = async (ids) => {
+    renumberPois();
     try {
       await post(`/api/setup/events/${S.eventId}/pois/reorder`,
                  { poi_ids: ids.map(Number) });
@@ -1208,7 +1250,35 @@ async function loadCourses() {
       $('poi-order-note').textContent = `Order NOT saved: ${err.message}`;
       banner(err.message, true);
     }
+  };
+  bindReorder($('poi-table'), poiOrderPersist);
+
+  function persistPoiOrder() {
+    const ids = poiRows().map((tr) => Number(tr.dataset.row));
+    if (ids.length) poiOrderPersist(ids);
+  }
+
+  $('poi-table').querySelectorAll('[data-ppos]').forEach((box) => {
+    // Select on focus so the next digits replace the number rather than
+    // landing beside it - "5" typed into "12" is 512 otherwise.
+    box.addEventListener('focus', () => box.select());
+    box.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') { ev.preventDefault(); box.blur(); }
+    });
+    box.addEventListener('change', () => {
+      const wanted = parseInt(box.value, 10);
+      if (!Number.isFinite(wanted)) {
+        box.value = box.dataset.was || '';   // nonsense typed: put it back
+        return;
+      }
+      movePoiTo(box.closest('tr'), wanted);
+      // Keep the caret where the work is: the row moved, so find it again.
+      const again = $('poi-table').querySelector(
+        `[data-ppos="${box.dataset.ppos}"]`);
+      if (again) again.focus();
+    });
   });
+  renumberPois();
 
   /* Save the table as a unit. A save button per row used to reload the whole
      list, discarding every other edit in progress. */

@@ -7,6 +7,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **Type a position in the new # column on Places** to send a row straight
+  there. Dragging is fine for a nudge and hopeless at seventy-eight places,
+  where the row you are dragging to is off the screen and the drag becomes
+  scroll, hold, wait, miss. The number is the position in the whole list,
+  not in what the filter is showing, so filtering to one layer tells you
+  where those stops sit among all of them. Drag and the arrow keys still
+  work, and the numbers follow.
+
 ## [0.3.7] - 2026-09-06
 
 ### Added

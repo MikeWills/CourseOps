@@ -129,8 +129,14 @@ overlap — put the one people ask about most on top.
 
 ### 4a. Put the places in the order they are reached
 
-`/setup` -> Places. Drag a row by the grip on its left, or focus the grip
-and use the arrow keys. The order saves as you go and says "Order saved."
+`/setup` -> Places. Type a position in the **#** column to send a row
+straight there, or drag it by the grip on its left, or focus the grip and use
+the arrow keys. The order saves as you go and says "Order saved."
+
+Typing is the one to use on a long list: with seventy places the row you are
+dragging to is off the screen. The number is the position in the whole list,
+so with a layer filter applied it still tells you where those stops sit among
+all of them.
 
 Do this whenever the event has more than one route. The app orders places by
 distance along the nearest course line, and where the routes share road it
