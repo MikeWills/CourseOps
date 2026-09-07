@@ -71,7 +71,7 @@ the course once one is imported.
 
 ### 3. Import and review the course
 
-**In the browser:** the Course tab. Choose the KML, KMZ or GPX, and every feature it
+**In the browser:** the Import tab. Choose the KML, KMZ or GPX, and every feature it
 found is drawn on a map. Click a line or a pin — on the map or in the list — and
 say what it is.
 
@@ -109,6 +109,9 @@ courseops discard    mankato2026 8 9        # parking, porta-johns, junk
 warns about a gap, look at the course on the map before the event.
 
 ### 4. Set colours and draw order
+
+`/setup` -> Courses: each race's name and line colour. Or from the command
+line:
 
 ```bash
 courseops courses mankato2026
@@ -564,7 +567,7 @@ Track the first male and first female for each race. Aid stations call it in as
 the leaders pass; NCS records it.
 
 Before the event, set each race's bib colour so it matches what operators will
-see on the runners:
+see on the runners. `/setup` -> Courses, the **Bib colour** column, or:
 
 ```bash
 courseops bib-color mankato2026 1 --color "#ffcc00" --name Yellow

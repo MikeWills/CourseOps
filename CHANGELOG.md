@@ -7,6 +7,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- **The setup tabs now read Import, Courses, Places.** "Course" was the
+  upload-and-review step, and the same upload brings in the water stops and
+  mile markers, so it is named for the action. The Courses table has moved
+  off the top of Places onto its own tab: it carries the bib colour, an
+  event-day setting NCS revisits, and that belongs under its own name in
+  the tab bar rather than at the top of a page named for something else.
+  Places is now only places.
+
 ## [0.3.5] - 2026-09-06
 
 ### Changed

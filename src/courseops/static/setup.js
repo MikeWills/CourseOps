@@ -200,7 +200,10 @@ async function refreshTab(name) {
     if (name === 'users') return loadUsers();
     if (!gateOnEvent(name)) return;
     if (name === 'course') return loadStaged();
-    if (name === 'stations') return loadCourses();
+    // One loader for both: the places table needs the courses for its Races
+    // column, and the courses table is small. Rendering into a panel that is
+    // not showing costs nothing and keeps the two in step.
+    if (name === 'courses' || name === 'stations') return loadCourses();
     if (name === 'layers' || name === 'roles') return loadLayers();
     if (name === 'tracking') return loadTracking();
     if (name === 'roster') return loadRoster();
@@ -904,7 +907,7 @@ async function loadCourses() {
       <td class="actions">${iconBtn('save', {'data-savec': c.id}, `Save ${c.name}`)
         + iconBtn('remove', {'data-delc': c.id}, `Delete ${c.name}`)}</td>
     </tr>`).join('') + '</tbody></table>'
-    : '<p class="muted">No courses yet — import a KML on the Course tab.</p>';
+    : '<p class="muted">No courses yet — upload a KML on the Import tab.</p>';
 
   $('course-table').querySelectorAll('[data-savec]').forEach((b) =>
     b.addEventListener('click', async () => {
