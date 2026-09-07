@@ -7,6 +7,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **Typing a position on Places no longer jumps the page.** The caret
+  followed the row to wherever it had been sent, which scrolled the table
+  there and left the next row to order off the screen. It stays put now, on
+  the row that slid into the vacated slot - the next one down - so numbering
+  a run of places is type, Enter, type, Enter without touching the mouse.
+
 ## [0.3.8] - 2026-09-06
 
 ### Added

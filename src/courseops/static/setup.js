@@ -1271,11 +1271,22 @@ async function loadCourses() {
         box.value = box.dataset.was || '';   // nonsense typed: put it back
         return;
       }
+      /* Stay where the work is. The row itself has gone to wherever it was
+         sent - possibly hundreds of pixels away - so following it with the
+         caret drags the viewport there and the next row to deal with is off
+         the screen. Focus the row that slid into the slot instead: it is the
+         next one down the list, it is already under the cursor, and typing
+         the next number walks down the table without touching the mouse. */
+      const next = box.closest('tr').nextElementSibling;
+      const scrolled = window.scrollY;
       movePoiTo(box.closest('tr'), wanted);
-      // Keep the caret where the work is: the row moved, so find it again.
-      const again = $('poi-table').querySelector(
-        `[data-ppos="${box.dataset.ppos}"]`);
-      if (again) again.focus();
+      const land = (next || box.closest('tr')).querySelector('[data-ppos]');
+      // preventScroll, or the browser scrolls the new row into view and
+      // undoes the whole point of choosing a neighbour.
+      if (land) land.focus({ preventScroll: true });
+      // A row leaving from above the fold shifts everything up by one; put
+      // the page back where it was so nothing appears to move on its own.
+      if (window.scrollY !== scrolled) window.scrollTo({ top: scrolled });
     });
   });
   renumberPois();
