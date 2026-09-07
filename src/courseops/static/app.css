@@ -343,6 +343,29 @@ body {
   .toggle input, .toggle input::after { transition: none; }
 }
 .toggle .swatch { width: 22px; height: 4px; border-radius: 2px; flex: none; }
+
+/* A course row is the switch plus two controls that must NOT sit inside the
+   label, or pressing them would flip the switch: the grip and "Top". Both are
+   44px like everything else that gets tapped in a moving vehicle. */
+.course-row { display: flex; align-items: center; gap: 6px; }
+.course-row .toggle { flex: 1; min-width: 0; }
+.course-row.is-dragging { opacity: 0.5; }
+.grip-btn, .stack-btn, .stack-reset {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--paper);
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.grip-btn { cursor: grab; display: inline-grid; place-items: center; }
+.grip-btn:active { cursor: grabbing; }
+.stack-reset { margin-top: 4px; align-self: flex-start; }
 .toggle .label { flex: 1; }
 .toggle .meta { color: var(--ink-soft); font-size: 13px; }
 
