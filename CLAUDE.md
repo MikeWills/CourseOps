@@ -723,6 +723,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-06** Setup tabs are Import, Courses, Places: the upload step named for the action, the courses table on its own tab.
 - **2026-09-06** The "Aid stations" setup tab is now "Places"; it held every layer, not one.
 - **2026-09-06** Aid stations: copy the coordinates, open the words on what3words, export the ticked rows as CSV; Links: open in a new tab.
 - **2026-09-06** Staff are no longer sent pickups or course notes; the organizer gets the counts from the report.
@@ -732,4 +733,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-05** The Operator box asks for a callsign; still free text, so a name works too.
 - **2026-09-05** NCS sees every station near the course and matches it to anyone on the roster; Unmatch undoes it.
 - **2026-09-05** Fixed: "Needs attention" only appeared after a refresh; an unknown station now announces itself live.
-- **2026-09-05** After-event report page for the race lead: pickups counted, notes listed, no names (#7).

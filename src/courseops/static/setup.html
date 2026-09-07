@@ -60,7 +60,8 @@
   <nav id="tabs">
     <button class="tab" data-tab="orgs" type="button" hidden>Organizations</button>
     <button class="tab is-on" data-tab="events" type="button">Events</button>
-    <button class="tab" data-tab="course" type="button">Course</button>
+    <button class="tab" data-tab="course" type="button">Import</button>
+    <button class="tab" data-tab="courses" type="button">Courses</button>
     <button class="tab" data-tab="stations" type="button">Places</button>
     <button class="tab" data-tab="layers" type="button">Layers</button>
     <button class="tab" data-tab="roles" type="button">Roles</button>
@@ -173,12 +174,26 @@
     </div>
   </section>
 
-  <section class="panel" data-panel="stations" data-needs-event hidden>
+  <!-- Three tabs for what one upload produces: Import is the files coming
+       in, Courses the routes, Places the points. The courses table used to
+       sit at the top of Places, which put the bib colour - an event-day
+       setting NCS revisits - under a tab named for something else. -->
+  <section class="panel" data-panel="courses" data-needs-event hidden>
     <p class="needs-event" hidden>Pick an event first — everything on this
       tab belongs to one event.
       <button data-goto="events" type="button">Go to Events</button></p>
     <h2>Courses</h2>
+    <p class="muted">
+      Each race as a line on the map. The bib colour is how an operator
+      tells a runner's race at a glance; the line colour is a map choice.
+    </p>
     <div id="course-table"></div>
+  </section>
+
+  <section class="panel" data-panel="stations" data-needs-event hidden>
+    <p class="needs-event" hidden>Pick an event first — everything on this
+      tab belongs to one event.
+      <button data-goto="events" type="button">Go to Events</button></p>
     <h2>Places <span class="muted">in course order</span></h2>
     <p class="muted">
       Organizer KML is usually one flat list, so everything arrives in a single
