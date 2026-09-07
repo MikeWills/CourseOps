@@ -723,6 +723,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-06** Aid stations: copy the coordinates, open the words on what3words, export the ticked rows as CSV; Links: open in a new tab.
 - **2026-09-06** Staff are no longer sent pickups or course notes; the organizer gets the counts from the report.
 - **2026-09-05** A Staff link: the whole picture, read-only, for race staff and the organizer.
 - **2026-09-05** Removed the what3words lookup links; the undocumented URL stopped working.
@@ -732,4 +733,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-05** Fixed: "Needs attention" only appeared after a refresh; an unknown station now announces itself live.
 - **2026-09-05** After-event report page for the race lead: pickups counted, notes listed, no names (#7).
 - **2026-09-05** GPX course import: tracks, routes and waypoints through the same review as KML (#1).
-- **2026-09-04** Fixed: returning to the app on a phone could scroll the header away and show the closed panel.

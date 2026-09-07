@@ -346,6 +346,11 @@ table.grid button { min-height: 34px; padding: 0 10px; font-size: 13px; }
   color: var(--ink-soft);
 }
 .w3w-cell { white-space: nowrap; }
+.coords .icon-btn, .w3w-cell .icon-btn { margin-left: 4px; }
+/* The what3words link is an anchor dressed as an icon button, so it needs
+   the anchor defaults undone - and `hidden` must still win. */
+a.icon-btn { color: inherit; text-decoration: none; }
+a.icon-btn[hidden] { display: none; }
 
 @media (max-width: 640px) {
   .row > .field { min-width: 100%; }

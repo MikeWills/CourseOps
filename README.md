@@ -298,9 +298,11 @@ the name, with an override in the Places table for where that guesses wrong.
 
 What3Words addresses are entered by hand and maintained by Net Control. There is
 no API integration: it is a paid service, so the app validates the shape of an
-address but never resolves it. The KML coordinates remain authoritative, and the
-Aid stations table shows them beside each place, with a `///` link that opens the
-what3words map on that exact square so the words can be copied back.
+address but never resolves it. The KML coordinates remain authoritative. The
+Aid stations table shows them beside each place with a copy button: paste them
+into the what3words search to read the words off, type the words back, and a
+link beside the box opens that square on what3words to check it. Tick rows and
+**Export CSV** to share the list - layer, name, coordinates, What3Words.
 
 Run the server. It serves the map and the setup application, and pushes
 positions to every browser over a WebSocket:

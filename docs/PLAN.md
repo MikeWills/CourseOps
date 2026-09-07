@@ -563,8 +563,10 @@ tried some of these without saying so - ask before assuming untested.
 - ~~**The what3words coordinate URL is undocumented.**~~ It broke, as this
   note said it might, and the links were removed 2026-09-05. The Aid stations
   table still shows each place's coordinates, which are ours and cannot
-  break: type them into the what3words site or app to read the words off.
-  The manual What3Words field stays; the paid API stays out.
+  break, now with a copy button: paste them into the what3words search to
+  read the words off. Going the other way is safe: `what3words.com/a.b.c` is
+  the documented share form, so a place WITH words gets a link to its square
+  (2026-09-06). The manual What3Words field stays; the paid API stays out.
 
 Things discovered but not yet acted on. Each is a real constraint, not a wish.
 

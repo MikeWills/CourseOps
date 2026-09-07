@@ -7,6 +7,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **Three helpers on the Aid stations tab.** A copy button beside each
+  place's coordinates puts "44.14214, -93.99710" on the clipboard, which is
+  what the what3words search box takes - the way to get the words now that
+  the coordinate link is gone. Once words are in the box, a link opens that
+  square on what3words, built from the documented `what3words.com/a.b.c`
+  form, and it follows what is typed so a square can be checked before the
+  words are saved and read on air. And **Export CSV**, next to the Move
+  button and acting on the same ticked rows: layer, name, coordinates and
+  What3Words, as the table stands, unsaved edits included. That list is what
+  gets shared with the organizer, and a spreadsheet is the form everyone can
+  open.
+- **An open-in-new-tab button beside each role link** on the Links tab, next
+  to Copy, so a role's view can be checked without pasting the link anywhere.
+
 ### Changed
 - **Staff no longer see pickups or course notes.** Race staff and the
   organizer read the map for where everyone is; a queue of runners who could
