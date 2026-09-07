@@ -365,7 +365,7 @@ const SIDE_PANEL_BY_ROLE = {
   ncs:       { title: 'Stations', sections: ['station-section'] },
   logistics: { title: 'Stations', sections: ['station-section'] },
   liaison:   { title: 'Pickups',  sections: ['incident-section', 'note-section'] },
-  // Staff read the whole picture; the stations list is the most-read part.
+  // Staff read where everyone is; they are never sent pickups or notes.
   staff:     { title: 'Stations', sections: ['station-section'] },
   sag:       { title: 'Pickups',  sections: ['incident-section', 'note-section'] },
 };
@@ -2127,6 +2127,11 @@ function applyState(data) {
   // so all four get the pin controls. What they cannot do is work the queue.
   document.getElementById('pin-actions').hidden = !can('incident_report');
   document.getElementById('pin-kind').hidden = !can('incident_report');
+  // A role that cannot report is not sent the queue at all (Staff), so the
+  // two sections would sit there empty - and an empty "Pickups" reads as
+  // "nobody is waiting", which is a claim this role has no data to make.
+  // Course notes need nothing here: that section hides itself when empty.
+  document.getElementById('incident-section').hidden = !can('incident_report');
   renderSsidAlerts();
   renderIgnored();
   renderLeaders();

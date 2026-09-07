@@ -52,7 +52,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 508 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 509 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -264,9 +264,12 @@ usability, not style preferences.
   pickup queue from a vehicle: en route, picked up, dropped off, and the bib
   once they can read it. Nothing else.
 - **Staff is the link that gets forwarded.** Fifth role, zero capabilities:
-  sees everything a field role sees, cannot report, never receives the
-  nearby or ignored lists. Anything a stranger could do with a link they were
-  handed has to be nothing, or the link has to be tracked.
+  sees the map, the stations and the leaders, cannot report, never receives
+  the nearby or ignored lists, and is never sent pickups or course notes -
+  those go to whoever holds `CAP_INCIDENT_REPORT`, in the snapshot and on the
+  socket alike, and are LEFT OUT rather than sent empty, because an empty
+  queue reads as "nobody is waiting". Anything a stranger could do with a
+  link they were handed has to be nothing, or the link has to be tracked.
 - **Liaison and Logistics are different teams, not one role.** Liaison is
   embedded with Public Safety and Medics; Logistics is in the field doing traffic
   control, cone placement and teardown. Separate links so one can be revoked
@@ -718,6 +721,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-06** Staff are no longer sent pickups or course notes; the organizer gets the counts from the report.
 - **2026-09-05** A Staff link: the whole picture, read-only, for race staff and the organizer.
 - **2026-09-05** Removed the what3words lookup links; the undocumented URL stopped working.
 - **2026-09-05** An Ignored list (folded, NCS only) with Unignore, the undo for a mis-tap.
@@ -727,4 +731,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-05** After-event report page for the race lead: pickups counted, notes listed, no names (#7).
 - **2026-09-05** GPX course import: tracks, routes and waypoints through the same review as KML (#1).
 - **2026-09-04** Fixed: returning to the app on a phone could scroll the header away and show the closed panel.
-- **2026-09-04** Fixed: a place's popup showed the organizer's whole HTML document as its notes.

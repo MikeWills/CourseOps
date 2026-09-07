@@ -288,8 +288,10 @@ def test_staff_see_the_whole_picture_and_none_of_the_ncs_lists(app_with_nearby):
         state = client.get(f"/api/m2026/{tokens['staff']}/state").json()
         assert state["role"] == "staff" and state["can_write"] is False
         assert state["capabilities"] == []
-        assert "roster" in state and "incidents" in state and "pois" in state
+        assert "roster" in state and "positions" in state and "pois" in state
         assert "nearby" not in state and "ignored" not in state
+        # Pickups and notes are not theirs either - see test_web.py.
+        assert "incidents" not in state
         refused = [
             client.post(f"/api/m2026/{tokens['staff']}/incidents",
                         json={"lat": 44.1, "lon": -94.0}),

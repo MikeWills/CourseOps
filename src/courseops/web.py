@@ -1446,6 +1446,14 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         # Per capability, so the client shows exactly the controls this role can
         # actually use. A button the server would refuse is worse than no button.
         payload["capabilities"] = sorted(granted.capabilities)
+        # Pickups and course notes go to the roles that work or report them.
+        # Staff hold neither: race staff and the organizer read the map for
+        # where everyone is, and a queue of runners who could not continue is
+        # the club's business during the race, not theirs. The report page
+        # is where the organizer gets the counts afterwards.
+        if not granted.can(access.CAP_INCIDENT_REPORT):
+            for key in ("incidents", "pickups_waiting"):
+                payload.pop(key, None)
         # The public, heard near the course. Only for a role that can match or
         # dismiss them; nobody else needs a list of who is driving past.
         if granted.can(access.CAP_SSID):
@@ -1567,7 +1575,10 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         payload["course_position"] = _course_position(index, row["lat"], row["lon"])
         payload["type"] = "incident"
         payload["change"] = kind
-        await app.state.hub.publish(event_id, payload)
+        # Same audience as the snapshot: a role that never receives the list
+        # must not be handed its entries one at a time either.
+        await app.state.hub.publish(event_id, payload,
+                                    requires=access.CAP_INCIDENT_REPORT)
 
     # Reporting one is not the same permission as working the queue. Every role
     # is somewhere an incident can happen, so any of them may open one and
@@ -1746,8 +1757,10 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     async def incident_log(
         event_slug: str, token: str, incident_id: int
     ) -> JSONResponse:
-        # Readable by every role: the log is what a shift handover reads.
-        conn, granted = require_access(event_slug, token)
+        # Readable by every role that sees the queue: the log is what a
+        # shift handover reads.
+        conn, granted = require_capability(
+            event_slug, token, access.CAP_INCIDENT_REPORT)
         try:
             incidents.get(conn, granted.event_id, incident_id)
             entries = [
