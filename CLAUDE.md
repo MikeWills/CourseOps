@@ -253,6 +253,13 @@ usability, not style preferences.
   10K share road; `course.sort_order` decides which line wins (higher draws on
   top) and is adjustable. Courses are solid by default. Dash patterns exist as
   an opt-in for seeing two coincident routes at once.
+- **A viewer's own course stack is a browser pref, never sent anywhere.**
+  `state.courseOrder` in `app.js`, top first; the club's `sort_order` is the
+  default and the fallback, and `courseStack()` drops the own order the
+  moment it stops naming exactly the event's courses. Leaflet paints in add
+  order and toggling a line back on re-adds it on top, so `restackCourses()`
+  runs after every draw and every toggle - forgetting it puts a course on
+  top with no error.
 - **Adding a schema column requires a migration entry.** `CREATE TABLE IF NOT
   EXISTS` skips existing tables, so a new column never reaches an existing
   database. Add it to `_ADDED_COLUMNS` in `db.py` as well as `schema.sql`.
@@ -723,6 +730,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-06** Each viewer can arrange the course stack on their own map; the club's order is the default and the fallback.
 - **2026-09-06** Layers tab: drag to reorder; it is the order of the map's Places switches, nothing more.
 - **2026-09-06** Courses tab: drag to set the draw order; the top of the list draws on top.
 - **2026-09-06** Setup tabs are Import, Courses, Places: the upload step named for the action, the courses table on its own tab.
@@ -732,4 +740,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-05** A Staff link: the whole picture, read-only, for race staff and the organizer.
 - **2026-09-05** Removed the what3words lookup links; the undocumented URL stopped working.
 - **2026-09-05** An Ignored list (folded, NCS only) with Unignore, the undo for a mis-tap.
-- **2026-09-05** The Operator box asks for a callsign; still free text, so a name works too.

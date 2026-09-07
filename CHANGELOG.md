@@ -8,6 +8,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **Each viewer can arrange the course stack for their own screen.** The
+  map's Courses section lists the routes top first, with a grip to drag
+  (mouse or arrow keys) and a **Top** button beside each course for a phone,
+  where HTML drag and drop cannot be relied on. Logistics wants the sweep's
+  route on top while Net Control wants the Full, and they should not have
+  to agree. The club's order from setup is the default and the fallback: the
+  own order is remembered in the browser like folded sections are, dropped
+  the moment a course is added or removed in setup, and "Back to the club's
+  order" undoes it. Toggling a course off and on also now keeps its place in
+  the stack, where before it came back on top of everything.
 - **Drag to reorder the Layers tab.** The order of that table is the order
   of the Places switches on the map and of the layer dropdowns in setup, and
   it was creation order with no way to change it. It is list order only:

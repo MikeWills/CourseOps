@@ -112,8 +112,11 @@ warns about a gap, look at the course on the map before the event.
 
 `/setup` -> Courses: each race's name and line colour, and the draw order.
 The table is a stack: drag a course to the top (or focus its grip and use the
-arrow keys) and it draws on top of the others wherever routes share road. Or
-from the command line:
+arrow keys) and it draws on top of the others wherever routes share road. That
+is the order everyone starts with. Anyone can change it for their own screen in
+the map's Courses section - the **Top** button beside a course puts it on top,
+and "Back to the club's order" undoes that - so Logistics can keep the sweep's
+route on top while Net Control keeps the Full. Or from the command line:
 
 ```bash
 courseops courses mankato2026
