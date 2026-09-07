@@ -7,6 +7,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.3.9] - 2026-09-07
+
 ### Fixed
 - **Icon buttons in setup were bordered boxes; the icon links beside them
   were not.** Copy and Open sat next to each other on the Links tab looking
