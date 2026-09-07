@@ -826,6 +826,19 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         finally:
             conn.close()
 
+    # Literal before parameterised, or "reorder" parses as a course id.
+    @app.post("/api/setup/events/{event_id}/courses/reorder")
+    async def setup_reorder_courses(event_id: int, request: Request) -> JSONResponse:
+        conn, user = require_event_admin(request, event_id)
+        body = await _json_body(request, conn)
+        try:
+            count = _guard(
+                admin.reorder_courses, conn, event_id, body.get("course_ids") or [])
+            conn.commit()
+        finally:
+            conn.close()
+        return JSONResponse({"ordered": count})
+
     @app.post("/api/setup/events/{event_id}/courses/{course_id}")
     async def setup_update_course(
         event_id: int, course_id: int, request: Request

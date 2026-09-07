@@ -283,6 +283,67 @@ function iconBtn(kind, attrs, label) {
     + `stroke-linecap="round" stroke-linejoin="round">${path}</svg></button>`;
 }
 
+/* ---------- drag to reorder ---------------------------------------------- */
+
+/* One implementation for every table with a grip column. The order is taken
+   from the DOM after a move, so it stays correct with a filter applied:
+   hidden rows keep their positions and travel with whatever is around them.
+   `persist` receives the row ids top to bottom.
+
+   Arrow keys on the grip do the same job. Drag and drop is unusable with a
+   keyboard, and unreliable on a touch screen - and these are tables someone
+   may well be sorting on a tablet the morning of the race. */
+function bindReorder(tableEl, persist) {
+  // Ids as written on the rows: numbers for places and courses, keys for
+  // layers. The caller knows which.
+  const order = () => [...tableEl.querySelectorAll('tbody tr[data-row]')]
+    .map((tr) => tr.dataset.row);
+  const save = () => { const ids = order(); if (ids.length) persist(ids); };
+  let dragRow = null;
+
+  tableEl.querySelectorAll('[data-grip]').forEach((grip) => {
+    const row = grip.closest('tr');
+    // The row is only draggable while the grip is held. A permanently
+    // draggable row swallows text selection in the inputs inside it.
+    grip.addEventListener('mousedown', () => { row.draggable = true; });
+    grip.addEventListener('touchstart', () => { row.draggable = true; },
+      { passive: true });
+    grip.addEventListener('keydown', (ev) => {
+      const step = ev.key === 'ArrowUp' ? -1 : ev.key === 'ArrowDown' ? 1 : 0;
+      if (!step) return;
+      ev.preventDefault();
+      const sibling = step < 0
+        ? row.previousElementSibling : row.nextElementSibling;
+      if (!sibling) return;
+      if (step < 0) row.parentNode.insertBefore(row, sibling);
+      else row.parentNode.insertBefore(sibling, row);
+      grip.focus();
+      save();
+    });
+  });
+
+  tableEl.addEventListener('dragstart', (ev) => {
+    dragRow = ev.target.closest('tr[data-row]');
+    if (dragRow) dragRow.classList.add('is-dragging');
+  });
+  tableEl.addEventListener('dragover', (ev) => {
+    if (!dragRow) return;
+    ev.preventDefault();
+    const over = ev.target.closest('tr[data-row]');
+    if (!over || over === dragRow) return;
+    const box = over.getBoundingClientRect();
+    const after = (ev.clientY - box.top) > box.height / 2;
+    over.parentNode.insertBefore(dragRow, after ? over.nextSibling : over);
+  });
+  tableEl.addEventListener('dragend', () => {
+    if (!dragRow) return;
+    dragRow.classList.remove('is-dragging');
+    dragRow.draggable = false;
+    dragRow = null;
+    save();
+  });
+}
+
 /* ---------- organizations ------------------------------------------------ */
 
 /* The tenancy boundary. Only the host adds clubs; a club officer works inside
@@ -893,10 +954,16 @@ async function loadCourses() {
   // The Places table needs these to offer a checkbox per race.
   S.courses = data.courses;
 
+  /* Listed as a stack: the first row draws on top of the others where routes
+     share road. Courses arrive in ascending sort_order, which is draw order,
+     so the table shows them reversed and sends them back top-first. */
+  const stacked = [...data.courses].reverse();
   $('course-table').innerHTML = data.courses.length ? `
-    <table class="grid"><thead><tr><th>Course</th><th>Distance</th><th>Line</th>
-      <th>Bib colour</th><th></th></tr></thead><tbody>` +
-    data.courses.map((c) => `<tr>
+    <table class="grid"><thead><tr><th></th><th>Course</th><th>Distance</th>
+      <th>Line</th><th>Bib colour</th><th></th></tr></thead><tbody>` +
+    stacked.map((c) => `<tr data-row="${c.id}">
+      <td class="grip-cell">${iconBtn('grip', {'data-grip': c.id},
+        `Reorder ${c.name} - drag, or use the arrow keys; the top course draws on top`)}</td>
       <td><input value="${esc(c.name)}" data-name="${c.id}" style="width:130px"></td>
       <td>${miles(c.distance_m)}</td>
       <td><input type="color" value="${esc(c.color || '#d55e00')}" data-color="${c.id}"></td>
@@ -908,6 +975,17 @@ async function loadCourses() {
         + iconBtn('remove', {'data-delc': c.id}, `Delete ${c.name}`)}</td>
     </tr>`).join('') + '</tbody></table>'
     : '<p class="muted">No courses yet — upload a KML on the Import tab.</p>';
+
+  bindReorder($('course-table'), async (ids) => {
+    try {
+      await post(`/api/setup/events/${S.eventId}/courses/reorder`,
+                 { course_ids: ids.map(Number) });
+      $('course-order-note').textContent = 'Order saved.';
+    } catch (err) {
+      $('course-order-note').textContent = `Order NOT saved: ${err.message}`;
+      banner(err.message, true);
+    }
+  });
 
   $('course-table').querySelectorAll('[data-savec]').forEach((b) =>
     b.addEventListener('click', async () => {
@@ -1119,14 +1197,10 @@ async function loadCourses() {
      The order is taken from the DOM after a move, so it stays correct with a
      filter applied: hidden rows keep their positions and simply travel with
      whatever is around them. */
-  const poiTableEl = $('poi-table');
-
-  async function persistOrder() {
-    const ids = [...poiTableEl.querySelectorAll('tbody tr[data-row]')]
-      .map((tr) => Number(tr.dataset.row));
-    if (!ids.length) return;
+  bindReorder($('poi-table'), async (ids) => {
     try {
-      await post(`/api/setup/events/${S.eventId}/pois/reorder`, { poi_ids: ids });
+      await post(`/api/setup/events/${S.eventId}/pois/reorder`,
+                 { poi_ids: ids.map(Number) });
       $('poi-order-note').textContent = 'Order saved.';
     } catch (err) {
       // Say so. A silently unsaved order looks identical to a saved one until
@@ -1134,56 +1208,6 @@ async function loadCourses() {
       $('poi-order-note').textContent = `Order NOT saved: ${err.message}`;
       banner(err.message, true);
     }
-  }
-
-  let dragRow = null;
-
-  poiTableEl.querySelectorAll('[data-grip]').forEach((grip) => {
-    const row = grip.closest('tr');
-    // The row is only draggable while the grip is held. A permanently
-    // draggable row swallows text selection in the inputs inside it.
-    grip.addEventListener('mousedown', () => { row.draggable = true; });
-    grip.addEventListener('touchstart', () => { row.draggable = true; },
-      { passive: true });
-
-    /* Arrow keys do the same job. Drag and drop is unusable with a keyboard,
-       and unreliable on a touch screen - and this is a table someone may well
-       be sorting on a tablet the morning of the race. */
-    grip.addEventListener('keydown', (ev) => {
-      const step = ev.key === 'ArrowUp' ? -1 : ev.key === 'ArrowDown' ? 1 : 0;
-      if (!step) return;
-      ev.preventDefault();
-      const sibling = step < 0
-        ? row.previousElementSibling : row.nextElementSibling;
-      if (!sibling) return;
-      if (step < 0) row.parentNode.insertBefore(row, sibling);
-      else row.parentNode.insertBefore(sibling, row);
-      grip.focus();
-      persistOrder();
-    });
-  });
-
-  poiTableEl.addEventListener('dragstart', (ev) => {
-    dragRow = ev.target.closest('tr[data-row]');
-    if (dragRow) dragRow.classList.add('is-dragging');
-  });
-
-  poiTableEl.addEventListener('dragover', (ev) => {
-    if (!dragRow) return;
-    ev.preventDefault();
-    const over = ev.target.closest('tr[data-row]');
-    if (!over || over === dragRow) return;
-    const box = over.getBoundingClientRect();
-    const after = (ev.clientY - box.top) > box.height / 2;
-    over.parentNode.insertBefore(dragRow, after ? over.nextSibling : over);
-  });
-
-  poiTableEl.addEventListener('dragend', () => {
-    if (!dragRow) return;
-    dragRow.classList.remove('is-dragging');
-    dragRow.draggable = false;
-    dragRow = null;
-    persistOrder();
   });
 
   /* Save the table as a unit. A save button per row used to reload the whole
