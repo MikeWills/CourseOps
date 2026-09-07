@@ -561,7 +561,7 @@ tried some of these without saying so - ask before assuming untested.
 ## Known gaps and open threads
 
 - ~~**The what3words coordinate URL is undocumented.**~~ It broke, as this
-  note said it might, and the links were removed 2026-09-05. The Aid stations
+  note said it might, and the links were removed 2026-09-05. The Places
   table still shows each place's coordinates, which are ours and cannot
   break, now with a copy button: paste them into the what3words search to
   read the words off. Going the other way is safe: `what3words.com/a.b.c` is
