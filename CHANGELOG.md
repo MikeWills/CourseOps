@@ -29,6 +29,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   flag only; setup is meant to be the whole story. Arrow keys on the grip
   work too, as on Places, and the two tables now share one implementation.
 
+### Changed
+- **On the Links tab, each link is one line:** the URL, Copy, Open and
+  Revoke & reissue, rather than the buttons below the box. Revoke is last,
+  red, and set apart by a wider gap.
+
 ## [0.3.6] - 2026-09-06
 
 ### Changed

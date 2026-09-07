@@ -323,9 +323,15 @@ table.grid button { min-height: 34px; padding: 0 10px; font-size: 13px; }
 .link-row { padding: 12px; border-bottom: 1px solid #eef1f5; }
 .link-row:last-child { border-bottom: 0; }
 .link-role { font-weight: 700; margin-bottom: 4px; }
+/* One line per link: the URL, copy, open, revoke. Revoke is last and red,
+   with a wider gap, so it is not mistaken for the pair beside it. */
+.link-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.link-line .icon-btn { flex: none; margin-left: 0; }
+.link-line .danger { flex: none; margin-left: 8px; white-space: nowrap; }
 .link-url {
   display: block;
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   padding: 8px 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -334,7 +340,6 @@ table.grid button { min-height: 34px; padding: 0 10px; font-size: 13px; }
   font-size: 12px;
   word-break: break-all;
 }
-.link-actions { display: flex; gap: 8px; margin-top: 8px; }
 
 /* Coordinates are read aloud over the radio digit by digit, so they are set
    in a monospace face: proportional digits make it easy to lose your place
