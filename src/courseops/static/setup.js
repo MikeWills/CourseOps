@@ -1739,11 +1739,12 @@ async function loadLinks() {
     const url = `${location.origin}/e/${data.slug}/${l.token}`;
     return `<div class="link-row">
       <div class="link-role">${esc(l.role_label)}</div>
-      <a class="link-url" href="${esc(url)}" target="_blank" rel="noopener"
-        title="Open the ${esc(l.role_label)} view in a new tab">${esc(url)}</a>
-      <div class="link-actions">
+      <div class="link-line">
+        <input class="link-url" readonly value="${esc(url)}">
         ${iconBtn('copy', {'data-copy': url}, `Copy the ${l.role_label} link`)}
         ${iconLink('open', {href: url}, `Open the ${l.role_label} view in a new tab`)}
+      </div>
+      <div class="link-actions">
         <button type="button" class="danger" data-reissue="${esc(l.role)}"
           >Revoke &amp; reissue</button>
       </div>

@@ -30,8 +30,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   work too, as on Places, and the two tables now share one implementation.
 
 ### Changed
-- **On the Links tab the URL itself is a link.** It opens that role's view
-  in a new tab, the same as the button beside it. It was a read-only box.
+- **On the Links tab, Copy and Open sit beside the URL** on one line rather
+  than below it. Revoke stays on its own row, away from the pair someone
+  presses all day.
 
 ## [0.3.6] - 2026-09-06
 

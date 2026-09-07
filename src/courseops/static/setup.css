@@ -323,16 +323,16 @@ table.grid button { min-height: 34px; padding: 0 10px; font-size: 13px; }
 .link-row { padding: 12px; border-bottom: 1px solid #eef1f5; }
 .link-row:last-child { border-bottom: 0; }
 .link-role { font-weight: 700; margin-bottom: 4px; }
-/* The URL is the link it names: click it and the view opens in a new tab,
-   like the button beside it. Still selectable text, for the browser that
-   refuses the clipboard. */
+/* The URL with its two quick actions on one line: copy it, open it. The
+   destructive one stays on its own row below, away from the pair someone
+   presses all day. */
+.link-line { display: flex; align-items: center; gap: 8px; }
+.link-line .icon-btn { flex: none; margin-left: 0; }
 .link-url {
   display: block;
-  width: 100%;
-  box-sizing: border-box;
+  flex: 1;
+  min-width: 0;
   padding: 8px 10px;
-  color: var(--ink);
-  text-decoration: none;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #f7f9fc;
@@ -340,7 +340,6 @@ table.grid button { min-height: 34px; padding: 0 10px; font-size: 13px; }
   font-size: 12px;
   word-break: break-all;
 }
-.link-url:hover, .link-url:focus-visible { text-decoration: underline; }
 .link-actions { display: flex; gap: 8px; margin-top: 8px; }
 
 /* Coordinates are read aloud over the radio digit by digit, so they are set
