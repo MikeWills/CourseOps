@@ -7,6 +7,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-09-06
+
 ### Added
 - **Three helpers on the Aid stations tab.** A copy button beside each
   place's coordinates puts "44.14214, -93.99710" on the clipboard, which is
