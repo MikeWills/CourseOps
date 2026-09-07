@@ -8,6 +8,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Fixed
+- **Icon buttons in setup were bordered boxes; the icon links beside them
+  were not.** Copy and Open sat next to each other on the Links tab looking
+  like two different kinds of control, and every Save and Delete in a table
+  carried a frame around it. Two rules for plain buttons - one for panels,
+  one for table cells - outweighed `.icon-btn` on border, background, padding
+  and height, and neither matched an anchor. Both now exclude the class, so
+  `.icon-btn` is the single description of an icon button and a button and an
+  anchor render identically. Icons are bare, with the hover and focus states
+  carrying the affordance the border used to.
 - **Typing a position on Places no longer jumps the page.** The caret
   followed the row to wherever it had been sent, which scrolled the table
   there and left the next row to order off the screen. It stays put now, on
