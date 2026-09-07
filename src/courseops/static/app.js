@@ -43,6 +43,8 @@ const state = {
   positions: new Map(),       // station_key -> latest position
   markers: new Map(),         // station_key -> L.Marker
   courseLayers: new Map(),    // course id -> L.Polyline
+  courses: [],                // the club's draw order, ascending: last is on top
+  courseOrder: null,          // this browser's own stack, top first; null = club's
   poiLayers: new Map(),       // category key -> L.LayerGroup
   poiCategories: [],          // the club's own layer definitions
   visibleCourses: new Set(),
@@ -97,6 +99,7 @@ function savePrefs() {
     localStorage.setItem(PREF_KEY, JSON.stringify({
       layers: state.layerPrefs,
       courses: [...state.visibleCourses],
+      courseOrder: state.courseOrder,
       initials: state.operatorInitials,
       sortPickupsBy: state.sortPickupsBy,
       // Which sections are folded and which panels are hidden. A club sets the
@@ -612,7 +615,56 @@ function upsertStationMarker(stationKey) {
   }
 }
 
+/* The stack as this browser sees it, top first.
+
+   The club sets a draw order in setup (ascending sort_order, last on top),
+   and that is the default and the fallback. A viewer may arrange their own:
+   Logistics wants the sweep's route on top while NCS wants the Full, and
+   the two should not have to agree. The own order is kept only while it
+   names exactly the event's courses - a course added or removed in setup
+   would otherwise leave one in a slot nobody chose. */
+function courseStack() {
+  const club = [...state.courses].reverse();
+  if (!state.courseOrder) return club;
+  const byId = new Map(club.map((c) => [c.id, c]));
+  const own = state.courseOrder.filter((id) => byId.has(id));
+  if (own.length !== club.length) {
+    state.courseOrder = null;
+    return club;
+  }
+  return own.map((id) => byId.get(id));
+}
+
+function usingOwnCourseOrder() {
+  const club = [...state.courses].reverse().map((c) => c.id);
+  const own = courseStack().map((c) => c.id);
+  return own.some((id, i) => id !== club[i]);
+}
+
+/* Leaflet paints overlays in the order they were added, and toggling a course
+   back on re-adds it - on top of everything, whatever the order says. So the
+   stack is re-asserted after every draw and every toggle by removing and
+   re-adding the visible lines bottom first. Not bringToFront(): that reaches
+   for the line's SVG node, which does not exist until the map has painted,
+   and the first draw happens before it has. */
+function restackCourses() {
+  [...courseStack()].reverse().forEach((course) => {
+    const line = state.courseLayers.get(course.id);
+    if (!line || !map.hasLayer(line)) return;
+    map.removeLayer(line);
+    line.addTo(map);
+  });
+}
+
+function setCourseStack(idsTopFirst) {
+  state.courseOrder = idsTopFirst;
+  restackCourses();
+  renderCourseToggles(state.courses);
+  savePrefs();
+}
+
 function drawCourses(courses) {
+  state.courses = courses;
   state.courseLayers.forEach((layer) => map.removeLayer(layer));
   state.courseLayers.clear();
 
@@ -633,6 +685,7 @@ function drawCourses(courses) {
     state.courseLayers.set(course.id, line);
     if (state.visibleCourses.has(course.id)) line.addTo(map);
   });
+  restackCourses();
 }
 
 /* One Leaflet layer per category, so every layer can be switched
@@ -760,6 +813,11 @@ function fitToContent() {
 
 /* ---------- panel ------------------------------------------------------- */
 
+/* Listed as a stack, top first: the course at the top of this list draws on
+   top where routes share road. The grip drags with a mouse and moves with the
+   arrow keys; "Top" is the one-tap version for a phone, where HTML drag and
+   drop cannot be relied on, and it is also the common case - "put the Full
+   on top" - so it is not a lesser control. */
 function renderCourseToggles(courses) {
   const host = document.getElementById('course-list');
   host.innerHTML = '';
@@ -767,14 +825,28 @@ function renderCourseToggles(courses) {
     host.innerHTML = '<p class="muted">No courses imported yet.</p>';
     return;
   }
-  courses.forEach((course) => {
-    const row = document.createElement('label');
-    row.className = 'toggle';
+  const stack = courseStack();
+  stack.forEach((course, index) => {
+    const row = document.createElement('div');
+    row.className = 'course-row';
+    row.dataset.id = String(course.id);
+    const name = escapeHtml(course.name);
     row.innerHTML =
+      `<button type="button" class="grip-btn" title="Reorder ${name} - drag, ` +
+      `or use the arrow keys; the top course draws on top" aria-label="Reorder ` +
+      `${name} - drag, or use the arrow keys; the top course draws on top">` +
+      '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="none" ' +
+      'stroke="currentColor" stroke-width="1.5" stroke-linecap="round">' +
+      '<path d="M6.2 4.2h.01M9.8 4.2h.01M6.2 8h.01M9.8 8h.01M6.2 11.8h.01M9.8 11.8h.01"/>' +
+      '</svg></button>' +
+      '<label class="toggle">' +
       `<input type="checkbox" ${state.visibleCourses.has(course.id) ? 'checked' : ''}>` +
       '<span class="swatch"></span>' +
-      `<span class="label">${escapeHtml(course.name)}</span>` +
-      `<span class="meta">${miles(course.distance_m).toFixed(1)} mi</span>`;
+      `<span class="label">${name}</span>` +
+      `<span class="meta">${miles(course.distance_m).toFixed(1)} mi</span>` +
+      '</label>' +
+      `<button type="button" class="stack-btn" title="Draw ${name} on top" ` +
+      `aria-label="Draw ${name} on top"${index === 0 ? ' hidden' : ''}>Top</button>`;
     // Set via the style property rather than interpolating into an attribute:
     // the CSS parser drops an invalid value instead of it becoming markup.
     row.querySelector('.swatch').style.background = course.color || '#D55E00';
@@ -783,14 +855,67 @@ function renderCourseToggles(courses) {
       if (ev.target.checked) {
         state.visibleCourses.add(course.id);
         if (line) line.addTo(map);
+        restackCourses();
       } else {
         state.visibleCourses.delete(course.id);
         if (line) map.removeLayer(line);
       }
       savePrefs();
     });
+    row.querySelector('.stack-btn').addEventListener('click', () => {
+      const ids = stack.map((c) => c.id).filter((id) => id !== course.id);
+      setCourseStack([course.id, ...ids]);
+    });
+    const grip = row.querySelector('.grip-btn');
+    grip.addEventListener('mousedown', () => { row.draggable = true; });
+    grip.addEventListener('keydown', (ev) => {
+      const step = ev.key === 'ArrowUp' ? -1 : ev.key === 'ArrowDown' ? 1 : 0;
+      if (!step) return;
+      ev.preventDefault();
+      const ids = stack.map((c) => c.id);
+      const at = ids.indexOf(course.id);
+      const to = at + step;
+      if (to < 0 || to >= ids.length) return;
+      [ids[at], ids[to]] = [ids[to], ids[at]];
+      setCourseStack(ids);
+      const again = host.querySelector(`[data-id="${course.id}"] .grip-btn`);
+      if (again) again.focus();
+    });
     host.appendChild(row);
   });
+
+  if (usingOwnCourseOrder()) {
+    const reset = document.createElement('button');
+    reset.type = 'button';
+    reset.className = 'stack-reset';
+    reset.textContent = "Back to the club's order";
+    reset.addEventListener('click', () => setCourseStack(null));
+    host.appendChild(reset);
+  }
+
+  // Drag with a mouse. The order is read from the rows after the drop.
+  let dragRow = null;
+  host.ondragstart = (ev) => {
+    dragRow = ev.target.closest('.course-row');
+    if (dragRow) dragRow.classList.add('is-dragging');
+  };
+  host.ondragover = (ev) => {
+    if (!dragRow) return;
+    ev.preventDefault();
+    const over = ev.target.closest('.course-row');
+    if (!over || over === dragRow) return;
+    const box = over.getBoundingClientRect();
+    const after = (ev.clientY - box.top) > box.height / 2;
+    over.parentNode.insertBefore(dragRow, after ? over.nextSibling : over);
+  };
+  host.ondragend = () => {
+    if (!dragRow) return;
+    dragRow.classList.remove('is-dragging');
+    dragRow.draggable = false;
+    dragRow = null;
+    setCourseStack([...host.querySelectorAll('.course-row')]
+      .map((r) => Number(r.dataset.id)));
+  };
 }
 
 function layerToggle(label, checked, onChange, swatch) {
@@ -2071,6 +2196,10 @@ function applyState(data) {
     state.visibleCourses = new Set(
       prefs.courses || data.courses.map((c) => c.id)
     );
+    // A stack this viewer arranged for themselves. Checked against the
+    // event's courses each draw, so a course added or removed in setup drops
+    // it back to the club's order rather than leaving a hole in it.
+    state.courseOrder = Array.isArray(prefs.courseOrder) ? prefs.courseOrder : null;
     /* Restore how the panels were left. A phone coming back from a dead zone
        reloads on its own, and re-opening six sections someone deliberately
        folded is the kind of small betrayal that makes a screen feel unreliable. */
