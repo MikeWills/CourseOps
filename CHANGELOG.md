@@ -7,6 +7,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- **The setup tab "Aid stations" is now "Places".** It holds the courses
+  and every place in every layer - water stops, mile markers, start and
+  finish, traffic control - and the taxonomy is the club's own, so the old
+  name described one layer and disagreed with the heading on its own table.
+  "Places" is the word the table and the Events tab already use, and it sits
+  beside Layers, which are its categories. "Aid stations" lives on as
+  whatever a club names its staffed layer, which is where the term belongs.
+
 ## [0.3.4] - 2026-09-06
 
 ### Added

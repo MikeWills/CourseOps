@@ -121,7 +121,7 @@ overlap — put the one people ask about most on top.
 
 ### 4a. Put the places in the order they are reached
 
-`/setup` -> Aid stations. Drag a row by the grip on its left, or focus the grip
+`/setup` -> Places. Drag a row by the grip on its left, or focus the grip
 and use the arrow keys. The order saves as you go and says "Order saved."
 
 Do this whenever the event has more than one route. The app orders places by
@@ -135,7 +135,7 @@ it right before the event is what makes that panel useful during it.
 
 ### 4c. Say which races each place serves
 
-`/setup` -> Aid stations, the **Races** column. Tick every race a stop serves -
+`/setup` -> Places, the **Races** column. Tick every race a stop serves -
 a water stop on shared road usually serves all of them.
 
 Leave it blank and the app falls back to guessing, by snapping the stop to the
@@ -220,7 +220,7 @@ line - and where routes share road that is a guess. Pick the station you mean.
 
 ### 5. Enter What3Words for each aid station
 
-NCS maintains these. In `/setup` -> Aid stations, every place shows its
+NCS maintains these. In `/setup` -> Places, every place shows its
 coordinates beside the What3Words box, with a copy button. Copy them, paste
 them into the search box on the what3words site or app, and type the three
 words it shows back into the box here. Once words are in the box, the link
@@ -292,7 +292,7 @@ the map.
 
 **Expect everything to arrive in one layer.** Organizer KML is usually a flat
 list rather than a folder per kind of place, so after importing you sort it:
-Setup -> **Aid stations**, tick the rows that belong together, and move them to
+Setup -> **Places**, tick the rows that belong together, and move them to
 the right layer in one go. Do this before naming things, so you are naming
 within a layer rather than hunting through a mixed list.
 
