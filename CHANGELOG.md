@@ -7,6 +7,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.3.5] - 2026-09-06
+
 ### Changed
 - **The setup tab "Aid stations" is now "Places".** It holds the courses
   and every place in every layer - water stops, mile markers, start and
