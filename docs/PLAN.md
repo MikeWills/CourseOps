@@ -537,6 +537,27 @@ Decisions taken:
 **Never exercised against real traffic.** Every run so far has been with the
 feed off. This is the largest untested claim in the project.
 
+## Live verification
+
+The feed was turned on for real on 2026-09-05, race-week check-in for the
+2026-10-17 Mankato Marathon, with five callsigns on the roster. Observed on
+the NCS view on an iPad (Chrome on iOS):
+
+- APRS-IS connected receive-only as WX0MIK; packets from rostered stations
+  were stored and drawn.
+- The area filter (course extent plus a mile) delivered stations the roster
+  did not know; "Needs attention" listed them; matching one to a roster entry
+  worked and its positions were stored from then on.
+- "Here" placed a pickup at the phone's own location.
+- The tracking switch survived four deploys in one day.
+- Returning to the app from the background no longer scrolls the header away.
+
+Exercised only in tests or on a scratch event, not yet reported from a live
+feed: a rostered station going stale/silent; the pickup workflow across two
+devices; lead runner sightings; a phone through a dead zone; the after-event
+report with real notes; GPX from a real MapMyRun export. The club may have
+tried some of these without saying so - ask before assuming untested.
+
 ## Known gaps and open threads
 
 - ~~**The what3words coordinate URL is undocumented.**~~ It broke, as this

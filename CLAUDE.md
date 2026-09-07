@@ -38,8 +38,10 @@ Deployed at `courseops.wx0mik.radio`, under
 terminal: the callsign in `.env`, and `courseops serve`. The APRS-IS feed is a
 switch in the UI and is OFF until someone turns it on.
 
-**Never tested against real APRS traffic.** Every run so far has had the feed
-off. That is the largest untested claim here.
+**The feed met real APRS traffic on 2026-09-05** (race-week check-in for the
+2026-10-17 Mankato Marathon): stations arrived, the area filter delivered
+neighbours, and NCS matched a station to a roster entry live. What has been
+observed and what has not is in `docs/PLAN.md` under "Live verification".
 
 Phases: 1 ingest ✅ · 2 KML/GPX import ✅ · 3 live map ✅ · 4 roster/NCS panel ✅ ·
 4a What3Words ✅ · 5 course-relative position ✅ · 6 incidents ✅ ·
