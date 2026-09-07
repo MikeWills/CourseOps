@@ -323,11 +323,11 @@ table.grid button { min-height: 34px; padding: 0 10px; font-size: 13px; }
 .link-row { padding: 12px; border-bottom: 1px solid #eef1f5; }
 .link-row:last-child { border-bottom: 0; }
 .link-role { font-weight: 700; margin-bottom: 4px; }
-/* The URL with its two quick actions on one line: copy it, open it. The
-   destructive one stays on its own row below, away from the pair someone
-   presses all day. */
-.link-line { display: flex; align-items: center; gap: 8px; }
+/* One line per link: the URL, copy, open, revoke. Revoke is last and red,
+   with a wider gap, so it is not mistaken for the pair beside it. */
+.link-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .link-line .icon-btn { flex: none; margin-left: 0; }
+.link-line .danger { flex: none; margin-left: 8px; white-space: nowrap; }
 .link-url {
   display: block;
   flex: 1;
@@ -340,7 +340,6 @@ table.grid button { min-height: 34px; padding: 0 10px; font-size: 13px; }
   font-size: 12px;
   word-break: break-all;
 }
-.link-actions { display: flex; gap: 8px; margin-top: 8px; }
 
 /* Coordinates are read aloud over the radio digit by digit, so they are set
    in a monospace face: proportional digits make it easy to lose your place

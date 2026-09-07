@@ -1743,8 +1743,6 @@ async function loadLinks() {
         <input class="link-url" readonly value="${esc(url)}">
         ${iconBtn('copy', {'data-copy': url}, `Copy the ${l.role_label} link`)}
         ${iconLink('open', {href: url}, `Open the ${l.role_label} view in a new tab`)}
-      </div>
-      <div class="link-actions">
         <button type="button" class="danger" data-reissue="${esc(l.role)}"
           >Revoke &amp; reissue</button>
       </div>

@@ -30,9 +30,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   work too, as on Places, and the two tables now share one implementation.
 
 ### Changed
-- **On the Links tab, Copy and Open sit beside the URL** on one line rather
-  than below it. Revoke stays on its own row, away from the pair someone
-  presses all day.
+- **On the Links tab, each link is one line:** the URL, Copy, Open and
+  Revoke & reissue, rather than the buttons below the box. Revoke is last,
+  red, and set apart by a wider gap.
 
 ## [0.3.6] - 2026-09-06
 
