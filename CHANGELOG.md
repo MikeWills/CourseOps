@@ -7,6 +7,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.3.7] - 2026-09-06
+
 ### Added
 - **Each viewer can arrange the course stack for their own screen.** The
   map's Courses section lists the routes top first, with a grip to drag
