@@ -29,6 +29,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   flag only; setup is meant to be the whole story. Arrow keys on the grip
   work too, as on Places, and the two tables now share one implementation.
 
+### Changed
+- **On the Links tab the URL itself is a link.** It opens that role's view
+  in a new tab, the same as the button beside it. It was a read-only box.
+
 ## [0.3.6] - 2026-09-06
 
 ### Changed
