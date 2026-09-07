@@ -514,6 +514,14 @@ usability, not style preferences.
   and to fail to load, and the frontend has no build step.
 - **Every icon-only button needs both `title` and `aria-label`.** The label
   names the row, not just the verb: "Delete Aid 3", never "Delete".
+- **An icon button carries no box, and TWO rules in `setup.css` will put one
+  back.** `.panel button:not(...)` and `table.grid button` both outweigh
+  `.icon-btn` on border, background, padding and height, and neither matches
+  an `<a>` - so the same glyph came out framed as a button and bare as a
+  link, side by side on the Links tab. Both carry `:not(.icon-btn)` now.
+  A third rule for plain buttons needs the same arm, and any `:not()` added
+  to one of them shifts its specificity duel with the `button.danger` rule
+  below, which is how Delete once rendered black instead of red.
 - **Permission is per capability, not one write flag.** `ROLE_CAPABILITIES` in
   `access.py` is the whole policy; each endpoint names what it needs via
   `require_capability`. Never widen a field role by adding it to a second place.
@@ -730,6 +738,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-07** Fixed: setup icon buttons were boxed while icon links beside them were bare; both are bare now.
 - **2026-09-07** Fixed: typing a position on Places scrolled the page to the moved row; focus stays where you are working.
 - **2026-09-06** Places: type a position in the # column; dragging 78 rows was the clunky part.
 - **2026-09-06** Each viewer can arrange the course stack on their own map; the club's order is the default and the fallback.
@@ -739,4 +748,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-06** Setup tabs are Import, Courses, Places: the upload step named for the action, the courses table on its own tab.
 - **2026-09-06** The "Aid stations" setup tab is now "Places"; it held every layer, not one.
 - **2026-09-06** Aid stations: copy the coordinates, open the words on what3words, export the ticked rows as CSV; Links: open in a new tab.
-- **2026-09-06** Staff are no longer sent pickups or course notes; the organizer gets the counts from the report.

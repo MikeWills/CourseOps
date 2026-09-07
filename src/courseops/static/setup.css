@@ -126,7 +126,16 @@ button.primary {
   font-weight: 650;
   cursor: pointer;
 }
-.panel button:not(.primary):not(.tab), .gate button:not(.primary) {
+/* Icon-only buttons are excluded here rather than fought with a more
+   specific rule later. This rule is three classes and an element, so it beat
+   `.icon-btn` on every property they share - border, background, padding,
+   min-height - and an icon BUTTON came out as a bordered 42px box while the
+   same icon as an ANCHOR, which this rule never matched, came out bare. Copy
+   and Open sat beside each other on the Links tab looking like two different
+   kinds of control. Excluding the class leaves `.icon-btn` as the single
+   description of an icon button, so a button and an anchor render alike. */
+.panel button:not(.primary):not(.tab):not(.icon-btn),
+.gate button:not(.primary):not(.icon-btn) {
   min-height: 42px;
   padding: 0 14px;
   border: 1px solid var(--line);
@@ -223,12 +232,24 @@ table.grid tr:last-child td { border-bottom: 0; }
 table.grid .actions { text-align: right; white-space: nowrap; }
 /* A text link, not an icon: it opens a page rather than acting on the row. */
 table.grid .report-link { margin-right: 8px; font-weight: 600; color: #0b5fa5; }
-table.grid button { min-height: 34px; padding: 0 10px; font-size: 13px; }
+/* Icon buttons are excluded for the same reason as the panel rule above:
+   this one is a class and two elements, so its 10px of horizontal padding
+   beat `.icon-btn`'s zero and squeezed a 16px glyph into a 14px content
+   box - inside tables only, which is where every Save and Delete lives. */
+table.grid button:not(.icon-btn) {
+  min-height: 34px;
+  padding: 0 10px;
+  font-size: 13px;
+}
 
 /* Square, so a row of them reads as a group of controls rather than a wall of
    words. 34px is the smallest that stays comfortably tappable on the tablet
    this screen is sometimes used on; the setup UI is desktop-first, but not
    desktop-only. */
+/* A bare glyph with a generous target around it, and no box: the border a
+   panel button carries would put a frame around every X in a table of eighty
+   rows, which reads as eighty controls competing with the data. The hover
+   and focus states below are what say it is pressable. */
 .icon-btn {
   display: inline-grid;
   place-items: center;
@@ -236,9 +257,15 @@ table.grid button { min-height: 34px; padding: 0 10px; font-size: 13px; }
   height: 34px;
   min-height: 34px;
   padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  font: inherit;
   font-size: 15px;
   line-height: 1;
+  color: var(--ink);
   vertical-align: middle;
+  cursor: pointer;
 }
 .icon-btn + .icon-btn, .icon-btn + button, button + .icon-btn { margin-left: 4px; }
 /* The glyph alone would be a thin grey mark on hover with nothing to aim at. */
@@ -248,11 +275,17 @@ table.grid button { min-height: 34px; padding: 0 10px; font-size: 13px; }
 .icon-btn:focus-visible { outline: 2px solid var(--navy-700); outline-offset: 1px; }
 
 /* `button.danger` above is one class and one element; the generic panel-button
-   rule is three classes and one element, so it silently won and every Delete
-   button has been rendering in plain ink rather than red. Matched here at equal
-   specificity and placed later so the danger colour actually applies. Colour is
-   reinforcement, never the only cue - the label and the X shape carry it. */
-.panel button.danger:not(.tab), .gate button.danger:not(.tab) {
+   rule outweighs it, so it silently won and every Delete button rendered in
+   plain ink rather than red. Matched here at equal specificity and placed
+   later so the danger colour actually applies. Colour is reinforcement, never
+   the only cue - the label and the X shape carry it.
+
+   Count the :not() arms when touching either rule. The generic one is now
+   four classes and an element, so this one carries a fourth arm it does not
+   otherwise need purely to stay level. Drop it and Revoke & reissue goes
+   black with no error anywhere. */
+.panel button.danger:not(.tab):not(.primary),
+.gate button.danger:not(.tab):not(.primary) {
   color: var(--silent);
   border-color: #e3a9a4;
 }
@@ -352,9 +385,9 @@ table.grid button { min-height: 34px; padding: 0 10px; font-size: 13px; }
 }
 .w3w-cell { white-space: nowrap; }
 .coords .icon-btn, .w3w-cell .icon-btn { margin-left: 4px; }
-/* The what3words link is an anchor dressed as an icon button, so it needs
-   the anchor defaults undone - and `hidden` must still win. */
-a.icon-btn { color: inherit; text-decoration: none; }
+/* An anchor dressed as an icon button needs the anchor defaults undone -
+   and `hidden` must still win. */
+a.icon-btn { color: var(--ink); text-decoration: none; }
 a.icon-btn[hidden] { display: none; }
 
 @media (max-width: 640px) {
