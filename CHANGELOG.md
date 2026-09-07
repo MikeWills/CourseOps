@@ -7,6 +7,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **Drag to set the draw order on the Courses tab.** The table is a stack:
+  the course at the top draws on top wherever routes share road. Draw order
+  was already the only control over overlap, but it lived in a command-line
+  flag only; setup is meant to be the whole story. Arrow keys on the grip
+  work too, as on Places, and the two tables now share one implementation.
+
 ## [0.3.6] - 2026-09-06
 
 ### Changed

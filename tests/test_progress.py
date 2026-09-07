@@ -334,6 +334,50 @@ def test_reorder_numbers_in_tens(tmp_path):
     assert [r["name"] for r in got] == ["Third", "Second", "First"]
 
 
+def _courses_event(tmp_path):
+    conn = db.connect(tmp_path / "corder.sqlite3")
+    db.init_schema(conn)
+    event_id = db.create_event(conn, "cord", "Courses")
+    for name, order in [("Full", 10), ("Half", 20), ("10K", 30)]:
+        conn.execute(
+            "INSERT INTO course (event_id, name, geojson, distance_m, sort_order)"
+            " VALUES (?, ?, '{}', 0, ?)", (event_id, name, order))
+    return conn, event_id
+
+
+def test_reorder_courses_takes_the_list_top_first(tmp_path):
+    """The setup table reads as a stack, so the first id sent must end up
+    with the HIGHEST sort_order - ascending sort_order is draw order, and the
+    top of the stack is what draws on top where routes share road."""
+    from courseops import admin
+    conn, event_id = _courses_event(tmp_path)
+    by_name = {r["name"]: r["id"] for r in conn.execute(
+        "SELECT id, name FROM course WHERE event_id = ?", (event_id,))}
+
+    assert admin.reorder_courses(
+        conn, event_id, [by_name["Half"], by_name["Full"], by_name["10K"]]) == 3
+    drawn = [r["name"] for r in conn.execute(
+        "SELECT name FROM course WHERE event_id = ? ORDER BY sort_order",
+        (event_id,))]
+    assert drawn == ["10K", "Full", "Half"]   # last drawn = on top = Half
+
+
+def test_reorder_courses_needs_every_course(tmp_path):
+    """A course left out would keep its old number and land somewhere in the
+    stack nobody chose."""
+    from courseops import admin
+    conn, event_id = _courses_event(tmp_path)
+    ids = [r["id"] for r in conn.execute(
+        "SELECT id FROM course WHERE event_id = ?", (event_id,))]
+    with pytest.raises(ValueError):
+        admin.reorder_courses(conn, event_id, ids[:2])
+    with pytest.raises(ValueError):
+        admin.reorder_courses(conn, event_id, [*ids, 99999])
+    assert [r["sort_order"] for r in conn.execute(
+        "SELECT sort_order FROM course WHERE event_id = ? ORDER BY sort_order",
+        (event_id,))] == [10, 20, 30]
+
+
 def test_reorder_refuses_an_id_from_another_event(tmp_path):
     """A half-applied order is worse than none: it looks like it worked."""
     from courseops import admin

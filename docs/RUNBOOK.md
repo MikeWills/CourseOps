@@ -110,8 +110,10 @@ warns about a gap, look at the course on the map before the event.
 
 ### 4. Set colours and draw order
 
-`/setup` -> Courses: each race's name and line colour. Or from the command
-line:
+`/setup` -> Courses: each race's name and line colour, and the draw order.
+The table is a stack: drag a course to the top (or focus its grip and use the
+arrow keys) and it draws on top of the others wherever routes share road. Or
+from the command line:
 
 ```bash
 courseops courses mankato2026

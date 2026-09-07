@@ -393,6 +393,32 @@ def reorder_pois(conn: sqlite3.Connection, event_id: int,
     return len(ids)
 
 
+def reorder_courses(conn: sqlite3.Connection, event_id: int,
+                    course_ids: list[int]) -> int:
+    """Set the draw order from a list given TOP FIRST.
+
+    Ascending sort_order is draw order, so the highest draws on top where
+    routes share road. The setup table reads as a stack - the first row is
+    the one on top - so the first id gets the highest number. Every course
+    must be listed: a course left out would keep its old number and land
+    somewhere in the stack nobody chose.
+    """
+    ids = [int(i) for i in course_ids or []]
+    known = {
+        row["id"] for row in conn.execute(
+            "SELECT id FROM course WHERE event_id = ?", (event_id,)
+        ).fetchall()
+    }
+    if not ids or set(ids) != known or len(ids) != len(known):
+        raise ValueError("Every course in the event must be listed, once.")
+    for position, course_id in enumerate(reversed(ids), start=1):
+        conn.execute(
+            "UPDATE course SET sort_order = ? WHERE id = ? AND event_id = ?",
+            (position * 10, course_id, event_id),
+        )
+    return len(ids)
+
+
 def move_pois(conn: sqlite3.Connection, event_id: int,
               poi_ids: list[int], key: str) -> int:
     """Move several places into a layer at once.

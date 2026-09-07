@@ -54,7 +54,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 509 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 511 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -723,6 +723,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-06** Courses tab: drag to set the draw order; the top of the list draws on top.
 - **2026-09-06** Setup tabs are Import, Courses, Places: the upload step named for the action, the courses table on its own tab.
 - **2026-09-06** The "Aid stations" setup tab is now "Places"; it held every layer, not one.
 - **2026-09-06** Aid stations: copy the coordinates, open the words on what3words, export the ticked rows as CSV; Links: open in a new tab.
@@ -732,4 +733,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-05** An Ignored list (folded, NCS only) with Unignore, the undo for a mis-tap.
 - **2026-09-05** The Operator box asks for a callsign; still free text, so a name works too.
 - **2026-09-05** NCS sees every station near the course and matches it to anyone on the roster; Unmatch undoes it.
-- **2026-09-05** Fixed: "Needs attention" only appeared after a refresh; an unknown station now announces itself live.
