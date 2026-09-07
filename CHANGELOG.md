@@ -7,6 +7,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.3.6] - 2026-09-06
+
 ### Changed
 - **The setup tabs now read Import, Courses, Places.** "Course" was the
   upload-and-review step, and the same upload brings in the water stops and
