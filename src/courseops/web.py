@@ -1086,6 +1086,22 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
             conn.close()
         return JSONResponse(dict(row), status_code=201)
 
+    # Literal before parameterised, or "reorder" is taken as a layer key.
+    @app.post("/api/setup/events/{event_id}/categories/reorder")
+    async def setup_reorder_categories(
+        event_id: int, request: Request
+    ) -> JSONResponse:
+        conn, user = require_event_admin(request, event_id)
+        body = await _json_body(request, conn)
+        try:
+            count = _guard(
+                categories.reorder_poi_categories, conn, event_id,
+                body.get("keys") or [])
+            conn.commit()
+        finally:
+            conn.close()
+        return JSONResponse({"ordered": count})
+
     @app.post("/api/setup/events/{event_id}/categories/{key}")
     async def setup_update_category(
         event_id: int, key: str, request: Request

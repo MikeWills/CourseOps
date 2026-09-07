@@ -117,6 +117,41 @@ def test_an_unknown_role_cannot_be_renamed(event):
         categories.rename_roster_role(conn, event_id, "made_up", "Nope")
 
 
+# --- order ------------------------------------------------------------------
+
+def test_reorder_sets_list_order_top_first(event):
+    conn, event_id = event
+    categories.add_poi_category(conn, event_id, "Mile markers")
+    categories.add_poi_category(conn, event_id, "Water stops")
+    before = [c["key"] for c in categories.poi_categories(conn, event_id)]
+    assert before[-2:] == ["mile_markers", "water_stops"]   # creation order
+
+    wanted = ["water_stops", "mile_markers", *before[:-2]]
+    assert categories.reorder_poi_categories(conn, event_id, wanted) == len(before)
+    assert [c["key"] for c in categories.poi_categories(conn, event_id)] == wanted
+
+
+def test_reorder_needs_every_layer(event):
+    """A layer left out would keep its old number and land in a slot nobody
+    chose - and the order would look saved."""
+    conn, event_id = event
+    keys = [c["key"] for c in categories.poi_categories(conn, event_id)]
+    with pytest.raises(categories.CategoryError):
+        categories.reorder_poi_categories(conn, event_id, keys[:-1])
+    with pytest.raises(categories.CategoryError):
+        categories.reorder_poi_categories(conn, event_id, [*keys, "nope"])
+    assert [c["key"] for c in categories.poi_categories(conn, event_id)] == keys
+
+
+def test_a_new_layer_still_lands_at_the_end_after_a_reorder(event):
+    conn, event_id = event
+    keys = [c["key"] for c in categories.poi_categories(conn, event_id)]
+    categories.reorder_poi_categories(conn, event_id, list(reversed(keys)))
+    categories.add_poi_category(conn, event_id, "Portable toilets")
+    assert [c["key"] for c in categories.poi_categories(conn, event_id)][-1] \
+        == "portable_toilets"
+
+
 # --- staffed ----------------------------------------------------------------
 
 def test_staffed_is_what_marks_a_layer_operational(event):
