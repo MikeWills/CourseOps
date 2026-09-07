@@ -1446,10 +1446,12 @@ function renderLayerTable() {
   renderIconPicker($('lay-icon-picker'), iconPick, (k) => { iconPick = k; });
 
   $('layer-table').innerHTML = `
-    <table class="grid"><thead><tr><th></th><th>Layer</th><th>Places</th>
+    <table class="grid"><thead><tr><th></th><th></th><th>Layer</th><th>Places</th>
       <th>We staff these</th><th>On by default</th><th>Labels on pins</th>
       <th></th></tr></thead><tbody>`
-    + S.poiCategories.map((c) => `<tr>
+    + S.poiCategories.map((c) => `<tr data-row="${esc(c.key)}">
+        <td class="grip-cell">${iconBtn('grip', {'data-grip': c.key},
+          `Reorder ${c.name} - drag, or use the arrow keys`)}</td>
         <td><span class="layer-glyph" style="color:${esc(c.color || '#35507a')}"
             >${glyphSvg(c.icon, 20)}</span></td>
         <td><input value="${esc(c.name)}" data-lname="${esc(c.key)}" style="width:150px">
@@ -1468,6 +1470,21 @@ function renderLayerTable() {
           ${iconBtn('remove', {'data-ldel': c.key}, `Delete ${c.name}`)}
         </td>
       </tr>`).join('') + '</tbody></table>';
+
+  // List order only: the switches on the map and the dropdowns here. Pins
+  // stack by latitude, so this never decides which pin covers which.
+  bindReorder($('layer-table'), async (keys) => {
+    try {
+      await post(`/api/setup/events/${S.eventId}/categories/reorder`, { keys });
+      $('layer-order-note').textContent = 'Order saved.';
+      // The dropdowns on Places are built from this list; refresh it so the
+      // next visit there agrees with what was just arranged.
+      S.poiCategories = null;
+    } catch (err) {
+      $('layer-order-note').textContent = `Order NOT saved: ${err.message}`;
+      banner(err.message, true);
+    }
+  });
 
   bindSaveAll({
     table: 'layer-table',

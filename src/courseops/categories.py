@@ -243,6 +243,35 @@ def update_poi_category(
     return get_poi_category(conn, event_id, key)
 
 
+def reorder_poi_categories(
+    conn: sqlite3.Connection, event_id: int, keys: list[str]
+) -> int:
+    """Set the order layers are listed in, from a list given top first.
+
+    This is list order only - the map's Places switches and the layer
+    dropdowns in setup. It does not affect which pin draws over which:
+    Leaflet stacks markers by latitude, and a labelled pin gets its own
+    bump. Every layer must be listed, so nothing lands in a slot nobody
+    chose. Numbered in tens so a new layer, which takes max + 1, still
+    lands at the end.
+    """
+    wanted = [str(k) for k in keys or []]
+    known = {
+        row["key"] for row in conn.execute(
+            "SELECT key FROM poi_category WHERE event_id = ?", (event_id,)
+        ).fetchall()
+    }
+    if not wanted or set(wanted) != known or len(wanted) != len(known):
+        raise CategoryError("Every layer in the event must be listed, once.")
+    for position, key in enumerate(wanted, start=1):
+        conn.execute(
+            "UPDATE poi_category SET sort_order = ?"
+            " WHERE event_id = ? AND key = ?",
+            (position * 10, event_id, key),
+        )
+    return len(wanted)
+
+
 def delete_poi_category(conn: sqlite3.Connection, event_id: int, key: str) -> int:
     """Remove a layer. Refuses while places still belong to it.
 
