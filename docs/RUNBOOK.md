@@ -18,7 +18,7 @@ person setting it up and for Net Control, not for developers.
 | **SAG** | SAG link | Report an incident, and work the pickup queue: mark a runner en route, picked up and dropped off, and fill in the bib. Can order pickups by how near they are. Nothing else is editable |
 | **Liaison** | Liaison link | Report an incident. Otherwise view only. Embedded with Public Safety / Medics |
 | **Logistics** | Logistics link | Report an incident. Otherwise view only. Traffic control, cone placement, teardown |
-| **Staff** | Staff link | View only, the whole picture: every layer, stations, pickups, notes. Race staff, the organizer, anyone who should see and not touch |
+| **Staff** | Staff link | View only: every layer, stations, lead runners. Never shown pickups or course notes - the organizer gets those counts from the after-event report. Race staff, the organizer, anyone who should see and not touch |
 
 **Anyone can report; only NCS and SAG work the queue.** All four links can drop
 a pickup or a course note and fill in its bib and note. Only NCS and SAG can

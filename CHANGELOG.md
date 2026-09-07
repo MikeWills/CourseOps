@@ -7,6 +7,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- **Staff no longer see pickups or course notes.** Race staff and the
+  organizer read the map for where everyone is; a queue of runners who could
+  not continue is the club's business during the race, and the organizer gets
+  the counts from the after-event report. The list is left out of their
+  snapshot rather than sent empty - an empty "Pickups" reads as "nobody is
+  waiting", a claim that link has no data to make - and live incident
+  changes are gated the same way, so nothing arrives one entry at a time
+  either. The incident log now needs the report capability too. The audience
+  is the roles that report or work the queue, and Staff hold neither.
+
 ## [0.3.3] - 2026-09-05
 
 ### Changed

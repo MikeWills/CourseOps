@@ -543,7 +543,40 @@ def test_status_change_is_broadcast(setup):
     assert message["status"] == "en_route"
 
 
-def test_incident_log_is_readable_by_every_role(setup):
+def test_staff_are_never_sent_pickups_or_notes(setup):
+    """Race staff and the organizer read where everyone is. A queue of
+    runners who could not continue is the club's business during the race;
+    the organizer gets the counts from the report afterwards. So the list
+    is absent from the snapshot - not empty, which would read as "nobody is
+    waiting" - and the live changes never reach that socket either."""
+    app, tokens, _, _ = setup
+    with TestClient(app) as client:
+        created = client.post(incidents_url(tokens["ncs"]),
+                              json={"lat": 34.732, "lon": -86.575, "bib": "1432"}).json()
+        client.post(incidents_url(tokens["ncs"]),
+                    json={"lat": 34.733, "lon": -86.576, "kind": "note",
+                          "note": "cones down at 5th"})
+        data = client.get(f"/api/m2026/{tokens['staff']}/state").json()
+        assert "incidents" not in data and "pickups_waiting" not in data
+        assert "roster" in data and "positions" in data and "pois" in data
+
+        with client.websocket_connect(f"/ws/m2026/{tokens['staff']}") as ws:
+            client.post(f"{incidents_url(tokens['ncs'])}/{created['id']}/status",
+                        json={"status": "en_route", "changed_by": "MW"})
+            # Something every role IS told, so the socket has a message to
+            # hand back: the first thing staff hear must be that, not the
+            # pickup that moved just before it.
+            client.post(f"/api/m2026/{tokens['ncs']}/station/N0CALL-7/status",
+                        json={"op_status": "active"})
+            message = ws.receive_json()
+        assert message["type"] == "station_status"
+
+        log = client.get(
+            f"{incidents_url(tokens['staff'])}/{created['id']}/log")
+    assert log.status_code == 403
+
+
+def test_incident_log_is_readable_by_every_role_that_sees_the_queue(setup):
     """The log is what a shift handover reads."""
     app, tokens, _, _ = setup
     with TestClient(app) as client:
