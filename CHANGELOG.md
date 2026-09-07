@@ -8,6 +8,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **Drag to reorder the Layers tab.** The order of that table is the order
+  of the Places switches on the map and of the layer dropdowns in setup, and
+  it was creation order with no way to change it. It is list order only:
+  pins stack by latitude, so it never decides which pin covers which, and
+  the tab says so.
 - **Drag to set the draw order on the Courses tab.** The table is a stack:
   the course at the top draws on top wherever routes share road. Draw order
   was already the only control over overlap, but it lived in a command-line

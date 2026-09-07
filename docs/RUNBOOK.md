@@ -293,7 +293,9 @@ courseops roster mankato2026
 Setup -> **Layers**. Whatever kinds of place this event has: mile markers,
 medical, traffic control, portable toilets. Add as many as you need, name each
 in your own words, and give it an icon and a colour - each becomes a switch on
-the map.
+the map. The switches appear in the order of this table; drag a row by its
+grip to put the layers people reach for at the top. That is list order only -
+it never decides which pin covers which on the map.
 
 **Expect everything to arrive in one layer.** Organizer KML is usually a flat
 list rather than a folder per kind of place, so after importing you sort it:

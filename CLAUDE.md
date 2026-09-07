@@ -723,6 +723,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-06** Layers tab: drag to reorder; it is the order of the map's Places switches, nothing more.
 - **2026-09-06** Courses tab: drag to set the draw order; the top of the list draws on top.
 - **2026-09-06** Setup tabs are Import, Courses, Places: the upload step named for the action, the courses table on its own tab.
 - **2026-09-06** The "Aid stations" setup tab is now "Places"; it held every layer, not one.
@@ -732,4 +733,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-05** Removed the what3words lookup links; the undocumented URL stopped working.
 - **2026-09-05** An Ignored list (folded, NCS only) with Unignore, the undo for a mis-tap.
 - **2026-09-05** The Operator box asks for a callsign; still free text, so a name works too.
-- **2026-09-05** NCS sees every station near the course and matches it to anyone on the roster; Unmatch undoes it.
