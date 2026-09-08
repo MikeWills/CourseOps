@@ -1494,6 +1494,38 @@ async function undoSighting(leader) {
   }
 }
 
+/* "Water stop A", not "A".
+
+   A club names its places WITHIN a layer - the real water stops are called A,
+   B, C - so the name on its own does not say what kind of place it is, and two
+   layers can each have an A. The layer is the club's own word for that, so it
+   is put in front.
+
+   Singularised, because the layer names a category ("Water stops") and this
+   names one of them. Only a trailing "s", never after another "s", or "Access"
+   becomes "Acces". The capitalisation is left exactly as the club typed it:
+   rename the layer to "Water Stops" and these read "Water Stop A". Guessing at
+   title case would rewrite "Start / finish" into something nobody chose.
+
+   Skipped when the place name already begins with the layer word, so a club
+   that writes "Aid Station 2" in an "Aid stations" layer does not get
+   "Aid station Aid Station 2". */
+function singularLayer(name) {
+  const word = (name || '').trim();
+  if (!/s$/i.test(word) || /ss$/i.test(word)) return word;
+  return word.slice(0, -1);
+}
+
+function placeName(poiId, fallback) {
+  const poi = state.aidStations.find((p) => p.id === poiId);
+  if (!poi) return fallback || '';
+  const category = state.poiCategories.find((c) => c.key === poi.poi_type);
+  const layer = singularLayer(category && category.name);
+  if (!layer) return poi.name;
+  if (poi.name.toLowerCase().startsWith(layer.toLowerCase())) return poi.name;
+  return `${layer} ${poi.name}`;
+}
+
 function renderLeaders() {
   const host = document.getElementById('leader-list');
   if (!state.leaders.length) {
@@ -1544,12 +1576,13 @@ function renderLeaders() {
        the leader reaches them, and "passed A at 09:42" is what that planning
        is done from, while "1m ago" decays the moment you look away. */
     const seenAt = clockTime(leader.last_at);
+    const lastPlace = placeName(leader.last_poi_id, leader.last_poi_name);
     let where = 'not yet seen';
     if (leader.last_poi_name && can('leaders')) {
-      where = `${escapeHtml(leader.last_poi_name)} · `
+      where = `${escapeHtml(lastPlace)} · `
         + `${escapeHtml(formatAge(ageSeconds(leader.last_at)))} ago`;
     } else if (leader.last_poi_name) {
-      where = `Passed ${escapeHtml(leader.last_poi_name)}`
+      where = `Passed ${escapeHtml(lastPlace)}`
         + (seenAt ? ` at ${escapeHtml(seenAt)}` : '');
     }
     const pace = paceLabel(leader.pace_mps);
@@ -1560,13 +1593,14 @@ function renderLeaders() {
       (pace ? `<span class="leader-pace">${escapeHtml(pace)}</span>` : '');
     row.appendChild(line);
 
+    const nextPlace = placeName(leader.next_poi_id, leader.next_poi_name);
     if (leader.next_poi_name) {
       const eta = formatEta(leader.eta_seconds);
       const hint = document.createElement('div');
       hint.className = 'leader-next';
       hint.textContent = eta
-        ? `Next: ${leader.next_poi_name} (${eta})`
-        : `Next: ${leader.next_poi_name}`;
+        ? `Next: ${nextPlace} (${eta})`
+        : `Next: ${nextPlace}`;
       row.appendChild(hint);
     }
 
@@ -1590,7 +1624,15 @@ function renderLeaders() {
         const passed = document.createElement('button');
         passed.type = 'button';
         passed.className = 'leader-passed';
+        /* Short on the face, full in the label. This is the widest thing in
+           a 236px sidebar and it is pressed while holding a microphone, so
+           the place's full name shrinks it to a clipped three-line stack;
+           the line directly above already reads "Next: Water stop B", which
+           is what disambiguates a bare letter. The full name goes in the
+           accessible name, where it costs no width. */
         passed.textContent = `Passed ${leader.next_poi_name}`;
+        passed.title = `Passed ${nextPlace}`;
+        passed.setAttribute('aria-label', `Passed ${nextPlace}`);
         passed.addEventListener('click',
           () => recordSighting(leader, leader.next_poi_id, bibField.value.trim()));
         controls.appendChild(passed);
@@ -1603,7 +1645,8 @@ function renderLeaders() {
       picker.innerHTML = '<option value="">At…</option>' +
         state.aidStations
           .filter((poi) => !leader.course_id || true)
-          .map((poi) => `<option value="${poi.id}">${escapeHtml(poi.name)}</option>`)
+          .map((poi) => `<option value="${poi.id}">${
+            escapeHtml(placeName(poi.id, poi.name))}</option>`)
           .join('');
       picker.addEventListener('change', () => {
         if (picker.value) {

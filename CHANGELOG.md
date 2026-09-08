@@ -7,6 +7,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- **The lead runner panel names a place by its layer and its name**, so a
+  club whose water stops are called A, B and C reads "Passed Water stop A at
+  09:42" and "Next: Water stop B" rather than a bare letter that another
+  layer may also use. The layer name is the club's own word, singularised
+  only so it reads as one place instead of a category, and its capitalisation
+  is left exactly as typed - name the layer "Water Stops" and these read
+  "Water Stop A". Skipped where a place name already starts with the layer
+  word, so "Aid Station 2" in an "Aid stations" layer is left alone. The
+  station picker uses the full name too; the Passed button keeps the short
+  one on its face, with the full name as its accessible name, because it is
+  the widest control in a narrow sidebar and is pressed while holding a
+  microphone.
+
+### Fixed
+- **Undo and Clear could sit outside the lead runner panel**, unreachable, on
+  a sidebar at its narrowest: five controls in a row that did not wrap. They
+  wrap now, which also gives the Passed button most of a row to itself.
+
 ## [0.4.0] - 2026-09-07
 
 ### Changed

@@ -878,12 +878,26 @@ body {
 }
 .leader-next { font-size: 12px; color: var(--ink-soft); }
 
-.leader-controls { display: flex; gap: 6px; margin-top: 6px; }
+/* Wraps. Five controls - bib, Passed, the picker, Undo, Clear - do not fit
+   across a sidebar at its narrowest, and without this Undo and Clear sat
+   outside the panel where they could not be reached. That was true before the
+   button started naming the place in full; the longer label only makes it
+   easier to hit. */
+.leader-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
 /* The one-tap path is the wide one. On race day this is pressed while holding
    a microphone, so it gets the space. */
 .leader-passed {
   flex: 1;
+  padding: 4px 8px;
   min-height: 40px;
+  /* "Passed Water stop B" wraps onto two lines in a narrow sidebar rather
+     than being clipped, so the row keeps a readable target either way. */
+  line-height: 1.25;
   border: 1px solid var(--accent);
   border-radius: 8px;
   background: var(--accent);

@@ -660,6 +660,15 @@ usability, not style preferences.
   share an endpoint, and reloading both after saving either wiped edits from a
   table the user had not touched - the same bug, one table over. `loadLayers`
   takes which half to re-render.
+- **A place is named to a human as its LAYER plus its name.** Clubs name
+  places within a layer - the real water stops are A, B, C - so the name
+  alone does not say what kind of place it is and two layers can each have an
+  A. `placeName()` in `app.js` puts the club's layer name in front,
+  singularised by stripping one trailing "s" (never after another "s", or
+  "Access" loses one), and never re-cases it: the club types "Water Stops" if
+  it wants "Water Stop A". It is skipped when the place name already starts
+  with the layer word. Do not add a title-caser - it would rewrite
+  "Start / finish" into something nobody chose.
 - **A pin label is never the first letter of the name.** Clubs number stations
   as often as they letter them, so "Aid 1/2/3" through a first-letter rule
   labels the entire course "A" - a feature that looks like it works and conveys
@@ -753,6 +762,8 @@ Rules that keep this honest:
 Last 10 entries; full record in `CHANGELOG.md`.
 
 - **2026-09-07** Read-only views say "Passed Bravo at 09:42" for lead runners; NCS keeps the relative age.
+- **2026-09-07** Lead runners name a place as layer plus name ("Water stop A"), because clubs name places A, B, C within a layer.
+- **2026-09-07** Fixed: Undo and Clear sat outside the lead runner panel on a narrow sidebar; the controls row wraps.
 - **2026-09-07** Fixed: lead runners were grouped in the reverse of the Courses list; both follow the viewer's stack now.
 - **2026-09-07** Fixed: setup icon buttons were boxed while icon links beside them were bare; both are bare now.
 - **2026-09-07** Fixed: typing a position on Places scrolled the page to the moved row; focus stays where you are working.
@@ -760,5 +771,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-06** Each viewer can arrange the course stack on their own map; the club's order is the default and the fallback.
 - **2026-09-06** Layers tab: drag to reorder; it is the order of the map's Places switches, nothing more.
 - **2026-09-06** Courses tab: drag to set the draw order; the top of the list draws on top.
-- **2026-09-06** Links tab: URL, Copy, Open and Revoke on one line.
-- **2026-09-06** Setup tabs are Import, Courses, Places: the upload step named for the action, the courses table on its own tab.
