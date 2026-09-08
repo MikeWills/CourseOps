@@ -165,6 +165,38 @@ const mph = (kmh) => (kmh == null ? null : kmh / KM_PER_MILE);
 const feet = (m) => (m == null ? null : m / METERS_PER_FOOT);
 const miles = (m) => (m == null ? null : m / 1609.344);
 
+/* A wall-clock time for a stored timestamp: 24-hour, in the EVENT's zone.
+
+   The same shape the after-event report uses, and for the same reason - the
+   times a club talks about are the event's local times, and a phone that has
+   travelled or is set to another zone would otherwise put a stop's sighting an
+   hour out with nothing on the screen to say so. 24-hour because this is read
+   off a screen and repeated on the air, where "14:20" cannot be heard as the
+   wrong half of the day.
+
+   Falls back to the viewer's own zone if the stored zone name is one Intl does
+   not know, which is better than showing nothing. */
+let clockFormatter = null;
+let clockFormatterZone = null;
+
+function clockTime(iso) {
+  if (!iso) return '';
+  const when = new Date(iso.endsWith('Z') ? iso : iso + 'Z');
+  if (Number.isNaN(when.getTime())) return '';
+  const zone = (state.event && state.event.timezone) || '';
+  if (!clockFormatter || clockFormatterZone !== zone) {
+    const opts = { hour: '2-digit', minute: '2-digit', hour12: false };
+    try {
+      clockFormatter = new Intl.DateTimeFormat(undefined,
+        zone ? Object.assign({ timeZone: zone }, opts) : opts);
+    } catch (err) {
+      clockFormatter = new Intl.DateTimeFormat(undefined, opts);
+    }
+    clockFormatterZone = zone;
+  }
+  return clockFormatter.format(when);
+}
+
 function ageSeconds(iso) {
   if (!iso) return null;
   const then = Date.parse(iso.endsWith('Z') ? iso : iso + 'Z');
@@ -1489,9 +1521,20 @@ function renderLeaders() {
 
     const line = document.createElement('div');
     line.className = 'leader-main';
-    const where = leader.last_poi_name
-      ? `${escapeHtml(leader.last_poi_name)} · ${escapeHtml(formatAge(ageSeconds(leader.last_at)))} ago`
-      : 'not yet seen';
+    /* Net Control sees how long ago, because they are the one entering these
+       and what they check is that the last one landed. Everyone else sees the
+       clock time it was recorded: they are reading the board to work out when
+       the leader reaches them, and "passed A at 09:42" is what that planning
+       is done from, while "1m ago" decays the moment you look away. */
+    const seenAt = clockTime(leader.last_at);
+    let where = 'not yet seen';
+    if (leader.last_poi_name && can('leaders')) {
+      where = `${escapeHtml(leader.last_poi_name)} · `
+        + `${escapeHtml(formatAge(ageSeconds(leader.last_at)))} ago`;
+    } else if (leader.last_poi_name) {
+      where = `Passed ${escapeHtml(leader.last_poi_name)}`
+        + (seenAt ? ` at ${escapeHtml(seenAt)}` : '');
+    }
     const pace = paceLabel(leader.pace_mps);
     line.innerHTML =
       `<span class="leader-div">${escapeHtml(leader.division_label)}</span>` +
