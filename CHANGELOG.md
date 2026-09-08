@@ -7,6 +7,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-07
+
 ### Changed
 - **The read-only views name the time a leader passed a station**, not how
   long ago: "Passed Bravo at 09:42", 24-hour, in the event's timezone. Those
