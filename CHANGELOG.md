@@ -7,6 +7,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-09-07
+
 ### Changed
 - **The lead runner panel names a place by its layer and its name**, so a
   club whose water stops are called A, B and C reads "Passed Water stop A at
