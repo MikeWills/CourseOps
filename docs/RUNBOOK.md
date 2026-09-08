@@ -600,6 +600,11 @@ remove a mis-tap.
 Once two sightings exist, the panel shows a pace and an estimate for the next
 station — which is what tells an aid station when to be ready.
 
+The other roles see the same panel read-only, and it names the clock time
+rather than how long ago: *"Passed Bravo at 09:42"*, 24-hour, in the event's
+timezone. Net Control keeps *"Bravo · 2m ago"*, because what NCS checks is
+that the report they just typed landed.
+
 > **If the pace looks absent, that is deliberate.** When two reports are entered
 > close together — catching up after a busy net — the arithmetic produces a
 > nonsense pace, so the app shows none rather than an estimate you might plan

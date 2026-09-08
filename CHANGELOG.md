@@ -7,6 +7,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- **The read-only views name the time a leader passed a station**, not how
+  long ago: "Passed Bravo at 09:42", 24-hour, in the event's timezone. Those
+  roles read the panel to work out when the leader reaches them, and a clock
+  time is what that planning is done from, while "1m ago" decays the moment
+  you look away. Net Control keeps the relative age, because what NCS checks
+  is that the report they just typed landed. 24-hour because this gets read
+  off a screen and repeated on the air, where a time cannot be heard as the
+  wrong half of the day.
+
 ## [0.3.9] - 2026-09-07
 
 ### Fixed

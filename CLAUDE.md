@@ -203,6 +203,14 @@ usability, not style preferences.
   roster is the allowlist: with nobody on it, nothing is stored at all.
 - **Lead runner sightings are reports, not measurements.** There is no tracker
   on the front runner. Store the sighting; derive position, pace and ETA from it.
+- **A clock time in the live app is formatted by the BROWSER, in the event's
+  zone, 24-hour.** `clockTime()` in `app.js`, the same shape the report page
+  uses and for the same reasons: a Windows Python has no zone database
+  without a fifth dependency, and a phone that has travelled would otherwise
+  put a sighting an hour out with nothing on screen to say so. 24-hour
+  because these are read off a screen and repeated on the air. Relative age
+  (`formatAge`) answers a different question - "did what I just typed land" -
+  and that is why NCS keeps it while the read-only roles get the clock.
 - **Reject an implausible pace rather than publishing it.** NCS enters reports in
   bursts, and two sightings seconds apart yields a 120 mph "pace" and an ETA an
   aid station would plan around. Outside 3:00-30:00 per mile, show nothing.
@@ -738,12 +746,12 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-07** Read-only views say "Passed Bravo at 09:42" for lead runners; NCS keeps the relative age.
 - **2026-09-07** Fixed: setup icon buttons were boxed while icon links beside them were bare; both are bare now.
 - **2026-09-07** Fixed: typing a position on Places scrolled the page to the moved row; focus stays where you are working.
 - **2026-09-06** Places: type a position in the # column; dragging 78 rows was the clunky part.
 - **2026-09-06** Each viewer can arrange the course stack on their own map; the club's order is the default and the fallback.
 - **2026-09-06** Layers tab: drag to reorder; it is the order of the map's Places switches, nothing more.
-- **2026-09-06** Courses tab: drag to set the draw order; the top of the list draws on top.
 - **2026-09-06** Links tab: URL, Copy, Open and Revoke on one line.
 - **2026-09-06** Setup tabs are Import, Courses, Places: the upload step named for the action, the courses table on its own tab.
 - **2026-09-06** The "Aid stations" setup tab is now "Places"; it held every layer, not one.
