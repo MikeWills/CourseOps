@@ -7,6 +7,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-09-08
+
 ### Changed
 - **SAG gets the pickup queue in the LEFT column** and the rest of the panel
   on the right, swapping the two columns for that role only. SAG works the
