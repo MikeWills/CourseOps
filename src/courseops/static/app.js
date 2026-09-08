@@ -692,6 +692,10 @@ function setCourseStack(idsTopFirst) {
   state.courseOrder = idsTopFirst;
   restackCourses();
   renderCourseToggles(state.courses);
+  // The lead runners are grouped by race in this same order, so they move
+  // with it. Two lists of the same races in different orders is a reading
+  // error waiting to happen when someone is scanning for one of them.
+  renderLeaders();
   savePrefs();
 }
 
@@ -1497,9 +1501,22 @@ function renderLeaders() {
     return;
   }
 
+  /* Grouped by race in the order the Courses section lists them - the club's
+     draw order, or this viewer's own stack. The server sends them in ascending
+     draw order, which is the bottom of that stack first, so the two panels
+     read in opposite directions unless this sorts them.
+
+     A stable sort on the course's position keeps each race's divisions
+     together and in the order the server chose, which is what the grouping
+     below relies on. */
+  const stackAt = new Map(courseStack().map((c, i) => [c.id, i]));
+  const ordered = [...state.leaders].sort((a, b) =>
+    (stackAt.has(a.course_id) ? stackAt.get(a.course_id) : Number.MAX_SAFE_INTEGER)
+    - (stackAt.has(b.course_id) ? stackAt.get(b.course_id) : Number.MAX_SAFE_INTEGER));
+
   host.innerHTML = '';
   let lastCourse = null;
-  state.leaders.forEach((leader) => {
+  ordered.forEach((leader) => {
     if (leader.course_id !== lastCourse) {
       lastCourse = leader.course_id;
       const head = document.createElement('div');

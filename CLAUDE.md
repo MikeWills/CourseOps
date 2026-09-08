@@ -261,6 +261,12 @@ usability, not style preferences.
   10K share road; `course.sort_order` decides which line wins (higher draws on
   top) and is adjustable. Courses are solid by default. Dash patterns exist as
   an opt-in for seeing two coincident routes at once.
+- **Anything listing the races follows `courseStack()`, not the order it was
+  sent in.** The server returns courses and leaders in ascending `sort_order`,
+  which is draw order - the BOTTOM of the stack first - while the Courses
+  section lists the stack top first. Two panels of the same races in opposite
+  orders sat on one screen until this was noticed. A new race-grouped list
+  sorts by `courseStack()` and re-renders from `setCourseStack()`.
 - **A viewer's own course stack is a browser pref, never sent anywhere.**
   `state.courseOrder` in `app.js`, top first; the club's `sort_order` is the
   default and the fallback, and `courseStack()` drops the own order the
@@ -747,12 +753,12 @@ Rules that keep this honest:
 Last 10 entries; full record in `CHANGELOG.md`.
 
 - **2026-09-07** Read-only views say "Passed Bravo at 09:42" for lead runners; NCS keeps the relative age.
+- **2026-09-07** Fixed: lead runners were grouped in the reverse of the Courses list; both follow the viewer's stack now.
 - **2026-09-07** Fixed: setup icon buttons were boxed while icon links beside them were bare; both are bare now.
 - **2026-09-07** Fixed: typing a position on Places scrolled the page to the moved row; focus stays where you are working.
 - **2026-09-06** Places: type a position in the # column; dragging 78 rows was the clunky part.
 - **2026-09-06** Each viewer can arrange the course stack on their own map; the club's order is the default and the fallback.
 - **2026-09-06** Layers tab: drag to reorder; it is the order of the map's Places switches, nothing more.
+- **2026-09-06** Courses tab: drag to set the draw order; the top of the list draws on top.
 - **2026-09-06** Links tab: URL, Copy, Open and Revoke on one line.
 - **2026-09-06** Setup tabs are Import, Courses, Places: the upload step named for the action, the courses table on its own tab.
-- **2026-09-06** The "Aid stations" setup tab is now "Places"; it held every layer, not one.
-- **2026-09-06** Aid stations: copy the coordinates, open the words on what3words, export the ticked rows as CSV; Links: open in a new tab.

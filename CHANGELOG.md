@@ -17,6 +17,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   off a screen and repeated on the air, where a time cannot be heard as the
   wrong half of the day.
 
+### Fixed
+- **Lead runners are grouped in the same order the Courses section lists the
+  races.** They were in the reverse: the server sends them in ascending draw
+  order and the Courses list shows the stack top first, so the two panels on
+  one screen read in opposite directions. They follow this viewer's own
+  stack too, so reordering the races moves both at once.
+
 ## [0.3.9] - 2026-09-07
 
 ### Fixed
