@@ -358,6 +358,16 @@ usability, not style preferences.
   opens below the fold. `desiredSheetOrder(wide)` takes the width as an
   argument rather than reading the media query, so the phone ordering can be
   checked without a phone - which is the only way it gets checked at all here.
+- **Which SIDE the panel takes is a role choice too, and it moves five things
+  at once.** `panelLeft` in `SIDE_PANEL_BY_ROLE` sets `body.panel-left`, and
+  the CSS mirror lives in the >=1000px block only - below it there is one
+  column and a side means nothing. The two columns, the map and top bar inset
+  between them, the locate button that rides the MAP's edge, the reopen
+  buttons and the collapse chevrons all have to flip together, and the
+  hidden-state rules carry BOTH class names so they outrank the un-swapped
+  ones rather than racing them on source order. Changing which sections the
+  panel holds is a separate decision from which side it sits on: the phone
+  ordering follows the sections, so swapping sides leaves it alone.
 - **What goes in the right-hand panel depends on the ROLE, not just width.**
   `SIDE_PANEL_BY_ROLE` in `app.js`: NCS and Logistics get stations, Liaison and
   SAG get the pickup queue. Liaison is with Public Safety and Medics and needs
@@ -762,12 +772,12 @@ Rules that keep this honest:
 Last 10 entries; full record in `CHANGELOG.md`.
 
 - **2026-09-07** Read-only views say "Passed Bravo at 09:42" for lead runners; NCS keeps the relative age.
+- **2026-09-07** SAG gets the pickup queue in the left column; the two side columns swap for that role.
 - **2026-09-07** Lead runners name a place as layer plus name ("Water stop A"), because clubs name places A, B, C within a layer.
 - **2026-09-07** Fixed: Undo and Clear sat outside the lead runner panel on a narrow sidebar; the controls row wraps.
 - **2026-09-07** Fixed: lead runners were grouped in the reverse of the Courses list; both follow the viewer's stack now.
 - **2026-09-07** Fixed: setup icon buttons were boxed while icon links beside them were bare; both are bare now.
 - **2026-09-07** Fixed: typing a position on Places scrolled the page to the moved row; focus stays where you are working.
-- **2026-09-06** Places: type a position in the # column; dragging 78 rows was the clunky part.
 - **2026-09-06** Each viewer can arrange the course stack on their own map; the club's order is the default and the fallback.
 - **2026-09-06** Layers tab: drag to reorder; it is the order of the map's Places switches, nothing more.
 - **2026-09-06** Courses tab: drag to set the draw order; the top of the list draws on top.

@@ -402,7 +402,13 @@ const SIDE_PANEL_BY_ROLE = {
   liaison:   { title: 'Pickups',  sections: ['incident-section', 'note-section'] },
   // Staff read where everyone is; they are never sent pickups or notes.
   staff:     { title: 'Stations', sections: ['station-section'] },
-  sag:       { title: 'Pickups',  sections: ['incident-section', 'note-section'] },
+  /* SAG works the queue and nothing else, so the queue takes the LEFT
+     column - the side a left-to-right reader lands on first, and where every
+     other role has its working surface. The sheet moves to the right. Only
+     the panel's SIDE changes: which sections it holds is unchanged, so a SAG
+     phone still lifts the pickups to the top of the sheet the same way. */
+  sag:       { title: 'Pickups',  sections: ['incident-section', 'note-section'],
+               panelLeft: true },
 };
 
 function sidePanelPlan() {
@@ -457,6 +463,9 @@ function moveStationsPanel() {
   rememberSheetOrder();
 
   const plan = sidePanelPlan();
+  // Which side the panel takes. Only meaningful where both columns exist;
+  // the CSS scopes it to that tier.
+  document.body.classList.toggle('panel-left', !!plan.panelLeft);
   const wanted = WIDE.matches ? plan.sections : [];
   const roleNote = document.getElementById('role-note');
 
