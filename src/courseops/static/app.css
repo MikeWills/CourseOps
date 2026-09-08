@@ -1152,6 +1152,65 @@ body {
   body.stations-hidden #locate-btn,
   body.stations-hidden #locate-status { right: 12px; }
 
+  /* ---- the panel on the left instead (SAG) --------------------------------
+
+     Only where BOTH columns exist. Below 1000px there is one column and
+     "which side" means nothing, so the sheet stays where every role has it.
+
+     Everything here is the mirror of the rules above, and each pair has to
+     move together: the two columns, the map and top bar inset between them,
+     the locate button that rides the MAP's right edge rather than the
+     window's, and the reopen buttons. The hidden-state rules carry both
+     class names so they outrank the un-swapped ones above rather than
+     racing them on source order. */
+  body.panel-left #stations-panel {
+    right: auto;
+    left: 0;
+    border-left: 0;
+    border-right: 1px solid var(--line);
+  }
+  body.panel-left #sheet {
+    left: auto;
+    right: 0;
+    border-right: 0;
+    border-left: 1px solid var(--line);
+  }
+  body.panel-left #map,
+  body.panel-left #topbar {
+    left: clamp(240px, 24vw, 320px);
+    right: clamp(280px, 30vw, 360px);
+  }
+  body.panel-left #locate-btn,
+  body.panel-left #locate-status {
+    right: calc(clamp(280px, 30vw, 360px) + 12px);
+  }
+  body.panel-left #sheet-reopen { left: auto; right: 12px; }
+  body.panel-left #stations-reopen { right: auto; left: 12px; }
+  /* Each chevron points at the edge its panel folds away to, so both flip
+     with the columns. Mirrored rather than redrawn: one transform beats two
+     more path constants that have to be kept in step with these. */
+  body.panel-left #sheet-collapse svg,
+  body.panel-left #stations-collapse svg { transform: scaleX(-1); }
+
+  /* The sheet is on the right now, so hiding it frees the RIGHT edge. */
+  body.panel-left.sheet-hidden #map,
+  body.panel-left.sheet-hidden #topbar { right: 0; }
+  body.panel-left.sheet-hidden #locate-btn,
+  body.panel-left.sheet-hidden #locate-status { right: 12px; }
+  /* ...and hiding the panel frees the left, leaving the sheet's inset alone. */
+  body.panel-left.stations-hidden #map,
+  body.panel-left.stations-hidden #topbar {
+    left: 0;
+    right: clamp(280px, 30vw, 360px);
+  }
+  body.panel-left.stations-hidden #locate-btn,
+  body.panel-left.stations-hidden #locate-status {
+    right: calc(clamp(280px, 30vw, 360px) + 12px);
+  }
+  body.panel-left.stations-hidden.sheet-hidden #map,
+  body.panel-left.stations-hidden.sheet-hidden #topbar { left: 0; right: 0; }
+  body.panel-left.stations-hidden.sheet-hidden #locate-btn,
+  body.panel-left.stations-hidden.sheet-hidden #locate-status { right: 12px; }
 }
 
 /* Which role's link this is.

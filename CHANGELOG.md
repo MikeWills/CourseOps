@@ -7,6 +7,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- **SAG gets the pickup queue in the LEFT column** and the rest of the panel
+  on the right, swapping the two columns for that role only. SAG works the
+  queue and little else, so it takes the side a reader lands on first and
+  where every other role has its working surface. Only the panel's side
+  changes: which sections it holds is untouched, so a SAG phone still lifts
+  the pickups to the top of the sheet exactly as before, and the swap applies
+  only where both columns exist. Below that there is one column and "which
+  side" means nothing.
+
 ## [0.4.1] - 2026-09-07
 
 ### Changed
