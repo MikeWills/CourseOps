@@ -16,6 +16,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   the pickups to the top of the sheet exactly as before, and the swap applies
   only where both columns exist. Below that there is one column and "which
   side" means nothing.
+- **Net Control's pickups and course notes moved into the side panel**, above
+  the stations, rather than sitting halfway down the sheet below the lead
+  runners. NCS acts on all three, so they belong in the one column that is
+  watched all day, with the thing people are waiting on at the top. On a
+  phone the same three lift to the top of the sheet, which is the same
+  decision the layout already makes for every other role.
 
 ## [0.4.1] - 2026-09-07
 

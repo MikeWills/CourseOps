@@ -397,7 +397,12 @@ function setUpFoldables() {
    Logistics keeps the stations, because the sweep's position is what says a
    road is clear and the cones can come up. */
 const SIDE_PANEL_BY_ROLE = {
-  ncs:       { title: 'Stations', sections: ['station-section'] },
+  /* NCS acts on all three: the queue, the notes coming in with it, and the
+     roster. They go in the panel together, queue first, so the thing with
+     people waiting on it is at the top of the column NCS watches rather than
+     halfway down a sheet below the lead runners. */
+  ncs:       { title: 'Pickups & stations',
+               sections: ['incident-section', 'note-section', 'station-section'] },
   logistics: { title: 'Stations', sections: ['station-section'] },
   liaison:   { title: 'Pickups',  sections: ['incident-section', 'note-section'] },
   // Staff read where everyone is; they are never sent pickups or notes.
