@@ -368,6 +368,12 @@ usability, not style preferences.
   ones rather than racing them on source order. Changing which sections the
   panel holds is a separate decision from which side it sits on: the phone
   ordering follows the sections, so swapping sides leaves it alone.
+- **The Course Ops lockup rides the LEFT column, not the sheet.** It names
+  the app, so it has to be in the same corner whichever link someone is
+  holding; `#sheet-brand` is moved into the panel head when that panel is the
+  left column. Two rules invert with it and are easy to miss: hiding the
+  SHEET no longer restores the top bar's brand (the panel still has it, and
+  two lockups on one screen is the bug), while hiding the PANEL now does.
 - **What goes in the right-hand panel depends on the ROLE, not just width.**
   `SIDE_PANEL_BY_ROLE` in `app.js`: NCS takes the queue, the notes and the
   stations, queue first, because NCS acts on all three; Logistics and Staff
@@ -774,6 +780,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-08** Fixed: the Course Ops lockup rides the LEFT column, so swapping SAG's columns no longer moves it.
 - **2026-09-08** NCS: pickups and course notes moved into the side panel above stations.
 - **2026-09-07** Read-only views say "Passed Bravo at 09:42" for lead runners; NCS keeps the relative age.
 - **2026-09-07** SAG gets the pickup queue in the left column; the two side columns swap for that role.
@@ -783,4 +790,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-07** Fixed: setup icon buttons were boxed while icon links beside them were bare; both are bare now.
 - **2026-09-07** Fixed: typing a position on Places scrolled the page to the moved row; focus stays where you are working.
 - **2026-09-06** Each viewer can arrange the course stack on their own map; the club's order is the default and the fallback.
-- **2026-09-06** Places: type a position in the # column; dragging 78 rows was the clunky part.

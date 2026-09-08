@@ -471,6 +471,23 @@ function moveStationsPanel() {
   // Which side the panel takes. Only meaningful where both columns exist;
   // the CSS scopes it to that tier.
   document.body.classList.toggle('panel-left', !!plan.panelLeft);
+
+  /* The lockup names the app, so it belongs in the same corner for everybody:
+     the top of the LEFT column, whichever panel is sitting there. Swapping the
+     columns without this carried "Course Ops" to the right for one role, and
+     the app looked different depending on which link you were holding. The
+     column that gives it up keeps its collapse button and nothing else - the
+     first section heading underneath already says what that column is. */
+  const brand = document.getElementById('sheet-brand');
+  const panelHead = panel.querySelector('.panel-head');
+  const sheetHeader = document.getElementById('sheet-header');
+  if (brand && panelHead && sheetHeader) {
+    // Only where both columns exist. On one column there is no "left".
+    const inPanel = WIDE.matches && !!plan.panelLeft;
+    const home = inPanel ? panelHead : sheetHeader;
+    if (brand.parentNode !== home) home.insertBefore(brand, home.firstChild);
+    panelHead.classList.toggle('has-brand', inPanel);
+  }
   const wanted = WIDE.matches ? plan.sections : [];
   const roleNote = document.getElementById('role-note');
 

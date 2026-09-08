@@ -7,6 +7,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **The Course Ops lockup stays in the top-left corner for every role.**
+  Swapping SAG's columns carried it to the right, so the app looked
+  different depending on which link you were holding. It now travels to
+  whichever column is on the left, and the column that gives it up keeps its
+  collapse button and nothing else - the section heading underneath already
+  says what that column is. Hiding a column no longer leaves the screen with
+  no lockup at all, or with two of them.
+
 ## [0.4.2] - 2026-09-08
 
 ### Changed
