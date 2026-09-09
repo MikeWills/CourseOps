@@ -5,6 +5,18 @@ by somebody walking up to the desk, and your job on this screen is to put them
 on the board so Net Control and SAG can see them. Read
 [the basics](everyone.md) first if you have not.
 
+> ## The radio comes first
+>
+> **Course Ops is supplemental. It does not replace the net.**
+>
+> Everything still goes over the air to Net Control - **including anything you
+> enter here yourself.** Drop the pin *and* call it in. A pin is a note on a
+> map; the net is where it becomes a decision somebody is accountable for.
+>
+> Phones lose signal in the low spots, batteries die, and a screen can be
+> minutes behind without saying so. If it was not on the air, treat it as
+> though nobody knows.
+
 ![Liaison: lead runners and stations on the left, the map, the pickup queue on the right](images/liaison-overview.png)
 
 **You can report. You cannot work the queue.** You may open a pickup or a course
@@ -22,6 +34,8 @@ text so you can see what has been done with what you reported.
 2. The panel gets out of the way and the map takes a crosshair. **Tap where the
    runner is.**
 3. Type the bib and a short note on the row that appears.
+4. **Call it in to Net Control on the net.** The pin does not do this for
+   you, and a pickup nobody heard is a pickup nobody was assigned.
 
 **Tapping the map is the normal way in, and that is the whole point for you.**
 You are reporting places you have never seen - a location a deputy just read

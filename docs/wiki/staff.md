@@ -4,6 +4,15 @@ The view-only link. Race staff, the organizer, anyone who should see the whole
 picture and change none of it. Read [the basics](everyone.md) first if you have
 not.
 
+> ## The radio comes first
+>
+> **Course Ops is supplemental. It does not replace the net.**
+>
+> What you see here is a picture of what the net has reported, and it can be
+> minutes behind. Nothing on this screen is an instruction, and reporting
+> something you notice is not done by looking at it - it goes to Net Control by
+> radio, through whoever is your contact on the net.
+
 ![Staff: the full map, lead runners and courses on the left, every station on the right](images/staff-overview.png)
 
 Your badge says **Staff - view only**. That is exactly what the link does: every

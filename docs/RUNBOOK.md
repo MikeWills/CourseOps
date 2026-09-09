@@ -410,6 +410,9 @@ Send each volunteer the guide for their role along with the link. They are in
 
 Tell recipients:
 
+- **It is supplemental to the net, not a replacement for it.** Everything is
+  still called in to Net Control, including anything they enter in the app
+  themselves. Say this when you send the link, not on race morning
 - The map is view-only for them
 - Their own location dot is private — it is never sent to the server or seen by
   anyone else

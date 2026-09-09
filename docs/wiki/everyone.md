@@ -4,6 +4,18 @@ Everything on this page works the same for every role. Your own page says what
 you may change: [Net Control](net-control.md), [SAG](sag.md),
 [Liaison](liaison.md), [Logistics](logistics.md), [Staff](staff.md).
 
+> ## The radio comes first
+>
+> **Course Ops is supplemental. It does not replace the net.**
+>
+> Everything still goes over the air to Net Control - **including anything you
+> enter here yourself.** Drop the pin *and* call it in. A pin is a note on a
+> map; the net is where it becomes a decision somebody is accountable for.
+>
+> Phones lose signal in the low spots, batteries die, and a screen can be
+> minutes behind without saying so. If it was not on the air, treat it as
+> though nobody knows.
+
 ## Open the link and leave it open
 
 Tap the link you were sent. There is nothing to install, no password, and no

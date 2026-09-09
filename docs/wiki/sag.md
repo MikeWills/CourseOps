@@ -3,6 +3,18 @@
 You drive the course and collect runners who cannot finish. The pickup queue is
 your screen. Read [the basics](everyone.md) first if you have not.
 
+> ## The radio comes first
+>
+> **Course Ops is supplemental. It does not replace the net.**
+>
+> Everything still goes over the air to Net Control - **including anything you
+> enter here yourself.** Drop the pin *and* call it in. A pin is a note on a
+> map; the net is where it becomes a decision somebody is accountable for.
+>
+> Phones lose signal in the low spots, batteries die, and a screen can be
+> minutes behind without saying so. If it was not on the air, treat it as
+> though nobody knows.
+
 ![SAG: the pickup queue in the left column, the map, lead runners and stations on the right](images/sag-overview.png)
 
 **The queue is on the left, next to your hand.** The right-hand panel is
@@ -28,8 +40,9 @@ The buttons across the row are the workflow. Press the one that just happened:
 | **Dropped off** | Delivered |
 | **Closed** | Off the board without a pickup - they carried on, or somebody else collected them |
 
-Press **En route** as you start moving. It is what stops two vehicles being sent
-to the same runner.
+Press **En route** as you start moving, and say so on the net. Between them that
+is what stops two vehicles being sent to the same runner - the button alone only
+reaches whoever happens to be looking at a screen.
 
 ## Which one to take next
 
@@ -61,6 +74,8 @@ You will see runners nobody has called in.
 1. Press **+ Drop a pin**. The panel gets out of the way.
 2. Tap the map where they are.
 3. Fill in the bib and a short note.
+4. **Call it in to Net Control on the net**, the same as you would with no
+   app at all.
 
 **Here** does the same thing at your own position - use it when you are stopped
 beside them. The app tells you if the fix is poor rather than letting you trust

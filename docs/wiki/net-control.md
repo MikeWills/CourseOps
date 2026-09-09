@@ -3,6 +3,17 @@
 The link that can change everything. Read
 [the basics](everyone.md) first if you have not.
 
+> ## The radio comes first
+>
+> **Course Ops is supplemental. It does not replace the net.**
+>
+> The net is the record; this screen is a picture of it. Anything here that has
+> not been on the air is unconfirmed - a pin someone dropped is a prompt to
+> call them, not a report you can act on.
+>
+> Everything the field enters here should also reach you by radio. If it does
+> not, ask for it on the net rather than working from the screen alone.
+
 ![Net Control: lead runners on the left, map in the middle, pickups and stations on the right](images/ncs-overview.png)
 
 Your screen has three columns:
