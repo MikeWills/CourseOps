@@ -807,6 +807,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-09** Wiki gains a setup guide for club officers, including what a club can bend; README points at the wiki.
 - **2026-09-09** Setup can issue several links for one role, labelled, and revoke one without cutting off the rest.
 - **2026-09-09** Fixed: another operator's change wiped the bib you were typing; focus and caret survive a re-render now.
 - **2026-09-09** Every guide leads with "the radio comes first": the app is supplemental, call everything in to NCS anyway.
@@ -816,4 +817,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-08** NCS: pickups and course notes moved into the side panel above stations.
 - **2026-09-07** Read-only views say "Passed Bravo at 09:42" for lead runners; NCS keeps the relative age.
 - **2026-09-07** SAG gets the pickup queue in the left column; the two side columns swap for that role.
-- **2026-09-07** Lead runners name a place as layer plus name ("Water stop A"), because clubs name places A, B, C within a layer.

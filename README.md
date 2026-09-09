@@ -13,15 +13,34 @@ without much effort.
 
 **Status: early development.** APRS-IS ingest, KML/KMZ/GPX course import, the live
 map, incidents, lead runner tracking and a browser setup application all work.
-See [releases](../../releases/latest) for the Windows download. Not yet run at
-a live event, and the live APRS-IS feed has not yet been exercised against real
-traffic.
+See [releases](../../releases/latest) for the Windows download. The APRS-IS feed
+has been run against real traffic; it has not yet run a live event.
+
+## Documentation
+
+**Start with the [wiki](https://github.com/MikeWills/CourseOps/wiki).** It is
+written for the people using the app rather than for developers, with
+screenshots throughout:
+
+| Page | For |
+|---|---|
+| [Setting up an event](https://github.com/MikeWills/CourseOps/wiki/setup) | The club officer standing the event up - every setup screen, and what a club can bend to fit how it actually runs an event |
+| [The basics](https://github.com/MikeWills/CourseOps/wiki/everyone) | Everybody: the map, the status colours, the panels, the phone layout |
+| [Net Control](https://github.com/MikeWills/CourseOps/wiki/net-control) · [SAG](https://github.com/MikeWills/CourseOps/wiki/sag) · [Liaison](https://github.com/MikeWills/CourseOps/wiki/liaison) · [Logistics](https://github.com/MikeWills/CourseOps/wiki/logistics) · [Staff](https://github.com/MikeWills/CourseOps/wiki/staff) | One page per link, to send out with it |
+
+Those pages live in [`docs/wiki/`](docs/wiki/README.md) in this repository and
+are published to the wiki automatically whenever they change on `main`. **Edit
+them here, through a pull request** - an edit made in the wiki's own editor is
+overwritten by the next sync.
+
+The rest is in the repository, aimed at whoever is working on it:
 
 - [`docs/PLAN.md`](docs/PLAN.md) — the plan, decisions, and known gaps
-- [`docs/RUNBOOK.md`](docs/RUNBOOK.md) — event-day procedure for operators
-- [`docs/wiki/`](docs/wiki/README.md) — end-user guides, one per role, with screenshots
+- [`docs/RUNBOOK.md`](docs/RUNBOOK.md) — event-day procedure, start to teardown
 - [`docs/DESIGN.md`](docs/DESIGN.md) — brand, palette and logo decisions
 - [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) — Apache, TLS and systemd
+- [`CHANGELOG.md`](CHANGELOG.md) — every change, with the reasoning behind it
+- [`CLAUDE.md`](CLAUDE.md) — the domain rules that are easy to get wrong
 
 ## What it will do
 

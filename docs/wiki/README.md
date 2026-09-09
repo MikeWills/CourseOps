@@ -24,6 +24,10 @@ of your screen.
 Everyone should also read **[The basics, whichever link you hold](everyone.md)**:
 the map, the colours, the panels, and how it behaves on a phone.
 
+Standing the event up rather than working it? **[Setting up an
+event](setup.md)** - the setup screens, and what a club can bend to fit how it
+actually runs an event.
+
 ## The one rule about your link
 
 **The link is the login.** Anyone holding it has your role, so send it on only

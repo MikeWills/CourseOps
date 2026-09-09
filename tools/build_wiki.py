@@ -87,7 +87,7 @@ def sidebar(pages: list[str]) -> str:
     there; the roles then run in the order the runbook introduces them.
     """
     order = ["Home", "everyone", "net-control", "sag", "liaison", "logistics",
-             "staff"]
+             "staff", "setup"]
     titles = {
         "Home": "All the guides",
         "everyone": "The basics",
@@ -96,6 +96,7 @@ def sidebar(pages: list[str]) -> str:
         "liaison": "Liaison",
         "logistics": "Logistics",
         "staff": "Staff",
+        "setup": "Setting up an event",
     }
     known = [p for p in order if p in pages]
     rest = sorted(p for p in pages if p not in order)
