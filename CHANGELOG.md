@@ -29,6 +29,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   one, images move to the wiki's raw host, and a `_Sidebar.md` and `_Footer.md`
   are generated - the footer saying on every page that edits made there will be
   overwritten.
+### Fixed
+- **A course note no longer draws as a pickup on the map.** Tapping a course
+  note's pin opened a popup headed "Pickup (bib unknown)", with a status row
+  and a time in that status, and the pin itself was the same red square as an
+  undispatched runner. Both were built from the incident's status and bib
+  without asking what kind of incident it was. A note is a cone in the road
+  and nobody is waiting at one, so a marker that says otherwise sends a
+  vehicle. The note now takes the round purple marker its row in the list
+  already had - shape as well as colour, so it does not depend on seeing the
+  difference between red and purple in sunlight - and its popup is headed
+  "Course note" and carries no status at all.
 
 ## [0.4.3] - 2026-09-08
 

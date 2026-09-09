@@ -588,7 +588,12 @@ usability, not style preferences.
 - **A course note is not a pickup.** `incident.kind` separates them. The pickup
   queue and its count are read as "who is still waiting", so a note must never
   appear there. Notes have no status workflow; their audience is the organizer
-  after the event.
+  after the event. **This has to hold on the MAP as well as in the list**, and
+  it did not: the note's marker and popup were built from `incident.status`
+  and `incident.bib` alone, so a cone in the road drew as a red square titled
+  "Pickup (bib unknown)" - indistinguishable from an undispatched runner.
+  Anything rendering an incident asks its KIND first; the list's round purple
+  dot and the map's marker are the same decision and must not drift apart.
 - **"Picked up" is not "dropped off".** In the vehicle still counts as
   outstanding; delivered does not. `incidents.waiting_count` is the number NCS
   glances at, and it treats picked-up as still waiting on us.
@@ -782,6 +787,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-09** Fixed: a course note drew as a red pickup pin titled "Pickup (bib unknown)"; it is a round purple note pin now.
 - **2026-09-09** Volunteer guides per role in `docs/wiki/`, with screenshots from a demo event.
 - **2026-09-08** Fixed: the Course Ops lockup rides the LEFT column, so swapping SAG's columns no longer moves it.
 - **2026-09-08** NCS: pickups and course notes moved into the side panel above stations.
@@ -791,4 +797,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-07** Fixed: Undo and Clear sat outside the lead runner panel on a narrow sidebar; the controls row wraps.
 - **2026-09-07** Fixed: lead runners were grouped in the reverse of the Courses list; both follow the viewer's stack now.
 - **2026-09-07** Fixed: setup icon buttons were boxed while icon links beside them were bare; both are bare now.
-- **2026-09-07** Fixed: typing a position on Places scrolled the page to the moved row; focus stays where you are working.
