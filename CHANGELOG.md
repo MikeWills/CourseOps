@@ -7,6 +7,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **Another operator's change no longer wipes the bib you are typing.** Several
+  people holding one role link is a supported way to work - three Net Control
+  operators on three screens - and every incident, status or leader message
+  rebuilds the whole list it belongs to. A change made by somebody else, to a
+  different row, therefore emptied the field under the cursor and dropped
+  focus to the page body: on a busy net a bib box that clears itself while you
+  are looking at it, which reads as the app losing a report. The focused
+  field's text and caret position now survive the rebuild. Verified against a
+  real second client rather than reasoned about: typing in one browser while
+  posting a status change and a lead runner sighting from another.
+
 ### Added
 - **Every volunteer guide leads with "the radio comes first".** The app is
   supplemental to the net and does not replace it: everything is still called
