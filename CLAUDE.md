@@ -7,6 +7,7 @@ the event. Built to be stood up by a radio club without much effort.
 Full plan, phase detail, and **known gaps / open threads**: `docs/PLAN.md`.
 Brand, palette and logo decisions: `docs/DESIGN.md`.
 Event-day operating procedure: `docs/RUNBOOK.md`.
+End-user guides, one per role, with screenshots: `docs/wiki/`.
 Deployment behind Apache with TLS: `docs/DEPLOYMENT.md`.
 Brand, palette and logo decisions: `docs/DESIGN.md`.
 Complete history with the reasoning behind each fix: `CHANGELOG.md`.
@@ -54,7 +55,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 511 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 514 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -125,6 +126,7 @@ tests/fixtures/consumer_export_course.kml  synthetic, but with a real export's
                                     defects: duplicate points, straight-line
                                     gaps, identically named placemarks.
                                     Regenerate with tools/make_course_fixture.py
+tools/build_wiki.py                 docs/wiki -> the GitHub Wiki, one way
 docs/PLAN.md                        plan, decisions, known gaps
 docs/RUNBOOK.md                     event-day procedure for the club
 ```
@@ -786,6 +788,7 @@ Rules that keep this honest:
 Last 10 entries; full record in `CHANGELOG.md`.
 
 - **2026-09-09** Fixed: a course note drew as a red pickup pin titled "Pickup (bib unknown)"; it is a round purple note pin now.
+- **2026-09-09** Volunteer guides per role in `docs/wiki/`, with screenshots from a demo event.
 - **2026-09-08** Fixed: the Course Ops lockup rides the LEFT column, so swapping SAG's columns no longer moves it.
 - **2026-09-08** NCS: pickups and course notes moved into the side panel above stations.
 - **2026-09-07** Read-only views say "Passed Bravo at 09:42" for lead runners; NCS keeps the relative age.
@@ -794,4 +797,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-07** Fixed: Undo and Clear sat outside the lead runner panel on a narrow sidebar; the controls row wraps.
 - **2026-09-07** Fixed: lead runners were grouped in the reverse of the Courses list; both follow the viewer's stack now.
 - **2026-09-07** Fixed: setup icon buttons were boxed while icon links beside them were bare; both are bare now.
-- **2026-09-07** Fixed: typing a position on Places scrolled the page to the moved row; focus stays where you are working.

@@ -402,6 +402,12 @@ Send each role link to that group only. **[CLUB]** _Which channel — group text
 email, printed card?_ The button beside Copy opens that role's view in a new
 tab, which is the quick way to see what a group will see before sending.
 
+Send each volunteer the guide for their role along with the link. They are in
+[`docs/wiki/`](wiki/README.md), one page per role, with screenshots:
+[Net Control](wiki/net-control.md), [SAG](wiki/sag.md),
+[Liaison](wiki/liaison.md), [Logistics](wiki/logistics.md),
+[Staff](wiki/staff.md), and [the basics](wiki/everyone.md) for everyone.
+
 Tell recipients:
 
 - The map is view-only for them

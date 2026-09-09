@@ -7,6 +7,28 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **Volunteer guides, one per role, in `docs/wiki/`.** Net Control, SAG,
+  Liaison, Logistics and Staff each get a page written for the person holding
+  that link on race morning, plus a shared "the basics" page for the map, the
+  status colours, the panels and the phone layout. Screenshots throughout,
+  captured from a demonstration event with invented callsigns and runners -
+  nothing in them is real traffic, and no organizer file is involved. The
+  guides say what each role can and cannot do and why, because "ask Net
+  Control" is the answer to half of the questions a field role has and the
+  reason matters: a link that can close a pickup is a link that can make the
+  waiting count lie.
+- **The guides publish to the repository's GitHub Wiki.** `tools/build_wiki.py`
+  plus a workflow that runs when anything under `docs/wiki/` reaches `main`.
+  One way only: the wiki checkout is emptied and rewritten every run, so the
+  repository stays the source and every change to these pages still goes
+  through a pull request - the wiki's own editor has none. The build does what
+  the wiki's conventions require: `README` becomes `Home`, links lose their
+  `.md`, a link out to `docs/RUNBOOK.md` becomes an absolute one because the
+  wiki is a different repository and cannot follow a relative path into this
+  one, images move to the wiki's raw host, and a `_Sidebar.md` and `_Footer.md`
+  are generated - the footer saying on every page that edits made there will be
+  overwritten.
 ### Fixed
 - **A course note no longer draws as a pickup on the map.** Tapping a course
   note's pin opened a popup headed "Pickup (bib unknown)", with a status row
