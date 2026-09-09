@@ -402,6 +402,17 @@ Send each role link to that group only. **[CLUB]** _Which channel — group text
 email, printed card?_ The button beside Copy opens that role's view in a new
 tab, which is the quick way to see what a group will see before sending.
 
+**One link works on any number of phones**, so three Net Control operators can
+share one. Issue one link each instead - *Issue another <role> link* on the
+Links tab - when you want to cut one person off without taking the others off
+the air: a phone left in a parking lot, or an operator who has gone home. Label
+each with whose it is; that label is what you will look for when you need to
+revoke one in a hurry, since the links themselves are random strings.
+
+Revoking one link (the red x beside it) leaves every other link for that role
+working. *Replace all* revokes every link for the role at once, which is what
+to reach for when the role itself is compromised rather than one phone.
+
 Send each volunteer the guide for their role along with the link. They are in
 [`docs/wiki/`](wiki/README.md), one page per role, with screenshots:
 [Net Control](wiki/net-control.md), [SAG](wiki/sag.md),

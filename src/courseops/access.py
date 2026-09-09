@@ -220,6 +220,18 @@ def ensure_tokens(conn: sqlite3.Connection, event_id: int) -> dict[str, str]:
     return existing
 
 
+def set_label(conn: sqlite3.Connection, token_id: int, label: str | None) -> bool:
+    """Name a link, so the right one can be revoked later.
+
+    A role may hold several links - one per operator - and they are otherwise
+    told apart only by a random string. The label is a note for whoever hands
+    them out; nothing authenticates on it.
+    """
+    cur = conn.execute(
+        "UPDATE access_token SET label = ? WHERE id = ?", (label, token_id))
+    return cur.rowcount > 0
+
+
 def revoke(conn: sqlite3.Connection, token_id: int) -> bool:
     cur = conn.execute(
         "UPDATE access_token SET revoked = 1 WHERE id = ?", (token_id,)
