@@ -45,6 +45,11 @@ alarm - it is there so you can tell at a glance which link you are holding.
 - **Round, square and diamond markers** are people with radios. Round is a
   general station, **square is a sweep**, **diamond is SAG**. The two or three
   characters on the marker come from the station's name.
+- **A red square with a bib number** is a pickup - somebody waiting for a ride.
+  It changes colour as it is dispatched and delivered.
+- **A round purple pin** is a course note: a cone in the road, a turn nobody is
+  marshalling. Nobody is waiting at one. It is a different shape as well as a
+  different colour, so the two never have to be told apart by colour alone.
 
 Tap anything to open it.
 

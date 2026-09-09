@@ -18,6 +18,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   Control" is the answer to half of the questions a field role has and the
   reason matters: a link that can close a pickup is a link that can make the
   waiting count lie.
+- **The guides publish to the repository's GitHub Wiki.** `tools/build_wiki.py`
+  plus a workflow that runs when anything under `docs/wiki/` reaches `main`.
+  One way only: the wiki checkout is emptied and rewritten every run, so the
+  repository stays the source and every change to these pages still goes
+  through a pull request - the wiki's own editor has none. The build does what
+  the wiki's conventions require: `README` becomes `Home`, links lose their
+  `.md`, a link out to `docs/RUNBOOK.md` becomes an absolute one because the
+  wiki is a different repository and cannot follow a relative path into this
+  one, images move to the wiki's raw host, and a `_Sidebar.md` and `_Footer.md`
+  are generated - the footer saying on every page that edits made there will be
+  overwritten.
 
 ## [0.4.3] - 2026-09-08
 

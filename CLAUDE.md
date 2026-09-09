@@ -126,6 +126,7 @@ tests/fixtures/consumer_export_course.kml  synthetic, but with a real export's
                                     defects: duplicate points, straight-line
                                     gaps, identically named placemarks.
                                     Regenerate with tools/make_course_fixture.py
+tools/build_wiki.py                 docs/wiki -> the GitHub Wiki, one way
 docs/PLAN.md                        plan, decisions, known gaps
 docs/RUNBOOK.md                     event-day procedure for the club
 ```

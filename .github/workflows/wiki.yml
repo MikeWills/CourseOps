@@ -1,0 +1,65 @@
+# Publishes docs/wiki/ to this repository's GitHub Wiki.
+#
+# ONE WAY, on purpose. The wiki is a separate repository with its own editor
+# and no pull requests, so anything typed into it would be a change to the
+# volunteer guides that nobody reviewed. The wiki checkout is emptied and
+# rewritten from docs/wiki/ on every run: this repository stays the source,
+# and the wiki is a published copy. `_Footer.md` says so on every page.
+name: wiki
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/wiki/**"
+      - "tools/build_wiki.py"
+      - ".github/workflows/wiki.yml"
+  # So a first publish, or a re-publish after someone edits the wiki by hand,
+  # does not need a docs commit to trigger it.
+  workflow_dispatch:
+
+# Only one publish at a time: two runs pushing to the same wiki repository
+# would race and one would fail on a non-fast-forward.
+concurrency:
+  group: wiki
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # The wiki repository does not exist until a first page is created in
+      # the browser - enabling Wikis is not enough. Say that plainly rather
+      # than failing on a clone error nobody can interpret.
+      - name: Clone the wiki
+        run: |
+          if ! git clone "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.wiki.git" wiki; then
+            echo "::error::Could not clone the wiki repository. Enable Wikis in"\
+                 "Settings -> Features, then create one page in the browser -"\
+                 "that first page is what creates the repository this pushes to."
+            exit 1
+          fi
+
+      - name: Build the pages
+        run: python tools/build_wiki.py docs/wiki wiki --repo "${{ github.repository }}"
+
+      - name: Push
+        working-directory: wiki
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "The wiki already matches docs/wiki/."
+            exit 0
+          fi
+          git commit -m "Publish docs/wiki from ${GITHUB_SHA::7}"
+          git push
