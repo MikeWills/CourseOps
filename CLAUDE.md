@@ -787,6 +787,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-09** Every guide leads with "the radio comes first": the app is supplemental, call everything in to NCS anyway.
 - **2026-09-09** Fixed: a course note drew as a red pickup pin titled "Pickup (bib unknown)"; it is a round purple note pin now.
 - **2026-09-09** Volunteer guides per role in `docs/wiki/`, with screenshots from a demo event.
 - **2026-09-08** Fixed: the Course Ops lockup rides the LEFT column, so swapping SAG's columns no longer moves it.
@@ -796,4 +797,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-07** Lead runners name a place as layer plus name ("Water stop A"), because clubs name places A, B, C within a layer.
 - **2026-09-07** Fixed: Undo and Clear sat outside the lead runner panel on a narrow sidebar; the controls row wraps.
 - **2026-09-07** Fixed: lead runners were grouped in the reverse of the Courses list; both follow the viewer's stack now.
-- **2026-09-07** Fixed: setup icon buttons were boxed while icon links beside them were bare; both are bare now.

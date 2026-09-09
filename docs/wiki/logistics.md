@@ -3,6 +3,18 @@
 You are out on the course: traffic control, cones, signage, teardown. Read
 [the basics](everyone.md) first if you have not.
 
+> ## The radio comes first
+>
+> **Course Ops is supplemental. It does not replace the net.**
+>
+> Everything still goes over the air to Net Control - **including anything you
+> enter here yourself.** Drop the pin *and* call it in. A pin is a note on a
+> map; the net is where it becomes a decision somebody is accountable for.
+>
+> Phones lose signal in the low spots, batteries die, and a screen can be
+> minutes behind without saying so. If it was not on the air, treat it as
+> though nobody knows.
+
 ![Logistics: lead runners and the report controls on the left, the map, stations on the right](images/logistics-overview.png)
 
 **You can report. You cannot work the queue.** You may open a pickup or a course
@@ -49,6 +61,8 @@ useful number.
 1. Press **+ Drop a pin**.
 2. The panel gets out of the way. **Tap the map** where it is.
 3. Fill in a short note - and the bib, if it is a runner.
+4. **Call it in to Net Control on the net.** Dropping the pin is not the
+   report; it is what makes the report easy to find on a map afterwards.
 
 **Here** drops it at your own position in one press, which is usually the right
 one for you: you are standing at the thing. If the fix is poor the app says so

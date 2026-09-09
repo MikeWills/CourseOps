@@ -3,6 +3,14 @@
 One page per link. Open the one that matches the badge in the top-right corner
 of your screen.
 
+> ## The radio comes first
+>
+> **Course Ops is supplemental. It does not replace the net.**
+>
+> Every report still goes over the air to Net Control - **including anything
+> you enter in the app yourself.** Drop the pin *and* call it in. If it was not
+> on the air, work on the basis that nobody knows.
+
 ![The top bar: event name, your role, and the connection badge](images/shared-topbar.png)
 
 | Your badge says | Read this | You can |

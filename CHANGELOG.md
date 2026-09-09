@@ -8,6 +8,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **Every volunteer guide leads with "the radio comes first".** The app is
+  supplemental to the net and does not replace it: everything is still called
+  in to Net Control, *including a pickup or note the volunteer entered in the
+  app themselves*. Dropping a pin is silent - it reaches whoever happens to be
+  looking at a screen, on a phone that may have been out of signal for ten
+  minutes - and a report nobody heard is a report nobody was assigned. The
+  notice is at the top of all seven pages rather than buried in one, the
+  reporting procedures end with "call it in", and the runbook now says it in
+  the list of things to tell people when their link is sent.
+
+### Added
 - **Volunteer guides, one per role, in `docs/wiki/`.** Net Control, SAG,
   Liaison, Logistics and Staff each get a page written for the person holding
   that link on race morning, plus a shared "the basics" page for the map, the
