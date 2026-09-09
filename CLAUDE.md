@@ -55,7 +55,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 514 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 520 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -350,6 +350,15 @@ usability, not style preferences.
   club change grants nothing.
 - **Volunteers keep bearer links; only admins get accounts.** A link can be
   re-sent to someone whose phone died at 6am by anyone holding it.
+- **A role may hold SEVERAL live links, and that is the point of them.** One
+  token already works on any number of devices, so three NCS operators can
+  share one link; what a link each buys is revoking ONE of them. So nothing
+  may assume one token per role: `ensure_tokens` fills in a missing role but
+  never collapses extras, per-link revoke is the ordinary action and
+  `reissue` is the "this role is compromised" one that takes them all. The
+  label on a link is a note for whoever hands them out - free text, capped,
+  never trusted for anything - because the alternative is telling two random
+  strings apart at 6am.
 - **An invalid token returns 404, never 403.** A 403 would confirm the event
   exists. Tokens are also scoped to their event: valid elsewhere means nothing.
 - **Never interpolate marker movement in the client** (same rule as the plan).
@@ -787,6 +796,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-09** Setup can issue several links for one role, labelled, and revoke one without cutting off the rest.
 - **2026-09-09** Every guide leads with "the radio comes first": the app is supplemental, call everything in to NCS anyway.
 - **2026-09-09** Fixed: a course note drew as a red pickup pin titled "Pickup (bib unknown)"; it is a round purple note pin now.
 - **2026-09-09** Volunteer guides per role in `docs/wiki/`, with screenshots from a demo event.
@@ -796,4 +806,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-07** SAG gets the pickup queue in the left column; the two side columns swap for that role.
 - **2026-09-07** Lead runners name a place as layer plus name ("Water stop A"), because clubs name places A, B, C within a layer.
 - **2026-09-07** Fixed: Undo and Clear sat outside the lead runner panel on a narrow sidebar; the controls row wraps.
-- **2026-09-07** Fixed: lead runners were grouped in the reverse of the Courses list; both follow the viewer's stack now.

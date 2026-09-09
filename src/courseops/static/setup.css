@@ -361,6 +361,22 @@ table.grid button:not(.icon-btn) {
 .link-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .link-line .icon-btn { flex: none; margin-left: 0; }
 .link-line .danger { flex: none; margin-left: 8px; white-space: nowrap; }
+/* Whose link this is. Narrow and first, because it is what someone reads to
+   find the row they mean to revoke - the URL beside it is a random string. */
+.link-label {
+  flex: none;
+  width: 170px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 13px;
+}
+/* The two role-wide buttons, under that role's links. Issuing another is the
+   ordinary action and comes first; replacing them all is destructive and sits
+   apart from it. */
+.link-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+.link-actions .danger { margin-left: auto; }
+.link-line + .muted { margin: 2px 0 10px; }
 .link-url {
   display: block;
   flex: 1;

@@ -1266,3 +1266,132 @@ def test_the_report_page_is_served_to_an_admin(setup):
     assert "text/html" in response.headers["content-type"]
     assert "Spring Marathon" in response.text
     assert "Course notes" in response.text
+
+
+# --- several links for one role ---------------------------------------------
+#
+# A role may be held by more than one person - three Net Control operators on
+# three screens is a supported way to run a net, and one token already works on
+# any number of devices. What a link per person buys is the ability to cut ONE
+# of them off: a phone left in a parking lot, or an operator who has gone home.
+
+
+def _sign_in(client):
+    return client.post("/api/setup/login",
+                       json={"username": "mike",
+                             "password": "a-long-enough-password"})
+
+
+def test_a_role_can_hold_several_live_links(setup):
+    app, _, db_path, event_id = setup
+    _make_admin(db_path)
+
+    with TestClient(app) as client:
+        _sign_in(client)
+        added = client.post(f"/api/setup/events/{event_id}/links",
+                            json={"action": "add", "role": "ncs",
+                                  "label": "Dana, phone"})
+        assert added.status_code == 200
+
+        ncs = [l for l in added.json()["links"]
+               if l["role"] == "ncs" and not l["revoked"]]
+        assert len(ncs) == 2
+        assert "Dana, phone" in [l["label"] for l in ncs]
+        # Two DIFFERENT tokens: a second link that reused the first would be
+        # no link at all.
+        assert len({l["token"] for l in ncs}) == 2
+
+
+def test_both_links_for_a_role_work(setup):
+    app, _, db_path, event_id = setup
+    _make_admin(db_path)
+
+    with TestClient(app) as client:
+        _sign_in(client)
+        links = client.post(f"/api/setup/events/{event_id}/links",
+                            json={"action": "add", "role": "ncs"}).json()["links"]
+        for link in [l for l in links if l["role"] == "ncs" and not l["revoked"]]:
+            state = client.get(f"/api/m2026/{link['token']}/state")
+            assert state.status_code == 200
+            assert state.json()["role"] == "ncs"
+
+
+def test_revoking_one_link_leaves_the_others_working(setup):
+    """The whole point of a link per operator. Cutting off a lost phone must
+    not take the rest of the net off the air."""
+    app, _, db_path, event_id = setup
+    _make_admin(db_path)
+
+    with TestClient(app) as client:
+        _sign_in(client)
+        links = client.post(f"/api/setup/events/{event_id}/links",
+                            json={"action": "add", "role": "ncs"}).json()["links"]
+        ncs = [l for l in links if l["role"] == "ncs" and not l["revoked"]]
+        doomed, kept = ncs[0], ncs[1]
+
+        client.post(f"/api/setup/events/{event_id}/links",
+                    json={"action": "revoke", "token_id": doomed["id"]})
+
+        assert client.get(f"/api/m2026/{doomed['token']}/state").status_code == 404
+        assert client.get(f"/api/m2026/{kept['token']}/state").status_code == 200
+
+
+def test_reissue_replaces_every_link_for_that_role(setup):
+    """Per-link revoke is for one operator; reissue is for "this role is
+    compromised", so it must not leave a second link alive."""
+    app, _, db_path, event_id = setup
+    _make_admin(db_path)
+
+    with TestClient(app) as client:
+        _sign_in(client)
+        before = client.post(f"/api/setup/events/{event_id}/links",
+                             json={"action": "add", "role": "ncs"}).json()["links"]
+        old = [l["token"] for l in before
+               if l["role"] == "ncs" and not l["revoked"]]
+        assert len(old) == 2
+
+        after = client.post(f"/api/setup/events/{event_id}/links",
+                            json={"action": "reissue", "role": "ncs"}).json()["links"]
+        live = [l for l in after if l["role"] == "ncs" and not l["revoked"]]
+
+        assert len(live) == 1
+        assert live[0]["token"] not in old
+        for token in old:
+            assert client.get(f"/api/m2026/{token}/state").status_code == 404
+
+
+def test_a_link_label_is_only_a_note(setup):
+    """Free text, trimmed and capped. Nothing authenticates on it."""
+    app, _, db_path, event_id = setup
+    _make_admin(db_path)
+
+    with TestClient(app) as client:
+        _sign_in(client)
+        links = client.post(f"/api/setup/events/{event_id}/links",
+                            json={"action": "add", "role": "sag"}).json()["links"]
+        target = [l for l in links if l["role"] == "sag" and not l["revoked"]][0]
+
+        client.post(f"/api/setup/events/{event_id}/links",
+                    json={"action": "label", "token_id": target["id"],
+                          "label": "  " + "x" * 200 + "  "})
+        listed = client.get(f"/api/setup/events/{event_id}/links").json()["links"]
+        saved = [l for l in listed if l["id"] == target["id"]][0]
+
+        assert saved["label"] == "x" * 60
+        # An emptied label clears rather than storing whitespace.
+        client.post(f"/api/setup/events/{event_id}/links",
+                    json={"action": "label", "token_id": target["id"],
+                          "label": "   "})
+        listed = client.get(f"/api/setup/events/{event_id}/links").json()["links"]
+        assert [l for l in listed if l["id"] == target["id"]][0]["label"] is None
+
+
+def test_adding_a_link_for_an_unknown_role_is_refused(setup):
+    app, _, db_path, event_id = setup
+    _make_admin(db_path)
+
+    with TestClient(app) as client:
+        _sign_in(client)
+        response = client.post(f"/api/setup/events/{event_id}/links",
+                               json={"action": "add", "role": "president"})
+    assert response.status_code == 400

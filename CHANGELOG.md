@@ -8,6 +8,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **A role can be given more than one link, from the browser.** One link
+  already worked on any number of phones - three Net Control operators sharing
+  a link is a supported way to run a net - but then no one of them could be cut
+  off alone, and the setup screen could only *replace* a role's link, which
+  takes everyone on that role off the air at once. The Links tab now issues
+  extra links per role, each with a label saying whose it is, and revokes one
+  without touching the others: the phone left in a parking lot, or the operator
+  who has gone home. The label is free text and nothing authenticates on it -
+  it exists so the right row can be found under pressure, because the links
+  themselves are random strings. *Replace all* still exists for the case it was
+  built for, which is the role being compromised rather than one phone. Only
+  the CLI could do any of this before, and setup is supposed to live in the
+  browser.
+
+### Added
 - **Every volunteer guide leads with "the radio comes first".** The app is
   supplemental to the net and does not replace it: everything is still called
   in to Net Control, *including a pickup or note the volunteer entered in the

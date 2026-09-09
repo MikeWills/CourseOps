@@ -1816,18 +1816,61 @@ $('roster-form').addEventListener('submit', async (ev) => {
 async function loadLinks() {
   const data = await api(`/api/setup/events/${S.eventId}/links`);
   const live = data.links.filter((l) => !l.revoked);
-  $('link-list').innerHTML = live.map((l) => {
-    const url = `${location.origin}/e/${data.slug}/${l.token}`;
-    return `<div class="link-row">
-      <div class="link-role">${esc(l.role_label)}</div>
-      <div class="link-line">
+
+  /* Grouped by role, because a role may now hold several links - one per
+     operator. Three Net Control operators CAN share one link, since a token
+     works on any number of devices, but then none of them can be cut off
+     alone and nothing on this screen says which is which. A link per person
+     is what makes "revoke Dana's phone" possible without taking the net off
+     the air. */
+  const roles = [];
+  live.forEach((l) => {
+    let group = roles.find((g) => g.role === l.role);
+    if (!group) {
+      group = {role: l.role, role_label: l.role_label, links: []};
+      roles.push(group);
+    }
+    group.links.push(l);
+  });
+
+  $('link-list').innerHTML = roles.map((group) => {
+    const rows = group.links.map((l, i) => {
+      const url = `${location.origin}/e/${data.slug}/${l.token}`;
+      const who = l.label || '';
+      // The label is what a revoke is aimed at under pressure, so it leads
+      // the row rather than sitting under the URL.
+      return `<div class="link-line">
+        <input class="link-label" data-label-for="${l.id}"
+               value="${esc(who)}" maxlength="60"
+               placeholder="Who has this one?"
+               aria-label="Label for this ${esc(group.role_label)} link">
         <input class="link-url" readonly value="${esc(url)}">
-        ${iconBtn('copy', {'data-copy': url}, `Copy the ${l.role_label} link`)}
-        ${iconLink('open', {href: url}, `Open the ${l.role_label} view in a new tab`)}
-        <button type="button" class="danger" data-reissue="${esc(l.role)}"
-          >Revoke &amp; reissue</button>
+        ${iconBtn('copy', {'data-copy': url},
+                  `Copy the ${group.role_label} link${who ? ' for ' + who : ''}`)}
+        ${iconLink('open', {href: url},
+                   `Open the ${group.role_label} view in a new tab`)}
+        ${group.links.length > 1
+          ? iconBtn('remove', {'data-revoke': l.id, 'data-revoke-who':
+              who || `${group.role_label} link ${i + 1}`},
+              `Revoke this ${group.role_label} link${who ? ' (' + who + ')' : ''}`)
+          : ''}
       </div>
-      <p class="muted">${l.last_used ? 'Last used ' + esc(l.last_used) : 'Never used'}</p>
+      <p class="muted">${l.last_used ? 'Last used ' + esc(l.last_used)
+                                     : 'Never used'}</p>`;
+    }).join('');
+
+    return `<div class="link-row">
+      <div class="link-role">${esc(group.role_label)}
+        <span class="muted">${group.links.length > 1
+          ? group.links.length + ' links' : ''}</span></div>
+      ${rows}
+      <div class="link-actions">
+        <button type="button" data-add="${esc(group.role)}"
+          >Issue another ${esc(group.role_label)} link</button>
+        <button type="button" class="danger" data-reissue="${esc(group.role)}"
+          >Replace ${group.links.length > 1 ? 'all ' + group.links.length
+                                            : 'this'} link${group.links.length > 1 ? 's' : ''}</button>
+      </div>
     </div>`;
   }).join('');
 
@@ -1840,10 +1883,41 @@ async function loadLinks() {
         banner('Could not copy — select the text and copy it manually.', true);
       }
     }));
+
+  $('link-list').querySelectorAll('[data-add]').forEach((b) =>
+    b.addEventListener('click', async () => {
+      await post(`/api/setup/events/${S.eventId}/links`,
+        {action: 'add', role: b.dataset.add});
+      banner('New link issued — label it so you know whose it is.');
+      loadLinks();
+    }));
+
+  /* Saved on change and the list is NOT reloaded: re-rendering here would
+     discard a label being typed in another row, which is the bug the roster
+     and layer tables already had. */
+  $('link-list').querySelectorAll('[data-label-for]').forEach((field) =>
+    field.addEventListener('change', async () => {
+      await post(`/api/setup/events/${S.eventId}/links`,
+        {action: 'label', token_id: Number(field.dataset.labelFor),
+         label: field.value});
+      banner('Label saved.');
+    }));
+
+  $('link-list').querySelectorAll('[data-revoke]').forEach((b) =>
+    b.addEventListener('click', async () => {
+      if (!confirm(`Revoke the link for ${b.dataset.revokeWho}? `
+        + 'Whoever is holding it loses access immediately. '
+        + 'Every other link for this role keeps working.')) return;
+      await post(`/api/setup/events/${S.eventId}/links`,
+        {action: 'revoke', token_id: Number(b.dataset.revoke)});
+      banner('Link revoked.');
+      loadLinks();
+    }));
+
   $('link-list').querySelectorAll('[data-reissue]').forEach((b) =>
     b.addEventListener('click', async () => {
-      if (!confirm('Anyone using the current link will lose access immediately. '
-        + 'Continue?')) return;
+      if (!confirm('Anyone using a current link for this role will lose access '
+        + 'immediately, including every extra link issued for it. Continue?')) return;
       await post(`/api/setup/events/${S.eventId}/links`,
         {action: 'reissue', role: b.dataset.reissue});
       banner('New link issued — send it to that group.');

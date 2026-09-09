@@ -79,6 +79,17 @@ STALE_AFTER_SECONDS = 10 * 60
 SILENT_AFTER_SECONDS = 20 * 60
 
 
+# A link's label is a note to the officer handing links out - "Dana, phone" -
+# so it is trimmed and capped and never validated further. Nothing reads it but
+# a human deciding which row to revoke.
+MAX_LINK_LABEL = 60
+
+
+def _link_label(value: object) -> str | None:
+    text = str(value or "").strip()[:MAX_LINK_LABEL]
+    return text or None
+
+
 def _row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
     return {key: row[key] for key in row.keys()}
 
@@ -1229,12 +1240,32 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         try:
             if action == "revoke":
                 access.revoke(conn, int(body.get("token_id")))
+            elif action == "add":
+                # A second, third, fourth link for one role. Three Net Control
+                # operators can share one link - the token allows any number of
+                # devices - but then no one of them can be cut off alone, and
+                # nothing says which of them is which. A link per person is how
+                # a phone left in a parking lot is revoked without taking the
+                # net off the air.
+                role = str(body.get("role", ""))
+                if role not in access.ROLES:
+                    raise HTTPException(status_code=400, detail=f"Unknown role {role!r}")
+                access.create_token(conn, event_id, role,
+                                    _link_label(body.get("label")))
+            elif action == "label":
+                # Whose link this is. Free text and never trusted for anything:
+                # it exists so the row to revoke can be found under pressure.
+                access.set_label(conn, int(body.get("token_id")),
+                                 _link_label(body.get("label")))
             elif action == "reissue":
                 role = str(body.get("role", ""))
                 if role not in access.ROLES:
                     raise HTTPException(status_code=400, detail=f"Unknown role {role!r}")
                 # Revoke the old one in the same step: reissuing without
-                # revoking would quietly leave the leaked link working.
+                # revoking would quietly leave the leaked link working. With
+                # several links on a role this replaces ALL of them, which is
+                # what "the role is compromised" means - revoking one person is
+                # the per-link action above.
                 for row in access.tokens_for_event(conn, event_id):
                     if row["role"] == role and not row["revoked"]:
                         access.revoke(conn, row["id"])
