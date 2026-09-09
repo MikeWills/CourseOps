@@ -695,6 +695,17 @@ usability, not style preferences.
   share an endpoint, and reloading both after saving either wiped edits from a
   table the user had not touched - the same bug, one table over. `loadLayers`
   takes which half to re-render.
+- **In the LIVE app the same trap arrives over the socket, from someone
+  else.** Several people hold one role link on purpose - three NCS operators
+  on three screens is a supported way to run a net - and every incident,
+  status and leader message rebuilds a whole list with `innerHTML`. So a
+  change made by another operator, to a different row, was wiping the bib
+  someone here was half way through typing and dropping focus to the body.
+  `captureFieldEdit`/`restoreFieldEdit` in `app.js` carry the focused field's
+  text and caret across the rebuild, keyed by `data-edit-key`; any new
+  editable field in a socket-rendered list needs that attribute or it inherits
+  the bug. Only the focused field is kept, because everything there commits on
+  `change`, which has already fired for any other.
 - **A place is named to a human as its LAYER plus its name.** Clubs name
   places within a layer - the real water stops are A, B, C - so the name
   alone does not say what kind of place it is and two layers can each have an
@@ -797,6 +808,7 @@ Rules that keep this honest:
 Last 10 entries; full record in `CHANGELOG.md`.
 
 - **2026-09-09** Setup can issue several links for one role, labelled, and revoke one without cutting off the rest.
+- **2026-09-09** Fixed: another operator's change wiped the bib you were typing; focus and caret survive a re-render now.
 - **2026-09-09** Every guide leads with "the radio comes first": the app is supplemental, call everything in to NCS anyway.
 - **2026-09-09** Fixed: a course note drew as a red pickup pin titled "Pickup (bib unknown)"; it is a round purple note pin now.
 - **2026-09-09** Volunteer guides per role in `docs/wiki/`, with screenshots from a demo event.
@@ -805,4 +817,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-07** Read-only views say "Passed Bravo at 09:42" for lead runners; NCS keeps the relative age.
 - **2026-09-07** SAG gets the pickup queue in the left column; the two side columns swap for that role.
 - **2026-09-07** Lead runners name a place as layer plus name ("Water stop A"), because clubs name places A, B, C within a layer.
-- **2026-09-07** Fixed: Undo and Clear sat outside the lead runner panel on a narrow sidebar; the controls row wraps.
