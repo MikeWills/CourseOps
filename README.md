@@ -19,6 +19,7 @@ traffic.
 
 - [`docs/PLAN.md`](docs/PLAN.md) — the plan, decisions, and known gaps
 - [`docs/RUNBOOK.md`](docs/RUNBOOK.md) — event-day procedure for operators
+- [`docs/wiki/`](docs/wiki/README.md) — end-user guides, one per role, with screenshots
 - [`docs/DESIGN.md`](docs/DESIGN.md) — brand, palette and logo decisions
 - [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) — Apache, TLS and systemd
 

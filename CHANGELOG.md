@@ -7,6 +7,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **Volunteer guides, one per role, in `docs/wiki/`.** Net Control, SAG,
+  Liaison, Logistics and Staff each get a page written for the person holding
+  that link on race morning, plus a shared "the basics" page for the map, the
+  status colours, the panels and the phone layout. Screenshots throughout,
+  captured from a demonstration event with invented callsigns and runners -
+  nothing in them is real traffic, and no organizer file is involved. The
+  guides say what each role can and cannot do and why, because "ask Net
+  Control" is the answer to half of the questions a field role has and the
+  reason matters: a link that can close a pickup is a link that can make the
+  waiting count lie.
+
 ## [0.4.3] - 2026-09-08
 
 ### Fixed
