@@ -7,6 +7,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-09-08
+
 ### Fixed
 - **The Course Ops lockup stays in the top-left corner for every role.**
   Swapping SAG's columns carried it to the right, so the app looked
