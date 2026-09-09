@@ -831,6 +831,10 @@ body {
 .inc--en_route  { background: var(--inc-enroute); }
 .inc--picked_up { background: var(--inc-pickedup); }
 .inc--closed    { background: var(--inc-closed); }
+/* Round, like the note's dot in the list and for the same reason: the shape
+   says "not a pickup" without relying on the colour. A red square is somebody
+   waiting for a vehicle; a note is a cone in the road. */
+.inc--note      { background: var(--inc-note); border-radius: 50%; }
 
 /* Bib and note edited in place: a pickup is called in before anyone has read
    the number off the runner, so a modal would block NCS at the worst moment. */
