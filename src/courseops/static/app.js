@@ -1559,6 +1559,9 @@ function placeName(poiId, fallback) {
 
 function renderLeaders() {
   const host = document.getElementById('leader-list');
+  // A sighting recorded by any operator republishes every leader, which
+  // rebuilds this list under whoever is typing a bib into it.
+  const editing = captureFieldEdit();
   if (!state.leaders.length) {
     host.innerHTML = '<p class="muted">No courses imported yet.</p>';
     return;
@@ -1649,6 +1652,8 @@ function renderLeaders() {
       bibField.value = leader.bib || '';
       bibField.setAttribute('aria-label',
         `Bib for ${leader.division_label}, ${leader.course_name}`);
+      bibField.dataset.editKey =
+        `leaderbib:${leader.course_id}:${leader.division}`;
       controls.appendChild(bibField);
 
       if (leader.next_poi_id) {
@@ -1710,6 +1715,44 @@ function renderLeaders() {
 
     host.appendChild(row);
   });
+
+  restoreFieldEdit(editing);
+}
+
+/* ---------- keeping what someone is typing -------------------------------
+
+   These lists are rebuilt wholesale (`innerHTML = ''`) whenever anything in
+   them changes, and a change made by ANOTHER operator arrives on the socket
+   and does exactly that. Three people can hold the same link - that is the
+   point of it - so on a busy net a rebuild lands every few seconds, and
+   without this it takes the half-typed bib with it and drops focus to the
+   body. The symptom is a bib box that empties itself while you are looking
+   at it, which reads as the app losing a report.
+
+   Only the focused field is kept: everything here commits on `change`, which
+   fires on blur, so an unfocused edit has already been sent. The caret
+   position comes with it - restoring the text but putting the cursor at the
+   end is its own small betrayal when someone is correcting a digit. */
+
+function captureFieldEdit() {
+  const el = document.activeElement;
+  const key = el && el.dataset ? el.dataset.editKey : null;
+  if (!key) return null;
+  return {key, value: el.value, start: el.selectionStart, end: el.selectionEnd};
+}
+
+function restoreFieldEdit(saved) {
+  if (!saved) return;
+  const el = document.querySelector(
+    `[data-edit-key="${CSS.escape(saved.key)}"]`);
+  if (!el) return;   // the row it belonged to is gone - deleted by someone else
+  el.value = saved.value;
+  el.focus();
+  try {
+    el.setSelectionRange(saved.start, saved.end);
+  } catch (e) {
+    // Some input types refuse a selection range. The text is what matters.
+  }
 }
 
 /* ---------- incidents ---------------------------------------------------- */
@@ -2007,8 +2050,12 @@ function renderIncidents() {
   const pickups = all.filter((i) => (i.kind || 'pickup') === 'pickup');
   const notes = all.filter((i) => i.kind === 'note');
 
+  // Both lists are rebuilt below, and either can hold the field being typed
+  // into, so the capture wraps the pair rather than each one.
+  const editing = captureFieldEdit();
   renderPickups(pickups);
   renderNotes(notes);
+  restoreFieldEdit(editing);
 }
 
 function sortPickups(list) {
@@ -2109,7 +2156,7 @@ function renderPickups(pickups) {
       bib.maxLength = 16;
       bib.value = incident.bib || '';
       bib.setAttribute('aria-label', 'Bib number');
-      bib.dataset.bibFor = incident.id;
+      bib.dataset.editKey = `bib:${incident.id}`;
 
       const note = document.createElement('input');
       note.type = 'text';
@@ -2118,6 +2165,7 @@ function renderPickups(pickups) {
       note.maxLength = 200;
       note.value = incident.note || '';
       note.setAttribute('aria-label', 'Operational note');
+      note.dataset.editKey = `note:${incident.id}`;
 
       const commit = (field, name) => {
         const value = field.value.trim();
@@ -2224,7 +2272,7 @@ function renderNotes(notes) {
       field.maxLength = 200;
       field.value = incident.note || '';
       field.setAttribute('aria-label', 'Course note');
-      field.dataset.noteFor = incident.id;
+      field.dataset.editKey = `note:${incident.id}`;
       field.addEventListener('change', () => {
         const value = field.value.trim();
         if (value === (incident.note || '')) return;
