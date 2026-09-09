@@ -142,11 +142,18 @@ body {
   color: #fff;
   border-bottom: 3px solid var(--orange);
 }
-#sheet-header .tagline {
+/* Scoped to the lockup rather than to the sheet, because the lockup moves
+   into the side panel's head when that panel is the left-hand column. */
+#sheet-brand { display: flex; align-items: center; gap: 8px; }
+#sheet-brand .tagline {
   font-size: 11px;
   color: rgba(255, 255, 255, 0.62);
   letter-spacing: 0.02em;
 }
+/* A panel head is small uppercase lettering; the lockup is neither, and its
+   own title would only repeat the section heading below it. */
+.panel-head.has-brand { text-transform: none; letter-spacing: normal; }
+.panel-head.has-brand .panel-title { display: none; }
 
 /* Connection state is never hidden. A phone back from a dead zone must not
    show a stale picture as if it were live. */
@@ -1211,6 +1218,19 @@ body {
   body.panel-left.stations-hidden.sheet-hidden #topbar { left: 0; right: 0; }
   body.panel-left.stations-hidden.sheet-hidden #locate-btn,
   body.panel-left.stations-hidden.sheet-hidden #locate-status { right: 12px; }
+
+  /* The lockup lives in the panel here, so the two brand rules invert with
+     the columns. Hiding the SHEET no longer needs the top bar to carry the
+     brand - the panel still has it, and both showing at once is two Course
+     Ops on one screen. Hiding the PANEL is what takes it away, and that is
+     when the top bar has to put it back. Each carries both class names so it
+     outranks the un-swapped rule rather than racing it on source order. */
+  body.panel-left.sheet-hidden #brand,
+  body.panel-left.sheet-hidden #brand-rule { display: none; }
+  body.panel-left.stations-hidden #brand,
+  body.panel-left.stations-hidden #brand-rule { display: flex; }
+  body.panel-left.stations-hidden.sheet-hidden #brand,
+  body.panel-left.stations-hidden.sheet-hidden #brand-rule { display: flex; }
 }
 
 /* Which role's link this is.
