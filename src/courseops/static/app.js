@@ -1723,10 +1723,27 @@ const INCIDENT_RANK = {
   reported: 0, en_route: 1, picked_up: 2, dropped_off: 3, closed: 4,
 };
 
+function isNote(incident) {
+  return (incident.kind || 'pickup') === 'note';
+}
+
 function incidentIcon(incident) {
   // Square, so it can never be mistaken for a station (circle/diamond) or an
   // aid station (rounded rect). The bib is the label because that is what gets
   // said on the radio.
+  //
+  // A course note is a different KIND of thing, not a pickup at another
+  // status, so it takes the shape and colour the list already gives it -
+  // round and purple - rather than the red square of an undispatched pickup.
+  // Nobody is waiting at a note, and a map that says otherwise sends somebody.
+  if (isNote(incident)) {
+    return L.divIcon({
+      className: '',
+      html: '<div class="inc inc--note">!</div>',
+      iconSize: [30, 30],
+      iconAnchor: [15, 15],
+    });
+  }
   const label = incident.bib ? escapeHtml(incident.bib) : '!';
   return L.divIcon({
     className: '',
@@ -1737,19 +1754,29 @@ function incidentIcon(incident) {
 }
 
 function incidentPopup(incident) {
-  const rows = [['Status', incident.status_label]];
-  if (incident.assigned_to) rows.push(['Assigned', incident.assigned_to]);
+  // A note has no status workflow and nobody waiting on it, so the popup
+  // carries neither - "Status: Reported, in this status 3m" reads as a queue
+  // entry, which is exactly what a note must never look like.
+  const note = isNote(incident);
+  const rows = [];
+  if (!note) {
+    rows.push(['Status', incident.status_label]);
+    if (incident.assigned_to) rows.push(['Assigned', incident.assigned_to]);
+  }
   if (incident.course_position) {
     rows.push(['Course position',
       `${formatMile(incident.course_position.distance_along_m)} of ` +
       `${incident.course_position.course_name}`]);
   }
   if (incident.note) rows.push(['Note', incident.note]);
-  rows.push(['In this status', `${formatAge(ageSeconds(incident.status_at))}`]);
+  if (!note) {
+    rows.push(['In this status', `${formatAge(ageSeconds(incident.status_at))}`]);
+  }
   rows.push(['Reported', `${formatAge(ageSeconds(incident.reported_at))} ago` +
     (incident.reported_by ? ` by ${incident.reported_by}` : '')]);
 
-  const title = incident.bib ? `Bib ${incident.bib}` : 'Pickup (bib unknown)';
+  const title = note ? 'Course note'
+    : incident.bib ? `Bib ${incident.bib}` : 'Pickup (bib unknown)';
   return `<h3>${escapeHtml(title)}</h3><dl>` +
     rows.map(([k, v]) => `<dt>${escapeHtml(k)}</dt><dd>${escapeHtml(String(v))}</dd>`)
       .join('') + '</dl>';
