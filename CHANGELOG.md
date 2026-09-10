@@ -7,6 +7,31 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **A setup guide in the wiki, for the club officer rather than the
+  volunteer.** Four pages rather than one, because at 2,000 words and eleven
+  screenshots it was the longest page on the wiki by half again and a very long
+  scroll on a phone: the course, roster and links, race week and after, and
+  making it yours. They split where the job does, so each is read at a
+  different moment - the last one weeks before the first. Every setup screen
+  with a screenshot - organizations and events,
+  import and review, courses, places, layers, roles, roster, tracking, links,
+  and the after-event report - plus the reasoning that is easy to lose: why the
+  event's short name can never change, why nothing from a course file becomes a
+  place until a human says so, why "no APRS" means "do not warn me" rather than
+  "ignore them". It closes with what a club can bend, because the parts with no
+  fixed list - place layers, station roles, races, links - are the parts nobody
+  discovers by reading a form: mapping anything the net asks about, staffing the
+  layers that hold people, running the whole app with no APRS at all, and using
+  it for a bike tour, a parade or a checkpoint exercise rather than a marathon.
+- **The README points at the wiki**, with a table of the pages and who each is
+  for, and says plainly that the pages are edited in `docs/wiki/` through a
+  pull request because the sync overwrites the wiki's own editor.
+
+### Fixed
+- **The README said the APRS-IS feed had never met real traffic.** It has, since
+  2026-09-05.
+
 ### Fixed
 - **Another operator's change no longer wipes the bib you are typing.** Several
   people holding one role link is a supported way to work - three Net Control

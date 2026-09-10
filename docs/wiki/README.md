@@ -24,6 +24,15 @@ of your screen.
 Everyone should also read **[The basics, whichever link you hold](everyone.md)**:
 the map, the colours, the panels, and how it behaves on a phone.
 
+## Standing the event up rather than working it?
+
+| Page | Covers |
+|---|---|
+| [Setup: the course](setup.md) | Organizations and events, importing the organizer's files, courses, places |
+| [Setup: roster and links](setup-people.md) | Who is out there, and how each of them gets in |
+| [Setup: race week and after](setup-race-week.md) | Tracking, the check-in rehearsal, the after-event report |
+| [Making it yours](setup-ideas.md) | Layers, roles, and what else a club can do with this |
+
 ## The one rule about your link
 
 **The link is the login.** Anyone holding it has your role, so send it on only
