@@ -835,7 +835,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
-- **2026-09-11** Clubs choose which leaders an event tracks - a wheelchair leader, a first junior - instead of a fixed male/female pair.
+- **2026-09-10** Clubs choose which leaders an event tracks - a wheelchair leader, a first junior - instead of a fixed male/female pair.
 - **2026-09-10** A `?` in the top bar of every screen opens that role's guide in a new tab.
 - **2026-09-09** Wiki gains a setup guide for club officers, including what a club can bend; README points at the wiki.
 - **2026-09-09** Setup can issue several links for one role, labelled, and revoke one without cutting off the rest.
