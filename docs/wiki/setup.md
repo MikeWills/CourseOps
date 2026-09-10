@@ -76,6 +76,36 @@ viewer can re-stack their own screen without affecting anybody else.
 **Check the distance.** If a course reads 3 mi when it should read 13, segments
 are missing or one belongs to a different route.
 
+### Leaders we track
+
+![The Leaders we track list: rename, add, delete, drag to reorder](images/setup-leaders.png)
+
+Underneath the courses, on the same tab, is the list of **leaders** - the types
+of racer you want a position for as they come round. A new event starts with
+*First male* and *First female*. Rename them to your own wording, add a
+wheelchair leader or a first junior, delete any your race does not award, and
+drag them into the order they get read on the air.
+
+The name is the whole label, exactly as it appears on the Net Control screen,
+so type *First wheelchair* rather than *Wheelchair* if that is what will be
+said on the net.
+
+**Mind the arithmetic before adding a fourth.** Net Control sees one row per
+race per leader, so three races and two leaders is six rows; three races and
+four leaders is twelve. Track what will actually be called in.
+
+Two things behave the way the place layers and station roles do:
+
+- **Renaming is always safe.** Reports are recorded against the leader itself,
+  not against its wording, so changing *First female* to *First woman*
+  mid-event leaves every sighting where it is.
+- **A leader that has been sighted cannot be deleted** until its sightings are
+  cleared - the app will tell you how many are in the way. Otherwise the
+  reports would quietly vanish from the panel with nothing to say where they
+  went. Clearing is on the Net Control screen, per race and per leader.
+
+Do this before the event rather than during it.
+
 ## 4. Places
 
 ![The Places tab: order, mile, name, layer, which races, pin label, coordinates, what3words](images/setup-places.png)
