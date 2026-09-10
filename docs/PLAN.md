@@ -574,6 +574,48 @@ devices; lead runner sightings; a phone through a dead zone; the after-event
 report with real notes; GPX from a real MapMyRun export. The club may have
 tried some of these without saying so - ask before assuming untested.
 
+## End-user documentation (decided 2026-09-09/10)
+
+The guides volunteers read live in `docs/wiki/` and are **published to the
+GitHub Wiki automatically** when they reach `main` (`tools/build_wiki.py` plus
+`.github/workflows/wiki.yml`).
+
+- **One way, always.** The wiki checkout is emptied and rewritten every run, so
+  anything typed into the wiki's own editor is overwritten. The repository is
+  the source and every change to a guide goes through a pull request - the wiki
+  has no review of its own. `_Footer.md` says this on every page, because a
+  reader who has just lost an edit deserves to have been warned first.
+- Wiki editing is restricted to collaborators; a public repo's wiki is
+  otherwise editable by any GitHub account.
+- **Eleven pages:** one per role, a shared "basics", and the setup guide split
+  into four (course / roster and links / race week / making it yours). The
+  split was by *when it is read*, not by length - "making it yours" is read
+  weeks before the rest, while a club is deciding whether this fits them.
+- Screenshots come from a demonstration event seeded with invented callsigns,
+  operators and bibs on a synthetic course, with a fictional club callsign
+  passed as an environment variable. No organizer file and no captured traffic
+  is involved, which keeps the public-repo rule intact.
+- **In-app help:** a `?` in the top bar of every screen opens the guide for
+  the link that person is holding, in a new tab. The setup screens carry the
+  same ring, following the tab.
+
+## Several people on one role (decided 2026-09-09, confirmed as a requirement)
+
+One access token works on **any number of devices**, and the hub fans every
+change out to all of them - three Net Control operators on three screens is a
+supported way to run a big net, not a workaround.
+
+A **link per operator** is therefore not about access, it is about revocation
+and trust: it is what lets one phone left in a parking lot be cut off without
+taking the others off the air, and what lets two net controllers know which
+link is whose. Links carry a free-text label for that reason, and per-link
+revoke is the ordinary action while "replace all" is for a compromised role.
+
+Last write wins throughout; there is no locking and no "someone else is
+editing" indicator. `roster_status_log` records who set what, from the
+Operator box. The one real hazard found - a socket-driven re-render eating a
+half-typed bib - is fixed (`captureFieldEdit` in `app.js`).
+
 ## Known gaps and open threads
 
 - ~~**The what3words coordinate URL is undocumented.**~~ It broke, as this
@@ -605,6 +647,11 @@ Things discovered but not yet acted on. Each is a real constraint, not a wish.
   of #5, because it needs a second club to design against.
 - **Multi-tenant rough edges** — issue #5. Resource limits, a signup path with
   password reset, and static asset caching.
+- ~~**Lead runner divisions are fixed at male and female.**~~ Issue #99, found
+  2026-09-10 while writing the setup guide, closed in 0.7.0: which leaders an
+  event tracks is now per-event data in `lead_division`, edited under Setup ->
+  Courses, exactly as the place layers and the station roles already were. See
+  "Lead runner tracking" above.
 - ~~**Hand-drawn courses cut corners.**~~ Decided 2026-09-05: accepted, not a
   gap. The Mankato export has 13 straight-line gaps over 200 m (largest
   1241 m) where the route builder used direct/offroad mode, so the line is

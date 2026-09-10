@@ -7,6 +7,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- **`docs/PLAN.md` records this session's decisions**, because conversation is
+  not storage: how end-user documentation works (one way from `docs/wiki/` to
+  the GitHub Wiki, and why the repository has to stay the source), and that
+  several people holding one role link is a supported way to work rather than
+  a workaround - one token serves any number of devices, so a link each buys
+  revocation and knowing whose is whose, not access.
+- **Corrected three places that still said "the three role links".** There are
+  five roles, and a role may now hold several links.
+
 ## [0.7.0] - 2026-09-10
 
 ### Added
