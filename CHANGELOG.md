@@ -7,6 +7,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.7.2] - 2026-09-10
+
 ### Changed
 - **Leaders is its own setup tab**, between Roles and Tracking, rather than a
   second heading under Courses. Layers and Roles are each a tab and Leaders is
