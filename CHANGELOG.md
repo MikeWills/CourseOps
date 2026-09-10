@@ -7,6 +7,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-09-10
+
 ### Added
 - **The leaders an event tracks are the club's now, not a constant in the
   code.** A new "Leaders we track" list under Courses in setup: rename the two
