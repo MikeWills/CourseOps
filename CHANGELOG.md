@@ -7,6 +7,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-09-10
+
 ### Fixed
 - **The version a running server reports is the packaged one.** `/healthz` and
   the setup session read the installed distribution's metadata, while
