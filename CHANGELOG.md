@@ -7,6 +7,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-09-10
+
 ### Added
 - **A `?` in the top bar of every screen, opening that role's guide.** A ring
   beside the role badge, outlined and quiet for the same reason the badge is:
