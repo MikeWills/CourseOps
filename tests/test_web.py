@@ -1395,3 +1395,35 @@ def test_adding_a_link_for_an_unknown_role_is_refused(setup):
         response = client.post(f"/api/setup/events/{event_id}/links",
                                json={"action": "add", "role": "president"})
     assert response.status_code == 400
+
+
+# --- the help link ----------------------------------------------------------
+
+
+def test_every_role_has_a_help_page():
+    """A role added without one would show a "?" pointing nowhere useful.
+
+    The mapping lives in the client, so this reads it rather than importing
+    it - the alternative is finding out on race morning that the newest role
+    opens the index and leaves somebody guessing which guide is theirs.
+    """
+    from courseops import resources
+
+    script = (resources.package_file("static") / "app.js").read_text(encoding="utf-8")
+    block = script.split("const HELP_PAGES = {", 1)[1].split("};", 1)[0]
+
+    for role in access.ROLES:
+        assert f"{role}:" in block, f"{role} has no help page"
+
+
+def test_the_help_link_opens_in_a_new_tab():
+    """Navigating away in place would cost someone the map mid-net, and the
+    way back is a link in a text message."""
+    from courseops import resources
+
+    for page in ("index.html", "setup.html"):
+        html = (resources.package_file("static") / page).read_text(encoding="utf-8")
+        anchor = html.split('id="help-link"', 1)[1].split(">", 1)[0]
+        assert 'target="_blank"' in anchor, page
+        # Without noopener the opened page can navigate this one.
+        assert "noopener" in anchor, page

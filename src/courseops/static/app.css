@@ -1255,10 +1255,39 @@ body {
   color: rgba(255, 255, 255, 0.94);
 }
 
+/* The guide for this role, one tap from every screen.
+
+   Outlined and quiet for the same reason as the badge beside it: the
+   connection badge is the only thing in this bar that may draw the eye, and
+   help is never urgent. A round target rather than the word "Help" because
+   the bar is full at 375px and a question mark in a ring needs no
+   translation. */
+#help-link {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 26px; height: 26px;
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  border-radius: 50%;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.94);
+  text-decoration: none;
+}
+#help-link:hover, #help-link:focus-visible {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.75);
+}
+
 /* On a phone the event name and the connection badge already fill the bar, so
    the role drops to the initials-width version rather than pushing the badge
    off the edge. */
 @media (max-width: 460px) {
   #role-badge { padding: 3px 7px; font-size: 11px; }
   #event-name { min-width: 0; }
+  /* The pin alone still brands it, and the help ring costs less width than
+     the word it replaces. */
+  #brand-name, #brand-rule { display: none; }
+  #help-link { width: 24px; height: 24px; font-size: 13px; }
 }

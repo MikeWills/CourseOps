@@ -45,6 +45,10 @@ thing that tells you whether what you are looking at is current.
 The badge beside it is your role. It never changes colour, and it is never an
 alarm - it is there so you can tell at a glance which link you are holding.
 
+**The `?` between them opens your guide** - this page's role-specific companion,
+in a new tab, so you never lose the map to read it. Whichever link you are
+holding, the `?` goes to the page written for it.
+
 ## The map
 
 ![Course lines, place pins and station markers](images/shared-place-popup.png)

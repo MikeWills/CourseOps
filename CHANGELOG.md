@@ -7,6 +7,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **A `?` in the top bar of every screen, opening that role's guide.** A ring
+  beside the role badge, outlined and quiet for the same reason the badge is:
+  the connection badge is the only thing in that bar allowed to draw the eye,
+  and help is never the urgent thing. It opens **in a new tab** - navigating
+  away in place would cost somebody the map mid-net and leave them digging the
+  link out of a text message to get back. It goes to the guide for the link
+  they are actually holding, not an index: a SAG driver pressing it wants the
+  queue, not five roles to choose between. The setup screens carry the same
+  ring, and it follows the tab - Roster and Links open the roster page, Layers
+  and Roles the "making it yours" page, Tracking the race-week page.
+  On a phone at 375px the wordmark gives up its space to it; the pin still
+  brands the bar, and the event name still fits.
+
+### Changed
+- **The documentation rules now name the wiki.** The discipline table predated
+  it: it covered the changelog, the plan, the runbook and the README, so a
+  change that a volunteer sees could ship with the guides left describing the
+  old screen. Two rows added - the guides themselves, and the screenshots,
+  which rot silently and are more convincing than stale text because they look
+  like proof. The rule is that they change in the SAME pull request, because
+  the wiki publishes on merge.
+
 ## [0.5.0] - 2026-09-10
 
 ### Added

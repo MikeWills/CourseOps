@@ -43,6 +43,10 @@
   <!-- Which link am I on? Four roles see four different screens, and the only
        thing that said which was a line at the very bottom of the panel. -->
   <div id="role-badge" hidden></div>
+  <!-- The guide for THIS role. A link out rather than help text in the app:
+       the guides carry screenshots and are updated without a deploy. -->
+  <a id="help-link" href="#" target="_blank" rel="noopener noreferrer"
+     title="Help" aria-label="Help">?</a>
   <div id="conn" class="conn conn--connecting" role="status" aria-live="polite">
     <span id="conn-text">Connecting…</span>
   </div>

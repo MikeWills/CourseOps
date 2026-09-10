@@ -19,6 +19,9 @@ The tabs run roughly in the order you will use them. Every tab except
 Organizations, Events and Users belongs to **one event** - the one named in
 *Working on:* at the top.
 
+The **`?`** in the header opens the right one of these four pages for the tab
+you are on, in a new tab.
+
 ---
 
 ## 1. Organizations, then an event
