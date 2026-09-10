@@ -34,10 +34,27 @@ log = logging.getLogger(__name__)
 
 STATIC_DIR = resources.package_file("static")
 
+# One source of truth for the version, and it is the package, not the install.
+#
+# This read `importlib.metadata` alone, which is what an editable install wrote
+# into its dist-info the day it was created and never revisits - so a working
+# copy six releases along reported the version it had when `pip install -e .`
+# was first run, while `aprsis.py` announced the real one in its login string
+# and `build.py` printed it beside the commit. Two version numbers for one
+# process, disagreeing, with nothing to catch it: the release workflow checks a
+# tag against the packaged version and cannot see this.
+#
+# `__init__.py` wins because it always ships. Metadata is precisely what is
+# missing from the frozen Windows build, which is why the fallback exists at
+# all - and a distribution version that disagrees with the package is a broken
+# install rather than a second opinion worth publishing.
 try:
-    __version__ = _metadata.version("courseops")
-except Exception:            # running from a source tree with no install
-    __version__ = "0.0.0+source"
+    from . import __version__
+except Exception:            # pragma: no cover - the package always ships this
+    try:
+        __version__ = _metadata.version("courseops")
+    except Exception:        # running from a source tree with no install
+        __version__ = "0.0.0+source"
 
 SESSION_COOKIE = "courseops_session"
 

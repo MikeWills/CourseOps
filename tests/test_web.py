@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from courseops import access, db, importer
+from courseops import access, aprsis, db, importer, web
 from courseops.config import Settings
 from courseops.parser import parse_packet
 from courseops.web import create_app
@@ -1295,6 +1295,33 @@ def test_healthz_reports_ok_and_a_version(setup):
     body = response.json()
     assert body["status"] == "ok"
     assert body["version"]
+
+
+def test_the_reported_version_is_the_packaged_one(setup):
+    """One version number per process.
+
+    `/healthz` and the setup session used to read the installed distribution's
+    metadata while `aprsis.py` and `build.py` read `courseops.__version__`. An
+    editable install writes its metadata once and never revisits it, so a
+    working copy six releases along served 0.1.1 from /healthz and announced
+    0.7.0 to APRS-IS. The release workflow checks a tag against the packaged
+    version and cannot see two in-process sources disagreeing.
+
+    Note what this can and cannot catch. CI installs fresh, so the two agreed
+    there even while the bug was live - this would have stayed green. Where it
+    bites is a developer's own editable install, which is exactly where the
+    divergence appeared and the only place it can be observed.
+    """
+    from courseops import __version__ as packaged
+
+    app, tokens, db_path, event_id = setup
+    with TestClient(app) as client:
+        assert client.get("/healthz").json()["version"] == packaged
+
+    assert web.__version__ == packaged
+    # The APRS-IS login string is built from the same value, so a divergence
+    # here is a divergence on the air.
+    assert aprsis.__version__ == packaged
 
 
 def test_the_build_is_not_published_to_anonymous_callers(setup):
