@@ -327,12 +327,36 @@ table.grid button:not(.icon-btn) {
   background: #eaf2fb;
 }
 
-#review-map {
+#review-map, #place-map {
   height: 380px;
   margin: 12px 0;
   border: 1px solid var(--line);
   border-radius: 10px;
 }
+
+/* Foldable, and folded state is not remembered on purpose: this map is a tool
+   you reach for while placing something, not a panel you live in, and a club
+   that collapsed it once in March should not find the picker missing in
+   October. The summary stays a real click target at 44px. */
+#place-map-wrap {
+  margin: 16px 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0 12px;
+}
+#place-map-wrap > summary {
+  cursor: pointer;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+}
+#place-map-wrap[open] > summary { border-bottom: 1px solid var(--line); }
+#place-map-wrap #place-map { margin-top: 0; }
+/* Leaflet paints its own cursor on the container; over a picker the pointer
+   should say "you may put something here". */
+#place-map .leaflet-container { cursor: crosshair; }
 
 .feature {
   display: flex;

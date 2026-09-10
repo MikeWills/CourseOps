@@ -11,9 +11,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Places can be added by hand, and their coordinates corrected.** Not every
   organizer supplies a file, and the ones that do leave things out - a 5K, a
   parade or a vehicle race has people standing at points with no "stops" to
-  import at all. **Setup -> Places** gains an *Add a place* form, and the
-  coordinates column becomes two editable boxes. (#108, first of three slices;
-  picking the spot on a map is the next one.)
+  import at all. **Setup -> Places** gains a map, an *Add a place* form, and a
+  coordinates column that is now two editable boxes. (#108)
+
+  **The map does two things, which are the same thing from either end.** Click
+  bare map to put a new place there - it fills the form and drops a dashed
+  provisional pin rather than creating anything, because a place needs a name
+  and a layer and a stray click should not leave a pin nobody chose. Drag an
+  existing pin to correct one. The routes are drawn underneath, because "along
+  a route" is what the request was and a bare tile layer gives you nothing to
+  place against.
+
+  A drag deliberately does **not** save. It writes into that row's coordinate
+  boxes and marks them dirty, so it saves through the table's own "Save N
+  changes" button with everything else - a second save scope on one screen is
+  how the roster lost twelve renames.
 
   The correction half matters as much as the addition. Position was
   import-only, and permanently so: a place a hand-drawn organizer file put in

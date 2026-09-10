@@ -55,7 +55,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 544 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 545 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -280,6 +280,15 @@ usability, not style preferences.
   below it: that one stops a file filing a parking lot as an aid station with
   nobody looking, and a person naming a place and giving it a position IS the
   human decision it exists to require.
+- **The picker writes into the table, it does not save.** Dragging a pin on
+  the Places map fills that row's coordinate boxes and marks them dirty, so it
+  goes through `bindSaveAll` with every other edit. Giving the map a save of
+  its own would be a second save scope on one screen, which is the exact shape
+  of the bug that cost a real user twelve renames.
+- **The picker cannot assume a course or a place exists.** A parade or a
+  vehicle race has neither, and that is the case #108 was opened for.
+  `placeMapView` falls back to the event's own centre, then to the country
+  view - never to an empty `fitBounds`, which throws.
 - **A place added by hand belongs in a STAFFED layer**, or it is unpostable
   and no lead runner can be reported passing it - while looking identical on
   the Places table. The add form sorts staffed layers to the top for that
@@ -860,6 +869,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-10** A map on the Places tab: click to place a new one, drag a pin to move one.
 - **2026-09-10** Places can be added by hand and their coordinates corrected; position was import-only.
 - **2026-09-10** Leaders moved to its own setup tab, beside Layers and Roles.
 - **2026-09-10** Clubs choose which leaders an event tracks - a wheelchair leader, a first junior - instead of a fixed male/female pair.
@@ -869,4 +879,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-09** Fixed: another operator's change wiped the bib you were typing; focus and caret survive a re-render now.
 - **2026-09-09** Every guide leads with "the radio comes first": the app is supplemental, call everything in to NCS anyway.
 - **2026-09-09** Fixed: a course note drew as a red pickup pin titled "Pickup (bib unknown)"; it is a round purple note pin now.
-- **2026-09-09** Volunteer guides per role in `docs/wiki/`, with screenshots from a demo event.

@@ -108,10 +108,19 @@ Some race groups do not hand over a good map, and some hand over one with no
 water stops on it at all. A 5K, a parade, or a vehicle race may have people
 standing at points with nothing to import in the first place.
 
-**Add a place** at the bottom of this tab covers that. Give it a name, pick a
-layer, and paste the coordinates - both numbers go into Latitude and split
-themselves, so you can copy straight from a phone or a mapping site without
-picking the string apart.
+![The map on the Places tab, with the routes drawn and a pin per place](images/setup-place-map.png)
+
+**Click the map** where the place goes. That fills in the coordinates below it
+and drops a dashed pin so you can see what you picked; name it, choose a layer,
+and press *Add place*. Nothing is created until you do, so a stray click costs
+nothing.
+
+The routes are drawn underneath, which is the point - a water stop goes
+*somewhere along one*, and a blank map gives you nothing to judge that against.
+
+If you would rather type: paste the coordinates into **Latitude** and both
+numbers split themselves across the two boxes, so you can copy straight from a
+phone or a mapping site without picking the string apart.
 
 Put it in a layer you **staff** if somebody will be standing there. That is what
 lets an operator be posted to it and a lead runner be reported passing it; an
@@ -121,9 +130,14 @@ first for that reason.
 The new place lands at the **end** of the running order, where you will see it.
 Drag it into position afterwards.
 
-**Coordinates can also be corrected.** The two boxes in the Coordinates column
-are editable, so a place the organizer's file put in the wrong spot can be moved
-without re-importing anything. Everything else follows from position - the mile
+**Places can also be moved.** Drag its pin on the map, or type into the two
+boxes in the Coordinates column - either way a place the organizer's file put in
+the wrong spot can be moved without re-importing anything.
+
+Dragging a pin does not save on its own. It fills in that row's coordinates and
+the table's **Save** button appears, the same as any other edit - so you can
+nudge several places and save them together, and nothing is written until you
+say so. Everything else follows from position - the mile
 figure, which race it snaps to, where the pin draws - so fixing it fixes all of
 them at once. Latitude first, then longitude; the app refuses a latitude outside
 -90 to 90, which is what catches the two pasted the wrong way round.

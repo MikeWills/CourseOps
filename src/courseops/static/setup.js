@@ -543,6 +543,13 @@ function showEventContext() {
 }
 
 function selectEvent(id) {
+  /* A spot picked on one event's map is meaningless on the next one's, and a
+     pin left floating over a different town is the kind of thing somebody
+     names and saves without looking. Clear the provisional pin and the boxes
+     it filled - a coordinate typed by hand goes the same way, because there
+     is no telling the two apart and the wrong-event one is the dangerous
+     case. */
+  clearProvisionalPlace();
   S.eventId = id;
   showEventContext();
   document.querySelectorAll('.panel[data-needs-event]').forEach(
@@ -1148,6 +1155,8 @@ async function loadCourses() {
   $('poi-filter-layer').innerHTML = '<option value="">All layers</option>'
     + S.poiCategories.map((c) =>
         `<option value="${esc(c.key)}">${esc(c.name)}</option>`).join('');
+
+  renderPlaceMap();
 
   /* The add form's layer, defaulted to one we staff. `staffed` is what lets an
      operator be posted here and a lead runner be reported passing, and a place
@@ -1757,6 +1766,168 @@ $('role-form').addEventListener('submit', async (ev) => {
   }
 });
 
+/* ---------- the place picker --------------------------------------------- */
+
+/* Clicking a spot on a map is the honest way to place something, and typing
+   coordinates is the fallback rather than the other way round - #108 asked for
+   the map because some organizers hand over nothing to import.
+
+   Two gestures on one map:
+     - click empty space  -> fills the Add form and drops a provisional pin
+     - drag an existing pin -> writes into that row's coordinate boxes
+
+   The drag deliberately does NOT save. It marks the row dirty and lets the
+   table's own "Save N changes" button do it, because a second save scope on
+   one screen is how the roster lost twelve renames.
+
+   A second Leaflet instance rather than sharing the Import tab's: that one is
+   bound to #review-map and to staged features, and generalising it would put
+   two unrelated jobs in one function for the sake of saving twenty lines. */
+
+const PLACE_MAP_FALLBACK = [[39.5, -98.35], 4];   // the country, as Import does
+
+function ensurePlaceMap() {
+  if (S.placeMap) return S.placeMap;
+  S.placeMap = L.map('place-map');
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    {maxZoom: 19, attribution: '&copy; OpenStreetMap contributors'})
+    .addTo(S.placeMap);
+  S.placeMarkers = new Map();
+  S.placeLines = [];
+
+  /* Clicking bare map means "put a new one here". It fills the form rather
+     than creating anything: a place needs a name and a layer, and creating one
+     on a stray click would be a pin nobody chose that then has to be found and
+     deleted. */
+  S.placeMap.on('click', (ev) => {
+    const { lat, lng } = ev.latlng;
+    $('poi-new-lat').value = lat.toFixed(5);
+    $('poi-new-lon').value = lng.toFixed(5);
+    if (S.placeNewMarker) S.placeMap.removeLayer(S.placeNewMarker);
+    S.placeNewMarker = L.circleMarker([lat, lng], {
+      radius: 8, color: '#FF6A13', fillColor: '#FF6A13', fillOpacity: 0.5,
+      weight: 3, dashArray: '3 3',
+    }).addTo(S.placeMap);
+    S.placeNewMarker.bindTooltip('New place - name it below').openTooltip();
+    $('poi-new-name').focus();
+  });
+  return S.placeMap;
+}
+
+/* Where to look when there is nothing to look at.
+
+   A parade or a vehicle race may have no course line and no places yet, which
+   is exactly the case #108 is for - so this cannot assume either exists. The
+   event's own centre is the next best thing and is already stored; the country
+   view is the last resort, and is what the Import map already falls back to. */
+function placeMapView(map, bounds) {
+  if (bounds.isValid()) {
+    map.fitBounds(bounds, { padding: [30, 30], maxZoom: 16 });
+    return;
+  }
+  const event = (S.events || []).find((e) => e.id === S.eventId);
+  if (event && event.center_lat != null && event.center_lon != null) {
+    map.setView([event.center_lat, event.center_lon], 13);
+    return;
+  }
+  map.setView(...PLACE_MAP_FALLBACK);
+}
+
+function clearProvisionalPlace() {
+  if (S.placeNewMarker && S.placeMap) {
+    S.placeMap.removeLayer(S.placeNewMarker);
+  }
+  S.placeNewMarker = null;
+  const lat = document.getElementById('poi-new-lat');
+  const lon = document.getElementById('poi-new-lon');
+  if (lat) lat.value = '';
+  if (lon) lon.value = '';
+}
+
+function renderPlaceMap() {
+  if ($('place-map-wrap').hidden) return;
+  const map = ensurePlaceMap();
+
+  S.placeMarkers.forEach((m) => map.removeLayer(m));
+  S.placeMarkers.clear();
+  S.placeLines.forEach((l) => map.removeLayer(l));
+  S.placeLines = [];
+
+  const bounds = L.latLngBounds([]);
+
+  /* The routes, drawn first so pins sit on top of them. "Along a route" is the
+     phrasing in the issue, and a bare tile layer gives you nothing to place
+     against. */
+  (S.courses || []).forEach((c) => {
+    let geom;
+    try { geom = JSON.parse(c.geojson); } catch (err) { return; }
+    if (!geom || geom.type !== 'LineString') return;
+    const line = L.polyline(geom.coordinates.map(([lon, lat]) => [lat, lon]),
+      { color: c.color || '#0B2545', weight: 3, opacity: 0.7 });
+    line.bindTooltip(c.name);
+    line.addTo(map);
+    S.placeLines.push(line);
+    bounds.extend(line.getBounds());
+  });
+
+  const layers = new Map((S.poiCategories || []).map((c) => [c.key, c]));
+  (S.pois || []).forEach((p) => {
+    if (p.lat == null || p.lon == null) return;
+    const layer = layers.get(p.poi_type);
+    const marker = L.circleMarker([p.lat, p.lon], {
+      radius: 7, weight: 2, color: '#0B2545',
+      fillColor: (layer && layer.color) || '#35507a', fillOpacity: 1,
+    });
+    marker.bindTooltip(`${p.name} - drag to move`);
+    marker.addTo(map);
+
+    /* Leaflet's circleMarker is not draggable, so the drag is done by hand:
+       press on the pin, move, release. Doing it this way keeps the same shape
+       and colour the rest of the map uses rather than switching to an L.marker
+       with a different icon just to get dragging. */
+    marker.on('mousedown', (down) => {
+      down.originalEvent.preventDefault();
+      map.dragging.disable();
+      const move = (ev) => marker.setLatLng(ev.latlng);
+      const up = (ev) => {
+        map.off('mousemove', move);
+        map.off('mouseup', up);
+        map.dragging.enable();
+        writeRowCoordinates(p.id, ev.latlng);
+      };
+      map.on('mousemove', move);
+      map.on('mouseup', up);
+    });
+
+    S.placeMarkers.set(p.id, marker);
+    bounds.extend(marker.getLatLng());
+  });
+
+  $('place-map-hint').textContent = (S.pois || []).length
+    ? 'click to place a new one, drag a pin to move it'
+    : 'click the map to place your first one';
+
+  placeMapView(map, bounds);
+  // A map built inside a panel that was hidden measures itself as zero and
+  // renders one grey tile in the corner. Same reason the Import map does this.
+  setTimeout(() => map.invalidateSize(), 60);
+}
+
+/* A dragged pin writes into the row's own boxes and marks them dirty, so it
+   saves through the table's Save button with everything else. */
+function writeRowCoordinates(poiId, latlng) {
+  const lat = $('poi-table').querySelector(`[data-plat="${poiId}"]`);
+  const lon = $('poi-table').querySelector(`[data-plon="${poiId}"]`);
+  if (!lat || !lon) return;
+  lat.value = latlng.lat.toFixed(5);
+  lon.value = latlng.lng.toFixed(5);
+  // bindSaveAll listens on the table, so one bubbling event is enough.
+  lat.dispatchEvent(new Event('input', { bubbles: true }));
+  lon.dispatchEvent(new Event('input', { bubbles: true }));
+  const row = lat.closest('tr');
+  if (row) row.scrollIntoView({ block: 'nearest' });
+}
+
 /* One pasted pair, two boxes.
 
    Every phone and mapping site hands out "44.13906, -93.98921" as a single
@@ -1790,8 +1961,7 @@ $('poi-form').addEventListener('submit', async (ev) => {
       lon: $('poi-new-lon').value,
     });
     $('poi-new-name').value = '';
-    $('poi-new-lat').value = '';
-    $('poi-new-lon').value = '';
+    clearProvisionalPlace();
     banner('Place added. It is at the end of the running order.');
     loadCourses();
   } catch (err) {

@@ -1359,6 +1359,28 @@ def test_adding_a_place_reaches_a_connected_map(setup, tmp_path):
             ws.close()
 
 
+def test_the_courses_payload_carries_geometry_for_the_picker(setup, tmp_path):
+    """The Places map draws the routes so a place can be put ALONG one - that
+    is the phrasing in #108, and a bare tile layer gives you nothing to place
+    against. The geometry rides on the courses payload the tab already loads,
+    so trimming it to save bytes would empty the picker's context with no
+    error anywhere.
+    """
+    app, _, db_path, event_id = setup
+    _make_admin(db_path)
+
+    with TestClient(app) as client:
+        _login(client)
+        courses = client.get(
+            f"/api/setup/events/{event_id}/courses").json()["courses"]
+
+    assert courses, "the fixture event has a course"
+    for course in courses:
+        geometry = json.loads(course["geojson"])
+        assert geometry["type"] == "LineString"
+        assert len(geometry["coordinates"]) >= 2
+
+
 def test_moving_places_is_not_swallowed_by_the_poi_id_route(setup, tmp_path):
     """FastAPI matches routes in declaration order, so /pois/move has to be
     declared before /pois/{poi_id} or the word "move" is parsed as an id and

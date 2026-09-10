@@ -234,6 +234,22 @@
     </div>
     <div id="poi-table"></div>
 
+    <!-- The picker. Two jobs on one map, because they are the same job seen
+         from either end: click empty space to put a NEW place there, drag an
+         existing pin to correct one.
+
+         A drag writes into that row's coordinate boxes and marks them dirty,
+         so it saves through the table's own "Save N changes" button. Giving
+         the map a save of its own would be a second save scope on one screen,
+         which is exactly how the roster lost twelve renames. -->
+    <details id="place-map-wrap" open>
+      <summary>
+        <span>Map</span>
+        <span class="muted" id="place-map-hint"></span>
+      </summary>
+      <div id="place-map"></div>
+    </details>
+
     <!-- Not every organizer supplies a file, and the ones that do leave things
          out. A 5K, a parade or a vehicle race has people standing at points
          with no "stops" to import at all, so a place has to be creatable by
@@ -265,9 +281,9 @@
             placeholder="-93.98921"></label>
       </div>
       <p class="muted">
-        Paste both numbers into Latitude and they will split themselves.
-        The place lands at the end of the running order - drag it into
-        position afterwards.
+        Click the map above to fill these in, or paste both numbers into
+        Latitude and they will split themselves. The place lands at the end of
+        the running order - drag it into position afterwards.
       </p>
       <p id="poi-error" class="error" hidden></p>
       <button class="primary" type="submit">Add place</button>
