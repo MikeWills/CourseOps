@@ -112,6 +112,30 @@ enough that a silent importer costs more time than the review screen does.
 Also needed before mile markers mean anything: stitching multi-segment routes into
 one line, and reversing a line drawn finish-to-start.
 
+**The premise above has a hole, found 2026-09-10 (issue #108): some organizers
+supply nothing.** A 5K, a parade or a vehicle race may have no file at all, and
+plenty of files that do arrive have the route but not the water stops. Import
+being the only way a place could exist meant those events could not be staffed
+on the map - and, less obviously, that a place a hand-drawn file put in the
+wrong spot could never be moved, because `update_poi` accepted every field
+except `lat`/`lon`.
+
+So places are creatable and movable by hand, on the Places tab: an *Add a
+place* form, editable coordinates, and a map to click. This does **not** weaken
+"import may never create places" - that rule stops a FILE filing a parking lot
+as an aid station with nobody looking, and a person naming a place and giving
+it a position is the human decision it exists to require. Resolved #108.
+
+Two things the map has to get right, both discovered by trying it:
+
+- **It cannot assume a course or a place exists.** The parade case has
+  neither, so `placeMapView` falls back to the event's own centre and then to
+  a country view - never an empty `fitBounds`, which throws.
+- **Dragging a pin writes into the table rather than saving.** The row goes
+  dirty and the table's own Save button picks it up, because a second save
+  scope on one screen is the shape of the bug that once cost a real user
+  twelve renames.
+
 ### Phase 3 — Live map (mobile-first)
 
 The Liaison, Logistics and Shadow roles are the primary mobile case: outdoors,
@@ -647,6 +671,15 @@ Things discovered but not yet acted on. Each is a real constraint, not a wish.
   of #5, because it needs a second club to design against.
 - **Multi-tenant rough edges** — issue #5. Resource limits, a signup path with
   password reset, and static asset caching.
+- **An open page is not told a new version is running** - issue #112, found
+  2026-09-10. A deploy replaces the code on the server, not the page a
+  volunteer has had open for hours, so after a mid-event deploy phones run the
+  old `app.js` against the new API with nothing on screen to say so. Setup has
+  a version chip; the field app, held by the people who will never think to
+  reload, has nothing. The fix must never auto-reload - yanking the map out
+  from under somebody mid-net is worse than slightly stale code - and must not
+  compete with the connection badge. Not urgent: the discipline is not to
+  deploy during a race. It exists for the deploy that happens anyway.
 - ~~**Lead runner divisions are fixed at male and female.**~~ Issue #99, found
   2026-09-10 while writing the setup guide, closed in 0.7.0: which leaders an
   event tracks is now per-event data in `lead_division`, edited under Setup ->
