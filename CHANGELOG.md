@@ -7,6 +7,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-09-10
+
 ### Added
 - **Places can be added by hand, and their coordinates corrected.** Not every
   organizer supplies a file, and the ones that do leave things out - a 5K, a
