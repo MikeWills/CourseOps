@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from courseops import db, importer, leaders, progress
+from courseops import categories, db, importer, leaders, progress
 
 COURSE = Path(__file__).parent / "fixtures" / "consumer_export_course.kml"
 MILE = 1609.344
@@ -506,3 +506,121 @@ def test_stops_snapping_to_another_route_are_skipped_until_stated(tmp_path):
         admin.set_poi_courses(conn, event_id, pid, [full])
 
     assert sequence() == ["A", "B", "C", "D", "H", "I"]
+
+
+# --- which leaders an event tracks ------------------------------------------
+#
+# Open, like the place layers and the station roles. A two-item constant here
+# meant a race with a wheelchair field needed a code change (#99).
+
+def test_a_new_event_tracks_the_usual_two(race):
+    conn, event_id, course_id, index = race
+    assert categories.lead_division_keys(conn, event_id) == ("male", "female")
+    assert categories.lead_division_labels(conn, event_id)["female"] == \
+        "First female"
+
+
+def test_a_club_adds_a_leader_and_every_race_gains_a_row(race):
+    """The cost of adding one is a row per race, which is why the setup screen
+    says so before anyone adds a fourth."""
+    conn, event_id, course_id, index = race
+    before = len(leaders.for_event(conn, event_id, index))
+    categories.add_lead_division(conn, event_id, "First wheelchair")
+    after = leaders.for_event(conn, event_id, index)
+    courses = len({e.course_id for e in after})
+    assert len(after) == before + courses
+    assert "First wheelchair" in {e.division_label for e in after}
+
+
+def test_the_label_is_stored_whole_not_assembled_from_the_key(race):
+    """"Wheelchair" would come out "First wheelchair" and "Masters winner"
+    could not exist at all if the code put "First" in front of the key."""
+    conn, event_id, course_id, index = race
+    categories.add_lead_division(conn, event_id, "Masters winner")
+    entry = next(e for e in leaders.for_event(conn, event_id, index)
+                 if e.division == "masters_winner")
+    assert entry.division_label == "Masters winner"
+
+
+def test_renaming_a_leader_keeps_its_sightings(race):
+    """The key is what a sighting stores, so it never moves when the name
+    does."""
+    conn, event_id, course_id, index = race
+    leaders.record_sighting(conn, event_id, course_id, "female",
+                            poi_id(conn, "Bravo"))
+    categories.rename_lead_division(conn, event_id, "female", "First woman")
+    entry = leader(conn, event_id, index, "female")
+    assert entry.division_label == "First woman"
+    assert entry.last_poi_name == "Bravo"
+
+
+def test_a_deleted_leader_is_not_seeded_back(race):
+    """A thing that reappears after you remove it teaches people not to trust
+    the screen. Same rule as the place layers."""
+    conn, event_id, course_id, index = race
+    assert categories.delete_lead_division(conn, event_id, "female") == 0
+    assert categories.lead_division_keys(conn, event_id) == ("male",)
+    assert {e.division for e in leaders.for_event(conn, event_id, index)} == \
+        {"male"}
+
+
+def test_deleting_a_leader_with_sightings_is_refused_with_the_count(race):
+    """The reports would stay in the database and vanish from the panel, with
+    nothing on screen to say where they went."""
+    conn, event_id, course_id, index = race
+    leaders.record_sighting(conn, event_id, course_id, "male",
+                            poi_id(conn, "Alpha"))
+    leaders.record_sighting(conn, event_id, course_id, "male",
+                            poi_id(conn, "Bravo"))
+    assert categories.delete_lead_division(conn, event_id, "male") == 2
+    assert "male" in categories.lead_division_keys(conn, event_id)
+
+    # Clearing them first is the existing, deliberate act.
+    leaders.clear_sightings(conn, event_id, course_id, "male")
+    assert categories.delete_lead_division(conn, event_id, "male") == 0
+
+
+def test_the_club_order_is_the_order_the_panel_lists_them(race):
+    conn, event_id, course_id, index = race
+    categories.reorder_lead_divisions(conn, event_id, ["female", "male"])
+    entries = leaders.for_event(conn, event_id, index)
+    assert [e.division for e in entries[:2]] == ["female", "male"]
+
+
+def test_reorder_refuses_a_partial_list(race):
+    """Anything left out would land in a slot nobody chose."""
+    conn, event_id, course_id, index = race
+    with pytest.raises(categories.CategoryError):
+        categories.reorder_lead_divisions(conn, event_id, ["male"])
+
+
+def test_a_sighting_whose_leader_is_missing_puts_it_back(race):
+    """An event that predates the table already holds male and female
+    sightings, and a report that is on no list shows as nothing at all - the
+    leader looks stuck at the previous station, with no error anywhere."""
+    conn, event_id, course_id, index = race
+    conn.execute("DELETE FROM lead_division WHERE event_id = ?", (event_id,))
+    conn.execute(
+        "INSERT INTO lead_sighting (event_id, course_id, division, poi_id)"
+        " VALUES (?, ?, 'wheelchair', ?)",
+        (event_id, course_id, poi_id(conn, "Charlie")),
+    )
+    keys = categories.lead_division_keys(conn, event_id)
+    assert "wheelchair" in keys
+    entry = leader(conn, event_id, index, "wheelchair")
+    assert entry.last_poi_name == "Charlie"
+
+
+def test_a_duplicate_leader_is_refused(race):
+    """By key, which comes from the whole name - so "First male" collides with
+    the seeded one however it is cased."""
+    conn, event_id, course_id, index = race
+    categories.add_lead_division(conn, event_id, "First wheelchair")
+    with pytest.raises(categories.CategoryError):
+        categories.add_lead_division(conn, event_id, "First Wheelchair")
+
+
+def test_a_leader_needs_a_name(race):
+    conn, event_id, course_id, index = race
+    with pytest.raises(categories.CategoryError):
+        categories.add_lead_division(conn, event_id, "   ")

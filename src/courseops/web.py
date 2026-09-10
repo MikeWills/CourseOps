@@ -337,9 +337,11 @@ def build_state(conn: sqlite3.Connection, event_id: int) -> dict[str, Any]:
         "ssid_alerts": _ssid_alerts(conn, event_id),
         "leaders": [entry.as_dict() for entry in
                     leaders.for_event(conn, event_id, index)],
+        # The leaders this event tracks, in the club's order. Per event, not a
+        # constant: a race with a wheelchair field used to need a code change.
         "divisions": [
-            {"value": value, "label": leaders.division_label(value)}
-            for value in leaders.DIVISIONS
+            {"value": row["key"], "label": row["name"]}
+            for row in categories.lead_divisions(conn, event_id)
         ],
         "incidents": incident_rows,
         "incident_statuses": [
@@ -1076,6 +1078,17 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
                     ).fetchone()["c"]}
                     for row in categories.roster_roles(conn, event_id)
                 ],
+                "lead_divisions": [
+                    # The count is what makes "delete" honest: a leader with
+                    # sightings against it cannot go, and the number says how
+                    # many reports would disappear with it.
+                    dict(row) | {"in_use": conn.execute(
+                        "SELECT COUNT(*) AS c FROM lead_sighting"
+                        " WHERE event_id = ? AND division = ?",
+                        (event_id, row["key"]),
+                    ).fetchone()["c"]}
+                    for row in categories.lead_divisions(conn, event_id)
+                ],
             }
             conn.commit()
         finally:
@@ -1189,6 +1202,70 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
                 categories.rename_roster_role, conn, event_id, key,
                 body.get("name", ""),
             )
+            conn.commit()
+        finally:
+            conn.close()
+        return JSONResponse(dict(row))
+
+    # The leaders this event tracks - "First male", "First wheelchair". Called
+    # leaders on screen and in these routes; the key stored on a sighting is
+    # still `division`, which is internal and in databases that already exist.
+    @app.post("/api/setup/events/{event_id}/leaders")
+    async def setup_add_leader(event_id: int, request: Request) -> JSONResponse:
+        conn, user = require_event_admin(request, event_id)
+        body = await _json_body(request, conn)
+        try:
+            row = _guard(categories.add_lead_division, conn, event_id,
+                         body.get("name") or "")
+            conn.commit()
+        finally:
+            conn.close()
+        return JSONResponse(dict(row), status_code=201)
+
+    # Literal before parameterised, or "reorder" parses as a leader key and the
+    # drag handle silently does nothing.
+    @app.post("/api/setup/events/{event_id}/leaders/reorder")
+    async def setup_reorder_leaders(
+        event_id: int, request: Request
+    ) -> JSONResponse:
+        conn, user = require_event_admin(request, event_id)
+        body = await _json_body(request, conn)
+        try:
+            count = _guard(categories.reorder_lead_divisions, conn, event_id,
+                           body.get("keys") or [])
+            conn.commit()
+        finally:
+            conn.close()
+        return JSONResponse({"ordered": count})
+
+    @app.post("/api/setup/events/{event_id}/leaders/{key}/delete")
+    async def setup_delete_leader(
+        event_id: int, key: str, request: Request
+    ) -> JSONResponse:
+        conn, user = require_event_admin(request, event_id)
+        try:
+            in_use = _guard(categories.delete_lead_division, conn, event_id, key)
+            conn.commit()
+        finally:
+            conn.close()
+        if in_use:
+            # The sightings would stay in the database and vanish from the
+            # panel, with nothing on screen to say where they went.
+            raise HTTPException(
+                status_code=400,
+                detail=f"{in_use} sighting{'' if in_use == 1 else 's'} "
+                       "recorded against this leader. Clear them first.")
+        return JSONResponse({"deleted": key})
+
+    @app.post("/api/setup/events/{event_id}/leaders/{key}")
+    async def setup_rename_leader(
+        event_id: int, key: str, request: Request
+    ) -> JSONResponse:
+        conn, user = require_event_admin(request, event_id)
+        body = await _json_body(request, conn)
+        try:
+            row = _guard(categories.rename_lead_division, conn, event_id, key,
+                         body.get("name", ""))
             conn.commit()
         finally:
             conn.close()

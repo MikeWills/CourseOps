@@ -121,9 +121,15 @@ seconds apart, the app shows no pace and no estimate at all rather than
 publishing "120 mph" and an aid station planning around it.
 
 - **Undo** removes the last sighting - for a mis-tap.
-- **Clear** empties that race and division - for the morning, when the panel is
-  carrying a rehearsal. It is scoped to one race and one division, so clearing
+- **Clear** empties that race and leader - for the morning, when the panel is
+  carrying a rehearsal. It is scoped to one race and one leader, so clearing
   the 10K cannot touch the Full.
+
+You get one row per race per leader. Most events track a first male and a
+first female, but the list is the club's: if your race awards a wheelchair
+division or a first junior, whoever set the event up can add it under
+**Setup -> Courses -> Leaders we track**, and the new row appears on this
+panel without anyone reloading.
 
 There is no "finished" state. A later sighting is the correction.
 

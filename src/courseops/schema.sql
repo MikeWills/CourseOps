@@ -368,8 +368,10 @@ CREATE TABLE IF NOT EXISTS lead_sighting (
     id        INTEGER PRIMARY KEY,
     event_id  INTEGER NOT NULL REFERENCES event(id) ON DELETE CASCADE,
     course_id INTEGER NOT NULL REFERENCES course(id) ON DELETE CASCADE,
-    -- male | female | any other division a race tracks. Stored as text so a
-    -- club can add wheelchair or non-binary without a migration.
+    -- The key of a lead_division row - "male", "female", "wheelchair". Free
+    -- text rather than a foreign key: a sighting is a record of something that
+    -- was reported on the net, and it must survive the club tidying up the
+    -- leader list afterwards.
     division  TEXT    NOT NULL,
     poi_id    INTEGER NOT NULL REFERENCES poi(id) ON DELETE CASCADE,
     bib       TEXT,
@@ -379,6 +381,38 @@ CREATE TABLE IF NOT EXISTS lead_sighting (
 
 CREATE INDEX IF NOT EXISTS idx_lead_sighting
     ON lead_sighting (event_id, course_id, division, at DESC);
+
+-- Which leaders this event tracks: "First male", "First wheelchair", "First
+-- junior". One row per kind of racer the club wants a position for, per event.
+--
+-- Open for the same reason the place layers and the station roles are open -
+-- the taxonomy is the club's, not the code's. A two-item constant in Python
+-- meant a race with a wheelchair field could not be tracked without a code
+-- change, and the setup guide had to say so.
+--
+-- Called "leaders" everywhere a human looks, because that is what each row is
+-- and it is the word already on the NCS panel. The KEY is still `division`,
+-- here and in lead_sighting - internal, in databases that already exist, and
+-- renaming it would buy nothing anyone can see.
+--
+-- `name` is the whole label as it appears on the panel ("First male"), not a
+-- fragment the code completes: a club adding "Wheelchair" would otherwise get
+-- "First wheelchair", and a club tracking "Masters winner" could not have it
+-- at all.
+CREATE TABLE IF NOT EXISTS lead_division (
+    id         INTEGER PRIMARY KEY,
+    event_id   INTEGER NOT NULL REFERENCES event(id) ON DELETE CASCADE,
+    -- Stable. lead_sighting.division stores this, so it never changes when the
+    -- club edits the name.
+    key        TEXT    NOT NULL,
+    name       TEXT    NOT NULL,
+    -- The set is the club's, so the order cannot come from a list in the code.
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    UNIQUE (event_id, key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_lead_division_event
+    ON lead_division (event_id, sort_order);
 
 -- Every operational status change, never overwritten.
 --

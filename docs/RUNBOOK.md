@@ -596,8 +596,15 @@ it has passed to *Torn down*.
 
 ### Lead runners
 
-Track the first male and first female for each race. Aid stations call it in as
-the leaders pass; NCS records it.
+Track a leader for each race - first male and first female to start with. Aid
+stations call it in as the leaders pass; NCS records it.
+
+Which leaders this event tracks is set in `/setup` -> Courses -> **Leaders we
+track**: rename the two that come with a new event, add a wheelchair leader or
+a first junior, delete any the race does not award. Do this before the event,
+not during it - every leader adds a row per race to the NCS panel, and a
+leader that has already been sighted cannot be deleted until its sightings are
+cleared.
 
 Before the event, set each race's bib colour so it matches what operators will
 see on the runners. `/setup` -> Courses, the **Bib colour** column, or:

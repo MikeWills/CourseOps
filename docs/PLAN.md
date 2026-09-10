@@ -375,9 +375,25 @@ Where colour lives today, and what a spec would touch:
 
 ### Lead runner tracking
 
-First male and first female per race, reported as they pass aid stations. The
-counterpart to the sweep: the sweep says when a station may close, the leader
-says when it must be ready.
+Leaders per race, reported as they pass aid stations. The counterpart to the
+sweep: the sweep says when a station may close, the leader says when it must be
+ready.
+
+**Which leaders an event tracks is the club's** (`lead_division`, one row per
+kind of racer, edited under Setup -> Courses). A new event is seeded with first
+male and first female; a club adds a wheelchair leader or a first junior and
+deletes what it does not award. Same three rules as the place layers and the
+station roles, each of which was a real failure once: seed only into an event
+with none, so a deleted leader stays deleted; the key never moves, because
+`lead_sighting.division` stores it and renaming must not orphan a report; and
+deleting one that has been sighted is refused with the count rather than
+leaving those reports off the panel with nothing to say where they went.
+
+The label is stored whole - "First male", not a "male" the code prefixes -
+because "Wheelchair" would otherwise render "First wheelchair" and "Masters
+winner" could not exist. It is called a **leader** everywhere a human looks and
+a `division` in the code and schema, which is internal and in databases that
+already exist. Resolved #99.
 
 There is no tracker on the front runner, so this is a **log of reports** called
 in over the net, not a track. Position, pace and the estimate for the next

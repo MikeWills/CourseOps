@@ -7,6 +7,42 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **The leaders an event tracks are the club's now, not a constant in the
+  code.** A new "Leaders we track" list under Courses in setup: rename the two
+  that come with a new event, add a wheelchair leader or a first junior, delete
+  any the race does not award, and drag them into the order they get read on
+  the air. This was `leaders.DIVISIONS = ("male", "female")` in Python, a copy
+  of it in the state endpoint and a third copy in `app.js`, so a race with a
+  wheelchair field could not be tracked without a code change - the setup guide
+  had to say so in as many words. Same shape as the place layers and the
+  station roles, and for the reason already written down for those: the
+  taxonomy is the club's, not the code's. (#99)
+
+  Three things carried over from those, because each was a real failure once.
+  The defaults seed only into an event that has **none**, so a leader a club
+  deletes stays deleted. The **key never changes** - `lead_sighting.division`
+  stores it, so renaming "First female" to "First woman" leaves every report
+  where it is. And deleting one that has been sighted is **refused**, with the
+  count, rather than leaving those reports in the database and off the panel
+  with nothing to say where they went; clearing them first is the existing,
+  deliberate act.
+
+  The name is stored **whole** - "First male", not a "male" the code puts
+  "First" in front of. The old wording was assembled that way, which would have
+  turned a "Wheelchair" leader into "First wheelchair" and put "Masters winner"
+  out of reach entirely.
+
+  It is called a **leader** everywhere a human looks: it is what each row is,
+  and it is the word already on the NCS panel. The key stays `division` in the
+  schema and the code, unseen and in databases that already exist, where
+  renaming it would have bought a migration and nothing else.
+
+  Adding one costs a row per race on the NCS panel - two leaders and three
+  races is six rows - which is why the list is as easy to shorten as to
+  lengthen, and why the setup screen says so before anyone adds a fourth.
+
+
 ## [0.6.0] - 2026-09-10
 
 ### Added
