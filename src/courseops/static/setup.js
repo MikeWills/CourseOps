@@ -216,7 +216,12 @@ async function refreshTab(name) {
     // One loader for both: the places table needs the courses for its Races
     // column, and the courses table is small. Rendering into a panel that is
     // not showing costs nothing and keeps the two in step.
-    if (name === 'courses' || name === 'stations') return loadCourses();
+    if (name === 'courses' || name === 'stations') {
+      // The leaders list lives on the Courses tab: it is per race, and the
+      // same endpoint already carries it.
+      if (name === 'courses') loadLayers('leaders');
+      return loadCourses();
+    }
     if (name === 'layers' || name === 'roles') return loadLayers();
     if (name === 'tracking') return loadTracking();
     if (name === 'roster') return loadRoster();
@@ -1532,8 +1537,64 @@ async function loadLayers(only) {
   const data = await api(`/api/setup/events/${S.eventId}/categories`);
   S.poiCategories = data.poi_categories;
   S.roles = data.roster_roles;
-  if (only !== 'roles') renderLayerTable();
-  if (only !== 'layers') renderRoleTable();
+  S.leaders = data.lead_divisions;
+  // Three tables on one endpoint, each re-rendered only when asked for.
+  // Reloading a table the user has not touched discards edits in progress in
+  // it - the same bug that cost twelve renames on the roster, one table over.
+  if (only === undefined) { renderLayerTable(); renderRoleTable(); renderLeaderTable(); return; }
+  if (only === 'layers') renderLayerTable();
+  if (only === 'roles') renderRoleTable();
+  if (only === 'leaders') renderLeaderTable();
+}
+
+function renderLeaderTable() {
+  $('leader-table').innerHTML = `
+    <table class="grid"><thead><tr><th></th><th>Leader</th>
+      <th>Sightings</th><th></th></tr></thead><tbody>`
+    + S.leaders.map((d) => `<tr data-row="${esc(d.key)}">
+        <td class="grip-cell">${iconBtn('grip', {'data-grip': d.key},
+          `Reorder ${d.name} - drag, or use the arrow keys`)}</td>
+        <td><input value="${esc(d.name)}" data-dname="${esc(d.key)}"
+              style="width:180px">
+          <br><span class="muted">${esc(d.key)}</span></td>
+        <td>${d.in_use || 0}</td>
+        <td class="actions">${iconBtn('remove', {'data-ddel': d.key},
+          `Delete ${d.name}`)}</td>
+      </tr>`).join('') + '</tbody></table>';
+
+  // The order the leaders are listed within each race on the NCS panel, so a
+  // club that reads "female, male" off the net puts them that way round.
+  bindReorder($('leader-table'), async (keys) => {
+    try {
+      await post(`/api/setup/events/${S.eventId}/leaders/reorder`, { keys });
+      $('leader-order-note').textContent = 'Order saved.';
+    } catch (err) {
+      $('leader-order-note').textContent = `Order NOT saved: ${err.message}`;
+      banner(err.message, true);
+    }
+  });
+
+  bindSaveAll({
+    table: 'leader-table',
+    button: 'leader-save-all',
+    status: 'leader-dirty',
+    fields: [{ attr: 'dname', name: 'name' }],
+    save: (key, payload) =>
+      post(`/api/setup/events/${S.eventId}/leaders/${key}`, payload),
+    noun: 'leader(s)',
+    reload: () => loadLayers('leaders'),
+  });
+
+  $('leader-table').querySelectorAll('[data-ddel]').forEach((b) =>
+    b.addEventListener('click', async () => {
+      const lead = S.leaders.find((d) => d.key === b.dataset.ddel);
+      if (!confirm(`Stop tracking "${lead.name}"?`)) return;
+      try {
+        await post(`/api/setup/events/${S.eventId}/leaders/${lead.key}/delete`);
+        banner(`Deleted ${lead.name}.`);
+        loadLayers('leaders');
+      } catch (err) { banner(err.message, true); }
+    }));
 }
 
 function renderLayerTable() {
@@ -1643,6 +1704,22 @@ function renderRoleTable() {
     reload: () => loadLayers('roles'),
   });
 }
+
+$('leader-form').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  if (!needEvent()) return;
+  $('leader-error').hidden = true;
+  try {
+    await post(`/api/setup/events/${S.eventId}/leaders`,
+      { name: $('leader-name').value });
+    $('leader-name').value = '';
+    banner('Leader added.');
+    loadLayers('leaders');
+  } catch (err) {
+    $('leader-error').textContent = err.message;
+    $('leader-error').hidden = false;
+  }
+});
 
 $('role-form').addEventListener('submit', async (ev) => {
   ev.preventDefault();

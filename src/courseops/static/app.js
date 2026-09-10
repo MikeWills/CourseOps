@@ -72,8 +72,11 @@ const state = {
   ignored: [],                // station_exclusion rows (NCS only)
   nearby: new Map(),          // station_key -> what was heard near the course (NCS only)
   leaders: [],
-  divisions: [{value: 'male', label: 'First male'},
-              {value: 'female', label: 'First female'}],
+  // Which leaders this event tracks - "First male", "First wheelchair" - is
+  // the club's, set in setup and sent in the snapshot. Empty until it
+  // arrives: a hardcoded pair here would render two rows the event may not
+  // have, and they would be replaced a moment later by a different list.
+  divisions: [],
   aidStations: [],
   operatorInitials: '',
   following: false,

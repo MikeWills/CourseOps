@@ -55,7 +55,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 522 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 537 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -203,6 +203,27 @@ usability, not style preferences.
   holding `CAP_SSID`, and written to the database only once NCS matches it
   to a roster entry. Not a position, not a raw packet, for anyone else. The
   roster is the allowlist: with nobody on it, nothing is stored at all.
+- **Which leaders an event tracks is the club's, not the code's.** Same rule
+  as the place layers and the station roles, and it arrived late for the same
+  reason: `leaders.DIVISIONS` was a two-item constant, copied into the state
+  endpoint and again into `app.js`, so a race with a wheelchair field needed a
+  code change. `lead_division` is the list, seeded ONLY into an event with
+  none. The key never moves - `lead_sighting.division` stores it, so renaming
+  "First female" to "First woman" must leave every report where it is - and
+  deleting one that has been sighted is refused with the count, because those
+  reports would otherwise sit in the database and off the panel with nothing
+  to say where they went. The label is stored WHOLE ("First male"), never
+  assembled as `First {key}`: that is what put "Masters winner" out of reach
+  and turned "Wheelchair" into "First wheelchair".
+- **It is a "leader" on screen and a `division` in the code.** The word the
+  club reads is the one already on the NCS panel; the schema keeps `division`
+  because it is unseen and already in deployed databases, where renaming it
+  buys a migration and nothing anyone can see. Do not "tidy" one into the
+  other.
+- **Adding a leader costs a row per race on the NCS panel.** Two leaders and
+  three races is six rows; four is twelve. That is why deleting has to be as
+  ordinary an action as adding, and why the setup screen states the
+  arithmetic before someone adds a fourth.
 - **Lead runner sightings are reports, not measurements.** There is no tracker
   on the front runner. Store the sighting; derive position, pace and ETA from it.
 - **A clock time in the live app is formatted by the BROWSER, in the event's
@@ -814,6 +835,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-11** Clubs choose which leaders an event tracks - a wheelchair leader, a first junior - instead of a fixed male/female pair.
 - **2026-09-10** A `?` in the top bar of every screen opens that role's guide in a new tab.
 - **2026-09-09** Wiki gains a setup guide for club officers, including what a club can bend; README points at the wiki.
 - **2026-09-09** Setup can issue several links for one role, labelled, and revoke one without cutting off the rest.
@@ -823,4 +845,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-09** Volunteer guides per role in `docs/wiki/`, with screenshots from a demo event.
 - **2026-09-08** Fixed: the Course Ops lockup rides the LEFT column, so swapping SAG's columns no longer moves it.
 - **2026-09-08** NCS: pickups and course notes moved into the side panel above stations.
-- **2026-09-07** Read-only views say "Passed Bravo at 09:42" for lead runners; NCS keeps the relative age.

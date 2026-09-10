@@ -20,11 +20,17 @@ import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-# Divisions a race tracks. Stored as free text in the database so a club can add
-# wheelchair or non-binary divisions without a migration; this is just the set
-# offered in the UI by default.
+# Which leaders an event tracks is the club's, not the code's: `lead_division`,
+# one row per kind of racer, seeded with the two below and edited in setup. This
+# was a two-item constant here, which meant a race with a wheelchair field could
+# not be tracked without editing Python.
+#
+# It is called a "leader" everywhere a human looks, and a `division` in the code
+# and in `lead_sighting.division`. The key is what a sighting stores, so it is
+# the half that cannot move.
+#
+# These two remain only as the fallback for a caller with no database handy.
 DIVISIONS = ("male", "female")
-DIVISION_LABELS = {"male": "First male", "female": "First female"}
 
 # A leader who has not been reported for this long is probably between aid
 # stations rather than missing - the gap between stations is often several
@@ -47,8 +53,18 @@ MIN_PACE_MPS = 1609.344 / (30 * 60)   # 30:00 per mile
 MAX_PACE_MPS = 1609.344 / (3 * 60)    # 3:00 per mile
 
 
-def division_label(division: str) -> str:
-    return DIVISION_LABELS.get(division, f"First {division}")
+def division_label(division: str, labels: dict[str, str] | None = None) -> str:
+    """The club's own wording for a leader, or a plain guess without it.
+
+    The label is stored whole ("First male"), never assembled from the key: a
+    club adding "Wheelchair" would otherwise get "First wheelchair", and one
+    tracking "Masters winner" could not have it at all. The fallback exists for
+    a sighting whose leader has since been renamed out from under it, and for
+    callers holding a division with no event to look it up in.
+    """
+    if labels and division in labels:
+        return labels[division]
+    return f"First {(division or '').replace('_', ' ')}".rstrip()
 
 
 @dataclass(frozen=True)
@@ -60,6 +76,9 @@ class Leader:
     bib_color: str | None
     bib_color_name: str | None
     division: str
+    # The club's own wording, carried on the row because it is per event and a
+    # constant in this module is exactly what this replaced.
+    division_name: str | None = None
     last_poi_id: int | None = None
     last_poi_name: str | None = None
     last_distance_m: float | None = None
@@ -74,7 +93,7 @@ class Leader:
 
     @property
     def division_label(self) -> str:
-        return division_label(self.division)
+        return self.division_name or division_label(self.division)
 
     def as_dict(self) -> dict:
         data = {
@@ -244,14 +263,24 @@ def for_event(
     conn: sqlite3.Connection,
     event_id: int,
     index,
-    divisions: tuple[str, ...] = DIVISIONS,
+    divisions: tuple[str, ...] | None = None,
 ) -> list[Leader]:
-    """Current leader state for every course and division.
+    """Current leader state for every course and leader this event tracks.
+
+    `divisions` defaults to the event's own list, in the club's order. Passing
+    a tuple is for callers that want a subset; the labels still come from the
+    event, so a caller cannot invent wording the setup screen disagrees with.
 
     `index` is a `progress.CourseIndex`, used to turn each aid station into a
     distance along the course - which is what makes pace and the next station
     computable at all.
     """
+    from . import categories
+
+    labels = categories.lead_division_labels(conn, event_id)
+    if divisions is None:
+        divisions = tuple(labels)
+
     courses = conn.execute(
         "SELECT * FROM course WHERE event_id = ? ORDER BY sort_order, id",
         (event_id,),
@@ -305,18 +334,22 @@ def for_event(
         ]
         for division in divisions:
             results.append(
-                _leader_for(conn, event_id, course, division, on_course, known)
+                _leader_for(conn, event_id, course, division, on_course, known,
+                            division_label(division, labels))
             )
     return results
 
 
-def _leader_for(conn, event_id, course, division, stations, known) -> Leader:
+def _leader_for(
+    conn, event_id, course, division, stations, known, division_name=None
+) -> Leader:
     base = dict(
         course_id=course["id"],
         course_name=course["name"],
         bib_color=course["bib_color"] or course["color"],
         bib_color_name=course["bib_color_name"],
         division=division,
+        division_name=division_name,
     )
 
     reports = sightings(conn, event_id, course["id"], division)

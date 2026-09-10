@@ -73,12 +73,19 @@ and you still have the course, the places, the roster with live status, the
 pickup queue, course notes and lead runners. Positions are one feature, not the
 foundation - a club with handhelds and no trackers still gets most of this.
 
-**Lead runners are per race.** Every race gets its own first male and first
-female, with its own bib colour, so a three-race event is three progressions
-rather than one confused one. (Those two divisions are what the app offers
-today. Nothing in the database is limited to them, but adding a third is
-currently a code change rather than a setting - worth asking for if your event
-needs it.)
+**Lead runners are per race, and which leaders you track is yours.** A new
+event comes with *First male* and *First female*; **Setup -> Courses ->
+Leaders we track** is where you rename them, add a wheelchair leader or a first
+junior, or delete one your race does not award. Each race gets its own
+progression and its own bib colour, so a three-race event is three
+progressions rather than one confused one.
+
+Bear the arithmetic in mind before adding a fourth: Net Control sees one row
+per race per leader, so three races and two leaders is six rows, and three
+races and four leaders is twelve. Track what will actually be called in on the
+net. Reports are recorded against a leader, so one that has already been
+sighted has to have its sightings cleared before it can be deleted - and
+renaming is always safe, because reports follow the leader, not the wording.
 
 **Give the organizer the Staff link early.** It is read-only, it is safe to
 forward to people the club has never met, and a race director watching the sweep

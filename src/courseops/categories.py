@@ -1,6 +1,6 @@
-"""What kinds of place and what kinds of station this event has.
+"""What kinds of place, station and leader this event has.
 
-Two taxonomies, deliberately treated differently.
+Three taxonomies, deliberately treated differently.
 
 **POI categories are open.** A KML arrives with whatever layers the organizer
 drew — mile markers, medical, aid stations, traffic control, portable toilets,
@@ -21,6 +21,13 @@ status vocabulary — an aid station is "Torn down" where a sweep is "Finished" 
 and that mapping lives in code. But one club's "Rover" is another's "Floater",
 so the displayed name belongs to the club. Renaming is safe precisely because
 nothing keys off the name.
+
+**Leaders are open.** Which types of racer a club wants a position for is a
+property of the race, not of this program: first male and first female for one
+event, a wheelchair field or a first junior for the next. This was a two-item
+constant in `leaders.py` until a club could not add one without a code change.
+Each row carries a whole label - "First male", not a "male" the code dresses
+up - because a club tracking "Masters winner" has no first anything.
 """
 
 from __future__ import annotations
@@ -59,6 +66,17 @@ DEFAULT_ROSTER_ROLES: list[tuple[str, str]] = [
     ("shadow", "Shadow"),
     ("rover", "Rover"),
     ("start_finish", "Start / finish"),
+]
+
+# The leaders a new event tracks. The two nearly every race has; a club adds a
+# wheelchair or junior leader, or deletes one it does not track, in setup.
+#
+# The name is the full label the NCS panel shows. Deriving it from the key as
+# "First {key}" is what made "Wheelchair" come out as "First wheelchair" and
+# put "Masters winner" out of reach entirely.
+DEFAULT_LEAD_DIVISIONS: list[tuple[str, str]] = [
+    ("male", "First male"),
+    ("female", "First female"),
 ]
 
 _KEY_OK = re.compile(r"^[a-z0-9][a-z0-9_]{0,39}$")
@@ -413,3 +431,183 @@ def rename_roster_role(
     return conn.execute(
         "SELECT * FROM roster_role WHERE event_id = ? AND key = ?", (event_id, key)
     ).fetchone()
+
+
+# --- leaders ----------------------------------------------------------------
+#
+# "Leaders" on screen, `division` in the code and in `lead_sighting.division`.
+# The key is what a sighting stores, so it is the half that cannot move.
+
+def seed_lead_divisions(conn: sqlite3.Connection, event_id: int) -> None:
+    """Give a new event the usual two, once.
+
+    Only into an event with none at all - the same rule as the place layers and
+    the station roles, and for the same reason. A club that deletes the female
+    leader because this race has one open field must not find it back on the
+    next page load.
+    """
+    has_any = conn.execute(
+        "SELECT 1 FROM lead_division WHERE event_id = ? LIMIT 1", (event_id,)
+    ).fetchone()
+    if has_any is None:
+        for order, (key, name) in enumerate(DEFAULT_LEAD_DIVISIONS):
+            conn.execute(
+                "INSERT OR IGNORE INTO lead_division"
+                " (event_id, key, name, sort_order) VALUES (?, ?, ?, ?)",
+                (event_id, key, name, order * 10),
+            )
+    # Unlike the defaults, this runs every time. A sighting whose leader is not
+    # in the list is a report that was made on the net and would then show as
+    # nothing at all - the leader would appear stuck at the previous station,
+    # with no error anywhere. Better a plainly-named row the club can rename.
+    #
+    # It is also the upgrade path: events that predate this table already hold
+    # male and female sightings, and this is what puts them back on the panel.
+    for row in conn.execute(
+        "SELECT DISTINCT division FROM lead_sighting WHERE event_id = ?",
+        (event_id,),
+    ).fetchall():
+        key = (row["division"] or "").strip()
+        if not key:
+            continue
+        conn.execute(
+            "INSERT OR IGNORE INTO lead_division"
+            " (event_id, key, name, sort_order) VALUES (?, ?, ?, 900)",
+            (event_id, key, "First " + key.replace("_", " ")),
+        )
+
+
+def lead_divisions(conn: sqlite3.Connection, event_id: int) -> list[sqlite3.Row]:
+    """Every leader this event tracks, in the club's order."""
+    seed_lead_divisions(conn, event_id)
+    return conn.execute(
+        "SELECT * FROM lead_division WHERE event_id = ?"
+        " ORDER BY sort_order, name",
+        (event_id,),
+    ).fetchall()
+
+
+def lead_division_keys(conn: sqlite3.Connection, event_id: int) -> tuple[str, ...]:
+    return tuple(row["key"] for row in lead_divisions(conn, event_id))
+
+
+def lead_division_labels(conn: sqlite3.Connection, event_id: int) -> dict[str, str]:
+    return {row["key"]: row["name"] for row in lead_divisions(conn, event_id)}
+
+
+def add_lead_division(
+    conn: sqlite3.Connection, event_id: int, name: str
+) -> sqlite3.Row:
+    """Track another kind of racer: a wheelchair field, a first junior.
+
+    Costs one row per race on the NCS panel, which is why deleting is as
+    ordinary an action as adding.
+    """
+    seed_lead_divisions(conn, event_id)
+    name = (name or "").strip()
+    if not name:
+        raise CategoryError("A leader needs a name.")
+    key = slugify(name)
+    if not _KEY_OK.match(key):
+        raise CategoryError(f"{name!r} does not make a usable leader name.")
+    existing = conn.execute(
+        "SELECT 1 FROM lead_division WHERE event_id = ? AND key = ?",
+        (event_id, key),
+    ).fetchone()
+    if existing is not None:
+        raise CategoryError(f"A leader called {name!r} already exists.")
+    top = conn.execute(
+        "SELECT COALESCE(MAX(sort_order), 0) AS m FROM lead_division"
+        " WHERE event_id = ?", (event_id,),
+    ).fetchone()["m"]
+    conn.execute(
+        "INSERT INTO lead_division (event_id, key, name, sort_order)"
+        " VALUES (?, ?, ?, ?)",
+        (event_id, key, name, top + 10),
+    )
+    return conn.execute(
+        "SELECT * FROM lead_division WHERE event_id = ? AND key = ?",
+        (event_id, key),
+    ).fetchone()
+
+
+def rename_lead_division(
+    conn: sqlite3.Connection, event_id: int, key: str, name: str
+) -> sqlite3.Row:
+    """Change the label. The key stays, so recorded sightings still belong."""
+    name = (name or "").strip()
+    if not name:
+        raise CategoryError("A leader needs a name.")
+    seed_lead_divisions(conn, event_id)
+    known = conn.execute(
+        "SELECT 1 FROM lead_division WHERE event_id = ? AND key = ?",
+        (event_id, key),
+    ).fetchone()
+    if known is None:
+        raise CategoryError(f"Unknown leader {key!r}.")
+    conn.execute(
+        "UPDATE lead_division SET name = ? WHERE event_id = ? AND key = ?",
+        (name, event_id, key),
+    )
+    return conn.execute(
+        "SELECT * FROM lead_division WHERE event_id = ? AND key = ?",
+        (event_id, key),
+    ).fetchone()
+
+
+def delete_lead_division(conn: sqlite3.Connection, event_id: int, key: str) -> int:
+    """Stop tracking a leader. Refuses while sightings reference it.
+
+    Same rule as a place layer with places in it: the reports would stay in the
+    database and vanish from the panel, with nothing to say where they went.
+    Clearing a leader's sightings is `leaders.clear_sightings`, which is a
+    deliberate separate act. Returns the count that blocked it, or 0.
+    """
+    seed_lead_divisions(conn, event_id)
+    known = conn.execute(
+        "SELECT 1 FROM lead_division WHERE event_id = ? AND key = ?",
+        (event_id, key),
+    ).fetchone()
+    if known is None:
+        raise CategoryError(f"Unknown leader {key!r}.")
+    in_use = conn.execute(
+        "SELECT COUNT(*) AS c FROM lead_sighting WHERE event_id = ?"
+        " AND division = ?",
+        (event_id, key),
+    ).fetchone()["c"]
+    if in_use:
+        return int(in_use)
+    conn.execute(
+        "DELETE FROM lead_division WHERE event_id = ? AND key = ?",
+        (event_id, key),
+    )
+    return 0
+
+
+def reorder_lead_divisions(
+    conn: sqlite3.Connection, event_id: int, keys: list[str]
+) -> int:
+    """Set the order the leaders are listed in, top first.
+
+    The NCS panel groups by race and lists the leaders within it in this order,
+    so a club that reads "female, male" off the net puts them that way round.
+    Every leader must be listed, so none lands in a slot nobody chose - which
+    is also why this seeds first: against a table that has never been read the
+    defaults do not exist yet, and every list would look partial.
+    """
+    seed_lead_divisions(conn, event_id)
+    wanted = [str(k) for k in keys or []]
+    known = {
+        row["key"] for row in conn.execute(
+            "SELECT key FROM lead_division WHERE event_id = ?", (event_id,)
+        ).fetchall()
+    }
+    if not wanted or set(wanted) != known or len(wanted) != len(known):
+        raise CategoryError("Every leader in the event must be listed, once.")
+    for position, key in enumerate(wanted, start=1):
+        conn.execute(
+            "UPDATE lead_division SET sort_order = ?"
+            " WHERE event_id = ? AND key = ?",
+            (position * 10, event_id, key),
+        )
+    return len(wanted)

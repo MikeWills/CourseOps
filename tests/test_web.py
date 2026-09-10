@@ -1156,6 +1156,89 @@ def test_a_failed_setup_change_publishes_nothing(setup, tmp_path):
             ws.close()
 
 
+def test_the_state_endpoint_publishes_the_event_own_leaders(setup, tmp_path):
+    """Which leaders an event tracks was a constant in Python and a copy of it
+    in app.js, so a race with a wheelchair field needed a code change (#99)."""
+    app, tokens, db_path, event_id = setup
+    _make_admin(db_path)
+
+    with TestClient(app) as client:
+        client.post("/api/setup/login",
+                    json={"username": "mike", "password": "a-long-enough-password"})
+        added = client.post(f"/api/setup/events/{event_id}/leaders",
+                            json={"name": "First wheelchair"})
+        assert added.status_code == 201, added.text
+
+        state = client.get(f"/api/m2026/{tokens['ncs']}/state").json()
+
+    labels = [d["label"] for d in state["divisions"]]
+    assert labels == ["First male", "First female", "First wheelchair"]
+    # And every race gained a row on the panel, which is the cost of adding one.
+    assert "First wheelchair" in {e["division_label"] for e in state["leaders"]}
+
+
+def test_adding_a_leader_reaches_a_connected_map(setup, tmp_path):
+    """NCS sees their own screen update, so without the resync the field would
+    be the last to know a leader had appeared."""
+    app, tokens, db_path, event_id = setup
+    _make_admin(db_path)
+
+    with TestClient(app) as client:
+        client.post("/api/setup/login",
+                    json={"username": "mike", "password": "a-long-enough-password"})
+        with client.websocket_connect(f"/ws/m2026/{tokens['liaison']}") as ws:
+            client.post(f"/api/setup/events/{event_id}/leaders",
+                        json={"name": "First junior"})
+            assert ws.receive_json()["type"] == "resync"
+            ws.close()
+
+
+def test_reordering_leaders_is_not_swallowed_by_the_key_route(setup, tmp_path):
+    """Same trap as /pois/move: "reorder" parses as a leader key unless the
+    literal route is declared first, and the drag handle silently does
+    nothing."""
+    app, _, db_path, event_id = setup
+    _make_admin(db_path)
+
+    with TestClient(app) as client:
+        client.post("/api/setup/login",
+                    json={"username": "mike", "password": "a-long-enough-password"})
+        ordered = client.post(
+            f"/api/setup/events/{event_id}/leaders/reorder",
+            json={"keys": ["female", "male"]},
+        )
+
+    assert ordered.status_code == 200, ordered.text
+    assert ordered.json()["ordered"] == 2
+
+
+def test_deleting_a_sighted_leader_is_refused_with_the_count(setup, tmp_path):
+    """The reports would stay in the database and vanish from the panel, with
+    nothing on screen to say where they went."""
+    app, tokens, db_path, event_id = setup
+    _make_admin(db_path)
+
+    conn = db.connect(db_path)
+    course_id = conn.execute(
+        "SELECT id FROM course WHERE event_id = ?", (event_id,)).fetchone()["id"]
+    poi = conn.execute(
+        "SELECT id FROM poi WHERE event_id = ?", (event_id,)).fetchone()["id"]
+    conn.close()
+
+    with TestClient(app) as client:
+        client.post("/api/setup/login",
+                    json={"username": "mike", "password": "a-long-enough-password"})
+        client.post(
+            f"/api/m2026/{tokens['ncs']}/leaders/sighting",
+            json={"course_id": course_id, "division": "male", "poi_id": poi},
+        )
+        refused = client.post(
+            f"/api/setup/events/{event_id}/leaders/male/delete")
+
+    assert refused.status_code == 400
+    assert "1 sighting" in refused.json()["detail"]
+
+
 def test_moving_places_is_not_swallowed_by_the_poi_id_route(setup, tmp_path):
     """FastAPI matches routes in declaration order, so /pois/move has to be
     declared before /pois/{poi_id} or the word "move" is parsed as an id and
