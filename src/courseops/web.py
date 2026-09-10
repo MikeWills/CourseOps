@@ -898,6 +898,19 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     # word "move" gets parsed as a poi_id and the request 422s. The failure
     # is quiet in the UI, which just does nothing.
     # Literal before parameterised, for the same reason as /pois/move below.
+    # Add a place by hand, for the organizer who supplies no water stops - or
+    # none at all, as a parade or a vehicle race will not.
+    @app.post("/api/setup/events/{event_id}/pois")
+    async def setup_add_poi(event_id: int, request: Request) -> JSONResponse:
+        conn, user = require_event_admin(request, event_id)
+        body = await _json_body(request, conn)
+        try:
+            row = _guard(admin.create_poi, conn, event_id, body)
+            conn.commit()
+        finally:
+            conn.close()
+        return JSONResponse(row, status_code=201)
+
     @app.post("/api/setup/events/{event_id}/pois/reorder")
     async def setup_reorder_pois(event_id: int, request: Request) -> JSONResponse:
         conn, user = require_event_admin(request, event_id)

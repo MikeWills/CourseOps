@@ -1239,6 +1239,148 @@ def test_deleting_a_sighted_leader_is_refused_with_the_count(setup, tmp_path):
     assert "1 sighting" in refused.json()["detail"]
 
 
+# --- places added and moved by hand (#108) ----------------------------------
+
+def _login(client):
+    return client.post(
+        "/api/setup/login",
+        json={"username": "mike", "password": "a-long-enough-password"})
+
+
+def test_a_place_can_be_added_by_hand(setup, tmp_path):
+    """Not every organizer supplies a file, and the ones that do leave things
+    out. A parade or a vehicle race has people standing at points with no
+    "stops" to import at all."""
+    app, tokens, db_path, event_id = setup
+    _make_admin(db_path)
+
+    with TestClient(app) as client:
+        _login(client)
+        added = client.post(
+            f"/api/setup/events/{event_id}/pois",
+            json={"name": "Water stop D", "poi_type": "aid_station",
+                  "lat": "44.13906", "lon": "-93.98921"},
+        )
+        assert added.status_code == 201, added.text
+        state = client.get(f"/api/m2026/{tokens['ncs']}/state").json()
+
+    place = next(p for p in state["pois"] if p["name"] == "Water stop D")
+    assert (round(place["lat"], 5), round(place["lon"], 5)) == (44.13906, -93.98921)
+
+
+def test_a_hand_added_place_lands_at_the_end_of_the_order(setup, tmp_path):
+    """sort_order 0 sorts LAST, so it is visible rather than dropped into the
+    middle of a sequence the club arranged."""
+    app, _, db_path, event_id = setup
+    _make_admin(db_path)
+
+    with TestClient(app) as client:
+        _login(client)
+        client.post(f"/api/setup/events/{event_id}/pois",
+                    json={"name": "Late arrival", "poi_type": "aid_station",
+                          "lat": 44.1, "lon": -93.9})
+
+    conn = db.connect(db_path)
+    order = conn.execute(
+        "SELECT sort_order FROM poi WHERE event_id = ? AND name = ?",
+        (event_id, "Late arrival")).fetchone()["sort_order"]
+    conn.close()
+    assert order == 0
+
+
+def test_a_places_coordinates_can_be_corrected(setup, tmp_path):
+    """Position was import-only, and permanently so: a place a hand-drawn file
+    put in the wrong spot could be renamed and relayered but never moved, and
+    the mile figure, the course snap and the pin all read from it."""
+    app, _, db_path, event_id = setup
+    _make_admin(db_path)
+
+    conn = db.connect(db_path)
+    poi_id = conn.execute(
+        "SELECT id FROM poi WHERE event_id = ?", (event_id,)).fetchone()["id"]
+    conn.close()
+
+    with TestClient(app) as client:
+        _login(client)
+        moved = client.post(f"/api/setup/events/{event_id}/pois/{poi_id}",
+                            json={"lat": 44.5, "lon": -93.5})
+
+    assert moved.status_code == 200, moved.text
+    assert (moved.json()["lat"], moved.json()["lon"]) == (44.5, -93.5)
+
+
+def test_coordinates_swapped_the_wrong_way_round_are_refused(setup, tmp_path):
+    """A Minnesota event pasted backwards gives latitude -93, which is not a
+    latitude at all - and would otherwise put the pin in the Indian Ocean."""
+    app, _, db_path, event_id = setup
+    _make_admin(db_path)
+
+    with TestClient(app) as client:
+        _login(client)
+        refused = client.post(
+            f"/api/setup/events/{event_id}/pois",
+            json={"name": "Backwards", "poi_type": "aid_station",
+                  "lat": "-93.98921", "lon": "44.13906"},
+        )
+
+    assert refused.status_code == 400
+    assert "between" in refused.json()["detail"]
+
+
+def test_a_place_needs_a_layer_that_exists(setup, tmp_path):
+    """An unknown key would leave the place in the database and off the map,
+    with nothing to say why - the same rule update_poi already enforces."""
+    app, _, db_path, event_id = setup
+    _make_admin(db_path)
+
+    with TestClient(app) as client:
+        _login(client)
+        refused = client.post(
+            f"/api/setup/events/{event_id}/pois",
+            json={"name": "Nowhere", "poi_type": "not_a_layer",
+                  "lat": 44.1, "lon": -93.9})
+
+    assert refused.status_code == 400
+
+
+def test_adding_a_place_reaches_a_connected_map(setup, tmp_path):
+    """A place added on race-week evening has to appear on the phones already
+    holding a link, without anyone being told to reload."""
+    app, tokens, db_path, event_id = setup
+    _make_admin(db_path)
+
+    with TestClient(app) as client:
+        _login(client)
+        with client.websocket_connect(f"/ws/m2026/{tokens['liaison']}") as ws:
+            client.post(f"/api/setup/events/{event_id}/pois",
+                        json={"name": "New stop", "poi_type": "aid_station",
+                              "lat": 44.1, "lon": -93.9})
+            assert ws.receive_json()["type"] == "resync"
+            ws.close()
+
+
+def test_the_courses_payload_carries_geometry_for_the_picker(setup, tmp_path):
+    """The Places map draws the routes so a place can be put ALONG one - that
+    is the phrasing in #108, and a bare tile layer gives you nothing to place
+    against. The geometry rides on the courses payload the tab already loads,
+    so trimming it to save bytes would empty the picker's context with no
+    error anywhere.
+    """
+    app, _, db_path, event_id = setup
+    _make_admin(db_path)
+
+    with TestClient(app) as client:
+        _login(client)
+        courses = client.get(
+            f"/api/setup/events/{event_id}/courses").json()["courses"]
+
+    assert courses, "the fixture event has a course"
+    for course in courses:
+        geometry = json.loads(course["geojson"])
+        assert geometry["type"] == "LineString"
+        assert len(geometry["coordinates"]) >= 2
+
+
 def test_moving_places_is_not_swallowed_by_the_poi_id_route(setup, tmp_path):
     """FastAPI matches routes in declaration order, so /pois/move has to be
     declared before /pois/{poi_id} or the word "move" is parsed as an id and

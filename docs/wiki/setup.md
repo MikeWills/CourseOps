@@ -82,7 +82,7 @@ female, a wheelchair leader - is on its own tab, and is covered in
 
 ## 4. Places
 
-![The Places tab: order, mile, name, layer, which races, pin label, coordinates, what3words](images/setup-places.png)
+![The Places tab: order, mile, name, layer, which races, pin label, coordinates, what3words, and the add form](images/setup-places.png)
 
 Every point on the map lives here. What each column is for:
 
@@ -101,6 +101,46 @@ Every point on the map lives here. What each column is for:
   and only worth typing when the guess comes out wrong.
 - **what3words** - optional, typed in by hand. Aid stations sit at park
   entrances where a street address is useless.
+
+### When the organizer's file is missing places
+
+Some race groups do not hand over a good map, and some hand over one with no
+water stops on it at all. A 5K, a parade, or a vehicle race may have people
+standing at points with nothing to import in the first place.
+
+![The map on the Places tab, with the routes drawn and a pin per place](images/setup-place-map.png)
+
+**Click the map** where the place goes. That fills in the coordinates below it
+and drops a dashed pin so you can see what you picked; name it, choose a layer,
+and press *Add place*. Nothing is created until you do, so a stray click costs
+nothing.
+
+The routes are drawn underneath, which is the point - a water stop goes
+*somewhere along one*, and a blank map gives you nothing to judge that against.
+
+If you would rather type: paste the coordinates into **Latitude** and both
+numbers split themselves across the two boxes, so you can copy straight from a
+phone or a mapping site without picking the string apart.
+
+Put it in a layer you **staff** if somebody will be standing there. That is what
+lets an operator be posted to it and a lead runner be reported passing it; an
+unstaffed place is a pin on the map and nothing more. Staffed layers are listed
+first for that reason.
+
+The new place lands at the **end** of the running order, where you will see it.
+Drag it into position afterwards.
+
+**Places can also be moved.** Drag its pin on the map, or type into the two
+boxes in the Coordinates column - either way a place the organizer's file put in
+the wrong spot can be moved without re-importing anything.
+
+Dragging a pin does not save on its own. It fills in that row's coordinates and
+the table's **Save** button appears, the same as any other edit - so you can
+nudge several places and save them together, and nothing is written until you
+say so. Everything else follows from position - the mile
+figure, which race it snaps to, where the pin draws - so fixing it fixes all of
+them at once. Latitude first, then longitude; the app refuses a latitude outside
+-90 to 90, which is what catches the two pasted the wrong way round.
 
 ---
 

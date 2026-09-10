@@ -7,6 +7,50 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **Places can be added by hand, and their coordinates corrected.** Not every
+  organizer supplies a file, and the ones that do leave things out - a 5K, a
+  parade or a vehicle race has people standing at points with no "stops" to
+  import at all. **Setup -> Places** gains a map, an *Add a place* form, and a
+  coordinates column that is now two editable boxes. (#108)
+
+  **The map does two things, which are the same thing from either end.** Click
+  bare map to put a new place there - it fills the form and drops a dashed
+  provisional pin rather than creating anything, because a place needs a name
+  and a layer and a stray click should not leave a pin nobody chose. Drag an
+  existing pin to correct one. The routes are drawn underneath, because "along
+  a route" is what the request was and a bare tile layer gives you nothing to
+  place against.
+
+  A drag deliberately does **not** save. It writes into that row's coordinate
+  boxes and marks them dirty, so it saves through the table's own "Save N
+  changes" button with everything else - a second save scope on one screen is
+  how the roster lost twelve renames.
+
+  The correction half matters as much as the addition. Position was
+  import-only, and permanently so: a place a hand-drawn organizer file put in
+  the wrong spot could be renamed, restyled and moved between layers, but
+  never actually moved. Everything downstream reads position - the mile
+  figure, the snap to a course, the pin - so one wrong coordinate was wrong in
+  several places at once, and the only fix was re-importing the file that was
+  wrong to begin with.
+
+  Three things the form does on purpose. Pasting **"44.13906, -93.98921"**
+  into Latitude splits it across both boxes, because that is the single string
+  every phone and mapping site hands out and the alternative is selecting half
+  of it, forty times, on race-week evening. The layer dropdown puts the
+  **staffed** layers first, because a place added by hand is nearly always
+  somewhere a person will stand and an unstaffed one looks identical on that
+  screen while being unpostable and unsightable. And a latitude outside
+  -90..90 is **refused with an explanation**, which is what catches the two
+  pasted the wrong way round - for a Minnesota event that is a latitude of
+  -93, and the pin would otherwise land in the Indian Ocean.
+
+  A new place takes `sort_order` 0, which sorts LAST, so it arrives at the end
+  of the running order where it is visible rather than in the middle of a
+  sequence the club arranged.
+
+
 ## [0.7.2] - 2026-09-10
 
 ### Changed

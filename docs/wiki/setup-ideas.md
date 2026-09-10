@@ -85,6 +85,11 @@ points. Spectator crossings. Photo positions. Hazards found during the course
 walk. Turn a layer off when it stops being interesting and it is out of
 everyone's way without being deleted.
 
+None of that has to come from the organizer. **Setup -> Places** has a map:
+click where the thing is, name it, pick a layer. So this works for an event
+with no course file at all - a parade, a 5K, a vehicle race with people posted
+at corners rather than at stops.
+
 **Staff the layers that hold people, not the ones that hold objects.** *We staff
 these* is the switch that lets an operator be posted somewhere and a lead runner
 be sighted there. A club that puts a person on every traffic control point

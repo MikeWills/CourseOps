@@ -594,6 +594,19 @@ The sweep's mile marker is what tells NCS which aid stations can tear down and
 which roads can reopen. Watch the sweep's mile figure, then set each aid station
 it has passed to *Torn down*.
 
+### A place nobody knew about
+
+Somebody finds a water stop that is not on the map, or the organizer moves one
+overnight. `/setup` -> **Places**: click the spot on the map, name it, pick a
+staffed layer, *Add place*. It reaches every phone already holding a link
+without anyone reloading.
+
+To move one that is in the wrong spot, drag its pin and press **Save**.
+
+Staffed layer matters: that is what lets you post an operator there and report
+a lead runner passing it. A place in an unstaffed layer is a pin and nothing
+more.
+
 ### Lead runners
 
 Track a leader for each race - first male and first female to start with. Aid

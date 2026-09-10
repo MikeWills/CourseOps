@@ -13,6 +13,8 @@ without much effort.
 
 **Status: early development.** APRS-IS ingest, KML/KMZ/GPX course import, the live
 map, incidents, lead runner tracking and a browser setup application all work.
+Places can also be put on the map by hand, so an event whose organizer supplies
+no file - a parade, a 5K, a vehicle race - still works.
 See [releases](../../releases/latest) for the Windows download. The APRS-IS feed
 has been run against real traffic; it has not yet run a live event.
 

@@ -251,6 +251,78 @@ def list_pois(conn: sqlite3.Connection, event_id: int) -> list[dict]:
     return out
 
 
+def _coordinate(value, axis: str) -> float:
+    """A lat or lon a human typed, or a clear complaint about it.
+
+    These arrive pasted from a phone or a mapping site, so the failures worth
+    naming are a blank field, a stray degree sign, and the two swapped - which
+    for a Minnesota event means a longitude of 44 and a latitude of -93, both
+    individually valid numbers landing the pin in the Indian Ocean. The range
+    check catches the swap for anywhere outside the tropics; nothing can catch
+    it inside them, which is why the map picker is the real answer and this is
+    the half-day version of it.
+    """
+    if value is None or (isinstance(value, str) and not value.strip()):
+        raise ValueError(f"A place needs a {axis}.")
+    try:
+        number = float(str(value).strip().rstrip("\u00b0"))
+    except (TypeError, ValueError):
+        raise ValueError(f"{value!r} is not a {axis}.") from None
+    limit = 90.0 if axis == "latitude" else 180.0
+    if not -limit <= number <= limit:
+        raise ValueError(
+            f"A {axis} has to be between -{limit:g} and {limit:g}. "
+            "Latitude first, then longitude - it is easy to paste them the "
+            "other way round."
+        )
+    return number
+
+
+def create_poi(conn: sqlite3.Connection, event_id: int, payload: dict) -> dict:
+    """Put a place on the map by hand.
+
+    Not every organizer supplies one. A 5K, a parade, or a vehicle race has
+    people standing at points with no "stops" to import, and this is how those
+    get onto the map at all.
+
+    This does not contradict "import may never create places": that rule stops
+    a FILE filing a parking lot as an aid station without anyone looking. A
+    person naming a place and giving it a position IS the human decision the
+    rule exists to require.
+
+    `sort_order` is left at 0, which sorts LAST - a new place lands at the end
+    of the running order where it is visible, rather than in the middle of a
+    sequence the club arranged.
+    """
+    name = (payload.get("name") or "").strip()
+    if not name:
+        raise ValueError("A place needs a name.")
+
+    key = (payload.get("poi_type") or "").strip()
+    if not key:
+        raise ValueError("A place needs a layer.")
+    categories.get_poi_category(conn, event_id, key)
+
+    lat = _coordinate(payload.get("lat"), "latitude")
+    lon = _coordinate(payload.get("lon"), "longitude")
+
+    cur = conn.execute(
+        "INSERT INTO poi (event_id, name, poi_type, lat, lon, sort_order)"
+        " VALUES (?, ?, ?, ?, ?, 0)",
+        (event_id, name, key, lat, lon),
+    )
+    poi_id = int(cur.lastrowid)
+
+    # The rest of the fields go through the ordinary update, so a place created
+    # here and a place edited later are validated by the same code.
+    rest = {k: payload[k] for k in
+            ("what3words", "label", "notes", "course_ids") if k in payload}
+    if rest:
+        return update_poi(conn, event_id, poi_id, rest)
+    return _row(conn.execute(
+        "SELECT * FROM poi WHERE id = ?", (poi_id,)).fetchone())
+
+
 def update_poi(conn: sqlite3.Connection, event_id: int, poi_id: int,
                payload: dict) -> dict:
     fields, values = [], []
@@ -295,6 +367,16 @@ def update_poi(conn: sqlite3.Connection, event_id: int, poi_id: int,
     if "notes" in payload:
         fields.append("notes = ?")
         values.append((payload.get("notes") or "").strip() or None)
+    # Coordinates were import-only, and permanently so: a place dropped in the
+    # wrong spot by a hand-drawn organizer file could be renamed, restyled and
+    # moved between layers, but never actually moved. Everything downstream
+    # reads position - the mile figure, the snap to a course, the pin - so a
+    # wrong one is wrong in several places at once and could only be fixed by
+    # re-importing the file that was wrong to begin with.
+    for axis, column in (("lat", "latitude"), ("lon", "longitude")):
+        if axis in payload:
+            fields.append(f"{axis} = ?")
+            values.append(_coordinate(payload.get(axis), column))
 
     # Races are a separate table, so they are applied here rather than through
     # the UPDATE below - and a place may legitimately change nothing else.

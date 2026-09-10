@@ -327,12 +327,36 @@ table.grid button:not(.icon-btn) {
   background: #eaf2fb;
 }
 
-#review-map {
+#review-map, #place-map {
   height: 380px;
   margin: 12px 0;
   border: 1px solid var(--line);
   border-radius: 10px;
 }
+
+/* Foldable, and folded state is not remembered on purpose: this map is a tool
+   you reach for while placing something, not a panel you live in, and a club
+   that collapsed it once in March should not find the picker missing in
+   October. The summary stays a real click target at 44px. */
+#place-map-wrap {
+  margin: 16px 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0 12px;
+}
+#place-map-wrap > summary {
+  cursor: pointer;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+}
+#place-map-wrap[open] > summary { border-bottom: 1px solid var(--line); }
+#place-map-wrap #place-map { margin-top: 0; }
+/* Leaflet paints its own cursor on the container; over a picker the pointer
+   should say "you may put something here". */
+#place-map .leaflet-container { cursor: crosshair; }
 
 .feature {
   display: flex;
@@ -399,6 +423,23 @@ table.grid button:not(.icon-btn) {
   white-space: nowrap;
   color: var(--ink-soft);
 }
+/* Two boxes where a read-only pair used to sit. They keep the monospace of
+   the cell around them for the same reason it is there at all - a misread
+   digit is a vehicle sent to the wrong road - and they are sized to the five
+   decimal places we print, which is about a metre.
+
+   Sized for the longest thing that goes in one: a west-coast longitude,
+   "-122.41941", is ten characters plus a sign's worth of padding. At 9ch the
+   box silently clipped the last digit of every Minnesota longitude - and a
+   coordinate that LOOKS complete while hiding a digit is worse than one that
+   is obviously cut off, because nobody checks it. */
+.coord {
+  font-family: inherit;
+  font-size: inherit;
+  width: 11ch;
+  text-align: right;
+}
+.coord + .coord { margin-left: 4px; }
 .w3w-cell { white-space: nowrap; }
 .coords .icon-btn, .w3w-cell .icon-btn { margin-left: 4px; }
 /* An anchor dressed as an icon button needs the anchor defaults undone -

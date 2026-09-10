@@ -13,7 +13,8 @@ Brand, palette and logo decisions: `docs/DESIGN.md`.
 Complete history with the reasoning behind each fix: `CHANGELOG.md`.
 Open work is tracked as GitHub issues:
 #3 map tiles, #4 archive an event off the live server, #5 multi-tenant hosting,
-#6 tracking non-ham volunteers (future: decided, not for the first event).
+#6 tracking non-ham volunteers (future: decided, not for the first event),
+#112 an open page is not told a new version is running.
 Issues #3-#5 are triggered by hosting a SECOND organization, not the first.
 
 **Starting a fresh session?** Read `docs/PLAN.md` first - it carries the
@@ -55,7 +56,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 538 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 545 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -274,6 +275,25 @@ usability, not style preferences.
 - **Everything is event-scoped**, even with one event. `event_id` on every table.
 - **No What3Words API.** Paid service, deliberately not integrated. Manual entry,
   shape validation only, KML lat/lon stays authoritative.
+- **A human may create a place; a FILE may not.** `admin.create_poi` exists
+  for the organizer who supplies no water stops, or no file at all - a parade
+  has people at points and nothing to import. This does not weaken the rule
+  below it: that one stops a file filing a parking lot as an aid station with
+  nobody looking, and a person naming a place and giving it a position IS the
+  human decision it exists to require.
+- **The picker writes into the table, it does not save.** Dragging a pin on
+  the Places map fills that row's coordinate boxes and marks them dirty, so it
+  goes through `bindSaveAll` with every other edit. Giving the map a save of
+  its own would be a second save scope on one screen, which is the exact shape
+  of the bug that cost a real user twelve renames.
+- **The picker cannot assume a course or a place exists.** A parade or a
+  vehicle race has neither, and that is the case #108 was opened for.
+  `placeMapView` falls back to the event's own centre, then to the country
+  view - never to an empty `fitBounds`, which throws.
+- **A place added by hand belongs in a STAFFED layer**, or it is unpostable
+  and no lead runner can be reported passing it - while looking identical on
+  the Places table. The add form sorts staffed layers to the top for that
+  reason; anything else offering a layer choice should do the same.
 - **Import never writes directly to `course` or `poi`.** Files stage as `pending`
   in `import_feature`; a human assigns each one. `suggest()` is advisory and must
   stay conservative — better unassigned than a parking lot filed as an aid station.
@@ -850,6 +870,8 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-10** A map on the Places tab: click to place a new one, drag a pin to move one.
+- **2026-09-10** Places can be added by hand and their coordinates corrected; position was import-only.
 - **2026-09-10** Leaders moved to its own setup tab, beside Layers and Roles.
 - **2026-09-10** Clubs choose which leaders an event tracks - a wheelchair leader, a first junior - instead of a fixed male/female pair.
 - **2026-09-10** A `?` in the top bar of every screen opens that role's guide in a new tab.
@@ -858,5 +880,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-09** Fixed: another operator's change wiped the bib you were typing; focus and caret survive a re-render now.
 - **2026-09-09** Every guide leads with "the radio comes first": the app is supplemental, call everything in to NCS anyway.
 - **2026-09-09** Fixed: a course note drew as a red pickup pin titled "Pickup (bib unknown)"; it is a round purple note pin now.
-- **2026-09-09** Volunteer guides per role in `docs/wiki/`, with screenshots from a demo event.
-- **2026-09-08** Fixed: the Course Ops lockup rides the LEFT column, so swapping SAG's columns no longer moves it.
