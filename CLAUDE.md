@@ -75,7 +75,8 @@ courseops style-course marathon2026 1 --color "#cc3333" --order 10
 courseops post marathon2026 KI4HMD-1 4   # post an operator at aid station 4
 courseops set-w3w marathon2026 4 index.home.raft
 
-courseops links marathon2026           # the three role URLs to send out
+courseops links marathon2026           # the role URLs to send out
+courseops links marathon2026 --new ncs # a second link for one role
 courseops serve marathon2026           # web server + live APRS-IS ingest
 courseops serve marathon2026 --no-ingest   # map only, no APRS-IS connection
 courseops list-links marathon2026 / courseops revoke-link marathon2026 <id>

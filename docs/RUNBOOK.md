@@ -387,7 +387,7 @@ check and when._
 courseops serve mankato2026
 ```
 
-This opens **one** APRS-IS connection and prints the three role links.
+This opens **one** APRS-IS connection and prints one link per role.
 
 Confirm before going live:
 
@@ -732,7 +732,7 @@ Tell volunteers these up front; each one otherwise reads as a bug.
 ```bash
 courseops serve <event>                     # run it (server + APRS-IS)
 courseops serve <event> --no-ingest         # map only, no APRS connection
-courseops links <event>                     # show the three role links
+courseops links <event>                     # show one link per role
 courseops list-links <event>                # link status and last use
 courseops revoke-link <event> <id>          # kill a leaked link
 courseops roster <event>                    # who is assigned, and the APRS filter
