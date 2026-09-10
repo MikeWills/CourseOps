@@ -55,7 +55,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 537 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 538 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -332,6 +332,14 @@ usability, not style preferences.
   name or initials work - kept in the browser, truncated server-side. Nothing
   may start trusting it as auth, and nothing may validate it as a callsign:
   the one check is whether to uppercase it.
+- **One source for the version, and it is `courseops.__version__`.** Reading
+  `importlib.metadata` instead means reading what `pip install -e .` wrote the
+  day it ran, which is not the version in `pyproject.toml` any more - a working
+  copy served 0.1.1 from `/healthz` while announcing 0.7.0 to APRS-IS. CI
+  installs fresh and so cannot see it; the machine it breaks on is the
+  developer's. `__init__.py` always ships, metadata is what the frozen Windows
+  build lacks. If the version chip in setup looks wrong locally, reinstall
+  before believing it.
 - **`/healthz` is unauthenticated and stays minimal.** Liveness and a version,
   nothing else - there is a test asserting the exact key set. The deployed
   COMMIT in particular belongs behind the login (`/api/setup/session`), because

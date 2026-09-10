@@ -7,6 +7,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **The version a running server reports is the packaged one.** `/healthz` and
+  the setup session read the installed distribution's metadata, while
+  `aprsis.py` and `build.py` read `courseops.__version__` - two sources for one
+  number, free to disagree. An editable install writes its metadata the day it
+  is created and never revisits it, so a working copy six releases along served
+  `0.1.1` from `/healthz` and announced `0.7.0` in its APRS-IS login string at
+  the same time. It mattered because `/healthz` is what the deploy checks
+  before deciding to keep a new version, and the version chip in setup is what
+  answers "did my change actually land" - both were answering from the wrong
+  place. `__init__.py` wins because it always ships; metadata is exactly what
+  the frozen Windows build lacks, which is why the fallback existed at all.
+  Production was never affected: a deploy installs fresh, so the two agreed
+  there. Which is also why no test caught it, and why the new one says so.
+
+
 ### Changed
 - **`docs/PLAN.md` records this session's decisions**, because conversation is
   not storage: how end-user documentation works (one way from `docs/wiki/` to
