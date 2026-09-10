@@ -399,6 +399,23 @@ table.grid button:not(.icon-btn) {
   white-space: nowrap;
   color: var(--ink-soft);
 }
+/* Two boxes where a read-only pair used to sit. They keep the monospace of
+   the cell around them for the same reason it is there at all - a misread
+   digit is a vehicle sent to the wrong road - and they are sized to the five
+   decimal places we print, which is about a metre.
+
+   Sized for the longest thing that goes in one: a west-coast longitude,
+   "-122.41941", is ten characters plus a sign's worth of padding. At 9ch the
+   box silently clipped the last digit of every Minnesota longitude - and a
+   coordinate that LOOKS complete while hiding a digit is worse than one that
+   is obviously cut off, because nobody checks it. */
+.coord {
+  font-family: inherit;
+  font-size: inherit;
+  width: 11ch;
+  text-align: right;
+}
+.coord + .coord { margin-left: 4px; }
 .w3w-cell { white-space: nowrap; }
 .coords .icon-btn, .w3w-cell .icon-btn { margin-left: 4px; }
 /* An anchor dressed as an icon button needs the anchor defaults undone -

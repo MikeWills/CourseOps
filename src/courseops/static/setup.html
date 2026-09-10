@@ -233,6 +233,45 @@
         >Export CSV</button>
     </div>
     <div id="poi-table"></div>
+
+    <!-- Not every organizer supplies a file, and the ones that do leave things
+         out. A 5K, a parade or a vehicle race has people standing at points
+         with no "stops" to import at all, so a place has to be creatable by
+         hand or those events cannot be staffed on the map.
+
+         Coordinates typed rather than clicked, for now: the map picker is
+         issue #108 slice 2. Paste from a phone or a mapping site - the format
+         both produce, "44.13906, -93.98921", goes straight into the first
+         box. -->
+    <form id="poi-form" class="card">
+      <h3>Add a place</h3>
+      <p class="muted">
+        For what the organizer's file left out, or never had. Put it in a
+        layer you staff if somebody will be standing there - that is what lets
+        an operator be posted to it and a lead runner be reported passing it.
+      </p>
+      <div class="row">
+        <label class="field"><span>Name</span>
+          <input id="poi-new-name" type="text" placeholder="Water stop D" required></label>
+        <label class="field"><span>Layer</span>
+          <select id="poi-new-layer"></select></label>
+      </div>
+      <div class="row">
+        <label class="field"><span>Latitude</span>
+          <input id="poi-new-lat" type="text" inputmode="decimal"
+            placeholder="44.13906, -93.98921" required></label>
+        <label class="field"><span>Longitude</span>
+          <input id="poi-new-lon" type="text" inputmode="decimal"
+            placeholder="-93.98921"></label>
+      </div>
+      <p class="muted">
+        Paste both numbers into Latitude and they will split themselves.
+        The place lands at the end of the running order - drag it into
+        position afterwards.
+      </p>
+      <p id="poi-error" class="error" hidden></p>
+      <button class="primary" type="submit">Add place</button>
+    </form>
   </section>
 
   <section class="panel" data-panel="layers" data-needs-event hidden>

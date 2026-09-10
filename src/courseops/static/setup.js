@@ -1076,8 +1076,14 @@ async function loadCourses() {
              aria-label="Pin label for ${esc(p.name)}">`
         : '<span class="muted" title="Turn labels on for this layer">off</span>'}</td>
       <td class="coords">${p.lat != null
-        ? `<span>${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}</span>${
-            iconBtn('copy', {'data-copyc': `${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}`},
+        ? `<input value="${p.lat.toFixed(5)}" data-plat="${p.id}"
+             class="coord" inputmode="decimal"
+             aria-label="Latitude of ${esc(p.name)}"
+           ><input value="${p.lon.toFixed(5)}" data-plon="${p.id}"
+             class="coord" inputmode="decimal"
+             aria-label="Longitude of ${esc(p.name)}"
+           >${iconBtn('copy',
+              {'data-copyc': `${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}`},
               `Copy the coordinates of ${p.name}`)}`
         : '\u2014'}</td>
       <td class="w3w-cell"><input value="${esc(p.what3words || '')}"
@@ -1142,6 +1148,16 @@ async function loadCourses() {
   $('poi-filter-layer').innerHTML = '<option value="">All layers</option>'
     + S.poiCategories.map((c) =>
         `<option value="${esc(c.key)}">${esc(c.name)}</option>`).join('');
+
+  /* The add form's layer, defaulted to one we staff. `staffed` is what lets an
+     operator be posted here and a lead runner be reported passing, and a place
+     added by hand is nearly always somewhere a person will stand - an
+     unstaffed one looks identical on this screen while doing none of that. */
+  const staffedFirst = [...S.poiCategories].sort(
+    (a, b) => (b.staffed ? 1 : 0) - (a.staffed ? 1 : 0));
+  $('poi-new-layer').innerHTML = staffedFirst.map((c) =>
+    `<option value="${esc(c.key)}">${esc(c.name)}${
+      c.staffed ? '' : ' (not staffed)'}</option>`).join('');
   if (S.poiFilterLayer) $('poi-filter-layer').value = S.poiFilterLayer;
 
   function refreshPoiSelection() {
@@ -1321,6 +1337,10 @@ async function loadCourses() {
       { attr: 'player', name: 'poi_type' },
       { attr: 'plabel', name: 'label' },
       { attr: 'pcourses', name: 'course_ids' },
+      // Position was import-only until #108: a place the organizer put in the
+      // wrong spot could be renamed and relayered but never actually moved.
+      { attr: 'plat', name: 'lat' },
+      { attr: 'plon', name: 'lon' },
     ],
     save: (id, payload) =>
       post(`/api/setup/events/${S.eventId}/pois/${id}`, payload),
@@ -1734,6 +1754,49 @@ $('role-form').addEventListener('submit', async (ev) => {
   } catch (err) {
     $('role-error').textContent = err.message;
     $('role-error').hidden = false;
+  }
+});
+
+/* One pasted pair, two boxes.
+
+   Every phone and mapping site hands out "44.13906, -93.98921" as a single
+   string, and the alternative is asking someone to select half of it, copy,
+   click, paste, then go back for the other half - on race-week evening, for
+   forty places. Splitting on the comma costs four lines and removes the whole
+   chore. A lone number is left exactly where it was typed. */
+function splitCoordinates() {
+  const lat = $('poi-new-lat');
+  const parts = lat.value.split(',');
+  if (parts.length !== 2) return;
+  const [a, b] = parts.map((t) => t.trim());
+  if (!a || !b) return;
+  lat.value = a;
+  $('poi-new-lon').value = b;
+}
+
+$('poi-new-lat').addEventListener('change', splitCoordinates);
+$('poi-new-lat').addEventListener('paste', () => setTimeout(splitCoordinates, 0));
+
+$('poi-form').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  if (!needEvent()) return;
+  splitCoordinates();
+  $('poi-error').hidden = true;
+  try {
+    await post(`/api/setup/events/${S.eventId}/pois`, {
+      name: $('poi-new-name').value,
+      poi_type: $('poi-new-layer').value,
+      lat: $('poi-new-lat').value,
+      lon: $('poi-new-lon').value,
+    });
+    $('poi-new-name').value = '';
+    $('poi-new-lat').value = '';
+    $('poi-new-lon').value = '';
+    banner('Place added. It is at the end of the running order.');
+    loadCourses();
+  } catch (err) {
+    $('poi-error').textContent = err.message;
+    $('poi-error').hidden = false;
   }
 });
 

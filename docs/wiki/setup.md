@@ -82,7 +82,7 @@ female, a wheelchair leader - is on its own tab, and is covered in
 
 ## 4. Places
 
-![The Places tab: order, mile, name, layer, which races, pin label, coordinates, what3words](images/setup-places.png)
+![The Places tab: order, mile, name, layer, which races, pin label, coordinates, what3words, and the add form](images/setup-places.png)
 
 Every point on the map lives here. What each column is for:
 
@@ -101,6 +101,32 @@ Every point on the map lives here. What each column is for:
   and only worth typing when the guess comes out wrong.
 - **what3words** - optional, typed in by hand. Aid stations sit at park
   entrances where a street address is useless.
+
+### When the organizer's file is missing places
+
+Some race groups do not hand over a good map, and some hand over one with no
+water stops on it at all. A 5K, a parade, or a vehicle race may have people
+standing at points with nothing to import in the first place.
+
+**Add a place** at the bottom of this tab covers that. Give it a name, pick a
+layer, and paste the coordinates - both numbers go into Latitude and split
+themselves, so you can copy straight from a phone or a mapping site without
+picking the string apart.
+
+Put it in a layer you **staff** if somebody will be standing there. That is what
+lets an operator be posted to it and a lead runner be reported passing it; an
+unstaffed place is a pin on the map and nothing more. Staffed layers are listed
+first for that reason.
+
+The new place lands at the **end** of the running order, where you will see it.
+Drag it into position afterwards.
+
+**Coordinates can also be corrected.** The two boxes in the Coordinates column
+are editable, so a place the organizer's file put in the wrong spot can be moved
+without re-importing anything. Everything else follows from position - the mile
+figure, which race it snaps to, where the pin draws - so fixing it fixes all of
+them at once. Latitude first, then longitude; the app refuses a latitude outside
+-90 to 90, which is what catches the two pasted the wrong way round.
 
 ---
 
