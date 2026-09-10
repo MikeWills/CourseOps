@@ -55,7 +55,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 520 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 522 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -771,6 +771,8 @@ person) avoids re-deriving what was already settled.
 | `CLAUDE.md` | every change | The "Recent changes" list — one line per entry, trimmed to exactly 10. Plus a new "Domain rules" bullet if the change revealed a trap. Plus the test count and status line if those moved. |
 | `docs/PLAN.md` | a *decision* changes | Phase detail, resolved questions, known gaps. If the user settles a question in conversation, it lands here — conversation is not storage. |
 | `docs/RUNBOOK.md` | operator-visible behavior changes | New command, new failure mode, new thing a volunteer must do on event day. |
+| `docs/wiki/*.md` | **anything a volunteer or club officer SEES changes** | The role guides and the setup guide. A button that moved, a control that appeared, a word that changed on screen. These are what non-developers read, and they publish to the GitHub Wiki on merge. |
+| `docs/wiki/images/` | a screenshot now shows something that is no longer true | Re-shoot it. This is the one that rots silently: the course-note fix invalidated six screenshots at once, and a stale screenshot is more convincing than stale text because it looks like proof. |
 | `README.md` | user-facing behavior changes | Setup, commands, what the thing does. |
 | GitHub issues | work deferred, not done | Anything discovered but out of scope now. Reference the issue number in `docs/PLAN.md` known gaps. |
 
@@ -789,6 +791,11 @@ Rules that keep this honest:
   lives in `docs/`; history lives in `CHANGELOG.md`.
 - **Keep CLI output and docs in step.** If a command's flags change, the README
   and runbook examples change in the same commit.
+- **A functionality change is not finished until the guides match it.** If a
+  volunteer would see it, `docs/wiki/` changes in the SAME pull request - not
+  the next one, because the wiki publishes on merge and the gap between them is
+  a guide that lies. Ask of every change: does a screenshot in there still show
+  the truth?
 
 ## Conventions
 
@@ -807,6 +814,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-10** A `?` in the top bar of every screen opens that role's guide in a new tab.
 - **2026-09-09** Wiki gains a setup guide for club officers, including what a club can bend; README points at the wiki.
 - **2026-09-09** Setup can issue several links for one role, labelled, and revoke one without cutting off the rest.
 - **2026-09-09** Fixed: another operator's change wiped the bib you were typing; focus and caret survive a re-render now.
@@ -816,4 +824,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-08** Fixed: the Course Ops lockup rides the LEFT column, so swapping SAG's columns no longer moves it.
 - **2026-09-08** NCS: pickups and course notes moved into the side panel above stations.
 - **2026-09-07** Read-only views say "Passed Bravo at 09:42" for lead runners; NCS keeps the relative age.
-- **2026-09-07** SAG gets the pickup queue in the left column; the two side columns swap for that role.

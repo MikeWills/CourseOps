@@ -119,6 +119,18 @@ function savePrefs() {
    Both field roles keep SWEEPS on, and for Logistics that is the whole point:
    the sweep is the back of the pack, so its position is what says a road
    segment is clear and the cones can come up. */
+/* Where the guides live. One page per role, published from docs/wiki/ in the
+   repository - so a club running its own copy points these at its own fork's
+   wiki, and nothing in the app has to change to correct a guide. */
+const HELP_BASE = 'https://github.com/MikeWills/CourseOps/wiki/';
+const HELP_PAGES = {
+  ncs: 'net-control',
+  sag: 'sag',
+  liaison: 'liaison',
+  logistics: 'logistics',
+  staff: 'staff',
+};
+
 function defaultLayers(role) {
   // Staff get the full picture, read-only: every layer on, like NCS.
   const field = role === 'liaison' || role === 'logistics';
@@ -2437,6 +2449,16 @@ function applyState(data) {
       ? `You are on the ${data.role_label} link`
       : `You are on the ${data.role_label} link, which is read-only`;
     badge.hidden = false;
+
+    /* The guide for the link they are actually holding, not a generic index:
+       a SAG driver opening "help" wants the queue, not five roles to choose
+       between. Opens in a new tab on purpose - navigating away mid-net would
+       cost someone the map and leave them digging the link out of a text
+       message to get back. */
+    const help = document.getElementById('help-link');
+    help.href = HELP_BASE + (HELP_PAGES[data.role] || 'Home');
+    help.title = `Help for ${data.role_label} (opens in a new tab)`;
+    help.setAttribute('aria-label', help.title);
   }
 
   document.getElementById('event-name').textContent = data.event.name;

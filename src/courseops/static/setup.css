@@ -458,3 +458,25 @@ td.races { line-height: 1.35; }
   color: rgba(255, 255, 255, 0.72);
   white-space: nowrap;
 }
+
+/* The setup guide, in the header beside who is signed in. Outlined and quiet:
+   the same ring as the map carries, for the same reason - help is never the
+   urgent thing on a screen. */
+#setup-bar #help-link {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 26px; height: 26px;
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  border-radius: 50%;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.94);
+  text-decoration: none;
+}
+#setup-bar #help-link:hover,
+#setup-bar #help-link:focus-visible {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.75);
+}

@@ -146,12 +146,25 @@ $('logout').addEventListener('click', async () => {
 
 /* ---------- tabs --------------------------------------------------------- */
 
+/* The setup guide is four pages, split where the job splits, so the ? follows
+   the tab rather than always landing on page one. Anything not named here -
+   organizations, events, import, courses, places - is the first page. */
+const HELP_BASE = 'https://github.com/MikeWills/CourseOps/wiki/';
+const HELP_FOR_TAB = {
+  roster: 'setup-people',
+  links: 'setup-people',
+  layers: 'setup-ideas',
+  roles: 'setup-ideas',
+  tracking: 'setup-race-week',
+};
+
 function activateTab(name) {
   document.querySelectorAll('.tab').forEach(
     (t) => t.classList.toggle('is-on', t.dataset.tab === name));
   document.querySelectorAll('.panel').forEach((p) => {
     p.hidden = p.dataset.panel !== name;
   });
+  $('help-link').href = HELP_BASE + (HELP_FOR_TAB[name] || 'setup');
   refreshTab(name);
 }
 
