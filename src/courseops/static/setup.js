@@ -155,6 +155,7 @@ const HELP_FOR_TAB = {
   links: 'setup-people',
   layers: 'setup-ideas',
   roles: 'setup-ideas',
+  leaders: 'setup-ideas',
   tracking: 'setup-race-week',
 };
 
@@ -216,13 +217,12 @@ async function refreshTab(name) {
     // One loader for both: the places table needs the courses for its Races
     // column, and the courses table is small. Rendering into a panel that is
     // not showing costs nothing and keeps the two in step.
-    if (name === 'courses' || name === 'stations') {
-      // The leaders list lives on the Courses tab: it is per race, and the
-      // same endpoint already carries it.
-      if (name === 'courses') loadLayers('leaders');
-      return loadCourses();
-    }
+    if (name === 'courses' || name === 'stations') return loadCourses();
+    // Three taxonomies, one endpoint, one loader - each tab re-renders only
+    // its own table, because reloading a table someone has not touched
+    // discards the edits in progress in it.
     if (name === 'layers' || name === 'roles') return loadLayers();
+    if (name === 'leaders') return loadLayers('leaders');
     if (name === 'tracking') return loadTracking();
     if (name === 'roster') return loadRoster();
     if (name === 'links') return loadLinks();

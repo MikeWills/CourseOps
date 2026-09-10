@@ -204,6 +204,12 @@ usability, not style preferences.
   holding `CAP_SSID`, and written to the database only once NCS matches it
   to a roster entry. Not a position, not a raw packet, for anyone else. The
   roster is the allowlist: with nobody on it, nothing is stored at all.
+- **A taxonomy of the event gets its own setup tab.** Place layers, station
+  roles and leaders are the same kind of thing, so they are each a tab and the
+  `?` on each opens "Making it yours". Leaders shipped as a second heading
+  under Courses because the NCS panel shows a row per race per leader - but
+  that grid is a consequence of the data, not where it lives: `lead_division`
+  is event-scoped like the other two. A fourth taxonomy goes the same way.
 - **Which leaders an event tracks is the club's, not the code's.** Same rule
   as the place layers and the station roles, and it arrived late for the same
   reason: `leaders.DIVISIONS` was a two-item constant, copied into the state
@@ -844,6 +850,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-10** Leaders moved to its own setup tab, beside Layers and Roles.
 - **2026-09-10** Clubs choose which leaders an event tracks - a wheelchair leader, a first junior - instead of a fixed male/female pair.
 - **2026-09-10** A `?` in the top bar of every screen opens that role's guide in a new tab.
 - **2026-09-09** Wiki gains a setup guide for club officers, including what a club can bend; README points at the wiki.
@@ -853,4 +860,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-09** Fixed: a course note drew as a red pickup pin titled "Pickup (bib unknown)"; it is a round purple note pin now.
 - **2026-09-09** Volunteer guides per role in `docs/wiki/`, with screenshots from a demo event.
 - **2026-09-08** Fixed: the Course Ops lockup rides the LEFT column, so swapping SAG's columns no longer moves it.
-- **2026-09-08** NCS: pickups and course notes moved into the side panel above stations.

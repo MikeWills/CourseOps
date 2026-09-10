@@ -7,6 +7,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- **Leaders is its own setup tab**, between Roles and Tracking, rather than a
+  second heading under Courses. Layers and Roles are each a tab and Leaders is
+  a taxonomy of exactly the same kind, so filing it under the races made it the
+  odd one out. The reason given for putting it there - "a leader is per race" -
+  was not true: `lead_division` is event-scoped and every leader is tracked in
+  every race. What is per race is the row-per-race grid on the NCS panel, and
+  that is a consequence of the data rather than where it lives. The `?` on the
+  tab now opens "Making it yours", where the other two taxonomies are already
+  documented, and the guide section moved there to match.
+
+
 ## [0.7.1] - 2026-09-10
 
 ### Fixed

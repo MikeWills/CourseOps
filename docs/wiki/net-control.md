@@ -128,7 +128,7 @@ publishing "120 mph" and an aid station planning around it.
 You get one row per race per leader. Most events track a first male and a
 first female, but the list is the club's: if your race awards a wheelchair
 division or a first junior, whoever set the event up can add it under
-**Setup -> Courses -> Leaders we track**, and the new row appears on this
+**Setup -> Leaders**, and the new row appears on this
 panel without anyone reloading.
 
 There is no "finished" state. A later sighting is the correction.
