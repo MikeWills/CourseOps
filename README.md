@@ -24,7 +24,8 @@ screenshots throughout:
 
 | Page | For |
 |---|---|
-| [Setting up an event](https://github.com/MikeWills/CourseOps/wiki/setup) | The club officer standing the event up - every setup screen, and what a club can bend to fit how it actually runs an event |
+| [Setting up an event](https://github.com/MikeWills/CourseOps/wiki/setup) | The club officer standing the event up: the course, then [roster and links](https://github.com/MikeWills/CourseOps/wiki/setup-people), then [race week](https://github.com/MikeWills/CourseOps/wiki/setup-race-week) |
+| [Making it yours](https://github.com/MikeWills/CourseOps/wiki/setup-ideas) | The parts with no fixed list - layers, roles, races, links - and what clubs can do with them |
 | [The basics](https://github.com/MikeWills/CourseOps/wiki/everyone) | Everybody: the map, the status colours, the panels, the phone layout |
 | [Net Control](https://github.com/MikeWills/CourseOps/wiki/net-control) · [SAG](https://github.com/MikeWills/CourseOps/wiki/sag) · [Liaison](https://github.com/MikeWills/CourseOps/wiki/liaison) · [Logistics](https://github.com/MikeWills/CourseOps/wiki/logistics) · [Staff](https://github.com/MikeWills/CourseOps/wiki/staff) | One page per link, to send out with it |
 

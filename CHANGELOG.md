@@ -9,7 +9,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 - **A setup guide in the wiki, for the club officer rather than the
-  volunteer.** Every setup screen with a screenshot - organizations and events,
+  volunteer.** Four pages rather than one, because at 2,000 words and eleven
+  screenshots it was the longest page on the wiki by half again and a very long
+  scroll on a phone: the course, roster and links, race week and after, and
+  making it yours. They split where the job does, so each is read at a
+  different moment - the last one weeks before the first. Every setup screen
+  with a screenshot - organizations and events,
   import and review, courses, places, layers, roles, roster, tracking, links,
   and the after-event report - plus the reasoning that is easy to lose: why the
   event's short name can never change, why nothing from a course file becomes a
