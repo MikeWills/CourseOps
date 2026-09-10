@@ -45,6 +45,35 @@ the list is missing - Liaison is the obvious example, and it is why the list
 stopped being fixed. Renaming is safe for the same reason: nothing keys off the
 displayed name.
 
+## Leaders: which racers you follow
+
+![The Leaders tab: rename, add, delete, drag to reorder](images/setup-leaders.png)
+
+A **leader** is a type of racer you want a position for as they come round the
+course. A new event starts with *First male* and *First female*. Rename them to
+your own wording, add a wheelchair leader or a first junior, and delete any your
+race does not award.
+
+The name is the whole label, exactly as it appears on the Net Control screen, so
+type *First wheelchair* rather than *Wheelchair* if that is what will be said on
+the net. Drag the grip to set the order they are listed in within each race.
+
+**Mind the arithmetic before adding a fourth.** Net Control sees one row per race
+per leader, so three races and two leaders is six rows; three races and four
+leaders is twelve. Track what will actually be called in.
+
+The same two rules as the layers and the roles, for the same reasons:
+
+- **Renaming is always safe.** Reports are recorded against the leader itself,
+  not against its wording, so changing *First female* to *First woman* mid-event
+  leaves every sighting where it is.
+- **A leader that has been sighted cannot be deleted** until its sightings are
+  cleared, and the app says how many are in the way. Otherwise those reports
+  would quietly vanish from the panel with nothing to say where they went.
+  Clearing is on the Net Control screen, per race and per leader.
+
+Set these before the event rather than during it.
+
 ---
 
 ## What else you can do with this
@@ -73,19 +102,9 @@ and you still have the course, the places, the roster with live status, the
 pickup queue, course notes and lead runners. Positions are one feature, not the
 foundation - a club with handhelds and no trackers still gets most of this.
 
-**Lead runners are per race, and which leaders you track is yours.** A new
-event comes with *First male* and *First female*; **Setup -> Courses ->
-Leaders we track** is where you rename them, add a wheelchair leader or a first
-junior, or delete one your race does not award. Each race gets its own
-progression and its own bib colour, so a three-race event is three
-progressions rather than one confused one.
-
-Bear the arithmetic in mind before adding a fourth: Net Control sees one row
-per race per leader, so three races and two leaders is six rows, and three
-races and four leaders is twelve. Track what will actually be called in on the
-net. Reports are recorded against a leader, so one that has already been
-sighted has to have its sightings cleared before it can be deleted - and
-renaming is always safe, because reports follow the leader, not the wording.
+**Lead runners are per race.** Each race gets its own progression and its own
+bib colour, so a three-race event is three progressions rather than one
+confused one. Which leaders you follow is the Leaders tab, above.
 
 **Give the organizer the Staff link early.** It is read-only, it is safe to
 forward to people the club has never met, and a race director watching the sweep

@@ -71,6 +71,7 @@
     <button class="tab" data-tab="stations" type="button">Places</button>
     <button class="tab" data-tab="layers" type="button">Layers</button>
     <button class="tab" data-tab="roles" type="button">Roles</button>
+    <button class="tab" data-tab="leaders" type="button">Leaders</button>
     <button class="tab" data-tab="tracking" type="button">Tracking</button>
     <button class="tab" data-tab="roster" type="button">Roster</button>
     <button class="tab" data-tab="links" type="button">Links</button>
@@ -197,38 +198,6 @@
     </p>
     <p class="row"><span id="course-order-note" class="muted"></span></p>
     <div id="course-table"></div>
-
-    <!-- Leaders sit under Courses because a leader is per race: every leader
-         here is tracked in every race above, and the NCS panel shows one row
-         for each pairing. That is also the cost of adding one, which is why
-         the list has to be as easy to shorten as to lengthen. -->
-    <h2>Leaders we track</h2>
-    <p class="muted">
-      A way to follow particular types of racer round the course. Most events
-      want the first man and the first woman; add a wheelchair leader, a first
-      junior, or whatever your race awards, and delete any you do not track.
-    </p>
-    <p class="muted">
-      Each one shows as a row per race on the Net Control screen, so two
-      leaders and three races is six rows. Name them the way they will be read
-      on the air. Reports are recorded against a leader, so one that has
-      already been sighted cannot be deleted until those reports are cleared.
-    </p>
-    <p class="row"><span id="leader-order-note" class="muted"></span></p>
-    <div id="leader-table"></div>
-    <div class="row">
-      <button id="leader-save-all" class="primary" type="button" hidden></button>
-      <span id="leader-dirty" class="muted"></span>
-    </div>
-
-    <form id="leader-form" class="card">
-      <h3>Add a leader</h3>
-      <label class="field"><span>Name</span>
-        <input id="leader-name" type="text" placeholder="First wheelchair"
-          required></label>
-      <p id="leader-error" class="error" hidden></p>
-      <button class="primary" type="submit">Add leader</button>
-    </form>
   </section>
 
   <section class="panel" data-panel="stations" data-needs-event hidden>
@@ -334,6 +303,45 @@
         <input id="role-name" type="text" placeholder="Liaison" required></label>
       <p id="role-error" class="error" hidden></p>
       <button class="primary" type="submit">Add role</button>
+    </form>
+  </section>
+
+  <!-- Leaders is a taxonomy of the event, the same as the place layers and the
+       station roles, so it gets the same treatment: its own tab rather than a
+       second heading under Courses. Every leader here is tracked in every
+       race, which is what makes it event-scoped rather than a course setting -
+       the row-per-race grid on the NCS panel is a consequence of that, not a
+       reason to file it under the races. -->
+  <section class="panel" data-panel="leaders" data-needs-event hidden>
+    <p class="needs-event" hidden>Pick an event first — everything on this
+      tab belongs to one event.
+      <button data-goto="events" type="button">Go to Events</button></p>
+    <h2>Leaders we track</h2>
+    <p class="muted">
+      A way to follow particular types of racer round the course. Most events
+      want the first man and the first woman; add a wheelchair leader, a first
+      junior, or whatever your race awards, and delete any you do not track.
+    </p>
+    <p class="muted">
+      Each one shows as a row per race on the Net Control screen, so two
+      leaders and three races is six rows. Name them the way they will be read
+      on the air. Reports are recorded against a leader, so one that has
+      already been sighted cannot be deleted until those reports are cleared.
+    </p>
+    <p class="row"><span id="leader-order-note" class="muted"></span></p>
+    <div id="leader-table"></div>
+    <div class="row">
+      <button id="leader-save-all" class="primary" type="button" hidden></button>
+      <span id="leader-dirty" class="muted"></span>
+    </div>
+
+    <form id="leader-form" class="card">
+      <h3>Add a leader</h3>
+      <label class="field"><span>Name</span>
+        <input id="leader-name" type="text" placeholder="First wheelchair"
+          required></label>
+      <p id="leader-error" class="error" hidden></p>
+      <button class="primary" type="submit">Add leader</button>
     </form>
   </section>
 
