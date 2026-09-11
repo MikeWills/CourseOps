@@ -50,6 +50,16 @@ Start the server, open the map on the Net Control workstation, and check:
 - [ ] Tracking is **on**
 - [ ] At least one mobile station appears within a few minutes
 
+**If the setup screen shows an orange "New version - reload"**, the server has
+been updated since you opened that page. Press it when you are between jobs -
+it reloads, nothing else. It appears only here, on the setup screen: the
+volunteers' pages do not carry it, because there is nothing useful they could
+do about it mid-event, and a prompt nobody can act on is the last thing anyone
+needs on race morning.
+
+If an update matters to the people in the field, tell them on the net to
+reload. That is the same relay everything else in this app uses.
+
 The full event-day procedure - what Net Control does through the morning, and
 what to do when something breaks - is in
 [`docs/RUNBOOK.md`](../RUNBOOK.md) in the repository.

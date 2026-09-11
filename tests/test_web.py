@@ -1466,6 +1466,28 @@ def test_the_reported_version_is_the_packaged_one(setup):
     assert aprsis.__version__ == packaged
 
 
+def test_a_signed_in_session_carries_the_build_the_notice_compares(setup, tmp_path):
+    """The setup screen's "New version - reload" notice is a comparison between
+    what the page was loaded with and what the session reports now, so an empty
+    build for a signed-in admin would silently switch it off - the page would
+    keep working and simply never mention a deploy again.
+
+    Build before version, because deploys of a branch all carry the same
+    version and it alone cannot tell a landed deploy from a cached page.
+    """
+    app, _, db_path, _ = setup
+    _make_admin(db_path)
+
+    with TestClient(app) as client:
+        _login(client)
+        session = client.get("/api/setup/session").json()
+
+    assert session["version"]
+    # COURSEOPS_BUILD, or git in the deployed checkout. "" only where neither
+    # exists, and then the version alone is what the notice falls back to.
+    assert "build" in session
+
+
 def test_the_build_is_not_published_to_anonymous_callers(setup):
     """The exact commit says precisely which code is deployed, which is a free
     gift to anyone looking for a version with a known problem.

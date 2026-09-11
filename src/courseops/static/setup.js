@@ -139,6 +139,13 @@ $('gate-form').addEventListener('submit', async (ev) => {
   }
 });
 
+$('version-notice').addEventListener('click', () => {
+  /* Reload, but on the person's own press. The alternative - reloading for
+     them - throws away a half-typed roster row, and the whole reason this is
+     a notice rather than an automatic refresh. */
+  window.location.reload();
+});
+
 $('logout').addEventListener('click', async () => {
   await post('/api/setup/logout');
   location.reload();
@@ -1545,6 +1552,67 @@ async function loadTracking() {
    Fetched from /healthz rather than baked into the page, because the page
    itself may be the stale thing - a browser holding an old setup.html would
    confidently show an old version number and answer the question wrongly. */
+/* Is the server running something other than what this page was loaded with?
+
+   A deploy replaces the code on the server. It does not replace a page that
+   has been open since setup started, and on race morning that is every page.
+   The failure is silent both ways: a fix shipped BECAUSE something was broken
+   does not reach the person it was shipped for, and a client old enough to
+   disagree with the API misbehaves in ways nobody can diagnose.
+
+   Only on this screen. See the note in setup.html.
+
+   The build (a commit) is preferred over the version, because deploys of a
+   branch all carry the same version and the version alone cannot tell a
+   landed deploy from a cached page. It falls back to the version for a build
+   with no git behind it.
+
+   Never reloads on its own. Somebody may be half way through a roster. */
+function versionKey(info) {
+  return (info && (info.build || info.version)) || '';
+}
+
+function noteVersion(info) {
+  // What this page is running. Recorded once, at startup, and never updated:
+  // the whole point is to compare against it later.
+  if (S.loadedVersion === undefined) S.loadedVersion = versionKey(info);
+}
+
+function checkVersion(info) {
+  const now = versionKey(info);
+  const el = $('version-notice');
+  if (!el || !now || !S.loadedVersion) return;
+  /* No dismiss button, deliberately. It is an outlined pill in a header, not
+     a modal - it blocks nothing, and pressing it is the whole interaction.
+     A dismissed notice would also be a lie by omission: the page IS running
+     older code than the server until somebody reloads, and hiding that is
+     exactly the silent state this exists to end. */
+  el.hidden = now === S.loadedVersion;
+}
+
+/* Checked when the tab comes back, and slowly while it is in front.
+
+   Tied to visibility rather than a bare interval because the common shape is a
+   laptop left on the setup screen for hours: nothing should poll while it is
+   in the background, and the moment somebody comes back to it is exactly when
+   the answer is worth having. */
+const VERSION_POLL_MS = 5 * 60 * 1000;
+
+async function pollVersion() {
+  if (document.hidden) return;
+  try {
+    const data = await api('/api/setup/session');
+    // A signed-out session answers with no user; nothing to say, and an error
+    // banner here would be noise about a thing nobody asked for.
+    if (data && data.version) { showVersion(data); checkVersion(data); }
+  } catch (err) { /* offline, or the session went away. Try again later. */ }
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) pollVersion();
+});
+setInterval(pollVersion, VERSION_POLL_MS);
+
 function showVersion(info) {
   const el = $('app-version');
   if (!info || !info.version) { el.hidden = true; return; }
@@ -2365,6 +2433,7 @@ async function start() {
   try {
     const data = await api('/api/setup/session');
     showVersion(data);
+    noteVersion(data);
     if (data.user) { S.user = data.user; await start(); }
     else showGate(data.first_run);
   } catch (err) {
