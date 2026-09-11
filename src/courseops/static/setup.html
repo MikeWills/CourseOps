@@ -30,6 +30,18 @@
      target="_blank" rel="noopener noreferrer"
      title="Setup guide (opens in a new tab)"
      aria-label="Setup guide (opens in a new tab)">?</a>
+  <!-- A deploy replaces the code on the server, not the page somebody has had
+       open since this morning. This says so, on the ONE screen where a person
+       can act on it and where reloading costs nothing.
+
+       Deliberately not on the field pages: a Liaison at the EOC who reloads
+       mid-net gains nothing, and a prompt nobody can act on is noise on the
+       one day noise has a cost. The club officer reading this is the one who
+       would know whether an update matters, and can put it out over the
+       radio. -->
+  <button id="version-notice" type="button" hidden
+    title="This page was loaded before the current version. Reload to pick it up.">
+    New version &mdash; reload</button>
   <span id="whoami" hidden></span>
   <button id="logout" type="button" hidden>Sign out</button>
 </header>

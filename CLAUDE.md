@@ -14,7 +14,7 @@ Complete history with the reasoning behind each fix: `CHANGELOG.md`.
 Open work is tracked as GitHub issues:
 #3 map tiles, #4 archive an event off the live server, #5 multi-tenant hosting,
 #6 tracking non-ham volunteers (future: decided, not for the first event),
-#112 an open page is not told a new version is running.
+#110 custom views and role names (future: planned, waiting on a second club).
 Issues #3-#5 are triggered by hosting a SECOND organization, not the first.
 
 **Starting a fresh session?** Read `docs/PLAN.md` first - it carries the
@@ -56,7 +56,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 545 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 546 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -366,6 +366,18 @@ usability, not style preferences.
   developer's. `__init__.py` always ships, metadata is what the frozen Windows
   build lacks. If the version chip in setup looks wrong locally, reinstall
   before believing it.
+- **The new-version notice is a SETUP thing, not an app-wide one.** The field
+  roles cannot act on it - a prompt nobody can act on is noise on the one day
+  noise costs something - and the officer on the setup screen is the one who
+  would know whether an update matters and can put it out over the radio. NCS
+  was considered and rejected. It also means there is no connection badge to
+  compete with, which is why this can be brand orange when the role badge
+  cannot.
+- **It compares the BUILD, not the version.** Deploys of a branch all carry the
+  same version, so the version alone cannot tell a landed deploy from a cached
+  page. `versionKey` prefers `build` and falls back to `version` where there is
+  no git. Anything that empties `build` for a signed-in admin silently switches
+  the whole notice off, which is why there is a test on the session payload.
 - **`/healthz` is unauthenticated and stays minimal.** Liveness and a version,
   nothing else - there is a test asserting the exact key set. The deployed
   COMMIT in particular belongs behind the login (`/api/setup/session`), because
@@ -870,6 +882,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-10** Setup says "New version - reload" when a deploy has happened under it.
 - **2026-09-10** A map on the Places tab: click to place a new one, drag a pin to move one.
 - **2026-09-10** Places can be added by hand and their coordinates corrected; position was import-only.
 - **2026-09-10** Leaders moved to its own setup tab, beside Layers and Roles.
@@ -879,4 +892,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-09** Setup can issue several links for one role, labelled, and revoke one without cutting off the rest.
 - **2026-09-09** Fixed: another operator's change wiped the bib you were typing; focus and caret survive a re-render now.
 - **2026-09-09** Every guide leads with "the radio comes first": the app is supplemental, call everything in to NCS anyway.
-- **2026-09-09** Fixed: a course note drew as a red pickup pin titled "Pickup (bib unknown)"; it is a round purple note pin now.

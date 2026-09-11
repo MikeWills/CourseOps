@@ -7,6 +7,42 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **The setup screen says when a deploy has happened under it.** A "New version
+  - reload" pill beside the version chip, appearing when the server reports a
+  different build from the one this page was loaded with. Pressing it reloads;
+  nothing reloads on its own, because somebody may be half way through a
+  roster. (#112)
+
+  A deploy replaces the code on the server, not a page that has been open since
+  setup started - and on race morning that is every page. The failure was
+  silent in both directions: a fix shipped BECAUSE something was broken did not
+  reach the person it was shipped for, and a client old enough to disagree with
+  the API misbehaves in ways nobody can diagnose over the radio.
+
+  **On the setup screen and nowhere else**, which is a decision rather than a
+  first step. The field roles cannot act on it usefully: a Liaison at the EOC
+  who reloads mid-net gains nothing, and a prompt nobody can act on is noise on
+  the one day noise has a cost. The club officer reading the setup screen is
+  the one who would know whether an update matters and can put it out over the
+  radio. NCS was considered - they write the most and are usually at a desk -
+  and rejected for the same reason, plus they generally have setup open in
+  another tab anyway.
+
+  It compares the **build**, not the version: deploys of a branch all carry the
+  same version, so the version alone cannot tell a landed deploy from a cached
+  page. There is no dismiss button, also deliberately - the page really is
+  running older code than the server until somebody reloads, and hiding that
+  would recreate the silent state this exists to end.
+
+  It checks when the tab comes back to the front, and slowly while it is in
+  front. Nothing polls in the background.
+
+  One consequence worth knowing: the notice is drawn by the page, so **the
+  release that adds it cannot announce itself**. It works from the next deploy
+  onward.
+
+
 ## [0.8.0] - 2026-09-10
 
 ### Added

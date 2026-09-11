@@ -521,3 +521,28 @@ td.races { line-height: 1.35; }
   background: rgba(255, 255, 255, 0.16);
   border-color: rgba(255, 255, 255, 0.75);
 }
+
+
+/* The new-version notice.
+
+   Brand orange, because this is the one thing in the setup header that wants
+   to be noticed and nothing else up there competes for it - there is no
+   connection badge on this screen, which is the whole reason the field pages
+   do not carry this. `--orange-ink` rather than `--orange`: orange on white
+   fails contrast at 2.87:1, and this is text.
+
+   It is a button because it does something. Sized like the other header
+   controls so it does not shove the wordmark around on a narrow laptop. */
+#version-notice {
+  border: 1px solid var(--orange-ink);
+  color: var(--orange-ink);
+  background: transparent;
+  border-radius: 999px;
+  padding: 4px 12px;
+  min-height: 32px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+#version-notice:hover { background: rgba(255, 106, 19, 0.08); }

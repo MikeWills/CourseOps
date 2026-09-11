@@ -671,8 +671,10 @@ Things discovered but not yet acted on. Each is a real constraint, not a wish.
   of #5, because it needs a second club to design against.
 - **Multi-tenant rough edges** — issue #5. Resource limits, a signup path with
   password reset, and static asset caching.
-- **An open page is not told a new version is running** - issue #112, found
-  2026-09-10. A deploy replaces the code on the server, not the page a
+- ~~**An open page is not told a new version is running.**~~ Issue #112, closed
+  2026-09-10: the setup screen carries a "New version - reload" pill, and no
+  other page does. The field roles cannot act on it, and a prompt nobody can
+  act on is noise on the one day noise costs something. Original note: A deploy replaces the code on the server, not the page a
   volunteer has had open for hours, so after a mid-event deploy phones run the
   old `app.js` against the new API with nothing on screen to say so. Setup has
   a version chip; the field app, held by the people who will never think to
