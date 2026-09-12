@@ -7,6 +7,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **Tapping an aid station operator's row did nothing.** Most never beacon,
+  so there was no marker of their own to fly to. The row now goes to the
+  place they are posted at; a station with a position of its own still goes
+  there. Nine of the fifteen rows on the demo roster were dead taps.
+
 ## [0.9.1] - 2026-09-12
 
 ### Fixed

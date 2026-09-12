@@ -440,6 +440,12 @@ usability, not style preferences.
   exists. Tokens are also scoped to their event: valid elsewhere means nothing.
 - **Never interpolate marker movement in the client** (same rule as the plan).
   `setLatLng`, not an animated transition.
+- **A station row's "where" is its own marker OR its posted place.** Most
+  aid station operators never beacon (the rule above), so `state.markers`
+  has nothing for them and a tap on their row was silently dead - nine of
+  fifteen rows on the demo roster. `state.poiMarkers` (poi id -> marker) is
+  the fallback via the roster entry's `poi_id`. Anything else that locates a
+  station has to make the same choice.
 - **Anything that flies the map to a marker goes through `showOnMap()`.**
   On a phone the sheet is full screen, so the map moving underneath it is
   indistinguishable from nothing happening - a SAG driver tapped a bib and
@@ -914,6 +920,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-12** Fixed: tapping a posted, non-beaconing station's row goes to the place they are posted at.
 - **2026-09-12** Fixed: on a phone, tapping a row flew the map under the open panel; the panel closes first now.
 - **2026-09-12** Fixed: `Referrer-Policy: same-origin` in Apache blanked the Referer to OSM and every tile came back "Access blocked".
 - **2026-09-12** Setup works on a phone: tabs in a sliding row, tables as labelled cards; the Places map fits its pins.
@@ -923,4 +930,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-10** A map on the Places tab: click to place a new one, drag a pin to move one.
 - **2026-09-10** Places can be added by hand and their coordinates corrected; position was import-only.
 - **2026-09-10** Leaders moved to its own setup tab, beside Layers and Roles.
-- **2026-09-10** Clubs choose which leaders an event tracks - a wheelchair leader, a first junior - instead of a fixed male/female pair.

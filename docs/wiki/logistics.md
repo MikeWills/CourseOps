@@ -37,7 +37,8 @@ else on the screen tells you that.
 - Green is under 10 minutes. Amber to 20. Red past that, and a red sweep means
   the position on screen is old, not that the sweep has stopped.
 
-Tap a row to fly the map to it.
+Tap a row to fly the map to it - the last position for a station that
+beacons, the place they are posted at for one that does not.
 
 Your map starts with the aid station operators' layer switched off, because your
 screen is about vehicles moving through the course. Turn it back on under

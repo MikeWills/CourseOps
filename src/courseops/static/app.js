@@ -46,6 +46,7 @@ const state = {
   courses: [],                // the club's draw order, ascending: last is on top
   courseOrder: null,          // this browser's own stack, top first; null = club's
   poiLayers: new Map(),       // category key -> L.LayerGroup
+  poiMarkers: new Map(),      // poi id -> its marker, for "take me there"
   poiCategories: [],          // the club's own layer definitions
   visibleCourses: new Set(),
   layerPrefs: {},
@@ -783,6 +784,7 @@ function drawCourses(courses) {
 function drawPois(pois) {
   state.poiLayers.forEach((layer) => map.removeLayer(layer));
   state.poiLayers = new Map();
+  state.poiMarkers = new Map();
   state.poiCategories.forEach((cat) => state.poiLayers.set(cat.key, L.layerGroup()));
 
   pois.forEach((poi) => {
@@ -859,6 +861,7 @@ function drawPois(pois) {
 
     const layer = state.poiLayers.get(cat.key);
     if (layer) layer.addLayer(marker);
+    state.poiMarkers.set(poi.id, marker);
   });
 
   state.poiLayers.forEach((layer, key) => {
@@ -1230,7 +1233,13 @@ function renderStations() {
       nameCell +
       middle +
       `<span class="age ${ageClass}">${escapeHtml(ageText)}</span>`;
-    locate.addEventListener('click', () => showOnMap(state.markers.get(stationKey)));
+    // Most aid station operators never beacon, so there is no marker of
+    // their own to go to; the place they are posted at is where they are.
+    locate.addEventListener('click', () => {
+      const entry = state.roster.get(stationKey);
+      showOnMap(state.markers.get(stationKey)
+        || (entry && entry.poi_id != null ? state.poiMarkers.get(entry.poi_id) : null));
+    });
     row.appendChild(locate);
 
     // A matched station can be unmatched: the undo for pointing Aid 3 at the
