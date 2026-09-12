@@ -151,9 +151,13 @@ it. Three files in `static/`, no build step:
 - `favicon.svg` - the pin on a rounded navy square at 82% of the frame, no
   road. `tools/make_icons.py` draws the PNG favicons to the same shape.
 - `logo-lockup.svg` - a copy of `docs/brand/logo-lockup.svg`, shown on the
-  sign-in page, the one screen with room for the whole lockup. Everywhere
-  else the name is live text in Overpass beside the pin: it scales, it
-  recolours, and a screen reader gets it.
+  sign-in page. `logo-lockup-reversed.svg` is the same with white where the
+  artwork is navy, for the panel head in the live app (the sheet on a
+  phone, the left column on a wide screen), which is navy and 72px tall.
+  Regenerate the reversed copy with `sed 's/#0B2545/#FFFFFF/g'` when the
+  lockup changes; do not edit it by hand. The top bar keeps the pin beside
+  the name as live text in Overpass: at 27px the wordmark would not read,
+  and text scales, recolours and reaches a screen reader.
 
 ### The favicon carries more than three features now, on purpose
 
