@@ -7,6 +7,34 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- **One typeface across the field app, setup and the report: Overpass, with
+  Overpass Mono for log data.** Overpass is drawn from the US road-sign
+  alphabet, which is the one typographic reference this app has any claim
+  to; the mono carries callsigns, bibs, ages and miles, and its slashed zero
+  means `W0RRC` and `WORRC` stop looking alike. Shipped from `static/fonts/`,
+  about 60 KB, never fetched from a font CDN - a field phone should not be
+  sending requests to a third party to draw the pickup queue.
+- **Section and panel headings are sentence case, set heavy, in ink.** The
+  small tracked capitals read as labels about the content and washed out in
+  glare.
+- **The pickup queue leads with the bib set as a race bib.** Mono numerals in
+  a squared tag with a status-coloured band, replacing "Bib 1487" beside a
+  square dot. It is what an operator matches against the runner in front of
+  them, so it is the one loud thing in a row.
+- **Two colours plus status.** The third blue that filled buttons is gone;
+  primary actions are navy. Ink is navy-derived, one corner radius
+  throughout, setup's ground is a pale tint of the navy.
+- **`/` leads to the sign-in.** It was a bare 404. The sign-in screen now
+  carries the lockup and the tagline, because it is the only thing at the
+  domain itself. There is still no public page: the field roles arrive by
+  link and never see it.
+- The setup bar keeps the Course Ops lockup at every width; it was inheriting
+  the map's rule that hides it once a sidebar carries it.
+
+Design reasoning is in `docs/DESIGN.md` under "Type", "Palette, revised" and
+"The bib tag".
+
 ### Added
 - **`/robots.txt` blocks every crawler, and every page carries `noindex`.**
   The role pages are bearer links: a link that gets indexed is a link handed

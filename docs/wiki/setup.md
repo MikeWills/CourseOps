@@ -3,7 +3,8 @@
 For the club officer who stands the event up, not the volunteer holding a link.
 The volunteers' pages are [here](Home).
 
-**Everything here happens in a browser at `/setup`.** Two things stay in a
+**Everything here happens in a browser at `/setup`** - opening the bare
+address of the server lands there too. Two things stay in a
 terminal and nothing else: your club callsign in a file called `.env`, and
 starting the server.
 

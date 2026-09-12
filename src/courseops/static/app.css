@@ -6,7 +6,31 @@
    - Tap targets >= 44px. Nothing is hover-only.
    - The desktop NCS layout is the enhancement, not the baseline. */
 
+/* Type. Overpass is drawn from the FHWA Highway Gothic alphabet - the face
+   on the county road signs the volunteers stand beside. The mono cut carries
+   what a ham writes in a log: callsigns, bibs, times, miles. Both are shipped
+   from static/, never fetched from a font CDN: a field phone should not be
+   sending requests to a third party to draw the pickup queue. About 60 KB,
+   cached after the first load, and the system face stands in until then. */
+@font-face {
+  font-family: "Overpass";
+  font-style: normal;
+  font-weight: 300 900;
+  font-display: swap;
+  src: url("/static/fonts/overpass.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Overpass Mono";
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url("/static/fonts/overpass-mono.woff2") format("woff2");
+}
+
 :root {
+  --font-ui:   "Overpass", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-data: "Overpass Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
   /* Brand. Navy owns the CHROME only - top bar, panel header, logo. The map and
      the station panel stay light: the field roles read this on a phone outdoors
      for six hours, and a dark surface loses contrast against ambient glare while
@@ -17,11 +41,17 @@
   --orange:     #FF6A13;   /* safety orange: identity and accent only */
   --orange-ink: #B34700;   /* dark enough for text on white (AA) */
 
-  --ink:        #14181d;
-  --ink-soft:   #4a5560;
+  /* Ink is navy-derived, not neutral grey, so text and chrome are one
+     family. Two colours plus status: navy is also the primary action, and
+     the third blue that used to fill buttons is gone. */
+  --ink:        #0e1b2b;
+  --ink-soft:   #46566a;
   --paper:      #ffffff;
-  --line:       #c3ccd6;
-  --accent:     #0b5fa5;
+  --ground:     #e9eef4;   /* setup's page ground: a pale tint of the navy */
+  --line:       #bfcad6;
+  --hairline:   #e6ebf1;
+  --accent:     var(--navy-700);
+  --radius:     6px;       /* squarer than a phone app: this is signage */
 
   /* Radio status. Distinct in hue AND lightness so they survive a washed-out
      screen and colour-vision deficiency. */
@@ -35,6 +65,10 @@
 }
 
 * { box-sizing: border-box; }
+
+/* Log data: what gets read off the screen and repeated on the air. */
+.data { font-family: var(--font-data); font-variant-numeric: tabular-nums; }
+input, button, select, textarea { font-family: inherit; }
 
 /* The `hidden` attribute must win.
    Every class here that sets `display` - .field{flex}, .gate{grid}, .toggle,
@@ -61,7 +95,7 @@ html, body {
 body {
   position: fixed;
   inset: 0;
-  font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font: 16px/1.4 var(--font-ui);
   color: var(--ink);
   background: var(--paper);
   -webkit-text-size-adjust: 100%;
@@ -108,8 +142,8 @@ body {
 }
 #brand img { width: 22px; height: 27px; display: block; }
 #brand-name {
-  font-size: 14px;
-  font-weight: 700;
+  font-size: 15px;
+  font-weight: 800;
   letter-spacing: 0.01em;
   white-space: nowrap;
 }
@@ -122,7 +156,7 @@ body {
 
 #event-name {
   font-weight: 600;
-  font-size: 15px;
+  font-size: 16px;
   color: rgba(255, 255, 255, 0.92);
   white-space: nowrap;
   overflow: hidden;
@@ -146,22 +180,19 @@ body {
    into the side panel's head when that panel is the left-hand column. */
 #sheet-brand { display: flex; align-items: center; gap: 8px; }
 #sheet-brand .tagline {
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.62);
-  letter-spacing: 0.02em;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.66);
 }
-/* A panel head is small uppercase lettering; the lockup is neither, and its
-   own title would only repeat the section heading below it. */
-.panel-head.has-brand { text-transform: none; letter-spacing: normal; }
+/* The lockup's own title would only repeat the section heading below it. */
 .panel-head.has-brand .panel-title { display: none; }
 
 /* Connection state is never hidden. A phone back from a dead zone must not
    show a stale picture as if it were live. */
 .conn {
   font-size: 12px;
-  font-weight: 650;
+  font-weight: 700;
   padding: 4px 9px;
-  border-radius: 999px;
+  border-radius: var(--radius);
   white-space: nowrap;
 }
 .conn--live       { background: #d7f0e1; color: #10502c; }
@@ -186,7 +217,7 @@ body {
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.22);
   cursor: pointer;
 }
-#locate-btn[aria-pressed="true"] { background: var(--accent); color: #fff; }
+#locate-btn[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
 
 /* Location problems get their own line. Reusing the connection badge would
    hide whether the data feed is actually live. */
@@ -197,7 +228,7 @@ body {
   z-index: 500;
   max-width: min(70vw, 320px);
   padding: 6px 10px;
-  border-radius: 8px;
+  border-radius: var(--radius);
   background: rgba(20, 24, 29, 0.88);
   color: #fff;
   font-size: 12px;
@@ -213,7 +244,7 @@ body {
   z-index: 600;
   min-height: 48px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius);
   background: var(--paper);
   color: var(--ink);
   font-size: 15px;
@@ -275,14 +306,17 @@ body {
 }
 
 .sheet-section { margin-bottom: 18px; }
+/* Sentence case, set heavy and in ink, like the heading on a road sign.
+   Small tracked capitals were the previous treatment; they read as labels
+   about the content rather than as the content, and washed out in glare. */
 .sheet-section h2 {
   margin: 0 0 8px;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0;
+  color: var(--ink);
 }
+.sheet-section h2 .muted { font-weight: 600; }
 
 .muted { color: var(--ink-soft); font-size: 13px; font-weight: 400; }
 
@@ -362,7 +396,7 @@ body {
   min-width: 44px;
   padding: 4px 8px;
   border: 1px solid var(--line);
-  border-radius: 7px;
+  border-radius: var(--radius);
   background: var(--paper);
   color: var(--ink-soft);
   font: inherit;
@@ -383,7 +417,7 @@ body {
    "Rolling, silent 18 min" is an alarm, and one badge cannot say both. */
 .station {
   padding: 6px 0 8px;
-  border-bottom: 1px solid #edf1f5;
+  border-bottom: 1px solid var(--hairline);
 }
 .station:last-child { border-bottom: 0; }
 
@@ -417,7 +451,7 @@ body {
   min-height: 36px;
   padding: 4px 6px;
   border: 1px solid var(--line);
-  border-radius: 7px;
+  border-radius: var(--radius);
   background: var(--paper);
   color: var(--ink-soft);
   font: inherit;
@@ -457,8 +491,8 @@ body {
   color: var(--ink-soft);
   cursor: pointer;
 }
-.sort-btn:first-child { border-radius: 8px 0 0 8px; }
-.sort-btn:last-child { border-radius: 0 8px 8px 0; border-left: 0; }
+.sort-btn:first-child { border-radius: var(--radius) 0 0 var(--radius); }
+.sort-btn:last-child { border-radius: 0 var(--radius) var(--radius) 0; border-left: 0; }
 .sort-btn.is-on { background: #e7ecf3; color: var(--navy-700); border-color: #c7d2e0; }
 .sort-btn[disabled] { opacity: 0.5; cursor: not-allowed; }
 .incident .away {
@@ -479,8 +513,8 @@ body {
   color: var(--ink-soft);
   cursor: pointer;
 }
-.pin-kind-btn:first-child { border-radius: 8px 0 0 8px; }
-.pin-kind-btn:last-child { border-radius: 0 8px 8px 0; border-left: 0; }
+.pin-kind-btn:first-child { border-radius: var(--radius) 0 0 var(--radius); }
+.pin-kind-btn:last-child { border-radius: 0 var(--radius) var(--radius) 0; border-left: 0; }
 .pin-kind-btn.is-on {
   background: var(--navy-700);
   border-color: var(--navy-700);
@@ -496,7 +530,7 @@ body {
   font-size: 12px;
   color: var(--ink-soft);
 }
-.station .call { color: var(--ink-soft); font-size: 13px; font-variant-numeric: tabular-nums; }
+.station .call { color: var(--ink-soft); font-size: 13px; font-family: var(--font-data); font-variant-numeric: tabular-nums; }
 /* The mile figure is the number read aloud on the net, so it is set stronger
    than the callsign it replaces - but in ink, not in a status colour. */
 .station .mile {
@@ -506,10 +540,11 @@ body {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-.station .age  { font-size: 13px; font-variant-numeric: tabular-nums; }
+.station .age  { font-size: 13px; font-family: var(--font-data); font-variant-numeric: tabular-nums; }
 .age--stale  { color: var(--stale);  font-weight: 650; }
 .age--silent { color: var(--silent); font-weight: 700; }
-.age--none   { color: var(--ink-soft); }
+/* "no APRS" is a word, not a figure: it stays in the UI face. */
+.age--none   { color: var(--ink-soft); font-family: var(--font-ui); }
 
 /* --- map markers -------------------------------------------------------- */
 
@@ -523,6 +558,7 @@ body {
   border-radius: 50%;
   font-size: 11px;
   font-weight: 700;
+  font-family: var(--font-data);
   color: #fff;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
 }
@@ -556,7 +592,8 @@ body {
    radio. Timid text here is the same as no text. */
 .poi-label {
   font-size: 17px;
-  font-weight: 800;
+  font-weight: 700;
+  font-family: var(--font-data);
   line-height: 1;
   letter-spacing: -0.5px;
   font-variant-numeric: tabular-nums;
@@ -593,6 +630,9 @@ body {
 
 .show-poi-names .leaflet-tooltip.poi-name { display: block; }
 
+/* leaflet.css names its own font on the container; popups and tooltips
+   take the app's face like everything else. */
+.leaflet-container { font-family: var(--font-ui); }
 .leaflet-popup-content { margin: 12px 14px; font-size: 14px; }
 .leaflet-popup-content h3 { margin: 0 0 6px; font-size: 15px; }
 .leaflet-popup-content dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; }
@@ -628,7 +668,7 @@ body {
   z-index: 500;
   max-width: min(70vw, 320px);
   padding: 6px 10px;
-  border-radius: 8px;
+  border-radius: var(--radius);
   background: rgba(20, 24, 29, 0.88);
   color: #fff;
   font-size: 12px;
@@ -682,7 +722,7 @@ body {
   min-height: 34px;
   flex: none;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius);
   background: var(--paper);
   color: var(--ink-soft);
   cursor: pointer;
@@ -707,10 +747,12 @@ body {
   min-height: 40px;
   padding: 6px 10px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius);
   font: inherit;
   font-size: 16px;          /* 16px stops iOS zooming the page on focus */
   text-transform: uppercase;
+  font-family: var(--font-data);
+  font-weight: 700;
 }
 
 /* --- incidents ----------------------------------------------------------- */
@@ -742,7 +784,7 @@ body {
   min-width: 64px;
   padding: 0 14px;
   border: 1px solid var(--line);
-  border-radius: 9px;
+  border-radius: var(--radius);
   background: var(--paper);
   font: inherit;
   font-size: 14px;
@@ -757,7 +799,7 @@ body {
   min-height: 44px;
   margin-bottom: 8px;
   border: 1px solid var(--line);
-  border-radius: 9px;
+  border-radius: var(--radius);
   background: var(--paper);
   font: inherit;
   font-size: 14px;
@@ -772,7 +814,7 @@ body {
 }
 #incident-hint { margin: 0 0 8px; }
 
-.incident { padding: 6px 0 8px; border-bottom: 1px solid #edf1f5; }
+.incident { padding: 6px 0 8px; border-bottom: 1px solid var(--hairline); }
 .incident:last-child { border-bottom: 0; }
 /* Finished work stops competing for attention but stays readable. */
 .incident--closed, .incident--dropped_off { opacity: 0.5; }
@@ -791,12 +833,44 @@ body {
   text-align: left;
   cursor: pointer;
 }
-.incident-main .name { flex: 1; font-weight: 650; }
+.incident-main .name { flex: 1; font-weight: 650; display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; }
+/* The bib, set as a race bib: the number an operator matches against the
+   runner in front of them. Mono numerals in a squared tag with a thick band
+   on the left in the STATUS colour - the same colour the row's dot carried,
+   so nothing new is said, it is only said larger. This is the one loud
+   element in a row; everything after it is quiet. */
+.bib-tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 1px 8px 0 7px;
+  border: 1.5px solid var(--ink);
+  border-left-width: 7px;
+  border-radius: 2px;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-data);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.bib-tag--unknown { color: var(--ink-soft); font-family: var(--font-ui); font-size: 14px; font-weight: 650; }
+.incident--reported   .bib-tag { border-left-color: var(--inc-reported); }
+.incident--en_route   .bib-tag { border-left-color: var(--inc-enroute); }
+.incident--picked_up  .bib-tag { border-left-color: var(--inc-pickedup); }
+.incident--dropped_off .bib-tag { border-left-color: var(--inc-dropped); }
+.incident--closed     .bib-tag { border-left-color: var(--inc-closed); }
+/* The tag carries the status band now, so the pickup's square dot goes. The
+   note keeps its round dot: a note has no status and no bib. */
+.incident-main .inc-dot:not(.inc-dot--note) { display: none; }
 .incident-main .mile {
   color: var(--ink-soft); font-size: 13px; font-variant-numeric: tabular-nums;
 }
 .incident-main .age {
-  font-size: 13px; font-weight: 650; font-variant-numeric: tabular-nums;
+  font-size: 13px; font-weight: 700;
+  font-family: var(--font-data); font-variant-numeric: tabular-nums;
 }
 .incident--reported .age { color: var(--inc-reported); }
 .incident--en_route .age { color: var(--inc-enroute); }
@@ -824,6 +898,7 @@ body {
   border-radius: 3px;
   font-size: 11px;
   font-weight: 700;
+  font-family: var(--font-data);
   color: #fff;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
 }
@@ -845,12 +920,13 @@ body {
   min-height: 36px;
   padding: 4px 8px;
   border: 1px solid var(--line);
-  border-radius: 7px;
+  border-radius: var(--radius);
   font: inherit;
   font-size: 16px;      /* 16px stops iOS zooming the page on focus */
   color: var(--ink);
   background: var(--paper);
 }
+.incident-bib { font-family: var(--font-data); font-weight: 700; }
 .incident-readonly-note {
   margin: 4px 2px 0 23px;
   font-size: 13px;
@@ -877,15 +953,15 @@ body {
   flex: none;
 }
 
-.leader { padding: 4px 0 8px 22px; border-bottom: 1px solid #edf1f5; }
+.leader { padding: 4px 0 8px 22px; border-bottom: 1px solid var(--hairline); }
 .leader:last-child { border-bottom: 0; }
 
 .leader-main { display: flex; align-items: baseline; gap: 8px; min-height: 26px; }
 .leader-div { font-weight: 650; flex: none; }
 .leader-at { flex: 1; font-size: 13px; color: var(--ink-soft); }
 .leader-pace {
-  font-size: 12px; font-weight: 650; color: var(--ink);
-  font-variant-numeric: tabular-nums;
+  font-size: 12px; font-weight: 700; color: var(--ink);
+  font-family: var(--font-data); font-variant-numeric: tabular-nums;
 }
 .leader-next { font-size: 12px; color: var(--ink-soft); }
 
@@ -910,7 +986,7 @@ body {
      than being clipped, so the row keeps a readable target either way. */
   line-height: 1.25;
   border: 1px solid var(--accent);
-  border-radius: 8px;
+  border-radius: var(--radius);
   background: var(--accent);
   color: #fff;
   font: inherit;
@@ -922,7 +998,7 @@ body {
   min-height: 40px;
   padding: 0 8px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius);
   background: var(--paper);
   color: var(--ink-soft);
   font: inherit;
@@ -939,17 +1015,20 @@ body {
   min-height: 40px;
   padding: 0 8px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius);
   font: inherit;
   font-size: 16px;          /* 16px stops iOS zooming the page on focus */
   color: var(--ink);
   background: var(--paper);
+  font-family: var(--font-data);
+  font-weight: 700;
 }
 .leader-bib {
   flex: none;
   font-size: 13px;
   font-weight: 700;
   color: var(--ink);
+  font-family: var(--font-data);
   font-variant-numeric: tabular-nums;
 }
 
@@ -964,11 +1043,11 @@ body {
   margin-bottom: 8px;
   border: 1px solid #e8c48a;
   border-left: 4px solid var(--inc-enroute);
-  border-radius: 8px;
+  border-radius: var(--radius);
   background: #fff8ee;
 }
 .ssid-head { display: flex; align-items: baseline; gap: 8px; }
-.ssid-key { font-weight: 700; font-variant-numeric: tabular-nums; }
+.ssid-key { font-weight: 700; font-family: var(--font-data); font-variant-numeric: tabular-nums; }
 .ssid-meta { font-size: 12px; color: var(--ink-soft); }
 .ssid-why { margin: 4px 0 8px; font-size: 13px; color: var(--ink); }
 
@@ -978,7 +1057,7 @@ body {
   align-items: center;
   gap: 10px;
   min-height: 44px;
-  border-bottom: 1px solid #edf1f5;
+  border-bottom: 1px solid var(--hairline);
 }
 .ignored-row .ssid-meta { flex: 1; }
 .ssid-pick {
@@ -986,7 +1065,7 @@ body {
   max-width: 100%;
   padding: 4px 8px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius);
   background: var(--paper);
   font: inherit;
   font-size: 14px;
@@ -997,7 +1076,7 @@ body {
   min-height: 34px;
   padding: 0 10px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius);
   background: var(--paper);
   font: inherit;
   font-size: 13px;
@@ -1007,7 +1086,7 @@ body {
 .ssid-ignore {
   min-height: 38px;
   padding: 0 10px;
-  border-radius: 8px;
+  border-radius: var(--radius);
   font: inherit;
   font-size: 13px;
   font-weight: 650;
@@ -1075,7 +1154,7 @@ body {
   width: 32px; height: 32px;
   flex: none;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius);
   background: transparent;
   color: inherit;
   cursor: pointer;
@@ -1101,7 +1180,7 @@ body {
   z-index: 600;
   padding: 8px 12px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius);
   background: var(--paper);
   color: var(--ink);
   font-size: 13px;
@@ -1141,10 +1220,8 @@ body {
     background: var(--navy-700);
     color: #fff;
     border-bottom: 3px solid var(--orange);
-    font-size: 12px;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
+    font-size: 14px;
+    font-weight: 800;
   }
 
   #map, #topbar { right: clamp(240px, 24vw, 320px); }
@@ -1247,7 +1324,7 @@ body {
   flex: none;
   padding: 3px 9px;
   border: 1px solid rgba(255, 255, 255, 0.42);
-  border-radius: 999px;
+  border-radius: var(--radius);
   font-size: 12px;
   font-weight: 650;
   letter-spacing: 0.02em;

@@ -1550,9 +1550,12 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     # --- pages -------------------------------------------------------------
 
     @app.get("/")
-    async def index() -> JSONResponse:
-        # No public landing page. Access is by role URL only.
-        return JSONResponse({"detail": "Not found"}, status_code=404)
+    async def index() -> RedirectResponse:
+        # No public landing page: the field roles arrive by link and the
+        # only thing at the domain itself is the club officer's sign-in. It
+        # confirms Course Ops is here, which a 404 with our favicon on it
+        # already did; what it must never do is name an event.
+        return RedirectResponse("/setup", status_code=302)
 
     @app.get("/e/{event_slug}/{token}")
     async def map_page(event_slug: str, token: str) -> HTMLResponse:

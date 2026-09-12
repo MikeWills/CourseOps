@@ -194,9 +194,61 @@ having on a phone held one-handed for six hours.
 > the role - but it means a lost phone is a link to revoke. Covered in
 > `docs/RUNBOOK.md`.
 
+## Type
+
+**Overpass**, with **Overpass Mono** for log data. Overpass is drawn from the
+FHWA Highway Gothic alphabet - the face on the county road signs the
+volunteers stand beside - which is the one typographic reference this app
+has any claim to. The mono cut carries what a ham writes in a log: callsigns,
+bib numbers, times, miles. It has a slashed zero, which is the practical win:
+`W0RRC` and `WORRC` stop looking alike.
+
+Both are shipped from `static/fonts/` (about 60 KB together, Latin subset,
+variable weight), never fetched from a font CDN: a field phone should not be
+sending requests to a third party to draw the pickup queue. `font-display:
+swap` means the system face stands in until the file arrives, and the fallback
+stack is the old system-ui one. Italic is not shipped; the app barely uses it.
+Both faces are SIL Open Font License 1.1; the licence ships beside them as
+`static/fonts/OFL.txt`.
+
+Two rules follow from the type:
+
+- **Sentence case, set heavy, for headings.** Small tracked capitals were the
+  previous treatment for section and panel heads; they read as labels about
+  the content rather than the content, and they washed out in glare. Heads
+  are now 15px/800 in ink.
+- **Mono is for values, never labels.** A callsign, a bib, an age, a mile.
+  The word beside it stays in Overpass.
+
+## Palette, revised
+
+Two colours plus status. `--accent` was a third blue (`#0b5fa5`) filling
+buttons; it is now an alias of `--navy-700`, so the primary action is the brand
+colour. Ink is navy-derived (`#0e1b2b`, soft `#46566a`) rather than neutral
+grey, and setup's page ground is a pale tint of it (`--ground`, `#e9eef4`).
+Corner radius is one token (`--radius`, 6px): squarer than a phone app,
+because the reference is signage. Status colours are untouched.
+
+## The bib tag
+
+The one loud element. In the pickup queue the bib is set as a race bib -
+mono numerals in a squared tag with a thick band on the left in the STATUS
+colour, the same colour the row's square dot carried before, so nothing new
+is said, only said larger. It is what an operator matches against the runner
+in front of them. Course notes keep their round dot: a note has no status and
+no bib, and the shape is what says so.
+
+## The front door
+
+`/` redirects to `/setup`, where the sign-in carries the lockup and the
+tagline. There is no public page beyond it by design: the field roles arrive
+by link and never see it. The marketing page the brief asked for is still
+open - it belongs off the app entirely.
+
 ## Still to do
 
-- Marketing/landing page (the app itself has no public page by design).
+- Marketing/landing page, off the app (the app itself has no public page by
+  design; `/` only leads to sign-in).
 - Printed materials, vehicle magnets, banners — the brief's primary use cases
   for the pin logo. The SVG here is a starting point, not a finished identity.
 - A designer pass on the pin silhouette; the current one is geometric rather

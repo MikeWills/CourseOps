@@ -1,11 +1,11 @@
 /* Setup screens.
-   Desktop-first, unlike the map: this is done at a workstation before the
-   event, not one-handed on a phone in daylight. It still has to work on a
-   tablet, so nothing is narrower than it needs to be. */
+   Done at a workstation before the event more often than not, but the same
+   chrome, type and controls as the field app: one product, whichever screen
+   someone is holding. Tokens come from app.css, which loads first. */
 
 body.setup {
   overflow: auto;
-  background: #f3f5f8;
+  background: var(--ground);
 }
 
 #setup-bar {
@@ -20,13 +20,17 @@ body.setup {
   color: #fff;
   border-bottom: 3px solid var(--orange);
 }
-#setup-title { font-size: 14px; color: rgba(255, 255, 255, 0.72); flex: 1; }
+/* The map hides its lockup above 700px because the sidebar carries it
+   there; setup has no sidebar, so the bar keeps it at every width. */
+body.setup #brand { display: flex; }
+#setup-title { font-size: 15px; color: rgba(255, 255, 255, 0.72); flex: 1; }
 #whoami { font-size: 13px; color: rgba(255, 255, 255, 0.9); }
 #logout {
   min-height: 34px;
   padding: 0 12px;
   border: 1px solid rgba(255, 255, 255, 0.35);
-  border-radius: 8px;
+  border-radius: var(--radius);
+  font-weight: 650;
   background: transparent;
   color: #fff;
   font: inherit;
@@ -36,14 +40,35 @@ body.setup {
 
 /* --- sign in ------------------------------------------------------------- */
 
+/* `/` lands here, so this is the front door: the lockup, the tagline and the
+   sign-in, nothing else. There is no public page beyond it by design - the
+   field roles arrive by link and never see this screen. */
 .gate {
   display: grid;
   place-items: center;
+  align-content: center;
+  gap: 22px;
   min-height: calc(100vh - 60px);
-  padding: 24px;
+  padding: 24px 16px;
 }
-.gate .card { width: min(420px, 100%); }
-.gate h1 { margin: 0 0 6px; font-size: 20px; }
+.gate-brand {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  text-align: center;
+}
+.gate-brand img { width: 56px; height: 69px; }
+.gate-brand h1 {
+  margin: 6px 0 0;
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1.05;
+  color: var(--navy-700);
+  letter-spacing: -0.01em;
+}
+.gate-brand p { margin: 0; color: var(--ink-soft); font-size: 15px; }
+.gate .card { width: min(420px, 100%); margin: 0; padding: 18px; }
+.gate h2 { margin: 0 0 6px; font-size: 20px; }
 
 /* --- shell --------------------------------------------------------------- */
 
@@ -57,16 +82,17 @@ body.setup {
   border-bottom: 1px solid var(--line);
 }
 .tab {
-  min-height: 42px;
+  min-height: 44px;
   padding: 0 14px;
   border: 0;
   border-bottom: 3px solid transparent;
   background: none;
   font: inherit;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 650;
   color: var(--ink-soft);
   cursor: pointer;
+  white-space: nowrap;
 }
 .tab.is-on { color: var(--navy-700); border-bottom-color: var(--orange); }
 
@@ -79,7 +105,7 @@ body.setup {
 .banner {
   padding: 10px 12px;
   margin: 0 0 12px;
-  border-radius: 8px;
+  border-radius: var(--radius);
   border-left: 4px solid var(--fresh);
   background: #e7f4ec;
   font-size: 14px;
@@ -92,7 +118,7 @@ body.setup {
   padding: 14px;
   margin: 12px 0;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius);
   background: var(--paper);
 }
 
@@ -102,7 +128,7 @@ body.setup {
   min-height: 40px;
   padding: 6px 10px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius);
   font: inherit;
   font-size: 15px;
   color: var(--ink);
@@ -119,7 +145,7 @@ button.primary {
   min-height: 42px;
   padding: 0 16px;
   border: 1px solid var(--navy-700);
-  border-radius: 8px;
+  border-radius: var(--radius);
   background: var(--navy-700);
   color: #fff;
   font: inherit;
@@ -139,7 +165,7 @@ button.primary {
   min-height: 42px;
   padding: 0 14px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius);
   background: var(--paper);
   font: inherit;
   color: var(--ink);
@@ -152,7 +178,7 @@ button.danger { color: var(--silent); border-color: #e3a9a4; }
 .notice {
   margin: 0 0 12px;
   padding: 10px 12px;
-  border-radius: 8px;
+  border-radius: var(--radius);
   border-left: 4px solid var(--fresh);
   background: #e7f4ec;
   font-size: 13px;
@@ -179,7 +205,7 @@ button:disabled { opacity: 0.65; cursor: progress; }
   gap: 4px;
   padding: 6px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius);
   background: var(--paper);
 }
 .icon-opt {
@@ -187,7 +213,7 @@ button:disabled { opacity: 0.65; cursor: progress; }
   place-items: center;
   width: 34px; height: 34px;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: var(--radius);
   background: none;
   color: var(--ink-soft);
   cursor: pointer;
@@ -209,7 +235,7 @@ button:disabled { opacity: 0.65; cursor: progress; }
   gap: 12px;
   padding: 16px;
   border: 1px dashed var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius);
   background: var(--paper);
   color: var(--ink-soft);
   font-size: 14px;
@@ -220,18 +246,17 @@ button:disabled { opacity: 0.65; cursor: progress; }
 table.grid { width: 100%; border-collapse: collapse; font-size: 14px; }
 table.grid th {
   text-align: left;
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  font-size: 13px;
+  font-weight: 700;
   color: var(--ink-soft);
   padding: 6px 8px;
   border-bottom: 1px solid var(--line);
 }
-table.grid td { padding: 8px; border-bottom: 1px solid #eef1f5; vertical-align: middle; }
+table.grid td { padding: 8px; border-bottom: 1px solid var(--hairline); vertical-align: middle; }
 table.grid tr:last-child td { border-bottom: 0; }
 table.grid .actions { text-align: right; white-space: nowrap; }
 /* A text link, not an icon: it opens a page rather than acting on the row. */
-table.grid .report-link { margin-right: 8px; font-weight: 600; color: #0b5fa5; }
+table.grid .report-link { margin-right: 8px; font-weight: 600; color: var(--navy-700); }
 /* Icon buttons are excluded for the same reason as the panel rule above:
    this one is a class and two elements, so its 10px of horizontal padding
    beat `.icon-btn`'s zero and squeezed a 16px glyph into a 14px content
@@ -258,7 +283,7 @@ table.grid button:not(.icon-btn) {
   min-height: 34px;
   padding: 0;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius);
   background: none;
   font: inherit;
   font-size: 15px;
@@ -293,7 +318,7 @@ table.grid button:not(.icon-btn) {
 .pill {
   display: inline-block;
   padding: 2px 8px;
-  border-radius: 999px;
+  border-radius: var(--radius);
   font-size: 12px;
   font-weight: 650;
   background: #e7ecf3;
@@ -312,7 +337,7 @@ table.grid button:not(.icon-btn) {
   display: block;
   padding: 18px;
   border: 2px dashed var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius);
   background: var(--paper);
   text-align: center;
   cursor: pointer;
@@ -331,7 +356,7 @@ table.grid button:not(.icon-btn) {
   height: 380px;
   margin: 12px 0;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius);
 }
 
 /* Foldable, and folded state is not remembered on purpose: this map is a tool
@@ -341,7 +366,7 @@ table.grid button:not(.icon-btn) {
 #place-map-wrap {
   margin: 16px 0;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius);
   padding: 0 12px;
 }
 #place-map-wrap > summary {
@@ -363,7 +388,7 @@ table.grid button:not(.icon-btn) {
   align-items: center;
   gap: 10px;
   padding: 8px;
-  border-bottom: 1px solid #eef1f5;
+  border-bottom: 1px solid var(--hairline);
   cursor: pointer;
 }
 .feature:last-child { border-bottom: 0; }
@@ -377,7 +402,7 @@ table.grid button:not(.icon-btn) {
 
 /* --- links --------------------------------------------------------------- */
 
-.link-row { padding: 12px; border-bottom: 1px solid #eef1f5; }
+.link-row { padding: 12px; border-bottom: 1px solid var(--hairline); }
 .link-row:last-child { border-bottom: 0; }
 .link-role { font-weight: 700; margin-bottom: 4px; }
 /* One line per link: the URL, copy, open, revoke. Revoke is last and red,
@@ -392,7 +417,7 @@ table.grid button:not(.icon-btn) {
   width: 170px;
   padding: 8px 10px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius);
   font-size: 13px;
 }
 /* The two role-wide buttons, under that role's links. Issuing another is the
@@ -407,9 +432,9 @@ table.grid button:not(.icon-btn) {
   min-width: 0;
   padding: 8px 10px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius);
   background: #f7f9fc;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-data);
   font-size: 12px;
   word-break: break-all;
 }
@@ -418,7 +443,7 @@ table.grid button:not(.icon-btn) {
    in a monospace face: proportional digits make it easy to lose your place
    halfway through, and a misread digit is a vehicle sent to the wrong road. */
 .coords {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-data);
   font-size: 12px;
   white-space: nowrap;
   color: var(--ink-soft);
@@ -448,6 +473,11 @@ a.icon-btn { color: var(--ink); text-decoration: none; }
 a.icon-btn[hidden] { display: none; }
 
 @media (max-width: 640px) {
+  /* The bar holds the lockup, the help ring and Sign out; who is signed in
+     is on the Users tab and was wrapping the bar to three lines. */
+  #setup-bar { padding: 8px 12px; gap: 8px; }
+  #whoami { display: none; }
+  #setup-title { flex: 1; }
   .row > .field { min-width: 100%; }
   table.grid { font-size: 13px; }
 }
@@ -457,6 +487,7 @@ a.icon-btn[hidden] { display: none; }
 .pin-label {
   width: 46px;
   text-align: center;
+  font-family: var(--font-data);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
@@ -537,7 +568,7 @@ td.races { line-height: 1.35; }
   border: 1px solid var(--orange-ink);
   color: var(--orange-ink);
   background: transparent;
-  border-radius: 999px;
+  border-radius: var(--radius);
   padding: 4px 12px;
   min-height: 32px;
   font-size: 13px;

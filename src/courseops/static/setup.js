@@ -2128,8 +2128,8 @@ async function loadRoster() {
     <table class="grid"><thead><tr><th>Callsign</th><th>Label</th><th>Operator</th>
       <th>Role</th><th>APRS</th><th>Posted at</th><th></th></tr></thead><tbody>` +
     S.roster.map((r) => `<tr>
-      <td><strong>${esc(r.station_key)}</strong>${r.bound_key
-        ? `<br><span class="muted">heard as ${esc(r.bound_key)}</span>` : ''}</td>
+      <td><strong class="data">${esc(r.station_key)}</strong>${r.bound_key
+        ? `<br><span class="muted">heard as <span class="data">${esc(r.bound_key)}</span></span>` : ''}</td>
       <td>${esc(r.display_label)}</td>
       <td>${esc(r.operator_name || '')}</td>
       <td>${esc((S.roleNames || {})[r.category] || r.category)}</td>

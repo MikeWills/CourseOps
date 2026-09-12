@@ -227,6 +227,13 @@ function formatMile(meters) {
   return `mile ${(meters / 1609.344).toFixed(1)}`;
 }
 
+// The same, as markup: the figure is what gets read on the air, so it takes
+// the log face; the word beside it does not.
+function mileHtml(meters) {
+  if (meters == null) return '';
+  return `mile <span class="data">${(meters / 1609.344).toFixed(1)}</span>`;
+}
+
 function coursePositionOf(stationKey) {
   const position = state.positions.get(stationKey);
   if (position && position.course_position) return position.course_position;
@@ -1206,7 +1213,7 @@ function renderStations() {
     const located = coursePositionOf(stationKey);
     const middle = located
       ? `<span class="mile" title="${escapeHtml(located.course_name)}">` +
-        `${escapeHtml(formatMile(located.distance_along_m))}</span>`
+        `${mileHtml(located.distance_along_m)}</span>`
       : `<span class="call">${escapeHtml(stationKey)}</span>`;
 
     // The operator's name earns a second line only when there is one, so an
@@ -2126,7 +2133,7 @@ function renderPickups(pickups) {
     main.type = 'button';
     main.className = 'incident-main';
     const mile = incident.course_position
-      ? formatMile(incident.course_position.distance_along_m) : '';
+      ? mileHtml(incident.course_position.distance_along_m) : '';
     // Time in the CURRENT status, not since it was reported: "waiting 8
     // minutes with nobody dispatched" is the thing worth seeing.
     // Shown whenever we know it, not only while sorting by it: a driver
@@ -2139,10 +2146,15 @@ function renderPickups(pickups) {
 
     main.innerHTML =
       `<span class="inc-dot inc-dot--${incident.status}"></span>` +
-      `<span class="name">${escapeHtml(incident.bib ? 'Bib ' + incident.bib : 'Bib unknown')}` +
+      // The bib set as a bib tag: it is what an operator matches against the
+      // runner in front of them, so it is the loud thing in the row.
+      `<span class="name">` +
+      (incident.bib
+        ? `<span class="bib-tag">${escapeHtml(incident.bib)}</span>`
+        : `<span class="bib-tag bib-tag--unknown">Bib unknown</span>`) +
       (awayText ? `<span class="away">${escapeHtml(awayText)}</span>` : '') +
       `</span>` +
-      `<span class="mile">${escapeHtml(mile)}</span>` +
+      `<span class="mile">${mile}</span>` +
       `<span class="age">${escapeHtml(formatAge(ageSeconds(incident.status_at)))}</span>`;
     main.addEventListener('click', () => {
       const marker = state.incidentMarkers.get(incident.id);
@@ -2263,11 +2275,11 @@ function renderNotes(notes) {
     main.type = 'button';
     main.className = 'incident-main';
     const mile = incident.course_position
-      ? formatMile(incident.course_position.distance_along_m) : '';
+      ? mileHtml(incident.course_position.distance_along_m) : '';
     main.innerHTML =
       '<span class="inc-dot inc-dot--note"></span>' +
       `<span class="name">${escapeHtml(incident.note || 'Course note')}</span>` +
-      `<span class="mile">${escapeHtml(mile)}</span>` +
+      `<span class="mile">${mile}</span>` +
       `<span class="age">${escapeHtml(formatAge(ageSeconds(incident.reported_at)))}</span>`;
     main.addEventListener('click', () => {
       const marker = state.incidentMarkers.get(incident.id);

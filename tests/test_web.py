@@ -49,10 +49,14 @@ def setup(tmp_path):
 
 # --- access control ---------------------------------------------------------
 
-def test_no_public_landing_page(setup):
+def test_root_is_the_setup_sign_in_not_a_landing_page(setup):
+    """The field roles arrive by link; the domain itself leads only to the
+    club officer's sign-in, and never names an event."""
     app, _, _, _ = setup
     with TestClient(app) as client:
-        assert client.get("/").status_code == 404
+        response = client.get("/", follow_redirects=False)
+    assert response.status_code == 302
+    assert response.headers["location"] == "/setup"
 
 
 def test_valid_token_serves_the_map(setup):
