@@ -440,6 +440,12 @@ usability, not style preferences.
   exists. Tokens are also scoped to their event: valid elsewhere means nothing.
 - **Never interpolate marker movement in the client** (same rule as the plan).
   `setLatLng`, not an animated transition.
+- **Anything that flies the map to a marker goes through `showOnMap()`.**
+  On a phone the sheet is full screen, so the map moving underneath it is
+  indistinguishable from nothing happening - a SAG driver tapped a bib and
+  saw no change. It closes the sheet below the sidebar tier and leaves it
+  alone above, where the sheet is beside the map. Three copies of the
+  handler existed before; do not write a fourth.
 - **On a phone the role's sections go to the TOP of the sheet instead.** Same
   list as the side panel, because it is the same decision: there is no second
   panel at that width, so without this the one thing a role exists to look at
@@ -908,6 +914,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-12** Fixed: on a phone, tapping a row flew the map under the open panel; the panel closes first now.
 - **2026-09-12** Fixed: `Referrer-Policy: same-origin` in Apache blanked the Referer to OSM and every tile came back "Access blocked".
 - **2026-09-12** Setup works on a phone: tabs in a sliding row, tables as labelled cards; the Places map fits its pins.
 - **2026-09-12** Overpass and Overpass Mono across every screen, headings in sentence case, the bib set as a bib tag, `/` leads to sign-in.
@@ -917,4 +924,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-10** Places can be added by hand and their coordinates corrected; position was import-only.
 - **2026-09-10** Leaders moved to its own setup tab, beside Layers and Roles.
 - **2026-09-10** Clubs choose which leaders an event tracks - a wheelchair leader, a first junior - instead of a fixed male/female pair.
-- **2026-09-10** A `?` in the top bar of every screen opens that role's guide in a new tab.

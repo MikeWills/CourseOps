@@ -8,6 +8,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Fixed
+- **On a phone, tapping a pickup, note or station row looked like it did
+  nothing.** The map flew to the marker underneath the full-screen panel,
+  which stayed open over it. The panel closes first now; on a tablet or
+  desktop it is a sidebar and stays. One `showOnMap()` replaces three copies
+  of the handler, and a station whose layer is switched off still pans to
+  where it is (only the popup needs the marker on the map).
+
+### Fixed
 - **Map tiles came back as "Access blocked" squares on the deployed site.**
   The Apache config sent `Referrer-Policy: same-origin`, so every request to
   `tile.openstreetmap.org` arrived with no Referer, and OSM's tile policy
