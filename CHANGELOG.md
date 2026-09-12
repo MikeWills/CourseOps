@@ -7,6 +7,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- **The full lockup where there is room for it.** The sign-in page shows
+  it - pin, wordmark and tagline as one image - instead of the pin over the
+  name set as text. The panel head in the live app (the sheet on a phone,
+  the left column on a wide screen) shows a reversed copy, white where the
+  artwork is navy, in place of the pin beside a text tagline: that head is
+  72px tall and the wordmark reads at that size; the tagline inside the
+  image does not, and the alt text carries it. The wordmark's typeface is
+  not Overpass; accepted on these two surfaces. The lockup's viewBox is
+  cropped to the artwork, so it sizes by the art and not by the canvas.
+
 ## [0.10.0] - 2026-09-12
 
 ### Added
