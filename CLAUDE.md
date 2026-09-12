@@ -56,7 +56,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 546 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 547 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -882,6 +882,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-12** `/robots.txt` blocks every crawler and every page carries `noindex`: the role links must not be searchable.
 - **2026-09-10** Setup says "New version - reload" when a deploy has happened under it.
 - **2026-09-10** A map on the Places tab: click to place a new one, drag a pin to move one.
 - **2026-09-10** Places can be added by hand and their coordinates corrected; position was import-only.
@@ -891,4 +892,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-09** Wiki gains a setup guide for club officers, including what a club can bend; README points at the wiki.
 - **2026-09-09** Setup can issue several links for one role, labelled, and revoke one without cutting off the rest.
 - **2026-09-09** Fixed: another operator's change wiped the bib you were typing; focus and caret survive a re-render now.
-- **2026-09-09** Every guide leads with "the radio comes first": the app is supplemental, call everything in to NCS anyway.

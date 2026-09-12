@@ -7,6 +7,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **`/robots.txt` blocks every crawler, and every page carries `noindex`.**
+  The role pages are bearer links: a link that gets indexed is a link handed
+  to everyone who searches for the event. Both halves are needed, because
+  robots.txt only asks a crawler not to fetch a page - a URL that reaches a
+  search engine some other way (a shared link, a browser extension) can still
+  be listed by address alone, and the `<meta name="robots">` is what stops
+  that. There is a test on both.
+
 ## [0.8.1] - 2026-09-11
 
 ### Added
