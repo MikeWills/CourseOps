@@ -618,7 +618,9 @@ GitHub Wiki automatically** when they reach `main` (`tools/build_wiki.py` plus
 - Screenshots come from a demonstration event seeded with invented callsigns,
   operators and bibs on a synthetic course, with a fictional club callsign
   passed as an environment variable. No organizer file and no captured traffic
-  is involved, which keeps the public-repo rule intact.
+  is involved, which keeps the public-repo rule intact. `tools/seed_demo.py`
+  builds it (checked in 2026-09-12, after the design pass re-shot all 32
+  images), so a re-shoot is a script run rather than an afternoon.
 - **In-app help:** a `?` in the top bar of every screen opens the guide for
   the link that person is holding, in a new tab. The setup screens carry the
   same ring, following the tab.
