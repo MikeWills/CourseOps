@@ -1439,6 +1439,22 @@ def test_healthz_reports_ok_and_a_version(setup):
     assert body["version"]
 
 
+def test_robots_txt_blocks_every_crawler(setup):
+    """The role pages are bearer links; an indexed link is a link handed to
+    everyone. Both halves are needed: robots.txt stops the fetch, the meta
+    stops a URL that arrived some other way from being listed."""
+    app, tokens, _, _ = setup
+    with TestClient(app) as client:
+        robots = client.get("/robots.txt")
+        page = client.get(f"/e/m2026/{tokens['ncs']}")
+        setup_page = client.get("/setup")
+
+    assert robots.status_code == 200
+    assert robots.text == "User-agent: *\nDisallow: /\n"
+    assert 'name="robots" content="noindex' in page.text
+    assert 'name="robots" content="noindex' in setup_page.text
+
+
 def test_the_reported_version_is_the_packaged_one(setup):
     """One version number per process.
 

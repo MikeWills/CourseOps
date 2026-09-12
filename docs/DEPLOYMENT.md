@@ -280,6 +280,7 @@ Then check each thing that can fail independently:
 | HTTP redirects | `curl -I http://your.domain/setup` | `301` to https |
 | **WebSocket upgrades** | see below | `101 Switching Protocols` |
 | Cookie is Secure | sign in, inspect `Set-Cookie` | contains `Secure` |
+| Crawlers kept out | `curl https://your.domain/robots.txt` | `Disallow: /` |
 
 The WebSocket check, which is the one worth doing by hand:
 

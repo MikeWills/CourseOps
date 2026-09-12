@@ -20,7 +20,8 @@ from typing import Any
 
 from fastapi import (FastAPI, File, Form, HTTPException, Request, UploadFile,
                      WebSocket, WebSocketDisconnect)
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import (HTMLResponse, JSONResponse, PlainTextResponse,
+                               RedirectResponse)
 from fastapi.staticfiles import StaticFiles
 
 from . import (access, admin, build, categories, db, hub as hub_module, importer,
@@ -549,6 +550,16 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
             max_age=users.SESSION_DAYS * 24 * 3600,
             path="/",
         )
+
+    @app.get("/robots.txt")
+    async def robots() -> PlainTextResponse:
+        """Keep every crawler out. Nothing here is meant to be found by
+        search: the role pages are bearer links, and a link that gets
+        indexed is a link handed to everyone. Pages also carry a noindex
+        meta, because robots.txt only asks crawlers not to FETCH a page -
+        a URL that reaches a search engine some other way (a shared link,
+        a browser extension) can still be listed by address alone."""
+        return PlainTextResponse("User-agent: *\nDisallow: /\n")
 
     @app.get("/healthz")
     async def healthz() -> JSONResponse:
