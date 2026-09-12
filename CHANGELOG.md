@@ -20,6 +20,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   and drops the word "Setup" and who is signed in - the bar was wrapping to
   three lines.
 
+- `tools/seed_demo.py` builds the demonstration event the wiki screenshots
+  come from, so a re-shoot is reproducible.
+
 ### Fixed
 - **The Places map opened on a few streets with every pin off the edge.**
   `fitBounds` ran while the panel was still hidden, on a zero-size map, which
