@@ -14,6 +14,9 @@ Who is out on the course, and how each of them gets into the app.
 
 ![The Roster tab: callsign, label, operator, role, whether APRS is expected](images/setup-roster.png)
 
+On a phone the same table is a stack of cards, one per station, with the
+pencil and the X at the bottom right of each.
+
 Three separate things, and confusing them is the most common mistake:
 
 1. **The place** - an aid station, from the course file.

@@ -2016,7 +2016,11 @@ function renderPlaceMap() {
   placeMapView(map, bounds);
   // A map built inside a panel that was hidden measures itself as zero and
   // renders one grey tile in the corner. Same reason the Import map does this.
-  setTimeout(() => map.invalidateSize(), 60);
+  // The fit has to be redone AFTER the resize: a fitBounds computed on a
+  // zero-size map lands at the centre at maximum zoom, and invalidateSize
+  // keeps that view - so the map opened on a few streets with every pin
+  // and route off the edge.
+  setTimeout(() => { map.invalidateSize(); placeMapView(map, bounds); }, 60);
 }
 
 /* A dragged pin writes into the row's own boxes and marks them dirty, so it

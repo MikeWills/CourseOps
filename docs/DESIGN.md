@@ -238,6 +238,21 @@ is said, only said larger. It is what an operator matches against the runner
 in front of them. Course notes keep their round dot: a note has no status and
 no bib, and the shape is what says so.
 
+## Setup on a phone
+
+Below 700px - the map's own phone tier - the tab bar becomes one row that
+scrolls sideways, and every table becomes a stack of cards, one per row, each
+cell labelled with its column heading. The cells are the same elements laid
+out differently, not a second rendering: `labelTableCells()` in `setup.js`
+copies each heading into `data-label` on its cells as a table lands, and the
+CSS prints it. So `bindSaveAll`, the drag handles and every per-row control
+keep working untouched, and a tenth table gets the phone layout for free.
+
+Cells lay out with flex-wrap rather than grid, because a cell can hold several
+things - a mile and its course, two coordinate boxes and a copy button, a row
+of race checkboxes - and they should keep flowing inline after the label the
+way they did across the desktop column, wrapping under it only when too wide.
+
 ## The front door
 
 `/` redirects to `/setup`, where the sign-in carries the lockup and the
