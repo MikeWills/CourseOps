@@ -7,6 +7,28 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **The logo and app icon, as vector artwork, in `docs/brand/`.** The
+  lockup (pin, wordmark, tagline) and the square icon were generated as
+  raster images and traced into SVG with vtracer, then snapped to the
+  brand tokens so they carry exactly `#0B2545`, `#FF6A13` and white. The
+  raster originals sit beside them in `docs/brand/source/`. The README
+  opens with the lockup.
+
+### Changed
+- **The app wears the new mark.** The top bar, the panel head and the
+  sign-in page show the pin from the icon - white ring, orange signal arcs,
+  a lattice tower - redrawn by hand as a few SVG paths, because the road
+  runs behind the pin's tip in the artwork and no crop of the trace comes
+  out clean. `logo-pin-ink.svg` is the navy-ring variant for the light
+  sign-in page. The favicon is the same pin on a rounded navy square, and
+  the home-screen icons are rasterised from the delivered full-bleed
+  square by `tools/make_icons.py`, which no longer draws the old mark
+  geometrically. At 16px on a 1x display the favicon is a smudge; accepted,
+  and the reasoning is in `docs/DESIGN.md`.
+- The wiki screenshots still show the previous orange pin in the top-left
+  corner, 22px wide. They are re-shot as each guide next changes.
+
 ## [0.9.2] - 2026-09-12
 
 ### Fixed

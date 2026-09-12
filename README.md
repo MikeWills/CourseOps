@@ -1,3 +1,5 @@
+<img src="docs/brand/logo-lockup.svg" alt="Course Ops" width="520">
+
 # Course Ops
 
 **Ham radio event tracking and communications**

@@ -113,17 +113,54 @@ Defined in `static/app.css` `:root`.
 never as small text on white; where orange text is needed, `--orange-ink` is
 used instead.
 
-## Logo assets
+## Brand artwork
 
-Both are inline SVG in `static/` — no image files, no build step, and they
-recolour with the CSS tokens.
+`docs/brand/` holds the finished artwork, generated with an image model from
+the brief above and then traced into vector:
 
-- `logo-pin.svg` — checkpoint pin whose interior is an oscilloscope trace.
-  Used in the top bar next to the event name.
-- `favicon.svg` — the compact mark, derived from the **pin**, not from the C.O.
-  monogram. See the note below.
+- `logo-lockup.svg` - pin, wordmark and tagline, navy and orange on
+  transparent. For the README, the wiki, banners and print.
+- `icon.svg` - the square app icon: white pin with the tower and signal
+  arcs on a navy ground, the course winding out from under it. Full bleed,
+  square corners, the road running off the bottom edge - the platforms
+  apply their own mask.
+- `source/` - the raster originals the traces came from. `icon.png` is also
+  what `tools/make_icons.py` rasterises the home-screen icons from.
 
-Both use navy ground with an orange mark, so they hold up on light and dark.
+The traces are made with [vtracer](https://github.com/visioncortex/vtracer):
+the raster is first quantised to exactly three colours (so the tracer sees
+hard edges and no anti-aliasing fringe), traced in spline mode, and every
+fill is then snapped to the tokens below. Flat two-colour art traces
+cleanly; anything with gradients or soft edges would not, which is one more
+reason the brief forbids them. A future PNG from the same model goes
+through the same steps.
+
+## Logo assets (in the app)
+
+The in-app mark is the pin from the app icon - white ring, navy disc, two
+orange signal arcs a side, a lattice tower - **redrawn by hand** as a few
+SVG paths rather than cropped from the trace. The trace cannot give a clean
+pin: the road runs behind the pin's tip, so any crop carries fragments of
+it. Three files in `static/`, no build step:
+
+- `logo-pin.svg` - white ring, for the navy chrome: the top bar and the
+  panel head.
+- `logo-pin-ink.svg` - the same pin with the ring in navy, for a light
+  surface: the sign-in page. An `<img>` cannot take a CSS token, so a
+  second file is cheaper than inlining the SVG in three places.
+- `favicon.svg` - the pin on a rounded navy square at 82% of the frame, no
+  road. `tools/make_icons.py` draws the PNG favicons to the same shape.
+
+### The favicon carries more than three features now, on purpose
+
+The earlier favicon kept exactly three features - pin, disc, one pulse -
+because at 16px on a 1x display that is all a mark gets. The pin from the
+icon has a ring, arcs and a tower, and at 16px on a 1x display it IS a
+smudge. That is accepted: the home-screen icon and the favicon are now the
+same mark, which is what a person recognises the tab by after installing
+the app, and nearly every screen this runs on is hi-DPI, where the tab
+icon is the 32px rendering and reads. If a 1x laptop becomes the common
+case, the fix is a simplified 16px variant, not a different mark.
 
 ### The C.O. monogram was tried and rejected for the favicon
 
@@ -134,15 +171,8 @@ stray orange bar disconnected from the mark, and the arcs make it look like a
 generic wifi glyph rather than a monogram. Rendered side by side at 16/24/32px,
 a 22px **pin** was more legible than a 32px monogram.
 
-The brief's own reasoning is what settles it: the monogram exists for "anywhere
-the full pin logo is too small or detailed to read." Testing showed the pin is
-the one that reads small, provided its interior is simplified — at 16px a mark
-gets about three distinguishable features, so the favicon keeps exactly three:
-pin silhouette, light disc, one bold pulse.
-
 The monogram idea is still worth having for contexts where letterforms have room
-to work — an app icon at 512px, embroidery, a vehicle magnet. It is just wrong
-for a favicon.
+to work - embroidery, a vehicle magnet. It is just wrong for a favicon.
 
 ## Icon set
 
@@ -171,8 +201,11 @@ One SVG is not enough. Three platform facts drive the file list:
 | `icon-maskable-192/512.png` | 192, 512 | Manifest, purpose `maskable`, 80% safe zone |
 
 Regenerate with `python tools/make_icons.py` (needs `pip install pillow`;
-Pillow is not a runtime dependency). The marks are drawn geometrically and
-supersampled 4x, so no native SVG rasteriser is required.
+Pillow is not a runtime dependency). The home-screen icons are rasterised
+from `docs/brand/source/icon.png`, every pixel snapped to the three brand
+colours first so the padded navy matches; the favicons are drawn
+geometrically to the shape of `favicon.svg`. Everything is supersampled 4x,
+so no native SVG rasteriser is required.
 
 ## Installing to a home screen
 
