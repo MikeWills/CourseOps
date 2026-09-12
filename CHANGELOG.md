@@ -7,6 +7,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.9.2] - 2026-09-12
+
 ### Fixed
 - **Tapping an aid station operator's row did nothing.** Most never beacon,
   so there was no marker of their own to fly to. The row now goes to the
