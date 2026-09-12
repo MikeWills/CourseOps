@@ -67,7 +67,9 @@ holding, the `?` goes to the page written for it.
   marshalling. Nobody is waiting at one. It is a different shape as well as a
   different colour, so the two never have to be told apart by colour alone.
 
-Tap anything to open it.
+Tap anything to open it. Tapping a row in a list flies the map to it; on a
+phone the panel closes so you can see where it landed - the **Layers** button
+at the bottom brings it back.
 
 ![A station popup: callsign, operator, last heard, speed, course position](images/shared-station-popup.png)
 

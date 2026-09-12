@@ -1230,14 +1230,7 @@ function renderStations() {
       nameCell +
       middle +
       `<span class="age ${ageClass}">${escapeHtml(ageText)}</span>`;
-    locate.addEventListener('click', () => {
-      const marker = state.markers.get(stationKey);
-      if (marker) {
-        setFollowing(false);
-        map.setView(marker.getLatLng(), Math.max(map.getZoom(), 15));
-        marker.openPopup();
-      }
-    });
+    locate.addEventListener('click', () => showOnMap(state.markers.get(stationKey)));
     row.appendChild(locate);
 
     // A matched station can be unmatched: the undo for pointing Aid 3 at the
@@ -2156,14 +2149,7 @@ function renderPickups(pickups) {
       `</span>` +
       `<span class="mile">${mile}</span>` +
       `<span class="age">${escapeHtml(formatAge(ageSeconds(incident.status_at)))}</span>`;
-    main.addEventListener('click', () => {
-      const marker = state.incidentMarkers.get(incident.id);
-      if (marker && map.hasLayer(marker)) {
-        setFollowing(false);
-        map.setView(marker.getLatLng(), Math.max(map.getZoom(), 15));
-        marker.openPopup();
-      }
-    });
+    main.addEventListener('click', () => showOnMap(state.incidentMarkers.get(incident.id)));
     row.appendChild(main);
 
     // Whoever may report may also describe: a pin with no bib and no note is
@@ -2281,14 +2267,7 @@ function renderNotes(notes) {
       `<span class="name">${escapeHtml(incident.note || 'Course note')}</span>` +
       `<span class="mile">${mile}</span>` +
       `<span class="age">${escapeHtml(formatAge(ageSeconds(incident.reported_at)))}</span>`;
-    main.addEventListener('click', () => {
-      const marker = state.incidentMarkers.get(incident.id);
-      if (marker && map.hasLayer(marker)) {
-        setFollowing(false);
-        map.setView(marker.getLatLng(), Math.max(map.getZoom(), 15));
-        marker.openPopup();
-      }
-    });
+    main.addEventListener('click', () => showOnMap(state.incidentMarkers.get(incident.id)));
     row.appendChild(main);
 
     if (can('incident_report')) {
@@ -2750,6 +2729,21 @@ function showOperatorBox() {
 
 const sheet = document.getElementById('sheet');
 const sheetToggle = document.getElementById('sheet-toggle');
+
+/* A row in a list, tapped: go to its marker. On a phone the sheet is full
+   screen, so it has to close first or the map moves underneath it and the
+   tap looks like it did nothing - which is what a SAG driver saw, tapping a
+   bib to find the runner. On a tablet or desktop the sheet is a sidebar and
+   stays; the map is beside it. */
+function showOnMap(marker) {
+  if (!marker) return;
+  if (!SIDEBAR.matches) setSheet(false);
+  setFollowing(false);
+  map.setView(marker.getLatLng(), Math.max(map.getZoom(), 15));
+  // A station whose layer is switched off still has a position to go to;
+  // only the popup needs the marker on the map.
+  if (map.hasLayer(marker)) marker.openPopup();
+}
 
 function setSheet(open) {
   sheet.classList.toggle('open', open);
