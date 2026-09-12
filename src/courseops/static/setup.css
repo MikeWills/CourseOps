@@ -472,14 +472,104 @@ table.grid button:not(.icon-btn) {
 a.icon-btn { color: var(--ink); text-decoration: none; }
 a.icon-btn[hidden] { display: none; }
 
-@media (max-width: 640px) {
+/* --- setup on a phone ----------------------------------------------------
+
+   Below 700px, the same number the map uses for its phone tier. A club
+   officer fixes a callsign from the car park on race morning; that has to
+   work on the phone in their hand, not only at the desk it was set up from.
+
+   Two things change and nothing else: the tab bar becomes one row that
+   scrolls sideways, and every table becomes a stack of cards, one per row,
+   each cell labelled with its column heading. The cells, inputs and buttons
+   are the SAME elements - the card is a layout, not a second rendering - so
+   `bindSaveAll` and the drag handles keep working untouched. */
+@media (max-width: 699px) {
   /* The bar holds the lockup, the help ring and Sign out; who is signed in
      is on the Users tab and was wrapping the bar to three lines. */
   #setup-bar { padding: 8px 12px; gap: 8px; }
   #whoami { display: none; }
-  #setup-title { flex: 1; }
+  /* The map's bar drops the wordmark under 460px to make room for the
+     connection badge; there is no badge here, so the name stays and the
+     word "Setup" goes instead - the tab bar underneath already says it.
+     The version chip stays: a deploy from a phone is confirmed by reading
+     it. */
+  body.setup #brand-name { display: inline; }
+  #setup-title { display: none; }
+  #app-version { flex: 1; min-width: 0; text-align: right; overflow: hidden; text-overflow: ellipsis; }
+  #logout { white-space: nowrap; }
+  #app { padding: 12px 16px 48px; }
+
+  /* One row, scrolling sideways, bleeding to the screen edges so the last
+     tab is visibly cut off rather than looking like the end of the list.
+     The active tab is scrolled into view by activateTab(). */
+  #tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    margin: 0 -16px 12px;
+    padding: 0 16px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    scroll-padding: 0 16px;
+  }
+  #tabs::-webkit-scrollbar { display: none; }
+  .tab { flex: none; padding: 0 12px; }
+
   .row > .field { min-width: 100%; }
-  table.grid { font-size: 13px; }
+
+  /* Tables as cards. Every cell labelled from its heading: `data-label` is
+     filled in by labelTableCells() in setup.js the moment a table lands. */
+  table.grid, table.grid tbody, table.grid tr { display: block; width: 100%; }
+  table.grid thead { display: none; }
+  table.grid tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    padding: 10px 0 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  table.grid td { flex: 1 1 100%; }
+  /* The grip and the select-all checkbox share a line at the top. */
+  table.grid td:not([data-label]):not(.actions) { flex: 0 0 auto; padding-right: 10px; }
+  table.grid tr:last-child { border-bottom: 0; }
+  /* Flex, not grid: a cell may hold several things - a mile and its course,
+     two coordinate boxes and a copy button, a row of race checkboxes - and
+     they keep flowing inline after the label exactly as they did across the
+     desktop column. Anything too wide (a full-width input) wraps under it. */
+  table.grid td {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+    padding: 3px 0;
+    border: 0;
+    font-size: 15px;
+  }
+  table.grid td[data-label]::before {
+    content: attr(data-label);
+    flex: 0 0 84px;
+    font-size: 12px;
+    font-weight: 650;
+    color: var(--ink-soft);
+  }
+  /* Actions go to the right, where the thumb is. */
+  table.grid td.actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+    padding-top: 8px;
+  }
+  table.grid td.grip-cell { width: auto; }
+  /* Inputs sized for a desktop column stretch to the card instead. */
+  table.grid td input:not([type="checkbox"]):not([type="color"]):not(.pos):not(.coord):not(.pin-label) {
+    width: 100% !important; min-height: 40px;
+  }
+  table.grid td select { width: auto !important; max-width: 100%; min-height: 40px; }
+  table.grid td input, table.grid td select { font-size: 16px; }  /* no iOS zoom */
+  table.grid .link-label { width: 100%; }
+
+  /* Links: the label above the URL, the buttons under it. */
+  .link-label { width: 100%; }
+  .link-line .link-url { flex-basis: 100%; }
 }
 
 /* Two characters is the whole budget - the pin is 24px on the map. The input
