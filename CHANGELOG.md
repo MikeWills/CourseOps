@@ -7,6 +7,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-09-12
+
 ### Changed
 - **The full lockup where there is room for it.** The sign-in page shows
   it - pin, wordmark and tagline as one image - instead of the pin over the
