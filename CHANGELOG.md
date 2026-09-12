@@ -7,6 +7,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-09-12
+
 ### Changed
 - **Setup works on a phone.** Below 700px the tab bar is one row that slides
   sideways, and every table is a stack of cards, one per row, each value
