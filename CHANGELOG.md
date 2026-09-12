@@ -7,6 +7,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-09-12
+
 ### Added
 - **The logo and app icon, as vector artwork, in `docs/brand/`.** The
   lockup (pin, wordmark, tagline) and the square icon were generated as
