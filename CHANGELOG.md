@@ -7,6 +7,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-09-12
+
 ### Fixed
 - **On a phone, tapping a pickup, note or station row looked like it did
   nothing.** The map flew to the marker underneath the full-screen panel,
