@@ -166,9 +166,47 @@ const HELP_FOR_TAB = {
   tracking: 'setup-race-week',
 };
 
+// On a phone the tab bar scrolls sideways, and a tab activated by a
+// [data-goto] button may be off the edge. Bring it in; on a wide screen
+// this is a no-op.
+function revealTab(tab) {
+  if (tab && tab.scrollIntoView) {
+    tab.scrollIntoView({ block: 'nearest', inline: 'center' });
+  }
+}
+
+// Every table cell carries its column heading, so the phone layout can
+// print it beside the value. Done here, once, for every table the setup
+// screen ever renders, rather than in each of the nine render functions.
+// Headings that are empty or hold a control (the select-all checkbox) give
+// no label, and the cell takes the full width of the card.
+function labelTableCells(root) {
+  root.querySelectorAll('table.grid').forEach((table) => {
+    const heads = [...table.querySelectorAll('thead th')].map(
+      (th) => th.querySelector('input') ? '' : th.textContent.trim());
+    table.querySelectorAll('tbody tr').forEach((tr) => {
+      [...tr.children].forEach((td, i) => {
+        const label = heads[i] || '';
+        if (label) td.dataset.label = label;
+        else delete td.dataset.label;
+      });
+    });
+  });
+}
+new MutationObserver((records) => {
+  records.forEach((r) => r.addedNodes.forEach((n) => {
+    if (n.nodeType === 1 && (n.matches('table.grid') || n.querySelector('table.grid'))) {
+      labelTableCells(n.parentNode || n);
+    }
+  }));
+}).observe(document.body, { childList: true, subtree: true });
+
 function activateTab(name) {
-  document.querySelectorAll('.tab').forEach(
-    (t) => t.classList.toggle('is-on', t.dataset.tab === name));
+  document.querySelectorAll('.tab').forEach((t) => {
+    const on = t.dataset.tab === name;
+    t.classList.toggle('is-on', on);
+    if (on) revealTab(t);
+  });
   document.querySelectorAll('.panel').forEach((p) => {
     p.hidden = p.dataset.panel !== name;
   });
@@ -1978,7 +2016,11 @@ function renderPlaceMap() {
   placeMapView(map, bounds);
   // A map built inside a panel that was hidden measures itself as zero and
   // renders one grey tile in the corner. Same reason the Import map does this.
-  setTimeout(() => map.invalidateSize(), 60);
+  // The fit has to be redone AFTER the resize: a fitBounds computed on a
+  // zero-size map lands at the centre at maximum zoom, and invalidateSize
+  // keeps that view - so the map opened on a few streets with every pin
+  // and route off the edge.
+  setTimeout(() => { map.invalidateSize(); placeMapView(map, bounds); }, 60);
 }
 
 /* A dragged pin writes into the row's own boxes and marks them dirty, so it

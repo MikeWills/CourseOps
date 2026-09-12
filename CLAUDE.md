@@ -129,6 +129,7 @@ tests/fixtures/consumer_export_course.kml  synthetic, but with a real export's
                                     gaps, identically named placemarks.
                                     Regenerate with tools/make_course_fixture.py
 tools/build_wiki.py                 docs/wiki -> the GitHub Wiki, one way
+tools/seed_demo.py                  the demonstration event the wiki screenshots come from
 docs/PLAN.md                        plan, decisions, known gaps
 docs/RUNBOOK.md                     event-day procedure for the club
 ```
@@ -804,6 +805,17 @@ usability, not style preferences.
   backfill.** `ALTER TABLE` takes only a constant, so the flag arrives off for
   every event that already exists - invisible to exactly the people with data.
   `_BACKFILL` in `db.py` runs alongside `_ADDED_COLUMNS`.
+- **A setup table is a stack of cards on a phone, and the cards are the
+  same elements.** `labelTableCells()` in `setup.js` copies each heading into
+  `data-label` on its cells as any `table.grid` lands, and the <700px CSS
+  prints it. Nothing per-table: a new table gets the phone layout for free,
+  and `bindSaveAll` and the drag handles never know. Do not add a second,
+  phone-only rendering of a table - two renderings drift, and the phone one
+  is the one nobody re-tests.
+- **A Leaflet map built in a hidden panel must refit AFTER
+  `invalidateSize`.** `fitBounds` on a zero-size map lands at the centre at
+  maximum zoom, and `invalidateSize` keeps that view - the Places map opened
+  on a few streets with every pin off the edge, silently.
 - **Fonts are shipped, never fetched.** `static/fonts/` holds Overpass and
   Overpass Mono; a `<link>` to a font CDN would have every field phone
   reporting to a third party to draw the pickup queue. `--font-ui` and
@@ -888,6 +900,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-12** Setup works on a phone: tabs in a sliding row, tables as labelled cards; the Places map fits its pins.
 - **2026-09-12** Overpass and Overpass Mono across every screen, headings in sentence case, the bib set as a bib tag, `/` leads to sign-in.
 - **2026-09-12** `/robots.txt` blocks every crawler and every page carries `noindex`: the role links must not be searchable.
 - **2026-09-10** Setup says "New version - reload" when a deploy has happened under it.

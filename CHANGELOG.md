@@ -8,6 +8,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Changed
+- **Setup works on a phone.** Below 700px the tab bar is one row that slides
+  sideways, and every table is a stack of cards, one per row, each value
+  labelled with its column heading. The cells are the same elements laid out
+  differently - `labelTableCells()` copies each heading into `data-label` as
+  a table lands - so the one-save-button table, the drag handles and every
+  per-row control work untouched. A club officer can fix a callsign from the
+  car park on race morning; the eleven tabs used to wrap into four rows and
+  the roster ran six columns off the edge.
+- The setup bar on a phone keeps the wordmark, the version chip and Sign out,
+  and drops the word "Setup" and who is signed in - the bar was wrapping to
+  three lines.
+
+- `tools/seed_demo.py` builds the demonstration event the wiki screenshots
+  come from, so a re-shoot is reproducible.
+
+### Fixed
+- **The Places map opened on a few streets with every pin off the edge.**
+  `fitBounds` ran while the panel was still hidden, on a zero-size map, which
+  lands at the centre at maximum zoom; `invalidateSize` kept that view. The
+  fit is redone after the resize.
 - **One typeface across the field app, setup and the report: Overpass, with
   Overpass Mono for log data.** Overpass is drawn from the US road-sign
   alphabet, which is the one typographic reference this app has any claim

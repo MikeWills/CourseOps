@@ -223,7 +223,7 @@ def render(report: Report) -> str:
   header {{ border-bottom: 3px solid #ff6a13; padding-bottom: 10px; margin-bottom: 20px; }}
   h1 {{ margin: 0; font-size: 24px; font-weight: 800; }}
   h2 {{ font-size: 16px; font-weight: 800; color: #0e1b2b; margin: 26px 0 8px; }}
-  td.n, time {{ font-family: "Overpass Mono", ui-monospace, monospace; }}
+  td.n {{ font-family: "Overpass Mono", ui-monospace, monospace; }}
   .sub {{ color: #4a5561; margin: 4px 0 0; }}
   .big {{ font-size: 19px; font-weight: 650; margin: 6px 0 12px; }}
   table {{ border-collapse: collapse; width: 100%; }}
