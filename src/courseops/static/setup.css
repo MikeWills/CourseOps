@@ -57,16 +57,7 @@ body.setup #brand { display: flex; }
   gap: 6px;
   text-align: center;
 }
-.gate-brand img { width: 56px; height: 69px; }
-.gate-brand h1 {
-  margin: 6px 0 0;
-  font-size: 30px;
-  font-weight: 800;
-  line-height: 1.05;
-  color: var(--navy-700);
-  letter-spacing: -0.01em;
-}
-.gate-brand p { margin: 0; color: var(--ink-soft); font-size: 15px; }
+.gate-brand img { width: min(100%, 440px); height: auto; }
 .gate .card { width: min(420px, 100%); margin: 0; padding: 18px; }
 .gate h2 { margin: 0 0 6px; font-size: 20px; }
 

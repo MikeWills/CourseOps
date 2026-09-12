@@ -150,6 +150,10 @@ it. Three files in `static/`, no build step:
   second file is cheaper than inlining the SVG in three places.
 - `favicon.svg` - the pin on a rounded navy square at 82% of the frame, no
   road. `tools/make_icons.py` draws the PNG favicons to the same shape.
+- `logo-lockup.svg` - a copy of `docs/brand/logo-lockup.svg`, shown on the
+  sign-in page, the one screen with room for the whole lockup. Everywhere
+  else the name is live text in Overpass beside the pin: it scales, it
+  recolours, and a screen reader gets it.
 
 ### The favicon carries more than three features now, on purpose
 

@@ -7,6 +7,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- **The sign-in page shows the full lockup** - pin, wordmark and tagline
+  as one image - instead of the pin over the name set as text. It is the
+  one screen with the room for it, so the approved artwork appears where
+  a club officer first meets the app. The wordmark's typeface is not
+  Overpass; accepted on this one page.
+
 ## [0.10.0] - 2026-09-12
 
 ### Added
