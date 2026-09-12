@@ -404,6 +404,14 @@ usability, not style preferences.
 - **Behind a proxy the app cannot see the real scheme.** Run with
   `--behind-proxy` or session cookies silently lose the Secure flag. Bind
   127.0.0.1 so TLS cannot be bypassed.
+- **`Referrer-Policy` must be `strict-origin-when-cross-origin`, never
+  `same-origin`.** The token is in the URL path, so the path must not reach
+  a third party - but `same-origin` sends NO Referer to
+  `tile.openstreetmap.org`, and OSM serves an "Access blocked" tile to
+  traffic it cannot attribute to a site. `strict-origin-when-cross-origin`
+  sends only the origin: identified, no path, no token. This is Apache
+  config that `deploy.sh` never touches, so an installed server has to be
+  edited by hand.
 - **Apache needs `mod_proxy_wstunnel` and /ws/ rules BEFORE the catch-all.**
   Otherwise the map loads and then never moves, with no visible error.
 - **NEVER modify `.env`.** It is the user's file and holds their callsign. To
@@ -900,6 +908,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-12** Fixed: `Referrer-Policy: same-origin` in Apache blanked the Referer to OSM and every tile came back "Access blocked".
 - **2026-09-12** Setup works on a phone: tabs in a sliding row, tables as labelled cards; the Places map fits its pins.
 - **2026-09-12** Overpass and Overpass Mono across every screen, headings in sentence case, the bib set as a bib tag, `/` leads to sign-in.
 - **2026-09-12** `/robots.txt` blocks every crawler and every page carries `noindex`: the role links must not be searchable.
@@ -909,5 +918,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-10** Leaders moved to its own setup tab, beside Layers and Roles.
 - **2026-09-10** Clubs choose which leaders an event tracks - a wheelchair leader, a first junior - instead of a fixed male/female pair.
 - **2026-09-10** A `?` in the top bar of every screen opens that role's guide in a new tab.
-- **2026-09-09** Wiki gains a setup guide for club officers, including what a club can bend; README points at the wiki.
-- **2026-09-09** Setup can issue several links for one role, labelled, and revoke one without cutting off the rest.

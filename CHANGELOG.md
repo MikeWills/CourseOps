@@ -7,6 +7,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **Map tiles came back as "Access blocked" squares on the deployed site.**
+  The Apache config sent `Referrer-Policy: same-origin`, so every request to
+  `tile.openstreetmap.org` arrived with no Referer, and OSM's tile policy
+  serves a blocked tile to traffic it cannot attribute to a site. Now
+  `strict-origin-when-cross-origin`: only the origin crosses to OSM - no
+  path, so no role token - which was the whole point of the old setting.
+  This is a server config, not code: an existing install has to change the
+  line by hand (`docs/DEPLOYMENT.md`).
+
 ## [0.9.0] - 2026-09-12
 
 ### Changed

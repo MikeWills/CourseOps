@@ -243,6 +243,24 @@ template is what prevents that, and those rules must come *before* the catch-all
 
 Verify it explicitly rather than assuming — see [Checking it worked](#4-checking-it-worked).
 
+### The Referrer-Policy is the other one
+
+The template sets `Referrer-Policy "strict-origin-when-cross-origin"`. Keep
+it. It looks like a hardening line to tighten to `same-origin`, and that was
+the original setting - but `same-origin` sends **no Referer at all** to
+`tile.openstreetmap.org`, and OSM's tile policy serves a yellow-striped
+"Access blocked" square to traffic it cannot attribute to a site. The map then
+draws the course over a grid of error tiles.
+
+`strict-origin-when-cross-origin` sends only the origin (`https://your.domain/`)
+cross-site - never the path, so never a role token - which was the whole
+point of the tighter setting.
+
+**This is Apache config, so an install that already exists has to change the
+line by hand:** edit the site file, `sudo apache2ctl configtest`, `sudo
+systemctl reload apache2`, then force-reload the map once because the blocked
+tiles are cached.
+
 ## 3. Certificate
 
 ```bash
