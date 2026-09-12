@@ -53,7 +53,8 @@ a call.
 Rows sort with the ones that need you at the top: closed stations sink, and
 within a status they run in course order behind the sweep.
 
-Tap a row to fly the map to that station.
+Tap a row to fly the map to that station - to their last position if they
+beacon, to the place they are posted at if they do not.
 
 ---
 
