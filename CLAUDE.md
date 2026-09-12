@@ -920,7 +920,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
-- **2026-09-12** The logo lockup and app icon as traced SVG in `docs/brand/`; the README opens with the lockup.
+- **2026-09-12** The new mark everywhere: top bar, sign-in, favicon, home-screen icons; the lockup and icon as traced SVG in `docs/brand/`.
 - **2026-09-12** Fixed: tapping a posted, non-beaconing station's row goes to the place they are posted at.
 - **2026-09-12** Fixed: on a phone, tapping a row flew the map under the open panel; the panel closes first now.
 - **2026-09-12** Fixed: `Referrer-Policy: same-origin` in Apache blanked the Referer to OSM and every tile came back "Access blocked".

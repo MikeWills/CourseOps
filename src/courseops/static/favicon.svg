@@ -1,17 +1,26 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img"
      aria-label="Course Ops">
   <title>Course Ops</title>
-  <!-- Favicon derived from the primary pin, NOT from the C.O. monogram.
-       Tested at 16px: two letters plus an antenna became an unreadable smudge,
-       while the pin silhouette survives because its outline is doing the work.
-       At this size you get about three distinguishable features - so: pin
-       shape, light disc, one bold pulse. Nothing else. -->
+  <!-- The pin from the app icon on a rounded navy square, without the road:
+       at favicon size the road is noise and the pin is what reads. The
+       shape is the same logical pin as logo-pin.svg, scaled to 82% of the
+       frame. tools/make_icons.py draws the PNG favicons to this shape. -->
   <rect width="64" height="64" rx="14" fill="#0B2545"/>
-  <path d="M32 9c-9.4 0-17 7.5-17 16.8C15 38 32 55 32 55s17-17 17-29.2C49 16.5 41.4 9 32 9z"
-        fill="#FF6A13"/>
-  <circle cx="32" cy="26" r="11.5" fill="#F7F9FC"/>
-  <!-- One pulse, heavy stroke: still legible when the whole mark is 16px. -->
-  <polyline points="23.5,26 26.5,26 29.2,19.5 34.8,32.5 37.5,26 40.5,26"
-            fill="none" stroke="#0B2545" stroke-width="4"
-            stroke-linecap="round" stroke-linejoin="round"/>
+  <g transform="translate(32 32) scale(0.656) translate(-32 -40)">
+    <path d="M32 2C16.5 2 4 14.4 4 29.7 4 50 32 78 32 78S60 50 60 29.7C60 14.4 47.5 2 32 2z"
+          fill="#FFFFFF"/>
+    <circle cx="32" cy="30" r="21" fill="#0B2545"/>
+    <g fill="none" stroke="#FF6A13" stroke-width="4" stroke-linecap="round">
+      <path d="M23.5 22.5a10 10 0 0 0 0 15"/>
+      <path d="M18 17.5a17 17 0 0 0 0 25"/>
+      <path d="M40.5 22.5a10 10 0 0 1 0 15"/>
+      <path d="M46 17.5a17 17 0 0 1 0 25"/>
+    </g>
+    <circle cx="32" cy="18" r="3.2" fill="#FFFFFF"/>
+    <g fill="none" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M32 21L25 48M32 21L39 48"/>
+      <path d="M28.6 34h6.8M27 40.5h10M25 48h14"/>
+      <path d="M28.6 34l8.4 6.5M35.4 34l-8.4 6.5M27 40.5l12 7.5M37 40.5l-12 7.5"/>
+    </g>
+  </g>
 </svg>
