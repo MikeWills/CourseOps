@@ -8,6 +8,12 @@ address of the server lands there too. Two things stay in a
 terminal and nothing else: your club callsign in a file called `.env`, and
 starting the server.
 
+It works on a phone as well as at a desk. The tabs become one row you slide
+sideways, and every table becomes a stack of cards, one per row, each value
+labelled - so a callsign can be fixed from the car park on race morning.
+
+![The Roster tab on a phone: one card per station, the tabs in a row that slides](images/setup-phone-roster.png)
+
 > **Setting up, in four parts**
 > 1. **The course** - you are here
 > 2. [Roster and links](setup-people.md) - the people, and how they get in
