@@ -26,7 +26,9 @@ reference only: where the lead runners are, and where the other stations are.
 
 ![The pickup queue: bib, note and the workflow buttons](images/sag-queue.png)
 
-Each row is one runner. The count in the heading is how many are still on us -
+Each row is one runner, led by the bib number set like a race bib - the
+thing you match against the runner in front of you. The coloured band on its
+left is the row's status. The count in the heading is how many are still on us -
 **picked up still counts**, because they are in your vehicle and not yet
 delivered.
 

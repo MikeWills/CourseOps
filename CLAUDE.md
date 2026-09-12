@@ -804,6 +804,12 @@ usability, not style preferences.
   backfill.** `ALTER TABLE` takes only a constant, so the flag arrives off for
   every event that already exists - invisible to exactly the people with data.
   `_BACKFILL` in `db.py` runs alongside `_ADDED_COLUMNS`.
+- **Fonts are shipped, never fetched.** `static/fonts/` holds Overpass and
+  Overpass Mono; a `<link>` to a font CDN would have every field phone
+  reporting to a third party to draw the pickup queue. `--font-ui` and
+  `--font-data` in `app.css` are the only places a face is named; anything
+  that is a VALUE read off the screen (callsign, bib, age, mile) takes
+  `--font-data`, the word beside it does not.
 - **CLI output stays ASCII.** Em dashes become mojibake in the Windows console,
   and a club laptop is the target environment.
 
@@ -882,6 +888,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-12** Overpass and Overpass Mono across every screen, headings in sentence case, the bib set as a bib tag, `/` leads to sign-in.
 - **2026-09-12** `/robots.txt` blocks every crawler and every page carries `noindex`: the role links must not be searchable.
 - **2026-09-10** Setup says "New version - reload" when a deploy has happened under it.
 - **2026-09-10** A map on the Places tab: click to place a new one, drag a pin to move one.
@@ -891,4 +898,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-10** A `?` in the top bar of every screen opens that role's guide in a new tab.
 - **2026-09-09** Wiki gains a setup guide for club officers, including what a club can bend; README points at the wiki.
 - **2026-09-09** Setup can issue several links for one role, labelled, and revoke one without cutting off the rest.
-- **2026-09-09** Fixed: another operator's change wiped the bib you were typing; focus and caret survive a re-render now.

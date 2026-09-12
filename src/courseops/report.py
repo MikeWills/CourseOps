@@ -211,13 +211,19 @@ def render(report: Report) -> str:
 <title>{e(report.event_name)} - report</title>
 <link rel="stylesheet" href="{LEAFLET_CSS[0]}" integrity="{LEAFLET_CSS[1]}" crossorigin="">
 <style>
+  /* The same face as the app, from the same files; the report is opened
+     from setup, where they are already cached. */
+  @font-face {{ font-family: "Overpass"; font-weight: 300 900; font-display: swap;
+                src: url("/static/fonts/overpass.woff2") format("woff2"); }}
+  @font-face {{ font-family: "Overpass Mono"; font-weight: 300 700; font-display: swap;
+                src: url("/static/fonts/overpass-mono.woff2") format("woff2"); }}
   body {{ margin: 0; padding: 20px 24px 32px; max-width: 720px;
-         font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-         color: #14181d; background: #fff; }}
-  header {{ border-bottom: 3px solid #ff7a1a; padding-bottom: 10px; margin-bottom: 20px; }}
-  h1 {{ margin: 0; font-size: 22px; }}
-  h2 {{ font-size: 15px; text-transform: uppercase; letter-spacing: .06em;
-        color: #4a5561; margin: 26px 0 8px; }}
+         font: 16px/1.45 "Overpass", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+         color: #0e1b2b; background: #fff; }}
+  header {{ border-bottom: 3px solid #ff6a13; padding-bottom: 10px; margin-bottom: 20px; }}
+  h1 {{ margin: 0; font-size: 24px; font-weight: 800; }}
+  h2 {{ font-size: 16px; font-weight: 800; color: #0e1b2b; margin: 26px 0 8px; }}
+  td.n, time {{ font-family: "Overpass Mono", ui-monospace, monospace; }}
   .sub {{ color: #4a5561; margin: 4px 0 0; }}
   .big {{ font-size: 19px; font-weight: 650; margin: 6px 0 12px; }}
   table {{ border-collapse: collapse; width: 100%; }}
