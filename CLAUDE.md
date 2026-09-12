@@ -920,6 +920,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-12** The logo lockup and app icon as traced SVG in `docs/brand/`; the README opens with the lockup.
 - **2026-09-12** Fixed: tapping a posted, non-beaconing station's row goes to the place they are posted at.
 - **2026-09-12** Fixed: on a phone, tapping a row flew the map under the open panel; the panel closes first now.
 - **2026-09-12** Fixed: `Referrer-Policy: same-origin` in Apache blanked the Referer to OSM and every tile came back "Access blocked".
@@ -929,4 +930,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-10** Setup says "New version - reload" when a deploy has happened under it.
 - **2026-09-10** A map on the Places tab: click to place a new one, drag a pin to move one.
 - **2026-09-10** Places can be added by hand and their coordinates corrected; position was import-only.
-- **2026-09-10** Leaders moved to its own setup tab, beside Layers and Roles.

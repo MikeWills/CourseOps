@@ -113,7 +113,29 @@ Defined in `static/app.css` `:root`.
 never as small text on white; where orange text is needed, `--orange-ink` is
 used instead.
 
-## Logo assets
+## Brand artwork
+
+`docs/brand/` holds the finished artwork, generated with an image model from
+the brief above and then traced into vector:
+
+- `logo-lockup.svg` - pin, wordmark and tagline, navy and orange on
+  transparent. For the README, the wiki, banners and print.
+- `icon.svg` - the square app icon: white pin with the tower and signal
+  arcs on a navy ground, the course winding out from under it. NOT yet the
+  source for `tools/make_icons.py`: its rounded corners are baked in and
+  the road runs to the edge, so a platform mask would clip it. A full-bleed
+  version with the art inside the central 80% is needed first.
+- `source/*.avif` - the raster originals the traces came from.
+
+The traces are made with [vtracer](https://github.com/visioncortex/vtracer):
+the raster is first quantised to exactly three colours (so the tracer sees
+hard edges and no anti-aliasing fringe), traced in spline mode, and every
+fill is then snapped to the tokens below. Flat two-colour art traces
+cleanly; anything with gradients or soft edges would not, which is one more
+reason the brief forbids them. A future PNG from the same model goes
+through the same steps.
+
+## Logo assets (in the app)
 
 Both are inline SVG in `static/` — no image files, no build step, and they
 recolour with the CSS tokens.

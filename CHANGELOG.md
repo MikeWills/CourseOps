@@ -7,6 +7,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **The logo and app icon, as vector artwork, in `docs/brand/`.** The
+  lockup (pin, wordmark, tagline) and the square icon were generated as
+  raster images and traced into SVG with vtracer, then snapped to the
+  brand tokens so they carry exactly `#0B2545`, `#FF6A13` and white. The
+  AVIF originals sit beside them in `docs/brand/source/`. The README opens
+  with the lockup. The in-app pin, favicon and home-screen icons are
+  unchanged for now: the icon needs a full-bleed source before it can feed
+  `tools/make_icons.py`, and swapping the top-bar pin invalidates every
+  wiki screenshot, so that is its own change.
+
 ## [0.9.2] - 2026-09-12
 
 ### Fixed
