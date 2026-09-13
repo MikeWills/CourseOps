@@ -11,6 +11,12 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Fixed
+- `deploy/courseops.sudoers` named `/bin/systemctl`. On a merged-/usr Ubuntu
+  sudo matches `/usr/bin/systemctl`, so the shipped line would have matched
+  nothing and every deploy's restart would have been refused - while the
+  file looked right. The line the server already had said `/usr/bin`.
+
 ## [2026.9.2] - 2026-09-13
 
 ### Added

@@ -5,4 +5,8 @@
 # The deploy needs to restart the service, which needs root. This is the whole
 # of what the app user can do as root: restart or reload its own service, and
 # reload Apache after a vhost change. Nothing else.
-courseops ALL=(root) NOPASSWD: /bin/systemctl restart courseops, /bin/systemctl reload courseops, /bin/systemctl reload apache2
+#
+# /usr/bin, not /bin: sudo matches the path the binary resolves to, and on a
+# merged-/usr Ubuntu that is /usr/bin. A /bin line looks right and matches
+# nothing.
+courseops ALL=(root) NOPASSWD: /usr/bin/systemctl restart courseops, /usr/bin/systemctl reload courseops, /usr/bin/systemctl reload apache2
