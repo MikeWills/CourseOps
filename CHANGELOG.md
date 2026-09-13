@@ -7,6 +7,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.10.2] - 2026-09-12
+
 ### Fixed
 - **Beside the map, the lockup's head was taller than the other bars.** On
   a wide screen the top bar, the left column's head and the right panel's
