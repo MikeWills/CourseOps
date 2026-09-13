@@ -11,6 +11,8 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+## [2026.9.2] - 2026-09-13
+
 ### Added
 - **A nightly backup.** `deploy/backup.sh` copies the database into
   `backups/` with `.backup`, keeps the newest fourteen per label, and is
