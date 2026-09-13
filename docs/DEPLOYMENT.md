@@ -339,7 +339,7 @@ sudo -u courseops /opt/courseops/deploy/deploy.sh v2026.9.0
 If that works, automating it is only a matter of adding the secrets below. If it
 does not, you have found the problem at a keyboard rather than at 03:00.
 
-It backs the database up with `.backup` first, keeps the last ten of those,
+It backs the database up first (`deploy/backup.sh pre-deploy`, see section 5),
 installs the tag, restarts the service, and then **verifies `/healthz` and rolls
 back to the previous commit if it does not answer**. Nobody is watching a deploy
 at 03:00, and a half-working one that leaves the app down until somebody notices
@@ -361,20 +361,27 @@ ssh-keygen -t ed25519 -f ~/.ssh/courseops_deploy -C "github-deploy" -N ""
 
 Put the **public** half on the server, restricted so that a stolen key cannot be
 used as a shell. `command=` means this key can run exactly one thing regardless
-of what the client asks for:
+of what the client asks for - `deploy/ssh-deploy-command.sh`, which checks
+that what was asked for looks like a tag or branch name and refuses anything
+else before `deploy.sh` ever starts:
 
 ```bash
 # /home/courseops/.ssh/authorized_keys  (or wherever that user's home is)
-command="/opt/courseops/deploy/deploy.sh ${SSH_ORIGINAL_COMMAND##* }",\
+command="/opt/courseops/deploy/ssh-deploy-command.sh",\
 no-agent-forwarding,no-port-forwarding,no-pty,no-X11-forwarding ssh-ed25519 AAAA... github-deploy
 ```
 
-The deploy needs to restart the service, which needs root. Give it that one
-command and nothing else:
+(An older install has `command="/opt/courseops/deploy/deploy.sh ${SSH_ORIGINAL_COMMAND##* }"`
+here. Replace it: that form worked, but nothing refused a bad ref and nothing
+could test it. The validator is exercised by the test suite with hostile
+input.)
+
+The deploy needs to restart the service, which needs root. Give it that and
+nothing else - `deploy/courseops.sudoers` is the line, and it is installed
+with `visudo` so a typo cannot lock sudo:
 
 ```bash
-# sudo visudo -f /etc/sudoers.d/courseops
-courseops ALL=(root) NOPASSWD: /bin/systemctl restart courseops
+sudo visudo -f /etc/sudoers.d/courseops     # paste the line from deploy/courseops.sudoers
 ```
 
 ### Repository settings
@@ -387,7 +394,7 @@ Under **Settings -> Secrets and variables -> Actions**, as *secrets*:
 | `SSH_USER` | `courseops` |
 | `SSH_KEY` | the **private** half of the key above |
 | `SSH_PORT` | only if sshd is not on 22 |
-| `DEPLOY_PATH` | only if the install is not at `/opt/courseops` |
+| `DEPLOY_PATH` | where the install is, e.g. `/mnt/volume_nyc3_01/opt/courseops`. Required: the workflow refuses to guess. |
 
 These names match the ones used by the other projects here deliberately - one
 convention to remember rather than a per-project dialect.
@@ -444,16 +451,34 @@ back automatically, because the app is fine - the proxy is not.
 
 ## 5. Backups
 
-The SQLite file is the entire record — positions, incidents, status history,
-accounts.
+The SQLite file is the entire record - positions, incidents, status history,
+accounts. `deploy/backup.sh` copies it into `backups/` beside `data/` (mode
+700, one file per run, the newest fourteen of each kind kept):
 
 ```bash
-sudo -u courseops sqlite3 /opt/courseops/data/courseops.sqlite3 \
-    ".backup '/opt/courseops/data/backup-$(date +%F).sqlite3'"
+sudo -u courseops /opt/courseops/deploy/backup.sh              # a "nightly"
+sudo -u courseops /opt/courseops/deploy/backup.sh pre-event    # any label you like
 ```
 
-Use `.backup`, not `cp`: the database runs in WAL mode and a plain copy taken
-mid-write can be inconsistent. Back up **before and after** each event.
+It uses `.backup`, not `cp`: the database runs in WAL mode and a plain copy
+taken mid-write can be inconsistent. `deploy.sh` runs it with the label
+`pre-deploy` before touching anything, and the labels rotate separately so
+a run of deploys cannot push the nightlies out.
+
+Run it nightly from cron, with its log rotated:
+
+```bash
+sudo cp deploy/courseops.cron /etc/cron.d/courseops
+sudo sed -i 's|/opt/courseops|/YOUR/INSTALL/PATH|' /etc/cron.d/courseops
+sudo cp deploy/courseops.logrotate /etc/logrotate.d/courseops
+sudo touch /var/log/courseops-backup.log
+sudo chown courseops:adm /var/log/courseops-backup.log
+```
+
+Still take one by hand **before and after** each event - the nightly is for
+the months in between. To restore: stop the service, copy the backup over
+`data/courseops.sqlite3`, delete any `-wal` and `-shm` files beside it, start
+the service. Backups stay on the box; copying one somewhere else is up to you.
 
 ---
 

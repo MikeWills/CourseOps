@@ -11,6 +11,31 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Added
+- **A nightly backup.** `deploy/backup.sh` copies the database into
+  `backups/` with `.backup`, keeps the newest fourteen per label, and is
+  what `deploy.sh` now runs before a release too. Until now the only copy
+  taken was the one at deploy time, so between releases the event's entire
+  record - positions, incidents, status history, accounts - had one copy on
+  one disk. `deploy/courseops.cron` and `deploy/courseops.logrotate` are
+  the two files to install; `docs/DEPLOYMENT.md` section 5 says how.
+- **The Actions key runs a validator, not `deploy.sh` directly.**
+  `deploy/ssh-deploy-command.sh` is the forced command: it takes the last
+  word of whatever was asked, refuses anything that is not shaped like a
+  tag or branch name (a leading dash, a space, a semicolon, a quote), and
+  only then runs `deploy.sh`. The old `authorized_keys` line passed that
+  word through unexamined; `deploy.sh` quoted it so nothing was injectable,
+  but nothing refused it either and nothing could test it. Tests run the
+  validator against `v1; rm -rf /`, `$(id)`, `--force` and friends.
+- `deploy/courseops.sudoers`: the one line the app user may run as root,
+  now with `reload courseops` and `reload apache2` beside `restart`.
+
+### Changed
+- **The deploy workflow no longer guesses `/opt/courseops`.** `DEPLOY_PATH`
+  is required; a missing secret fails in Actions with a sentence rather
+  than on the server with "No such file". The install is wherever the club
+  put it, and this one is under a mounted volume.
+
 ## [2026.9.1] - 2026-09-12
 
 ### Changed

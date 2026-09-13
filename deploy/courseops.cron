@@ -1,0 +1,8 @@
+# /etc/cron.d/courseops - a nightly backup of the database.
+#
+#   sudo cp deploy/courseops.cron /etc/cron.d/courseops
+#   sudo sed -i 's|/opt/courseops|/YOUR/INSTALL/PATH|' /etc/cron.d/courseops
+#
+# 03:05 local time, when no event is running. Output goes to a log that
+# deploy/courseops.logrotate keeps to eight weeks.
+5 3 * * *   courseops  cd /opt/courseops && deploy/backup.sh nightly >> /var/log/courseops-backup.log 2>&1

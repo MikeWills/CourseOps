@@ -1,0 +1,8 @@
+# /etc/sudoers.d/courseops - install with visudo so a typo cannot lock sudo:
+#
+#   sudo visudo -f /etc/sudoers.d/courseops    (paste the line below)
+#
+# The deploy needs to restart the service, which needs root. This is the whole
+# of what the app user can do as root: restart or reload its own service, and
+# reload Apache after a vhost change. Nothing else.
+courseops ALL=(root) NOPASSWD: /bin/systemctl restart courseops, /bin/systemctl reload courseops, /bin/systemctl reload apache2

@@ -14,10 +14,11 @@
 #
 # Repository secrets required:
 #   SSH_HOST   hostname or IP of the server
-#   SSH_USER   the user that owns /opt/courseops (courseops)
+#   SSH_USER   the user that owns the install (courseops)
 #   SSH_KEY    private half of an SSH key whose public half is in that
 #                 user's authorized_keys
 #   SSH_PORT   optional, defaults to 22
+#   DEPLOY_PATH  where the install is, e.g. /mnt/volume_nyc3_01/opt/courseops
 #
 # See docs/DEPLOYMENT.md for how to create that key and why it is restricted to
 # a single command.
@@ -62,11 +63,17 @@ jobs:
             -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
       - name: Deploy
+        # No default for DEPLOY_PATH: the install is wherever the club put it,
+        # and a guessed /opt/courseops failed only on the server, as a
+        # "No such file" from a key that can run nothing else anyway.
         run: |
+          if [ -z "${{ secrets.DEPLOY_PATH }}" ]; then
+            echo "DEPLOY_PATH secret is not set - where is the install?"; exit 1
+          fi
           ssh -i ~/.ssh/id_deploy \
               -p "${{ secrets.SSH_PORT || 22 }}" \
               "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
-              "${{ secrets.DEPLOY_PATH || '/opt/courseops' }}/deploy/deploy.sh ${{ steps.target.outputs.tag }}"
+              "${{ secrets.DEPLOY_PATH }}/deploy/deploy.sh ${{ steps.target.outputs.tag }}"
 
       # The deploy script already checks health from inside the box and rolls
       # back if it fails. This checks from outside, which is a different

@@ -1,0 +1,14 @@
+# /etc/logrotate.d/courseops - the cron job's log. The service itself logs to
+# journald, which rotates on its own.
+#
+#   sudo cp deploy/courseops.logrotate /etc/logrotate.d/courseops
+#   sudo touch /var/log/courseops-backup.log
+#   sudo chown courseops:adm /var/log/courseops-backup.log
+/var/log/courseops-*.log {
+    weekly
+    rotate 8
+    compress
+    missingok
+    notifempty
+    create 640 courseops adm
+}

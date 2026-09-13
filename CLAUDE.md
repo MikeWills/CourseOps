@@ -56,7 +56,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 547 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 567 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -398,7 +398,16 @@ usability, not style preferences.
   club put it - this deployment lives under a mounted data volume, not
   `/opt`. `deploy.sh` derives `APP_DIR` from its own location; the only places
   a real path must be written are the `command=` restriction in
-  `authorized_keys` and the sudoers line.
+  `authorized_keys`, the sudoers line and `/etc/cron.d/courseops`.
+- **The Actions key's forced command is `ssh-deploy-command.sh`, never
+  `deploy.sh` with a shell expansion.** The validator refuses anything not
+  shaped like a ref before any script runs, and it is what the tests
+  exercise with hostile input. `DEPLOY_PATH` has no default: the workflow
+  refuses to guess where the install is.
+- **`deploy/backup.sh` is the one backup implementation.** `deploy.sh`
+  calls it with the label `pre-deploy`; cron calls it nightly. Rotation is
+  per label so a burst of deploys cannot push the nightlies out. Never put
+  a second `sqlite3 .backup` anywhere else.
 - **`git checkout <branch>` on the server does not deploy that branch.** The
   working copy is on a detached HEAD, so a local branch there is whatever it
   was at clone time: the deploy reports success and installs stale code.
@@ -924,6 +933,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-13** Nightly backups (`deploy/backup.sh`), a forced-command validator for the Actions key, `DEPLOY_PATH` required.
 - **2026-09-12** The setup bar shows the reversed lockup.
 - **2026-09-12** Versions are dates: `2026.9.0` replaces `0.10.x`.
 - **2026-09-12** Fixed: beside the map the lockup head lines up with the top bar and the other panel head.
@@ -933,4 +943,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-12** Fixed: on a phone, tapping a row flew the map under the open panel; the panel closes first now.
 - **2026-09-12** Fixed: `Referrer-Policy: same-origin` in Apache blanked the Referer to OSM and every tile came back "Access blocked".
 - **2026-09-12** Setup works on a phone: tabs in a sliding row, tables as labelled cards; the Places map fits its pins.
-- **2026-09-12** Overpass and Overpass Mono across every screen, headings in sentence case, the bib set as a bib tag, `/` leads to sign-in.

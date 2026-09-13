@@ -35,19 +35,12 @@ say "Currently on $(git describe --tags --always) ($PREVIOUS)"
 
 # --- back up before touching anything -------------------------------------
 #
-# .backup rather than cp: the database runs in WAL mode and a plain copy taken
-# mid-write can be inconsistent. This is the event's entire record - positions,
-# incidents, status history, accounts - and a deploy is exactly when you find
-# out whether you had a backup.
-DB="${DB_PATH:-$APP_DIR/data/courseops.sqlite3}"
-if [ -f "$DB" ]; then
-    BACKUP="$APP_DIR/data/pre-deploy-$(date +%F-%H%M%S).sqlite3"
-    say "Backing up the database to $BACKUP"
-    sqlite3 "$DB" ".backup '$BACKUP'"
-    # Keep the last ten. Unbounded backups fill a small VPS disk, and a full
-    # disk takes the app down in a way that looks nothing like a disk problem.
-    ls -1t "$APP_DIR"/data/pre-deploy-*.sqlite3 2>/dev/null | tail -n +11 | xargs -r rm --
-fi
+# This is the event's entire record - positions, incidents, status history,
+# accounts - and a deploy is exactly when you find out whether you had a
+# backup. backup.sh is the same script cron runs nightly; the label keeps the
+# two rotations apart so a burst of deploys cannot push the nightlies out.
+say "Backing up the database"
+"$APP_DIR/deploy/backup.sh" pre-deploy
 
 # --- fetch and check out the ref ------------------------------------------
 #
