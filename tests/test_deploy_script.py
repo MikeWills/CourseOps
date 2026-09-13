@@ -123,6 +123,7 @@ def forced_command(tmp_path):
         (DEPLOY_DIR / "ssh-deploy-command.sh").read_bytes())
     (deploy / "deploy.sh").write_text(
         '#!/usr/bin/env bash\nprintf "deploy:%s:%s\n" "$#" "$1"\n', encoding="utf-8")
+    (deploy / "deploy.sh").chmod(0o755)   # exec needs the bit; Windows hides that
 
     def run(original_command: str):
         return subprocess.run(
