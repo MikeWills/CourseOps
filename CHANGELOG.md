@@ -7,6 +7,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **Beside the map, the lockup's head was taller than the other bars.** On
+  a wide screen the top bar, the left column's head and the right panel's
+  head run across the top as one navy band, and the 56px lockup made the
+  left one 79px against 55px. From the sidebar tier up the lockup is 32px
+  tall, which brings that head to the same 55px. The phone sheet keeps the
+  taller lockup - nothing sits beside it.
+
 ## [0.10.1] - 2026-09-12
 
 ### Changed

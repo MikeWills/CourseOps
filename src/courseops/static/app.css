@@ -183,6 +183,14 @@ body {
    panel; the tagline inside it is decoration at this size, and the alt text
    carries it for anyone who cannot see the image. */
 #sheet-brand img { height: 56px; width: auto; max-width: 100%; display: block; }
+/* Beside the map the head is one of three navy bars across the top of the
+   screen - top bar, this head, the other panel's head - and they read as one
+   band only if they are the same height. 32px plus the head's padding and
+   rule is the 55px the other panel's head comes to. The phone sheet keeps the
+   taller lockup: there is nothing beside it to line up with. */
+@media (min-width: 700px) {
+  #sheet-brand img { height: 32px; }
+}
 /* The lockup's own title would only repeat the section heading below it. */
 .panel-head.has-brand .panel-title { display: none; }
 
