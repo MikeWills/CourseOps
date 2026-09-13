@@ -31,6 +31,8 @@ mkdir -p "$DIR"
 chmod 700 "$DIR"
 
 OUT="$DIR/$LABEL-$(date +%F-%H%M%S).sqlite3"
+# Two runs inside one second would otherwise overwrite each other silently.
+[ -e "$OUT" ] && OUT="${OUT%.sqlite3}-$$.sqlite3"
 sqlite3 "$DB" ".backup '$OUT'"
 chmod 600 "$OUT"
 echo "wrote $OUT ($(du -h "$OUT" | cut -f1))"
