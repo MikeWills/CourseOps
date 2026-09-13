@@ -8,6 +8,7 @@ dist/
 # Runtime data and secrets — never commit
 .env
 data/
+backups/
 *.sqlite3
 *.sqlite3-wal
 *.sqlite3-shm

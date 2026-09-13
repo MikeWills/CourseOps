@@ -94,3 +94,151 @@ def test_the_script_is_committed_executable():
         pytest.skip("not a git working tree")
     mode = out.stdout.split()[0]
     assert mode == "100755", f"deploy.sh is committed as {mode}, not executable"
+
+
+# --- the forced command ------------------------------------------------------
+#
+# These DO run a script: ssh-deploy-command.sh is pure validation and exec,
+# and the exec target is swapped for a stub that records what it was given.
+
+DEPLOY_DIR = SCRIPT.parent
+BASH = "bash"
+
+
+def _bash_available() -> bool:
+    try:
+        return subprocess.run([BASH, "-c", "true"], capture_output=True).returncode == 0
+    except OSError:
+        return False
+
+
+@pytest.fixture
+def forced_command(tmp_path):
+    """A copy of the validator whose deploy.sh is a stub echoing its argument."""
+    if not _bash_available():
+        pytest.skip("bash is not available")
+    deploy = tmp_path / "deploy"
+    deploy.mkdir()
+    (deploy / "ssh-deploy-command.sh").write_bytes(
+        (DEPLOY_DIR / "ssh-deploy-command.sh").read_bytes())
+    (deploy / "deploy.sh").write_text(
+        '#!/usr/bin/env bash\nprintf "deploy:%s:%s\n" "$#" "$1"\n', encoding="utf-8")
+
+    def run(original_command: str):
+        return subprocess.run(
+            [BASH, str(deploy / "ssh-deploy-command.sh")],
+            env={"PATH": "/usr/bin:/bin", "SSH_ORIGINAL_COMMAND": original_command},
+            capture_output=True, text=True,
+        )
+    return run
+
+
+@pytest.mark.parametrize("cmd, ref", [
+    ("/mnt/volume_nyc3_01/opt/courseops/deploy/deploy.sh v2026.9.1", "v2026.9.1"),
+    ("/opt/courseops/deploy/deploy.sh main", "main"),
+    ("fix/stitch-invents-a-leg", "fix/stitch-invents-a-leg"),
+])
+def test_the_forced_command_passes_a_ref_through(forced_command, cmd, ref):
+    out = forced_command(cmd)
+    assert out.returncode == 0, out.stderr
+    assert out.stdout.strip() == f"deploy:1:{ref}"
+
+
+@pytest.mark.parametrize("cmd", [
+    "v1; rm -rf /",
+    "v1 && cat .env",
+    "$(id)",
+    "`id`",
+    "v1|sh",
+    "--force",                       # must not become an option to git
+    "-",
+    "",
+    "deploy.sh 'v1'",
+    "v" * 70,                        # longer than any real ref
+])
+def test_the_forced_command_refuses_anything_that_is_not_a_ref(forced_command, cmd):
+    """A leaked SSH_KEY secret can deploy a ref, and nothing else."""
+    out = forced_command(cmd)
+    assert out.returncode == 2, out.stdout
+    assert "refused" in out.stderr
+    assert "deploy:" not in out.stdout
+
+
+# --- backup.sh -----------------------------------------------------------------
+
+
+def test_backup_takes_a_consistent_copy_and_rotates_per_label(tmp_path):
+    """Between releases the only copy of the event used to be the live file.
+
+    .backup, not cp, because the database is in WAL mode. Rotation is per
+    label so a burst of deploys cannot push the nightlies out.
+    """
+    if not _bash_available():
+        pytest.skip("bash is not available")
+    if subprocess.run([BASH, "-c", "command -v sqlite3"], capture_output=True).returncode:
+        pytest.skip("sqlite3 CLI is not available")
+    import sqlite3
+    (tmp_path / "deploy").mkdir()
+    (tmp_path / "data").mkdir()
+    (tmp_path / "deploy" / "backup.sh").write_bytes((DEPLOY_DIR / "backup.sh").read_bytes())
+    con = sqlite3.connect(tmp_path / "data" / "courseops.sqlite3")
+    con.execute("pragma journal_mode=wal")
+    con.execute("create table t(x)")
+    con.execute("insert into t values (42)")
+    con.commit()
+
+    def run(label, keep="2"):
+        return subprocess.run(
+            [BASH, str(tmp_path / "deploy" / "backup.sh"), label],
+            env={"PATH": "/usr/bin:/bin", "KEEP": keep},
+            capture_output=True, text=True,
+        )
+
+    for _ in range(3):
+        out = run("nightly")
+        assert out.returncode == 0, out.stderr
+    out = run("pre-deploy")
+    assert out.returncode == 0, out.stderr
+
+    backups = tmp_path / "backups"
+    nightly = sorted(backups.glob("nightly-*.sqlite3"))
+    assert len(nightly) == 2, "the oldest nightly should have been rotated out"
+    assert len(list(backups.glob("pre-deploy-*.sqlite3"))) == 1
+    copy = sqlite3.connect(nightly[-1])
+    assert copy.execute("select x from t").fetchone() == (42,)
+
+
+def test_backup_with_no_database_is_not_an_error(tmp_path):
+    """A fresh install has no database yet; cron must not page about it."""
+    if not _bash_available():
+        pytest.skip("bash is not available")
+    (tmp_path / "deploy").mkdir()
+    (tmp_path / "deploy" / "backup.sh").write_bytes((DEPLOY_DIR / "backup.sh").read_bytes())
+    out = subprocess.run([BASH, str(tmp_path / "deploy" / "backup.sh")],
+                         env={"PATH": "/usr/bin:/bin"}, capture_output=True, text=True)
+    assert out.returncode == 0
+    assert "nothing to back up" in out.stdout
+
+
+def test_deploy_backs_up_through_the_shared_script(script):
+    """One backup implementation, not one in deploy.sh and another in cron."""
+    assert "deploy/backup.sh\" pre-deploy" in script
+    assert "sqlite3" not in script
+
+
+@pytest.mark.parametrize("name", ["deploy.sh", "backup.sh", "ssh-deploy-command.sh"])
+def test_every_script_is_committed_executable(name):
+    """Same trap as deploy.sh: added from Windows, lands as 100644."""
+    out = subprocess.run(["git", "ls-files", "-s", f"deploy/{name}"],
+                         cwd=SCRIPT.parents[1], capture_output=True, text=True)
+    if out.returncode != 0 or not out.stdout:
+        pytest.skip("not a git working tree")
+    assert out.stdout.split()[0] == "100755", f"{name} is not committed executable"
+
+
+def test_the_workflow_does_not_guess_the_install_path():
+    """The install is wherever the club put it; /opt/courseops was a guess
+    that failed only on the server."""
+    text = WORKFLOW.read_text(encoding="utf-8")
+    assert "'/opt/courseops'" not in text
+    assert "DEPLOY_PATH secret is not set" in text
