@@ -333,7 +333,7 @@ It runs perfectly well by hand, and running it by hand once is how you should
 prove it before letting a workflow do it unattended:
 
 ```bash
-sudo -u courseops /opt/courseops/deploy/deploy.sh v0.1.0
+sudo -u courseops /opt/courseops/deploy/deploy.sh v2026.9.0
 ```
 
 If that works, automating it is only a matter of adding the secrets below. If it

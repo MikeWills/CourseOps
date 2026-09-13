@@ -5,7 +5,26 @@ are mirrored into `CLAUDE.md`; this file is the complete record.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+Versions are `YEAR.MONTH.PATCH` from 2026.9.0 on: no leading zero on the
+month, PATCH counting releases in that month from 0. Before that they were
+0.x.y and said nothing about when a release happened.
+
 ## [Unreleased]
+
+## [2026.9.0] - 2026-09-12
+
+### Changed
+- **Versions are dates now.** `2026.9.0` in place of `0.10.3`:
+  `YEAR.MONTH.PATCH`, PATCH counting releases in that month from 0, so
+  the next one is `2026.9.1` and October's first is `2026.10.0`. The old
+  numbers carried no information a club could use; what matters when
+  someone asks "which one are you running" is how old it is, and the
+  month answers that on its own. No leading zero on the month: Python
+  normalises `2026.09` to `2026.9` in the package metadata, and the tag
+  must match `pyproject.toml` byte for byte. Tags are still `v` plus the
+  version (`v2026.9.0`), the release workflow still refuses a tag that
+  disagrees with `pyproject.toml`, and the new-version notice compares
+  the build, not the version, so nothing about deploying changes.
 
 ## [0.10.2] - 2026-09-12
 

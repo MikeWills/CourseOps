@@ -155,6 +155,10 @@ usability, not style preferences.
   tag; it never creates one. Bump `pyproject.toml` and `__init__.py`, commit,
   then tag - the release workflow refuses a tag that disagrees with the
   packaged version, because v0.1.1 once shipped saying 0.1.0.
+- **Versions are dates: `YEAR.MONTH.PATCH`, tag `v2026.9.0`.** PATCH counts
+  releases in that month from 0; a new month starts at `.0`. No leading
+  zero on the month: Python normalises `2026.09` to `2026.9` in the
+  metadata and the tag must match `pyproject.toml` byte for byte.
 - **Receive-only, forever.** Passcode `-1` grants read access and no transmit
   capability. The club needs a callsign and no secret. Never add a real passcode.
 - **One APRS-IS connection for the whole server.** Browsers connect to our
@@ -920,6 +924,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-12** Versions are dates: `2026.9.0` replaces `0.10.x`.
 - **2026-09-12** Fixed: beside the map the lockup head lines up with the top bar and the other panel head.
 - **2026-09-12** The full lockup on the sign-in page and, reversed, in the live app's panel head.
 - **2026-09-12** The new mark everywhere: top bar, sign-in, favicon, home-screen icons; the lockup and icon as traced SVG in `docs/brand/`.
@@ -929,4 +934,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-12** Setup works on a phone: tabs in a sliding row, tables as labelled cards; the Places map fits its pins.
 - **2026-09-12** Overpass and Overpass Mono across every screen, headings in sentence case, the bib set as a bib tag, `/` leads to sign-in.
 - **2026-09-12** `/robots.txt` blocks every crawler and every page carries `noindex`: the role links must not be searchable.
-- **2026-09-10** Setup says "New version - reload" when a deploy has happened under it.
