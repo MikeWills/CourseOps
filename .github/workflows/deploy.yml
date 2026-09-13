@@ -29,7 +29,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Tag or branch to deploy, e.g. v0.1.1 or main"
+        description: "Tag or branch to deploy, e.g. v2026.9.12.0 or main"
         required: true
         default: main
 
