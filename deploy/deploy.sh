@@ -3,7 +3,7 @@
 # Deploy a tagged release on the server. Run by the GitHub Actions workflow over
 # SSH, and safe to run by hand:
 #
-#     sudo -u courseops /path/to/courseops/deploy/deploy.sh v2026.1.0.0
+#     sudo -u courseops /path/to/courseops/deploy/deploy.sh v2026.9.0
 #
 # The shape of this is decided by one fact: nobody is watching. A deploy that
 # half-works at 03:00 and leaves the app down until somebody notices is worse
@@ -11,7 +11,7 @@
 # puts the previous version back if the new one does not answer.
 set -euo pipefail
 
-TAG="${1:?usage: deploy.sh <ref>, e.g. deploy.sh v2026.1.0.0 or deploy.sh main}"
+TAG="${1:?usage: deploy.sh <ref>, e.g. deploy.sh v2026.9.0 or deploy.sh main}"
 # Where the app is installed.
 #
 # Derived from this script's own location rather than hardcoded, because the
