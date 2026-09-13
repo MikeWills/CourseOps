@@ -11,6 +11,8 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+## [2026.9.3] - 2026-09-13
+
 ### Fixed
 - `deploy/courseops.sudoers` named `/bin/systemctl`. On a merged-/usr Ubuntu
   sudo matches `/usr/bin/systemctl`, so the shipped line would have matched
