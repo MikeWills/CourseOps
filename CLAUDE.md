@@ -920,6 +920,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-12** Fixed: beside the map the lockup head lines up with the top bar and the other panel head.
 - **2026-09-12** The full lockup on the sign-in page and, reversed, in the live app's panel head.
 - **2026-09-12** The new mark everywhere: top bar, sign-in, favicon, home-screen icons; the lockup and icon as traced SVG in `docs/brand/`.
 - **2026-09-12** Fixed: tapping a posted, non-beaconing station's row goes to the place they are posted at.
@@ -929,4 +930,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-12** Overpass and Overpass Mono across every screen, headings in sentence case, the bib set as a bib tag, `/` leads to sign-in.
 - **2026-09-12** `/robots.txt` blocks every crawler and every page carries `noindex`: the role links must not be searchable.
 - **2026-09-10** Setup says "New version - reload" when a deploy has happened under it.
-- **2026-09-10** A map on the Places tab: click to place a new one, drag a pin to move one.
