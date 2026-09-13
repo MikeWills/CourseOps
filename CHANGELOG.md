@@ -11,6 +11,8 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+## [2026.9.1] - 2026-09-12
+
 ### Changed
 - **The setup bar shows the reversed lockup** in place of the pin beside
   "Course Ops", at the same 32px the live app's panel head uses. The bar
