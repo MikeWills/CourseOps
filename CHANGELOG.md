@@ -11,6 +11,13 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Changed
+- **The setup bar shows the reversed lockup** in place of the pin beside
+  "Course Ops", at the same 32px the live app's panel head uses. The bar
+  had also been showing the navy-ring pin meant for the light sign-in
+  page since the mark changed: a search-and-replace caught both images
+  in `setup.html`. The lockup replaces it.
+
 ## [2026.9.0] - 2026-09-12
 
 ### Changed

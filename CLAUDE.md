@@ -924,6 +924,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-12** The setup bar shows the reversed lockup.
 - **2026-09-12** Versions are dates: `2026.9.0` replaces `0.10.x`.
 - **2026-09-12** Fixed: beside the map the lockup head lines up with the top bar and the other panel head.
 - **2026-09-12** The full lockup on the sign-in page and, reversed, in the live app's panel head.
@@ -933,4 +934,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-12** Fixed: `Referrer-Policy: same-origin` in Apache blanked the Referer to OSM and every tile came back "Access blocked".
 - **2026-09-12** Setup works on a phone: tabs in a sliding row, tables as labelled cards; the Places map fits its pins.
 - **2026-09-12** Overpass and Overpass Mono across every screen, headings in sentence case, the bib set as a bib tag, `/` leads to sign-in.
-- **2026-09-12** `/robots.txt` blocks every crawler and every page carries `noindex`: the role links must not be searchable.

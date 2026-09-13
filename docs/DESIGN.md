@@ -153,7 +153,7 @@ it. Three files in `static/`, no build step:
 - `logo-lockup.svg` - a copy of `docs/brand/logo-lockup.svg`, shown on the
   sign-in page. `logo-lockup-reversed.svg` is the same with white where the
   artwork is navy, for the panel head in the live app (the sheet on a
-  phone, the left column on a wide screen), which is navy and 72px tall.
+  phone, the left column on a wide screen) and for the setup bar.
   Regenerate the reversed copy with `sed 's/#0B2545/#FFFFFF/g'` when the
   lockup changes; do not edit it by hand. The top bar keeps the pin beside
   the name as live text in Overpass: at 27px the wordmark would not read,

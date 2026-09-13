@@ -23,6 +23,9 @@ body.setup {
 /* The map hides its lockup above 700px because the sidebar carries it
    there; setup has no sidebar, so the bar keeps it at every width. */
 body.setup #brand { display: flex; }
+/* 32px: the same height the live app's panel head gives the lockup, and the
+   bar stays the height it was with the pin and the wordmark. */
+body.setup #brand img { width: auto; height: 32px; }
 #setup-title { font-size: 15px; color: rgba(255, 255, 255, 0.72); flex: 1; }
 #whoami { font-size: 13px; color: rgba(255, 255, 255, 0.9); }
 #logout {
@@ -479,12 +482,9 @@ a.icon-btn[hidden] { display: none; }
      is on the Users tab and was wrapping the bar to three lines. */
   #setup-bar { padding: 8px 12px; gap: 8px; }
   #whoami { display: none; }
-  /* The map's bar drops the wordmark under 460px to make room for the
-     connection badge; there is no badge here, so the name stays and the
-     word "Setup" goes instead - the tab bar underneath already says it.
-     The version chip stays: a deploy from a phone is confirmed by reading
-     it. */
-  body.setup #brand-name { display: inline; }
+  /* The lockup stays; the word "Setup" goes instead - the tab bar
+     underneath already says it. The version chip stays: a deploy from a
+     phone is confirmed by reading it. */
   #setup-title { display: none; }
   #app-version { flex: 1; min-width: 0; text-align: right; overflow: hidden; text-overflow: ellipsis; }
   #logout { white-space: nowrap; }
