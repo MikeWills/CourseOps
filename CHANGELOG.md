@@ -12,6 +12,18 @@ month, PATCH counting releases in that month from 0. Before that they were
 ## [Unreleased]
 
 ### Fixed
+- **Role links were written to the Apache access log on every request and
+  to the journal on every restart.** The token is in the URL path, and the
+  stock `combined` log format records the path - and the Referer, which is
+  the map page's URL for every request it makes - so `courseops-access.log`
+  and its rotated copies held every volunteer's credential, readable by
+  anyone in `adm`, and revoking a link did nothing about the old lines.
+  Separately `courseops serve <event>` printed the five links on every
+  start, which under systemd is every deploy, into `journalctl`. The
+  vhosts now log `/e/<slug>/-token-` and no Referer, and `serve` prints
+  links only when stdout is a terminal. Both are operator changes on an
+  installed server: the Apache lines go in by hand, and the old log files
+  and journal should be cleared - `docs/DEPLOYMENT.md` says how.
 - **No request body had a size limit.** The login route needs no credential,
   so a multi-hundred-megabyte POST from anyone was buffered whole in RAM
   before a byte of it was looked at - enough to take down a small VPS, and

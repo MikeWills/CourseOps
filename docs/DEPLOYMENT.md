@@ -275,6 +275,23 @@ reload apache2`. The lines, and why each is there:
   itself (64 KB for anything but a course file, 64 MB for that), but
   stopping it in Apache costs nothing and stopping it in Python costs a
   process the read.
+- The `LOGPATH` rewrite rules, the `courseops` `LogFormat` and the
+  `CustomLog` that uses it, in place of `combined`. **The role token is in
+  the URL path**, so the stock format wrote every volunteer's credential to
+  `courseops-access.log` on every request - and again in the Referer of
+  every request the page then made. Revoking a link does nothing about old
+  log lines, and logrotate keeps copies. The replacement logs
+  `/e/<slug>/-token-` and no Referer. Once the new format is in, the old
+  files under `/var/log/apache2/courseops-access.log*` still hold every
+  link ever used: delete them, or `logrotate --force` and delete the
+  rotated copies.
+
+The journal is the other log. `courseops serve <event>` used to print the
+five role links on every start, which under systemd is every restart and
+every deploy, into `journalctl` for anyone in `systemd-journal`. It now
+prints them only when stdout is a terminal; under the service it says to
+read them off the Links tab instead. `journalctl --vacuum-time=1d -u
+courseops` clears what earlier versions wrote.
 
 ### `ProxyPreserveHost On` is load-bearing
 
