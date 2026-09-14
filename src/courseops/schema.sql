@@ -190,7 +190,8 @@ CREATE TABLE IF NOT EXISTS roster (
     bound_key     TEXT,
     operator_name TEXT,
     display_label TEXT    NOT NULL,
-    -- net_control | aid_station | sweep | sag | shadow | rover | start_finish
+    -- A `roster_role.key` for this event. An open set: the club adds and
+    -- deletes roles in setup, so no list here could stay true.
     category      TEXT    NOT NULL DEFAULT 'rover',
     -- Only stations with expects_aprs=1 are subject to staleness alerting.
     -- Without this the "who has gone quiet" panel fills with operators who
@@ -282,7 +283,10 @@ CREATE TABLE IF NOT EXISTS import_feature (
     style_id    TEXT,
     warnings    TEXT,
     suggestion  TEXT,               -- advisory guess; never applied on its own
-    -- pending | assigned | discarded
+    -- pending | assigned | discarded. Deleting the course or place an
+    -- assigned feature became puts it back to `pending` (admin.delete_course,
+    -- admin.delete_poi): SET NULL alone would leave it assigned to nothing,
+    -- off the review screen and impossible to discard.
     status      TEXT    NOT NULL DEFAULT 'pending',
     course_id   INTEGER REFERENCES course(id) ON DELETE SET NULL,
     poi_id      INTEGER REFERENCES poi(id) ON DELETE SET NULL
@@ -299,7 +303,7 @@ CREATE TABLE IF NOT EXISTS access_token (
     id         INTEGER PRIMARY KEY,
     event_id   INTEGER NOT NULL REFERENCES event(id) ON DELETE CASCADE,
     token      TEXT    NOT NULL UNIQUE,
-    role       TEXT    NOT NULL,   -- ncs | liaison
+    role       TEXT    NOT NULL,   -- one of access.ROLES: ncs | sag | liaison | logistics | staff
     label      TEXT,
     revoked    INTEGER NOT NULL DEFAULT 0,
     created_at TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
@@ -486,7 +490,7 @@ CREATE TABLE IF NOT EXISTS user (
     -- travel with each hash so they can be raised without invalidating
     -- existing passwords.
     password_hash TEXT    NOT NULL,
-    -- system_admin | event_admin
+    -- one of users.ROLES: system_admin | org_admin | event_admin
     role          TEXT    NOT NULL,
     -- The club this administrator belongs to. NULL for a system administrator,
     -- who is not part of any one club.

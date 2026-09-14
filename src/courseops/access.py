@@ -16,7 +16,9 @@ from __future__ import annotations
 import secrets
 import sqlite3
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
+
+from .clock import utc_now_iso
 
 # 32 url-safe characters, ~192 bits. Long enough that guessing is hopeless,
 # short enough to survive being pasted into a text message.
@@ -209,10 +211,8 @@ LAST_USED_RESOLUTION = timedelta(minutes=1)
 
 
 def _stamp_cutoff() -> str:
-    """The same shape SQLite writes (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
-    so the two compare as strings."""
-    cutoff = datetime.now(timezone.utc) - LAST_USED_RESOLUTION
-    return cutoff.strftime("%Y-%m-%dT%H:%M:%SZ")
+    """The same shape SQLite writes, so the two compare as strings."""
+    return utc_now_iso(-LAST_USED_RESOLUTION)
 
 
 def resolve(

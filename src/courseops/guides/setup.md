@@ -91,7 +91,10 @@ Names and colours save together: edit as many rows as you like and one
 the order on its own.
 
 **Check the distance.** If a course reads 3 mi when it should read 13, segments
-are missing or one belongs to a different route.
+are missing or one belongs to a different route. **Stitched it wrong? Delete
+the course** and its segments go back to the Import tab's review list, ready
+to be assigned again - no need to upload the file a second time. Deleting a
+place does the same with the point it came from.
 
 Which **leaders** you follow round each of these races - first male, first
 female, a wheelchair leader - is on its own tab, and is covered in

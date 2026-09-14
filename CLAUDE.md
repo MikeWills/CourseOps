@@ -107,6 +107,7 @@ src/courseops/
   gpx.py          GPX tracks/routes/waypoints into the same features as KML
   importer.py     two-phase import: stage for review, then commit assignments
   units.py        metric storage -> US customary display
+  clock.py        the ONE stored-timestamp shape; Python must match SQLite's
   progress.py     snap a station onto a course: "mile 14.2 of Full"
   incidents.py    pickups by bib, status workflow, change log
   report.py       the after-event page for the race lead: counts, notes, no names

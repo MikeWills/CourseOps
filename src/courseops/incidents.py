@@ -78,7 +78,7 @@ class Incident:
     row: sqlite3.Row
 
     def as_dict(self) -> dict:
-        data = {key: self.row[key] for key in self.row.keys()}
+        data = dict(self.row)
         data["status_label"] = STATUS_LABELS.get(data["status"], data["status"])
         kind = data.get("kind") or KIND_PICKUP
         data["kind"] = kind

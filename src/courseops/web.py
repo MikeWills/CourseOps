@@ -231,10 +231,6 @@ def _link_label(value: object) -> str | None:
     return text or None
 
 
-def _row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
-    return {key: row[key] for key in row.keys()}
-
-
 def _seed_event_center(conn: sqlite3.Connection, event_id: int) -> None:
     """After an import, give an event with no centre one.
 
@@ -404,7 +400,7 @@ def build_state(conn: sqlite3.Connection, event_id: int) -> dict[str, Any]:
     ).fetchall()
     pois = []
     for row in index.order_along_course(poi_rows):
-        entry = _row_to_dict(row)
+        entry = dict(row)
         entry["course_position"] = _course_position(index, row["lat"], row["lon"])
         # One or two characters for the pin itself. Derived unless the club
         # typed an override; the client never has to guess.
@@ -416,7 +412,7 @@ def build_state(conn: sqlite3.Connection, event_id: int) -> dict[str, Any]:
         "SELECT * FROM roster WHERE event_id = ? ORDER BY category, display_label",
         (event_id,),
     ).fetchall():
-        entry = _row_to_dict(row)
+        entry = dict(row)
         # Wording differs by category: an aid station is "Torn down", a sweep is
         # "Finished". The client should not have to know that mapping.
         entry["op_status_label"] = db.op_status_label(row["category"], row["op_status"])
@@ -2104,7 +2100,7 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
                 # which is the point of ignoring it and also what makes the
                 # mistake invisible.
                 payload["ignored"] = [
-                    _row_to_dict(row) for row in db.exclusions(conn, granted.event_id)
+                    dict(row) for row in db.exclusions(conn, granted.event_id)
                 ]
         finally:
             conn.close()
@@ -2421,7 +2417,7 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         conn, granted = require_access(event_slug, token)
         try:
             entries = [
-                {key: row[key] for key in row.keys()}
+                dict(row)
                 for row in db.op_status_log(conn, granted.event_id, station_key)
             ]
         finally:
@@ -2439,7 +2435,7 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         try:
             incidents.get(conn, granted.event_id, incident_id)
             entries = [
-                {key: row[key] for key in row.keys()}
+                dict(row)
                 for row in incidents.log_for(conn, incident_id)
             ]
         except incidents.IncidentError as exc:

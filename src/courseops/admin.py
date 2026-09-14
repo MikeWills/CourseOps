@@ -23,10 +23,6 @@ from . import (access, categories, db, importer, labels, leaders,
                progress, styling, what3words)
 
 
-def _row(row: sqlite3.Row) -> dict[str, Any]:
-    return {key: row[key] for key in row.keys()}
-
-
 # Loose on purpose: this is a sanity check against a typed label or a pasted
 # name, not an attempt to validate every callsign format in the world. Special
 # event and foreign calls take shapes a strict pattern would reject.
@@ -67,7 +63,7 @@ def list_events(conn: sqlite3.Connection,
     }
     out = []
     for row in rows:
-        entry = _row(row)
+        entry = dict(row)
         entry["counts"] = {name: table.get(row["id"], 0)
                            for name, table in counts.items()}
         out.append(entry)
@@ -144,7 +140,7 @@ def create_event(conn: sqlite3.Connection, payload: dict,
     # Role links exist from the moment the event does, so there is never a state
     # where an event has been made but cannot be opened.
     access.ensure_tokens(conn, event_id)
-    return _row(db.get_event(conn, slug))
+    return dict(db.get_event(conn, slug))
 
 
 def update_event(conn: sqlite3.Connection, event_id: int, payload: dict) -> dict:
@@ -181,7 +177,7 @@ def update_event(conn: sqlite3.Connection, event_id: int, payload: dict) -> dict
     cur = conn.execute(f"UPDATE event SET {', '.join(fields)} WHERE id = ?", values)
     if cur.rowcount == 0:
         raise ValueError("No such event.")
-    return _row(conn.execute(
+    return dict(conn.execute(
         "SELECT * FROM event WHERE id = ?", (event_id,)
     ).fetchone())
 
@@ -204,7 +200,7 @@ def staged_features(conn: sqlite3.Connection, event_id: int) -> list[dict]:
     """
     out = []
     for row in importer.pending_features(conn, event_id):
-        entry = _row(row)
+        entry = dict(row)
         entry["geojson"] = json.loads(row["geojson"])
         out.append(entry)
     return out
@@ -251,7 +247,7 @@ def assign_features(conn: sqlite3.Connection, event_id: int, payload: dict) -> d
 # --- courses and aid stations ----------------------------------------------
 
 def list_courses(conn: sqlite3.Connection, event_id: int) -> list[dict]:
-    return [_row(row) for row in importer.courses_for_event(conn, event_id)]
+    return [dict(row) for row in importer.courses_for_event(conn, event_id)]
 
 
 @db.transactional
@@ -284,7 +280,7 @@ def update_course(conn: sqlite3.Connection, event_id: int, course_id: int,
     ).fetchone()
     if row is None:
         raise ValueError(f"No course with id {course_id} in this event.")
-    return _row(row)
+    return dict(row)
 
 
 def _in_use(parts: list[tuple[int, str, str]]) -> str | None:
@@ -314,6 +310,13 @@ def delete_course(conn: sqlite3.Connection, event_id: int,
         (sightings, "lead runner sighting", "lead runner sightings")])
     if blocked:
         return blocked
+    # The staged features this course was stitched from go back to review.
+    # The foreign key only NULLs their target, which left them `assigned` to
+    # nothing: off the review screen, undiscardable, and the only way to redo
+    # a course stitched wrong was to upload the file again.
+    conn.execute(
+        "UPDATE import_feature SET status = 'pending'"
+        " WHERE event_id = ? AND course_id = ?", (event_id, course_id))
     conn.execute("DELETE FROM course WHERE id = ? AND event_id = ?",
                  (course_id, event_id))
     return None
@@ -338,7 +341,7 @@ def list_pois(conn: sqlite3.Connection, event_id: int) -> list[dict]:
         races.setdefault(row["poi_id"], []).append(row["course_id"])
     out = []
     for row in index.order_along_course(rows):
-        entry = _row(row)
+        entry = dict(row)
         layer = layers.get(row["poi_type"])
         entry["layer_name"] = layer["name"] if layer else row["poi_type"]
         entry["layer_icon"] = layer["icon"] if layer else "pin"
@@ -431,7 +434,7 @@ def create_poi(conn: sqlite3.Connection, event_id: int, payload: dict) -> dict:
             ("what3words", "label", "notes", "course_ids") if k in payload}
     if rest:
         return update_poi(conn, event_id, poi_id, rest)
-    return _row(conn.execute(
+    return dict(conn.execute(
         "SELECT * FROM poi WHERE id = ?", (poi_id,)).fetchone())
 
 
@@ -506,7 +509,7 @@ def update_poi(conn: sqlite3.Connection, event_id: int, poi_id: int,
 
     if not fields:
         if changed_races:
-            return _row(conn.execute(
+            return dict(conn.execute(
                 "SELECT * FROM poi WHERE id = ?", (poi_id,)).fetchone())
         raise ValueError("Nothing to change.")
 
@@ -516,7 +519,7 @@ def update_poi(conn: sqlite3.Connection, event_id: int, poi_id: int,
     )
     if cur.rowcount == 0:
         raise ValueError(f"No aid station with id {poi_id} in this event.")
-    return _row(conn.execute("SELECT * FROM poi WHERE id = ?", (poi_id,)).fetchone())
+    return dict(conn.execute("SELECT * FROM poi WHERE id = ?", (poi_id,)).fetchone())
 
 
 def set_poi_courses(conn: sqlite3.Connection, event_id: int, poi_id: int,
@@ -651,6 +654,10 @@ def delete_poi(conn: sqlite3.Connection, event_id: int,
     ])
     if blocked:
         return blocked
+    # Same as delete_course: the point it came from returns to review.
+    conn.execute(
+        "UPDATE import_feature SET status = 'pending'"
+        " WHERE event_id = ? AND poi_id = ?", (event_id, poi_id))
     conn.execute("DELETE FROM poi WHERE id = ? AND event_id = ?", (poi_id, event_id))
     return None
 
@@ -663,7 +670,7 @@ def list_roster(conn: sqlite3.Connection, event_id: int) -> list[dict]:
     ).fetchall()}
     out = []
     for row in db.roster_for_event(conn, event_id):
-        entry = _row(row)
+        entry = dict(row)
         entry["poi_name"] = pois.get(row["poi_id"])
         out.append(entry)
     return out
@@ -711,7 +718,7 @@ def save_roster_entry(conn: sqlite3.Connection, event_id: int, payload: dict) ->
             except (TypeError, ValueError):
                 raise ValueError(f"{poi_id!r} is not a place id.") from None
         db.assign_station_to_poi(conn, event_id, station_key, poi_id)
-    return _row(conn.execute(
+    return dict(conn.execute(
         "SELECT * FROM roster WHERE event_id = ? AND station_key = ?",
         (event_id, station_key),
     ).fetchone())
@@ -730,6 +737,6 @@ def delete_roster_entry(conn: sqlite3.Connection, event_id: int,
 
 def list_links(conn: sqlite3.Connection, event_id: int) -> list[dict]:
     return [
-        {**_row(row), "role_label": access.ROLE_LABELS.get(row["role"], row["role"])}
+        {**dict(row), "role_label": access.ROLE_LABELS.get(row["role"], row["role"])}
         for row in access.tokens_for_event(conn, event_id)
     ]

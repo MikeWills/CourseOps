@@ -39,6 +39,27 @@ month, PATCH counting releases in that month from 0. Before that they were
   `start_session`), `suggest_event_center` (now wired to import), the
   duplicate `payload["role"]` assignment. (Audit D1.)
 
+### Fixed
+- **Deleting a course or a place sends what it was built from back to
+  review.** The staged import features behind it were left `assigned` with
+  their target NULLed by the foreign key: off the review list, impossible to
+  discard, and the only way to redo a course stitched wrong was to upload
+  the file again - which nothing on screen said. `admin.delete_course` and
+  `admin.delete_poi` set them back to `pending` first. (Audit D3.)
+
+### Changed
+- **One timestamp helper, one `dict(row)`.** `parser`, `users` and `access`
+  each formatted "now" for SQLite with their own copy of the format string
+  (and one had once drifted to a second format); `clock.utc_now_iso()` is
+  the single place that shape is written down, and it is a leaf module so
+  the parser can use it. Three hand-rolled `{key: row[key] ...}` helpers
+  became `dict(row)`, which `sqlite3.Row` has always supported. Four schema
+  comments named value sets the code outgrew - `access_token.role` listed
+  two of five roles, `user.role` two of three, `roster.category` a fixed
+  seven that is now the club's open `roster_role` list; they name the
+  Python constant now. `Subscription.dropped` was already reset by the
+  socket-performance work (E7) and needed nothing. (Audit D3.)
+
 ### Added
 - **An event's map centre can be set from the browser, and an import sets
   it for you.** The Places map opens on the event's centre when there is no

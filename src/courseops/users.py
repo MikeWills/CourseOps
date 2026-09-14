@@ -34,10 +34,11 @@ import sqlite3
 import time
 from collections import deque
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from hashlib import scrypt
 
 from . import db
+from .clock import utc_now_iso
 
 ROLE_SYSTEM_ADMIN = "system_admin"
 ROLE_ORG_ADMIN = "org_admin"
@@ -357,7 +358,7 @@ def list_organizations(conn: sqlite3.Connection) -> list[dict]:
     for row in conn.execute(
         "SELECT * FROM organization ORDER BY name"
     ).fetchall():
-        entry = {key: row[key] for key in row.keys()}
+        entry = dict(row)
         entry["event_count"] = events.get(row["id"], 0)
         entry["admin_count"] = admins.get(row["id"], 0)
         out.append(entry)
@@ -380,7 +381,7 @@ def create_organization(conn: sqlite3.Connection, slug: str, name: str,
     )
     row = conn.execute("SELECT * FROM organization WHERE id = ?",
                        (int(cur.lastrowid),)).fetchone()
-    return {key: row[key] for key in row.keys()}
+    return dict(row)
 
 
 def count_system_admins(conn: sqlite3.Connection, exclude_id: int | None = None) -> int:
@@ -495,10 +496,6 @@ def may_manage_user(conn: sqlite3.Connection, actor: User, target: User) -> bool
 
 # --- sessions ---------------------------------------------------------------
 
-def _now() -> datetime:
-    return datetime.now(timezone.utc)
-
-
 def authenticate(conn: sqlite3.Connection, username: str, password: str) -> User:
     row = conn.execute(
         "SELECT * FROM user WHERE username = ?", (normalize_username(username),)
@@ -529,7 +526,7 @@ def start_session(conn: sqlite3.Connection, user_id: int) -> str:
     # One DELETE per login keeps the table the size of the live sessions.
     purge_expired_sessions(conn)
     token = secrets.token_urlsafe(SESSION_BYTES)
-    expires = (_now() + timedelta(days=SESSION_DAYS)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    expires = utc_now_iso(timedelta(days=SESSION_DAYS))
     conn.execute(
         "INSERT INTO session (token, user_id, expires_at) VALUES (?, ?, ?)",
         (token, user_id, expires),
@@ -551,7 +548,7 @@ def resolve_session(conn: sqlite3.Connection, token: str) -> User | None:
     ).fetchone()
     if row is None:
         return None
-    if row["expires_at"] <= _now().strftime("%Y-%m-%dT%H:%M:%SZ"):
+    if row["expires_at"] <= utc_now_iso():
         conn.execute("DELETE FROM session WHERE token = ?", (token,))
         return None
 
