@@ -12,6 +12,10 @@ month, PATCH counting releases in that month from 0. Before that they were
 ## [Unreleased]
 
 ### Fixed
+- Expired admin sessions were never removed: a stale row went only when its
+  own token was presented again, which a browser that has dropped the
+  cookie never does, so the table grew by a row per sign-in forever. Every
+  sign-in now sweeps the expired rows out first.
 - **The deploy workflow spliced the tag and the secrets into shell lines,
   and learned the server's host key fresh on every run.** A `${{ }}`
   expression is substituted into the script text before the shell sees it,

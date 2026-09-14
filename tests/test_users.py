@@ -226,6 +226,19 @@ def test_an_expired_session_is_rejected_and_cleaned_up(conn, admin):
                         (token,)).fetchone() is None
 
 
+def test_signing_in_sweeps_out_every_expired_session(conn, admin):
+    """Expired rows used to go only when their own token was presented
+    again, which a browser that has dropped the cookie never does - so the
+    table grew by one row per sign-in, forever."""
+    stale = [users.start_session(conn, admin.id) for _ in range(3)]
+    conn.execute("UPDATE session SET expires_at = '2020-01-01T00:00:00Z'")
+    live = users.start_session(conn, admin.id)
+
+    remaining = {r["token"] for r in conn.execute("SELECT token FROM session")}
+    assert remaining == {live}
+    assert not remaining & set(stale)
+
+
 def test_changing_a_password_kills_every_existing_session(conn, admin):
     """A password change usually means it was compromised; leaving old sessions
     alive would defeat the point."""

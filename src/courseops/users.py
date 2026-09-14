@@ -510,6 +510,11 @@ def authenticate(conn: sqlite3.Connection, username: str, password: str) -> User
 
 
 def start_session(conn: sqlite3.Connection, user_id: int) -> str:
+    # Every sign-in adds a row and nothing else ever removed the expired
+    # ones: resolve_session deletes a stale row only when that exact token
+    # is presented again, which a browser that has forgotten it never does.
+    # One DELETE per login keeps the table the size of the live sessions.
+    purge_expired_sessions(conn)
     token = secrets.token_urlsafe(SESSION_BYTES)
     expires = (_now() + timedelta(days=SESSION_DAYS)).strftime("%Y-%m-%dT%H:%M:%SZ")
     conn.execute(
