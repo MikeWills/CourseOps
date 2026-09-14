@@ -402,8 +402,20 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         finally:
             conn.close()
 
-        for slug in wanted:
-            await _start_ingest(slug)
+        # One connection for the whole server, so at most one feed starts.
+        # The switch turns the displaced event's flag off as it goes, so two
+        # flagged events means a database from before it did - or a slug on
+        # the command line beside a stale flag. The command line is explicit
+        # and wins; otherwise the newest event, which is the likelier live
+        # one against an old rehearsal. Starting them all in id order used
+        # to start the first and cancel it for the second, silently.
+        if wanted:
+            named = [slug for slug in (ingest_events or []) if slug in wanted]
+            chosen = named[-1] if named else wanted[-1]
+            for slug in wanted:
+                if slug != chosen:
+                    await _displace_ingest(slug, by=chosen)
+            await _start_ingest(chosen)
         try:
             yield
         finally:
@@ -799,9 +811,14 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
                 detail="Only an organization or system administrator can delete an event.",
             )
         try:
+            row = conn.execute(
+                "SELECT slug FROM event WHERE id = ?", (event_id,)).fetchone()
             admin.delete_event(conn, event_id)
         finally:
             conn.close()
+        # The feed must not outlive the event - see _forget_ingest.
+        if row is not None:
+            await app.state.forget_ingest(row["slug"], event_id)
         return JSONResponse({"deleted": event_id})
 
     # --- setup: course import ----------------------------------------------
@@ -1466,9 +1483,16 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     ) -> JSONResponse:
         conn, user = require_system_admin(request)
         try:
+            # Cascades through the organization's events, so their feeds go
+            # the same way an event's own delete takes its feed with it.
+            gone = conn.execute(
+                "SELECT id, slug FROM event WHERE organization_id = ?",
+                (organization_id,)).fetchall()
             conn.execute("DELETE FROM organization WHERE id = ?", (organization_id,))
         finally:
             conn.close()
+        for event in gone:
+            await app.state.forget_ingest(event["slug"], event["id"])
         return JSONResponse({"deleted": organization_id})
 
     # --- setup: users -------------------------------------------------------
@@ -2204,7 +2228,7 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
             return True
         for running in list(app.state.ingest_tasks):
             if running != slug:
-                await _stop_ingest(running)
+                await _displace_ingest(running, by=slug)
         app.state.ingest_errors.pop(slug, None)
         app.state.ingest_tasks[slug] = asyncio.create_task(
             _supervise_ingest(slug), name=f"ingest:{slug}")
@@ -2219,7 +2243,48 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         with contextlib.suppress(asyncio.CancelledError):
             await task
 
+    def _event_name(slug: str) -> str:
+        conn = db.connect(settings.db_path)
+        try:
+            event = db.get_event(conn, slug)
+            return event["name"] if event else slug
+        finally:
+            conn.close()
+
+    async def _displace_ingest(slug: str, by: str) -> None:
+        """Turn one event's feed off because another's is going on.
+
+        The persisted switch is what the next boot acts on, so the displaced
+        event's flag has to come off with the feed: left on, the boot found
+        two flagged, started the first and cancelled it for the second, and
+        the displaced tab read "on - but not connected" with nothing to say
+        why. The reason goes where the tab already looks for one.
+        """
+        await _stop_ingest(slug)
+        conn = db.connect(settings.db_path)
+        try:
+            db.set_ingest_enabled(conn, slug, False)
+            conn.commit()
+        finally:
+            conn.close()
+        app.state.ingest_errors[slug] = (
+            f"Tracking was turned on for {_event_name(by)}, and there is "
+            "one APRS-IS connection for the whole server.")
+
+    async def _forget_ingest(slug: str, event_id: int) -> None:
+        """The event is gone; nothing about its feed may outlive it.
+
+        Otherwise the connection keeps a wildcard filter on the deleted
+        event's volunteers until the next restart, and re-creating the slug
+        finds a feed "already running" that is bound to the dead event id.
+        The nearby list is keyed by event id, the rest by slug.
+        """
+        await _stop_ingest(slug)
+        app.state.ingest_errors.pop(slug, None)
+        app.state.nearby.pop(event_id, None)
+
     app.state.start_ingest = _start_ingest
     app.state.stop_ingest = _stop_ingest
+    app.state.forget_ingest = _forget_ingest
 
     return app

@@ -203,6 +203,13 @@ After a restart, an event whose switch was on but whose feed cannot start
 shows *Tracking on - but not connected* with the same reason; the site itself
 stays up.
 
+One APRS-IS connection per server: turning tracking on for an event turns it
+off for any other, and that event's tab says which one took the connection.
+At a restart with two events flagged on (a database from before this rule, or
+`courseops serve <slug>` beside a stale flag) the slug on the command line
+wins, else the newest event; the other is switched off with the same note.
+Deleting an event or an organization stops the feeds it owned.
+
 Worth turning on for a check-in rehearsal a week or two before the event, to
 see which SSIDs actually appear. Then off again.
 

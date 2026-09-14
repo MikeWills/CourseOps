@@ -310,3 +310,107 @@ def test_the_flag_is_persisted_only_after_the_feed_started(
         assert "refused the login" in state["error"]
     finally:
         client.__exit__(None, None, None)
+
+
+# --- one feed, one flag ------------------------------------------------------
+#
+# The switch is persisted so a restart brings the feed back. That only works
+# if the persisted state names ONE event: with two flagged, the boot started
+# the first and then cancelled it for the second, and the displaced event's
+# tab read "on - but not connected" with nothing to say why.
+
+
+def test_starting_one_feed_turns_the_other_switch_off(app_with_events):
+    app, running, started, db_path = app_with_events
+    conn = db.connect(db_path)
+    db.set_ingest_enabled(conn, "alpha", True)
+    conn.close()
+
+    async def scenario():
+        await app.state.start_ingest("alpha")
+        await app.state.start_ingest("bravo")
+        await asyncio.sleep(0)
+        assert running == {"bravo"}
+        await app.state.stop_ingest("bravo")
+
+    asyncio.run(scenario())
+    conn = db.connect(db_path)
+    assert db.events_wanting_ingest(conn) == [], "alpha's switch was left on"
+    conn.close()
+    # ...and alpha's tab says where its feed went.
+    assert "Bravo" in app.state.ingest_errors["alpha"]
+
+
+def test_a_boot_with_two_flagged_events_starts_one_and_clears_the_other(
+        app_with_events):
+    """A database from before this fix can hold two flags. Start the newest
+    and turn the other off with a reason, rather than starting both and
+    letting the second cancel the first."""
+    from fastapi.testclient import TestClient
+    app, running, started, db_path = app_with_events
+    conn = db.connect(db_path)
+    db.set_ingest_enabled(conn, "alpha", True)
+    db.set_ingest_enabled(conn, "bravo", True)
+    conn.close()
+
+    with TestClient(app):
+        assert started == ["bravo"]
+        assert running == {"bravo"}
+        conn = db.connect(db_path)
+        assert db.events_wanting_ingest(conn) == ["bravo"]
+        conn.close()
+        assert "Bravo" in app.state.ingest_errors["alpha"]
+
+
+def test_the_event_named_on_the_command_line_wins_at_boot(tmp_path, monkeypatch):
+    """`courseops serve alpha` means alpha, whatever a stale flag says."""
+    from fastapi.testclient import TestClient
+    db_path = tmp_path / "t.sqlite3"
+    conn = db.connect(db_path)
+    db.init_schema(conn)
+    db.create_event(conn, "alpha", "Alpha")
+    db.create_event(conn, "bravo", "Bravo")
+    db.set_ingest_enabled(conn, "bravo", True)
+    conn.close()
+
+    started: list[str] = []
+
+    async def fake_feed(settings, slug, on_position=None, max_packets=None,
+                        on_nearby=None):
+        started.append(slug)
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr(web, "run_ingest", fake_feed)
+    settings = Settings(callsign="KI4TST", passcode="-1", host="h", port=1,
+                        db_path=db_path, log_level="WARNING")
+    app = web.create_app(settings, ingest_events=["alpha"])
+    with TestClient(app):
+        assert started == ["alpha"]
+        conn = db.connect(db_path)
+        assert db.events_wanting_ingest(conn) == ["alpha"]
+        conn.close()
+
+
+def test_deleting_an_event_stops_its_feed(app_with_events):
+    """A deleted event must not keep a wildcard filter on its volunteers'
+    callsigns until the next restart - and if the club re-creates the slug,
+    "already running" must not mean a task bound to the dead event."""
+    app, running, started, db_path = app_with_events
+    client = _admin_client(app, db_path)
+    try:
+        conn = db.connect(db_path)
+        event_id = db.get_event(conn, "alpha")["id"]
+        db.upsert_roster_entry(conn, event_id, "N0CALL-7", "Sweep", "sweep")
+        conn.close()
+        assert client.post(f"/api/setup/events/{event_id}/tracking",
+                           json={"enabled": True}).status_code == 200
+        assert running == {"alpha"}
+        app.state.nearby[event_id] = {"W1AW-9": object()}
+
+        assert client.post(f"/api/setup/events/{event_id}/delete").status_code == 200
+        assert running == set()
+        assert "alpha" not in app.state.ingest_tasks
+        assert event_id not in app.state.nearby
+        assert "alpha" not in app.state.ingest_errors
+    finally:
+        client.__exit__(None, None, None)

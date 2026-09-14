@@ -34,6 +34,11 @@ the people or the course first, then come back. If the feed cannot connect for
 some other reason, the switch stays off and the tab reads *Last attempt
 stopped:* with the reason.
 
+There is one APRS-IS connection for the whole server, so turning tracking on
+for one event turns it off for any other - a rehearsal event left on, say. The
+other event's tab says which event took the connection. Deleting an event
+stops its feed.
+
 ## A check-in rehearsal is worth an hour
 
 Turn tracking on a week out and ask everyone who will beacon to do so. What it

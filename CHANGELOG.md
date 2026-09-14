@@ -43,6 +43,21 @@ month, PATCH counting releases in that month from 0. Before that they were
   interval late. Membership is now re-read (rate-limited as before) before
   each packet is judged, so both take effect on the next packet. (Audit
   2026-09-14, A2.)
+- **Two events could both be switched on, and deleting an event left its
+  feed running.** Turning tracking on for one event stopped any other feed
+  but left the other event's persisted switch at "on": its tab read
+  "Tracking on - but not connected" with an empty reason, and the next boot
+  found two flagged events, started the lower id and then cancelled it for
+  the higher - so after a deploy the live event's feed could be the one
+  that lost. Deleting an event never stopped its feed at all: the wildcard
+  filter on its volunteers' callsigns ran on until the next restart, and
+  re-creating the slug found a feed "already running" bound to the dead
+  event id. Displacing a feed now turns its switch off and leaves the
+  reason on its tab ("Tracking was turned on for <event>"); a boot with
+  several flagged starts one - the slug on the command line, else the
+  newest - and switches the rest off the same way; deleting an event or an
+  organization stops the feeds it owned and drops their nearby lists.
+  (Audit 2026-09-14, A3.)
 
 ## [2026.9.4] - 2026-09-14
 
