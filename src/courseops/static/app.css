@@ -913,6 +913,11 @@ body {
 .inc--reported  { background: var(--inc-reported); }
 .inc--en_route  { background: var(--inc-enroute); }
 .inc--picked_up { background: var(--inc-pickedup); }
+/* Dropped off and closed never reach the map (incidentDone in app.js), but
+   every status keeps a rule: a status without one is white text on a white
+   border with no fill, which on light tiles is a pin that exists and cannot
+   be seen. That is how dropped-off pickups were drawn for a while. */
+.inc--dropped_off { background: var(--inc-dropped); }
 .inc--closed    { background: var(--inc-closed); }
 /* Round, like the note's dot in the list and for the same reason: the shape
    says "not a pickup" without relying on the colour. A red square is somebody

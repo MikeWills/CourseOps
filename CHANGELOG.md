@@ -12,6 +12,15 @@ month, PATCH counting releases in that month from 0. Before that they were
 ## [Unreleased]
 
 ### Fixed
+- **A dropped-off pickup drew on the map as an invisible pin.** Only
+  `closed` was removed from the map, so a delivered runner kept a marker at
+  the place they were picked up - and that status had no colour rule, so
+  the marker was white text inside a white border with no fill: on light
+  tiles, a pin that exists and cannot be seen, while the row sat in the
+  list. The map now removes a pickup when the queue count stops counting
+  it (delivered or closed - one `incidentDone()` for both, because they
+  are read as the same claim and had drifted), and every status has a
+  colour rule so this shape of bug cannot come back silently. (Audit F3.)
 - **A phone coming back from a dead zone could stop reconnecting for
   good.** The reconnect timer fetched the snapshot before opening the
   socket, with nothing catching a failed fetch - and a phone still out of

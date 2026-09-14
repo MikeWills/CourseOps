@@ -1798,6 +1798,13 @@ function isNote(incident) {
   return (incident.kind || 'pickup') === 'note';
 }
 
+/* Nobody is waiting on this one any more. ONE definition, because the
+   queue count and the map are read as the same claim - "who is still out" -
+   and they drifted once: the count excluded dropped-off, the map kept it. */
+function incidentDone(incident) {
+  return incident.status === 'closed' || incident.status === 'dropped_off';
+}
+
 function incidentIcon(incident) {
   // Square, so it can never be mistaken for a station (circle/diamond) or an
   // aid station (rounded rect). The bib is the label because that is what gets
@@ -1863,9 +1870,13 @@ function upsertIncidentMarker(incident) {
     marker.setLatLng([incident.lat, incident.lon]);
     marker.setIcon(incidentIcon(incident));
   }
-  // A closed incident leaves the map but stays in the list, so the map shows
-  // only what is still live.
-  if (incident.status === 'closed') {
+  // A finished pickup leaves the map but stays in the list, so the map shows
+  // only what is still live. Finished means what the queue count means:
+  // delivered or closed. A delivered runner is not at the pin any more, and
+  // a pin nobody is waiting at reads as somebody waiting. (Dropped-off
+  // markers used to stay, with no colour rule: a white square with a white
+  // bib on light tiles, listed but invisible.)
+  if (incidentDone(incident)) {
     if (map.hasLayer(marker)) map.removeLayer(marker);
   } else if (!map.hasLayer(marker)) {
     marker.addTo(map);
@@ -2109,8 +2120,7 @@ function renderPickups(pickups) {
   const list = sortPickups(pickups);
 
   // "Open" means somebody is still waiting: delivered and closed are done.
-  const live = list.filter(
-    (i) => i.status !== 'closed' && i.status !== 'dropped_off').length;
+  const live = list.filter((i) => !incidentDone(i)).length;
   document.getElementById('incident-count').textContent = live ? `(${live} waiting)` : '';
 
   // Nearest is only meaningful once the browser knows where we are, which
