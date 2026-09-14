@@ -8,10 +8,32 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 
 from . import aprsis, db, symbols
-from .config import Settings
+from .config import ConfigError, Settings
 from .parser import PositionReport, Rejected, parse_packet
 
 log = logging.getLogger(__name__)
+
+
+class IngestError(RuntimeError):
+    """The feed cannot start or cannot go on, and this is why.
+
+    A RuntimeError and never SystemExit. `run_ingest` runs inside a task on
+    the server's event loop, and asyncio re-raises SystemExit out of a task
+    and out of the loop itself: one event that could not start - no roster,
+    no course, a callsign lost between deploys - took the whole site down,
+    every role page with it, and the persisted switch restarted it into the
+    same crash under systemd. The CLI is the only place this becomes an exit
+    code, and it does the translation itself.
+    """
+
+
+# What the tracking switch and the feed both say about an event with nothing
+# to listen for. One string, because the switch refuses the case up front and
+# the feed refuses it again if reached some other way, and the two must agree.
+NOTHING_TO_LISTEN_FOR = (
+    "This event has no stations expected to beacon, no course and no extra "
+    "filter. Add stations or import a course before turning tracking on."
+)
 
 # Called for each stored position. Phase 3 hangs the WebSocket broadcast here.
 PositionHandler = Callable[[int, PositionReport], Awaitable[None]]
@@ -176,13 +198,17 @@ async def run_ingest(
 
     `max_packets` bounds the run for smoke-testing; None runs until cancelled.
     """
-    settings.require_callsign()
+    try:
+        settings.require_callsign()
+    except ConfigError as exc:
+        raise IngestError(str(exc)) from exc
     conn = db.connect(settings.db_path)
     db.init_schema(conn)
 
     event = db.get_event(conn, event_slug)
     if event is None:
-        raise SystemExit(f"No event with slug {event_slug!r}. Create it first.")
+        conn.close()
+        raise IngestError(f"No event with slug {event_slug!r}. Create it first.")
 
     # The filter asks only for stations we expect to beacon; the membership
     # check accepts anyone on the roster, since an area filter can legitimately
@@ -192,10 +218,8 @@ async def run_ingest(
     from . import progress
     area = progress.CourseIndex.for_event(conn, event["id"]).area(AREA_MARGIN_M)
     if not filter_keys and not event["aprs_filter_extra"] and area is None:
-        raise SystemExit(
-            f"Event {event_slug!r} has no APRS-expecting roster entries, no "
-            "course and no extra filter. Add stations or a course before ingesting."
-        )
+        conn.close()
+        raise IngestError(NOTHING_TO_LISTEN_FOR)
 
     aprs_filter = aprsis.build_filter(
         filter_keys, event["aprs_filter_extra"],

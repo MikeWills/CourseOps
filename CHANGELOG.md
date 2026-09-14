@@ -11,6 +11,26 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Fixed
+- **A feed that could not start took the whole server down, and the
+  persisted switch restarted it into the same crash.** `run_ingest` signalled
+  "no callsign", "no such event" and "nothing to listen for" with
+  `SystemExit`, which asyncio re-raises out of a task and out of the event
+  loop itself; the supervisor caught only `Exception`. An officer who flipped
+  Tracking on before importing the course - or a deploy whose `.env` had
+  lost its callsign while an event was flagged on - ended every role page
+  at once, and systemd restarted the service into the identical exit until
+  someone edited the database by hand. The feed now raises an ordinary
+  `IngestError` (`require_callsign` a `ConfigError`); only `cli.py` turns
+  either into an exit code. The supervisor records any `BaseException` but
+  its own cancellation. The tracking switch refuses an event with no station
+  expected to beacon, no course and no extra filter the same way it already
+  refused a missing callsign, and persists the flag only AFTER the feed got
+  as far as connecting - a feed that dies on its first step leaves the
+  switch off with the reason on the tab. An event flagged on that cannot
+  start at boot now comes up as "Tracking on - but not connected" with the
+  reason, and the site stays up. (Audit 2026-09-14, A1.)
+
 ## [2026.9.4] - 2026-09-14
 
 ### Added

@@ -1065,27 +1065,50 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         wanted = bool(body.get("enabled"))
         try:
             state = _guard(_tracking_state, conn, event_id)
-            slug = conn.execute(
-                "SELECT slug FROM event WHERE id = ?", (event_id,)
-            ).fetchone()["slug"]
+            event = conn.execute(
+                "SELECT slug, aprs_filter_extra FROM event WHERE id = ?",
+                (event_id,),
+            ).fetchone()
+            slug = event["slug"]
 
+            # Refuse rather than start a task that dies immediately: the
+            # switch would sit at "on" with nothing behind it. Both refusals
+            # mirror the feed's own, so the switch never asks for something
+            # the feed will turn down. The messages say what to do about it.
             if wanted and not state["has_callsign"]:
-                # Refuse rather than start a task that dies immediately: the
-                # switch would sit at "on" with nothing behind it. The message
-                # is the one from settings, which says what to do about it.
                 raise HTTPException(
                     status_code=400,
                     detail=" ".join(
                         state["callsign_problem"].split()))
-            db.set_ingest_enabled(conn, slug, wanted)
-            conn.commit()
+            if (wanted and state["tracked"] == 0 and state["area_mi"] is None
+                    and not event["aprs_filter_extra"]):
+                raise HTTPException(
+                    status_code=400, detail=ingest_module.NOTHING_TO_LISTEN_FOR)
+            if not wanted:
+                db.set_ingest_enabled(conn, slug, False)
+                conn.commit()
         finally:
             conn.close()
 
-        if wanted:
-            await app.state.start_ingest(slug)
-        else:
+        if not wanted:
             await app.state.stop_ingest(slug)
+        else:
+            # Start first, persist second. The flag is what the next boot
+            # acts on, so it must describe a feed that actually started: a
+            # flag written before the attempt turned one refused press into
+            # a service that restarted into the same failure under systemd.
+            started = await app.state.start_ingest(slug)
+            if not started:
+                raise HTTPException(
+                    status_code=400,
+                    detail=app.state.ingest_errors.get(slug)
+                    or "The feed stopped before it connected.")
+            conn = get_conn()
+            try:
+                db.set_ingest_enabled(conn, slug, True)
+                conn.commit()
+            finally:
+                conn.close()
 
         conn = get_conn()
         try:
@@ -2120,8 +2143,10 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         event = db.get_event(conn, slug)
         if event is None:
             conn.close()
-            log.error("Cannot ingest unknown event %r", slug)
-            return
+            # Raised rather than logged and returned, so the supervisor
+            # records it and the tracking panel can say so.
+            raise ingest_module.IngestError(
+                f"No event with slug {slug!r}. Create it first.")
         roster_by_key = {
             row["station_key"]: row for row in db.roster_for_event(conn, event["id"])
         }
@@ -2145,30 +2170,46 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
             await _ingest_for(slug)
         except asyncio.CancelledError:
             raise
-        except Exception as exc:                       # noqa: BLE001
+        except BaseException as exc:                   # noqa: BLE001
             # A missing callsign lands here, and so does anything APRS-IS does
             # that the client cannot recover from. Losing it to the log alone
             # means the switch says "on" and nothing arrives.
+            #
+            # BaseException, not Exception, and the difference is the whole
+            # server: asyncio re-raises SystemExit and KeyboardInterrupt out
+            # of a task and out of the loop, so a feed that once signalled
+            # "nothing to listen for" with SystemExit took every role page
+            # down with it, and the persisted switch restarted it into the
+            # same crash. Nothing that happens inside one feed is allowed to
+            # decide that the site stops.
             app.state.ingest_errors[slug] = str(exc) or exc.__class__.__name__
             log.error("Ingest for %r stopped: %s", slug, exc)
         finally:
             app.state.ingest_tasks.pop(slug, None)
 
-    async def _start_ingest(slug: str) -> None:
-        """Start one feed, replacing any other.
+    async def _start_ingest(slug: str) -> bool:
+        """Start one feed, replacing any other. True if it is running.
 
         APRS-IS bans clients that open many connections, so there is exactly
         one for the whole server - which means turning a feed on turns any
         other one off, rather than quietly running two.
+
+        The feed does its refusals - no callsign, no event, nothing to listen
+        for - before its first real await, so one turn of the loop is enough
+        to know whether it got as far as connecting. The caller persists the
+        switch only on True: a flag written for a feed that never started is
+        what turned one bad press into a restart loop.
         """
         if slug in app.state.ingest_tasks:
-            return
+            return True
         for running in list(app.state.ingest_tasks):
             if running != slug:
                 await _stop_ingest(running)
         app.state.ingest_errors.pop(slug, None)
         app.state.ingest_tasks[slug] = asyncio.create_task(
             _supervise_ingest(slug), name=f"ingest:{slug}")
+        await asyncio.sleep(0)
+        return slug in app.state.ingest_tasks
 
     async def _stop_ingest(slug: str) -> None:
         task = app.state.ingest_tasks.pop(slug, None)

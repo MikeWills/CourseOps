@@ -158,6 +158,16 @@ usability, not style preferences.
   connections. Refuse to enable without a usable callsign rather than starting
   a task that dies: a switch reading "on" with nothing behind it is worse than
   no switch.
+- **Nothing inside the ingest task may raise `SystemExit`, and the supervisor
+  catches `BaseException`.** asyncio re-raises `SystemExit` and
+  `KeyboardInterrupt` out of a task and out of the loop, so a feed that
+  refused an empty event with `SystemExit` took every role page down and the
+  persisted switch restarted it into the same crash under systemd. `ingest.py`
+  raises `IngestError`, `config.require_callsign` raises `ConfigError`, and
+  `cli.py` is the only place either becomes an exit code. The switch persists
+  `ingest_enabled` only AFTER `start_ingest` reports the feed got as far as
+  connecting: the flag is what the next boot acts on, so it must describe a
+  feed that actually started.
 - **Nothing tags a release automatically.** The deploy workflow REACTS to a
   tag; it never creates one. Bump `pyproject.toml` and `__init__.py`, commit,
   then tag - the release workflow refuses a tag that disagrees with the

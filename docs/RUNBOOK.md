@@ -195,7 +195,13 @@ agreed to by being on a roster.
 
 The tab shows the filter your roster produces. If that line is empty, nothing
 will ever arrive no matter how healthy everything else looks - check the roster
-before blaming the radios.
+before blaming the radios. The switch refuses to turn on while the event has
+nothing to listen for (no station expected to beacon, no course) or no usable
+callsign in `.env`, and says which. A feed that fails for any other reason
+leaves the switch off and the reason on the tab as *Last attempt stopped:*.
+After a restart, an event whose switch was on but whose feed cannot start
+shows *Tracking on - but not connected* with the same reason; the site itself
+stays up.
 
 Worth turning on for a check-in rehearsal a week or two before the event, to
 see which SSIDs actually appear. Then off again.
