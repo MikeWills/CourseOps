@@ -30,6 +30,19 @@ month, PATCH counting releases in that month from 0. Before that they were
   switch off with the reason on the tab. An event flagged on that cannot
   start at boot now comes up as "Tracking on - but not connected" with the
   reason, and the site stays up. (Audit 2026-09-14, A1.)
+- **Ignore did not reach the feed until a stranger happened to beacon, and
+  the first packet after a match was thrown away.** The ingest loop re-read
+  who the roster knows only after a packet from an UNKNOWN station. An
+  ignored SSID under a rostered callsign - the operator's own digipeater,
+  the usual case - is never unknown, so its beacons kept being stored and
+  pushed to every screen until some unrelated station was heard; on a quiet
+  band that could be most of a morning, and an igate that reappears at the
+  operator's house after every Ignore teaches NCS the button does not work.
+  The same ordering meant the packet that revealed a station had been
+  matched was dropped before the re-read showed it was wanted, one beacon
+  interval late. Membership is now re-read (rate-limited as before) before
+  each packet is judged, so both take effect on the next packet. (Audit
+  2026-09-14, A2.)
 
 ## [2026.9.4] - 2026-09-14
 

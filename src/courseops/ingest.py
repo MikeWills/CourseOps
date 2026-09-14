@@ -102,8 +102,9 @@ def handle_line(
 
     # A station NCS has ignored. Dropped here, at the door, and not written
     # anywhere - not even raw. Ignoring is meant to be the end of it until
-    # somebody unignores, and the membership refresh picks that up within
-    # seconds without a reconnect.
+    # somebody unignores; the loop re-reads membership before every packet
+    # (rate-limited), so it holds within MEMBERSHIP_REFRESH_S and needs no
+    # reconnect.
     if excluded and report.station_key in excluded:
         stats.excluded += 1
         return None
@@ -156,8 +157,9 @@ AREA_MARGIN_M = 1609.344
 
 # How often the ingest loop re-reads who is on the roster. NCS binds a station
 # heard nearby to a roster entry mid-event, and from then on its packets have
-# to be STORED rather than held in memory - so membership cannot be a snapshot
-# taken when the feed started. Re-read on an unknown packet, at most this often.
+# to be STORED rather than held in memory; NCS ignores a digipeater and from
+# then on its packets must be dropped - so membership cannot be a snapshot
+# taken when the feed started. Re-read before each packet, at most this often.
 MEMBERSHIP_REFRESH_S = 5.0
 
 
@@ -238,18 +240,25 @@ async def run_ingest(
             settings.host, settings.port, settings.callsign,
             settings.passcode, aprs_filter,
         ):
+            # Re-read who the roster knows BEFORE the packet is judged, not
+            # after. This used to happen only once an unknown station was
+            # heard, which is the wrong trigger twice over: an ignored SSID
+            # under a rostered callsign is never unknown, so Ignore did not
+            # reach the door until some stranger beaconed - on a quiet band,
+            # not for a long time, and the igate NCS had just dismissed kept
+            # coming back on every screen. And the packet that revealed a
+            # match had already been thrown away by the time the re-read
+            # showed it was wanted. Rate-limited inside refresh(), so this
+            # costs nothing per packet most of the time.
+            membership.refresh()
             nearby: list[PositionReport] = []
             report = handle_line(
                 conn, event["id"], membership.roster_keys, line, stats,
                 base_callsigns=membership.base_callsigns,
                 excluded=membership.excluded, nearby=nearby,
             )
-            if nearby:
-                # Unknown to the roster as of the last read. NCS may have
-                # assigned it since, so re-read before deciding it is news.
-                membership.refresh()
-                if nearby[0].station_key not in membership.roster_keys                         and on_nearby is not None:
-                    await on_nearby(event["id"], nearby[0])
+            if nearby and on_nearby is not None:
+                await on_nearby(event["id"], nearby[0])
             if report is not None:
                 log.info(
                     "%s  %.5f,%.5f  %s",

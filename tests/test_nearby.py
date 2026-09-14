@@ -129,6 +129,88 @@ def test_membership_is_re_read_so_a_match_takes_effect_live(event):
     assert conn.execute("SELECT COUNT(*) FROM position").fetchone()[0] == 1
 
 
+# --- the loop itself: when a roster change reaches the feed -------------------
+#
+# handle_line is only as fresh as the membership it is handed, and the loop
+# used to re-read membership only when an UNKNOWN station was heard. On a
+# quiet band that could be a long time - and an ignored SSID under a rostered
+# callsign is never unknown, so Ignore did not take effect at all until some
+# stranger happened to beacon.
+
+def _run_loop(tmp_path, monkeypatch, db_path, lines, between):
+    """Drive the real run_ingest over `lines`, calling `between(conn, i)`
+    before line i is yielded - that is where NCS acts mid-stream."""
+    published = []
+
+    async def fake_stream(host, port, callsign, passcode, aprs_filter):
+        conn = db.connect(db_path)
+        for i, line in enumerate(lines):
+            between(conn, i)
+            yield line
+        conn.close()
+
+    async def on_position(event_id, report):
+        published.append(report.station_key)
+
+    monkeypatch.setattr(ingest.aprsis, "stream_packets", fake_stream)
+    # The refresh is rate-limited to spare the database; here every packet
+    # is a separate moment.
+    monkeypatch.setattr(ingest, "MEMBERSHIP_REFRESH_S", 0.0)
+    settings = Settings(callsign="KI4TST", passcode="-1", host="h", port=1,
+                        db_path=db_path, log_level="WARNING")
+    stats = asyncio.run(ingest.run_ingest(settings, "e", on_position=on_position,
+                                          max_packets=len(lines)))
+    return stats, published
+
+
+@pytest.fixture()
+def event_on_disk(tmp_path):
+    db_path = tmp_path / "t.sqlite3"
+    conn = db.connect(db_path)
+    db.init_schema(conn)
+    event_id = db.create_event(conn, "e", "Event")
+    db.upsert_roster_entry(conn, event_id, "K0JZP", "Aid 3", "aid_station")
+    conn.close()
+    return db_path, event_id
+
+
+def test_ignore_takes_effect_on_the_next_packet_with_no_stranger_in_between(
+        tmp_path, monkeypatch, event_on_disk):
+    """NCS ignores the operator's own digipeater (K0JZP-9, rostered by base
+    callsign). Its next beacon must be neither stored nor published, even
+    though nothing unknown was heard in between."""
+    db_path, event_id = event_on_disk
+
+    def between(conn, i):
+        if i == 1:
+            db.exclude_station(conn, event_id, "K0JZP-9", "Digipeater")
+
+    stats, published = _run_loop(
+        tmp_path, monkeypatch, db_path,
+        [_packet("K0JZP-9"), _packet("K0JZP-9")], between)
+    assert published == ["K0JZP-9"], "the ignored beacon reached the browsers"
+    assert stats.excluded == 1
+    conn = db.connect(db_path)
+    assert conn.execute("SELECT COUNT(*) FROM position").fetchone()[0] == 1
+
+
+def test_the_first_packet_after_a_match_is_stored_not_dropped(
+        tmp_path, monkeypatch, event_on_disk):
+    """W1AW-9 is heard, NCS matches it to Aid 3, and its very next beacon
+    is theirs - not held back for one more beacon interval."""
+    db_path, event_id = event_on_disk
+
+    def between(conn, i):
+        if i == 1:
+            db.change_station_key(conn, event_id, "K0JZP", "W1AW-9")
+
+    stats, published = _run_loop(
+        tmp_path, monkeypatch, db_path,
+        [_packet("W1AW-9"), _packet("W1AW-9")], between)
+    assert stats.not_rostered == 1 and stats.stored == 1
+    assert published == ["W1AW-9"]
+
+
 # --- matching across callsigns ------------------------------------------------
 
 def test_a_roster_entry_can_be_matched_to_a_different_callsign(event):
