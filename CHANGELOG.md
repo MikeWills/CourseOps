@@ -12,6 +12,16 @@ month, PATCH counting releases in that month from 0. Before that they were
 ## [Unreleased]
 
 ### Fixed
+- **A link could be revoked or relabelled through another event's setup
+  page.** The links route authorised the event in the URL and then acted
+  on whatever `token_id` was in the body, and token ids are small sequential
+  integers - so an admin of one club, or a leaked admin session, could
+  revoke every NCS, SAG and Liaison link of another club's race on race
+  morning, which on that club's phones is a 404 with no error anywhere on
+  their side. `access.revoke` and `access.set_label` take the event and
+  match on it; a link outside the event is a 404 and nothing is written.
+  `courseops revoke-link` checks the same way. A missing or non-numeric id
+  is a 400 rather than a traceback. (Audit 2026-09-14, B2.)
 - **A staged import feature could be assigned, or discarded, from another
   event.** `import_feature.id` is one global sequence and the assign route
   looked features up by id alone, so an admin of one club naming another

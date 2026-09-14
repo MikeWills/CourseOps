@@ -622,11 +622,11 @@ def cmd_list_links(args: argparse.Namespace) -> int:
 def cmd_revoke_link(args: argparse.Namespace) -> int:
     settings = _settings()
     conn = db.connect(settings.db_path)
-    _event_or_exit(conn, args.event)
-    if access.revoke(conn, args.token_id):
+    event = _event_or_exit(conn, args.event)
+    if access.revoke(conn, event["id"], args.token_id):
         print(f"Link {args.token_id} revoked. Anyone holding it now gets a 404.")
         return 0
-    print(f"No link with id {args.token_id}.", file=sys.stderr)
+    print(f"No link with id {args.token_id} in {args.event}.", file=sys.stderr)
     return 1
 
 

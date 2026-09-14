@@ -91,7 +91,7 @@ def test_revoked_token_stops_working(setup):
     conn = db.connect(db_path)
     row = next(r for r in access.tokens_for_event(conn, event_id)
                if r["token"] == tokens["liaison"])
-    access.revoke(conn, row["id"])
+    access.revoke(conn, event_id, row["id"])
     conn.close()
 
     with TestClient(app) as client:
@@ -223,7 +223,7 @@ def test_revoking_one_field_role_leaves_the_other_working(setup):
     conn = db.connect(db_path)
     row = next(r for r in access.tokens_for_event(conn, event_id)
                if r["token"] == tokens["logistics"])
-    access.revoke(conn, row["id"])
+    access.revoke(conn, event_id, row["id"])
     conn.close()
 
     with TestClient(app) as client:
@@ -1711,6 +1711,42 @@ def test_revoking_one_link_leaves_the_others_working(setup):
 
         assert client.get(f"/api/m2026/{doomed['token']}/state").status_code == 404
         assert client.get(f"/api/m2026/{kept['token']}/state").status_code == 200
+
+
+def test_another_events_link_cannot_be_revoked_or_relabelled(setup):
+    """Token ids are small sequential integers and the id arrives in the
+    body while the route authorises on the event in the URL. An admin of one
+    club revoking another club's NCS link on race morning shows up on the
+    other club's phones as a 404 with no error anywhere on their side."""
+    app, _, db_path, event_id = setup
+    _make_admin(db_path)
+    conn = db.connect(db_path)
+    other = db.create_event(conn, "other", "Other Club's Race")
+    theirs = access.ensure_tokens(conn, other)["ncs"]
+    their_id = next(r["id"] for r in access.tokens_for_event(conn, other)
+                    if r["token"] == theirs)
+    conn.close()
+
+    with TestClient(app) as client:
+        _sign_in(client)
+        revoked = client.post(f"/api/setup/events/{event_id}/links",
+                              json={"action": "revoke", "token_id": their_id})
+        relabelled = client.post(f"/api/setup/events/{event_id}/links",
+                                 json={"action": "label", "token_id": their_id,
+                                       "label": "defaced"})
+        # A missing or non-numeric id is a complaint, not a traceback.
+        blank = client.post(f"/api/setup/events/{event_id}/links",
+                            json={"action": "revoke"})
+        assert client.get(f"/api/other/{theirs}/state").status_code == 200
+
+    assert revoked.status_code == 404
+    assert relabelled.status_code == 404
+    assert blank.status_code == 400
+    conn = db.connect(db_path)
+    row = conn.execute("SELECT revoked, label FROM access_token WHERE id = ?",
+                       (their_id,)).fetchone()
+    conn.close()
+    assert (row["revoked"], row["label"]) == (0, None)
 
 
 def test_reissue_replaces_every_link_for_that_role(setup):

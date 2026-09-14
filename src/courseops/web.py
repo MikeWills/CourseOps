@@ -1355,9 +1355,20 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         conn, user = require_event_admin(request, event_id)
         body = await _json_body(request, conn)
         action = (body.get("action") or "").strip()
+
+        def token_id() -> int:
+            try:
+                return int(body.get("token_id"))
+            except (TypeError, ValueError):
+                raise HTTPException(status_code=400, detail="Which link?")
+
         try:
             if action == "revoke":
-                access.revoke(conn, int(body.get("token_id")))
+                # 404, not 400: the id is either not a link at all or is a
+                # link in some other event, and the difference must not be
+                # reported - it would confirm the other event's link exists.
+                if not access.revoke(conn, event_id, token_id()):
+                    raise HTTPException(status_code=404, detail="No such link.")
             elif action == "add":
                 # A second, third, fourth link for one role. Three Net Control
                 # operators can share one link - the token allows any number of
@@ -1373,8 +1384,9 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
             elif action == "label":
                 # Whose link this is. Free text and never trusted for anything:
                 # it exists so the row to revoke can be found under pressure.
-                access.set_label(conn, int(body.get("token_id")),
-                                 _link_label(body.get("label")))
+                if not access.set_label(conn, event_id, token_id(),
+                                        _link_label(body.get("label"))):
+                    raise HTTPException(status_code=404, detail="No such link.")
             elif action == "reissue":
                 role = str(body.get("role", ""))
                 if role not in access.ROLES:
@@ -1386,7 +1398,7 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
                 # the per-link action above.
                 for row in access.tokens_for_event(conn, event_id):
                     if row["role"] == role and not row["revoked"]:
-                        access.revoke(conn, row["id"])
+                        access.revoke(conn, event_id, row["id"])
                 access.create_token(conn, event_id, role)
             else:
                 raise HTTPException(status_code=400, detail="Unknown action.")
