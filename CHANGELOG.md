@@ -12,6 +12,22 @@ month, PATCH counting releases in that month from 0. Before that they were
 ## [Unreleased]
 
 ### Fixed
+- **Cross-site protection on the setup API was SameSite=Lax alone.** Lax is
+  a same-SITE rule: anything else hosted under the same registrable domain -
+  the VPS hosts more than one app - could POST to the tracking switch,
+  delete an event or revoke every link with the officer's cookie attached,
+  and a browser that does not enforce SameSite failed open. Every setup
+  write is now refused with 403 unless its `Origin` (or `Referer`) names
+  the host the request was addressed to; the field API is untouched, its
+  credential being in the path. Over HTTPS the session cookie carries the
+  browser-enforced `__Host-` prefix, so no sibling site can shadow it.
+- **Two setup GETs wrote.** Listing links created any role's missing link
+  on the way past, and Lax cookies ARE sent on a cross-site top-level
+  navigation - so a GET with a side effect was the one kind of setup route a
+  page elsewhere could drive. The fill-in happens on the links POST now
+  (revoking the only NCS link is still a rotation, never a net with no Net
+  Control), and the GET only reports. The categories GET's decorative
+  `commit()` is gone; the seeding inside it is a separate task.
 - **Signing in ran scrypt on the event loop, unthrottled.** A password hash
   costs about a third of a second (the comment said "tens of milliseconds";
   it was measured at 0.25-0.36 s), and it ran inline in the login route -

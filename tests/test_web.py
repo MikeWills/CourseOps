@@ -997,6 +997,140 @@ def test_session_cookie_is_secure_when_the_proxy_says_https(setup, tmp_path):
     # And the other protections travel with it.
     assert "httponly" in cookie
     assert "samesite=lax" in cookie
+    # Over HTTPS the cookie carries the __Host- prefix, which the browser
+    # enforces: Secure, no Domain, path=/ - so a cookie set by a sibling
+    # site under the same registrable domain cannot shadow ours.
+    assert cookie.startswith("__host-courseops_session=")
+    # And the session it names is the one that comes back.
+    with TestClient(app, base_url="https://courseops.example.org") as client:
+        client.post("/api/setup/login",
+                    json={"username": "mike",
+                          "password": "a-long-enough-password"})
+        whoami = client.get("/api/setup/session").json()
+    assert whoami["user"]["username"] == "mike"
+
+
+# --- cross-site requests ----------------------------------------------------
+#
+# The setup API is cookie-authenticated, and SameSite=Lax is a same-SITE
+# rule: anything else hosted under the same registrable domain - this VPS
+# hosts more than one app - could post to the tracking switch, delete an
+# event or revoke every link with the officer's cookie attached. Browsers
+# name the page a request came from in Origin (or Referer), and a page on
+# another host is refused before the route runs.
+
+def _admin_client(setup):
+    app, _, db_path, event_id = setup
+    _make_admin(db_path)
+    client = TestClient(app, base_url="https://courseops.example.org")
+    client.__enter__()
+    _login(client)
+    return client, event_id
+
+
+def test_a_setup_write_from_another_origin_is_refused(setup):
+    client, event_id = _admin_client(setup)
+    try:
+        response = client.post(
+            f"/api/setup/events/{event_id}/tracking", json={"enabled": False},
+            headers={"Origin": "https://other.example.org"})
+        assert response.status_code == 403
+        # The route never ran: the event is untouched and the answer is
+        # the refusal, not a domain error from further in.
+        assert "cross-site" in response.json()["detail"].lower()
+    finally:
+        client.__exit__(None, None, None)
+
+
+def test_a_setup_write_from_our_own_origin_goes_through(setup):
+    client, event_id = _admin_client(setup)
+    try:
+        response = client.post(
+            f"/api/setup/events/{event_id}/tracking", json={"enabled": False},
+            headers={"Origin": "https://courseops.example.org"})
+        assert response.status_code == 200
+    finally:
+        client.__exit__(None, None, None)
+
+
+def test_referer_is_checked_when_there_is_no_origin(setup):
+    client, event_id = _admin_client(setup)
+    try:
+        response = client.post(
+            f"/api/setup/events/{event_id}/tracking", json={"enabled": False},
+            headers={"Referer": "https://other.example.org/setup"})
+        assert response.status_code == 403
+        response = client.post(
+            f"/api/setup/events/{event_id}/tracking", json={"enabled": False},
+            headers={"Referer": "https://courseops.example.org/setup"})
+        assert response.status_code == 200
+    finally:
+        client.__exit__(None, None, None)
+
+
+def test_an_opaque_origin_is_refused(setup):
+    """`Origin: null` is what a sandboxed frame or a redirect chain sends -
+    nothing we could ever have served."""
+    client, event_id = _admin_client(setup)
+    try:
+        response = client.post(
+            f"/api/setup/events/{event_id}/tracking", json={"enabled": False},
+            headers={"Origin": "null"})
+        assert response.status_code == 403
+    finally:
+        client.__exit__(None, None, None)
+
+
+def test_the_origin_check_covers_sign_in_too(setup):
+    """Login sets the cookie, so a cross-site login could sign the officer
+    into an attacker's account - and it is the one setup route that runs a
+    hash, so a page elsewhere must not be able to spend our CPU either."""
+    app, _, db_path, _ = setup
+    _make_admin(db_path)
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/setup/login",
+            json={"username": "mike", "password": "a-long-enough-password"},
+            headers={"Origin": "http://other.example.org"})
+    assert response.status_code == 403
+
+
+def test_the_origin_check_does_not_touch_reads_or_the_field_api(setup):
+    """The field routes carry their credential in the path, so a cross-site
+    page that could make one already holds the token; and a GET must be a
+    read, which is the other half of this fix."""
+    app, tokens, db_path, event_id = setup
+    _make_admin(db_path)
+    with TestClient(app) as client:
+        _login(client)
+        assert client.get(f"/api/setup/events/{event_id}/links",
+                          headers={"Origin": "http://other.example.org"}
+                          ).status_code == 200
+        assert client.get(f"/api/m2026/{tokens['ncs']}/state",
+                          headers={"Origin": "http://other.example.org"}
+                          ).status_code == 200
+
+
+def test_listing_links_creates_nothing(setup):
+    """A GET never writes. Lax cookies ARE sent on a cross-site top-level
+    navigation, so a GET with a side effect is the one setup route a page
+    elsewhere can drive; the missing-role fill-in belongs to the POST."""
+    app, _, db_path, event_id = setup
+    _make_admin(db_path)
+    conn = db.connect(db_path)
+    conn.execute("DELETE FROM access_token WHERE event_id = ?", (event_id,))
+    conn.close()
+    with TestClient(app) as client:
+        _login(client)
+        listed = client.get(f"/api/setup/events/{event_id}/links")
+        assert listed.status_code == 200
+        assert listed.json()["links"] == []
+        # The next action fills the missing roles in, so a role never stays
+        # without a link for longer than it takes to press something.
+        acted = client.post(f"/api/setup/events/{event_id}/links",
+                            json={"action": "add", "role": "ncs"})
+        live_roles = {l["role"] for l in acted.json()["links"] if not l["revoked"]}
+        assert live_roles == set(access.ROLES)
 
 
 # --- SAG: scoped write access -----------------------------------------------

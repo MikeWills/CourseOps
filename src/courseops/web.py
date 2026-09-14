@@ -58,6 +58,53 @@ except Exception:            # pragma: no cover - the package always ships this
         __version__ = "0.0.0+source"
 
 SESSION_COOKIE = "courseops_session"
+# The same cookie over HTTPS. The `__Host-` prefix is enforced by the browser:
+# it will only store the cookie if it is Secure, has no Domain and its path is
+# `/`, and no other host - not a sibling app under the same registrable
+# domain - can set a cookie of that name for us. Over plain HTTP (local
+# development, the Windows build on a LAN) the prefix would make the browser
+# drop the cookie, so the plain name stays for that case.
+SECURE_SESSION_COOKIE = "__Host-" + SESSION_COOKIE
+
+# Methods that change something. Everything else on the setup API is a read,
+# and stays one (see refuse_cross_site_setup_writes).
+_WRITE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+
+
+def _header_host(value: str) -> str | None:
+    """The host[:port] named by an Origin or Referer header, or None if the
+    header names nothing a page of ours could have sent."""
+    value = (value or "").strip()
+    if not value or value.lower() == "null":
+        return None
+    from urllib.parse import urlsplit
+    try:
+        return urlsplit(value).netloc.lower() or None
+    except ValueError:
+        return None
+
+
+def request_is_same_origin(request: Request) -> bool:
+    """Whether a state-changing request came from a page we served.
+
+    Browsers name the page a request was made from in `Origin` (every
+    cross-origin request, and every POST in current browsers) or `Referer`;
+    a page on another host cannot forge either. The comparison is against the
+    Host the request was addressed to, which behind Apache is the public name
+    because the vhost sets ProxyPreserveHost.
+
+    A request carrying neither header did not come from a browser page - a
+    script, a test, the CLI - and passes: the cookie it would need is not in
+    its hands unless it is ours. `Origin: null` is a sandboxed frame or a
+    redirect chain, and is refused.
+    """
+    origin = request.headers.get("origin")
+    if origin is not None:
+        return _header_host(origin) == request.headers.get("host", "").lower()
+    referer = request.headers.get("referer")
+    if referer:
+        return _header_host(referer) == request.headers.get("host", "").lower()
+    return True
 
 # Appended to local script and stylesheet URLs so a changed file is fetched
 # rather than served from cache. Without it a browser runs yesterday's
@@ -459,6 +506,24 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
             await app.state.hub.publish(int(match.group(1)), {"type": "resync"})
         return response
 
+    # The setup API is cookie-authenticated, and SameSite=Lax is a same-SITE
+    # rule, not a same-origin one: anything else hosted under the same
+    # registrable domain - this VPS hosts more than one app - could POST to
+    # the tracking switch, delete an event or revoke every link with the
+    # officer's cookie attached, and any browser that does not enforce
+    # SameSite fails open. Refused here, in one place, for every method that
+    # writes: a new setup route gets it for free and none can forget it. The
+    # field API is left alone - its credential is in the path, so a page that
+    # can make the request already holds the token.
+    @app.middleware("http")
+    async def refuse_cross_site_setup_writes(request: Request, call_next):
+        if (request.method in _WRITE_METHODS
+                and request.url.path.startswith("/api/setup/")
+                and not request_is_same_origin(request)):
+            return JSONResponse(
+                {"detail": "Cross-site request refused."}, status_code=403)
+        return await call_next(request)
+
     def get_conn() -> sqlite3.Connection:
         # SQLite connections are not shareable across threads; one per request
         # is cheap for this workload and avoids the whole question.
@@ -476,8 +541,14 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
 
     # --- administrator sessions --------------------------------------------
 
+    def session_token(request: Request) -> str:
+        # Either name: a browser that reached us over HTTPS holds the
+        # prefixed cookie, one on plain HTTP the bare one.
+        return (request.cookies.get(SECURE_SESSION_COOKIE)
+                or request.cookies.get(SESSION_COOKIE, ""))
+
     def current_user(request: Request, conn) -> users.User | None:
-        return users.resolve_session(conn, request.cookies.get(SESSION_COOKIE, ""))
+        return users.resolve_session(conn, session_token(request))
 
     def require_user(request: Request) -> tuple[Any, users.User]:
         conn = get_conn()
@@ -577,13 +648,19 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
 
     def _set_session_cookie(response, token: str, secure: bool) -> None:
         response.set_cookie(
-            SESSION_COOKIE, token,
+            SECURE_SESSION_COOKIE if secure else SESSION_COOKIE, token,
             httponly=True,          # unreadable from JavaScript
             samesite="lax",         # not sent on cross-site POSTs
             secure=secure,          # HTTPS only, when we are on HTTPS
             max_age=users.SESSION_DAYS * 24 * 3600,
             path="/",
         )
+
+    def _clear_session_cookie(response) -> None:
+        # Both names: which one the browser holds depends on how it reached
+        # us, and a sign-out that leaves the other behind is not a sign-out.
+        response.delete_cookie(SESSION_COOKIE, path="/")
+        response.delete_cookie(SECURE_SESSION_COOKIE, path="/", secure=True)
 
     @app.get("/robots.txt")
     async def robots() -> PlainTextResponse:
@@ -764,11 +841,11 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     async def logout(request: Request) -> JSONResponse:
         conn = get_conn()
         try:
-            users.end_session(conn, request.cookies.get(SESSION_COOKIE, ""))
+            users.end_session(conn, session_token(request))
         finally:
             conn.close()
         response = JSONResponse({"ok": True})
-        response.delete_cookie(SESSION_COOKIE, path="/")
+        _clear_session_cookie(response)
         return response
 
     @app.post("/api/setup/password")
@@ -796,7 +873,7 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
             raise HTTPException(status_code=400, detail=str(exc))
         app.state.login_limiter.succeeded(*keys)
         response = JSONResponse({"ok": True})
-        response.delete_cookie(SESSION_COOKIE, path="/")   # sessions were cleared
+        _clear_session_cookie(response)   # sessions were cleared
         return response
 
     # --- setup: events -----------------------------------------------------
@@ -1203,7 +1280,6 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
                     for row in categories.lead_divisions(conn, event_id)
                 ],
             }
-            conn.commit()
         finally:
             conn.close()
         return JSONResponse(payload)
@@ -1411,7 +1487,11 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     async def setup_links(event_id: int, request: Request) -> JSONResponse:
         conn, user = require_event_admin(request, event_id)
         try:
-            access.ensure_tokens(conn, event_id)
+            # A read, and only a read. This used to create any role's
+            # missing link on the way past, which is benign in itself - but
+            # Lax cookies ARE sent on a cross-site top-level navigation, so
+            # a GET with a side effect is the one kind of setup route a page
+            # elsewhere can drive. The fill-in lives on the POST below.
             event = conn.execute(
                 "SELECT slug FROM event WHERE id = ?", (event_id,)
             ).fetchone()
@@ -1462,6 +1542,10 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
                 access.create_token(conn, event_id, role)
             else:
                 raise HTTPException(status_code=400, detail="Unknown action.")
+            # Every role keeps at least one live link: revoking the only NCS
+            # link is a rotation, not a net with no Net Control. Fills in a
+            # missing role and never collapses extras.
+            access.ensure_tokens(conn, event_id)
             links = admin.list_links(conn, event_id)
         finally:
             conn.close()

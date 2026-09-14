@@ -432,6 +432,15 @@ usability, not style preferences.
   sends only the origin: identified, no path, no token. This is Apache
   config that `deploy.sh` never touches, so an installed server has to be
   edited by hand.
+- **A setup WRITE must come from our own origin; a setup GET must not
+  write.** `refuse_cross_site_setup_writes` compares `Origin`/`Referer`
+  against the `Host` header for every non-GET under `/api/setup/`, because
+  SameSite=Lax is a same-SITE rule and the VPS hosts other apps under the
+  same domain. Two consequences: `ProxyPreserveHost On` in the vhost is
+  load-bearing (without it every save answers 403), and a GET that creates
+  something is the one kind of setup route a cross-site navigation can still
+  drive - `/links` used to. The field API is exempt on purpose: its
+  credential is in the path.
 - **Apache needs `mod_proxy_wstunnel` and /ws/ rules BEFORE the catch-all.**
   Otherwise the map loads and then never moves, with no visible error.
 - **NEVER modify `.env`.** It is the user's file and holds their callsign. To

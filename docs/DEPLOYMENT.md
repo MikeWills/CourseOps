@@ -261,6 +261,18 @@ line by hand:** edit the site file, `sudo apache2ctl configtest`, `sudo
 systemctl reload apache2`, then force-reload the map once because the blocked
 tiles are cached.
 
+### `ProxyPreserveHost On` is load-bearing
+
+The app refuses any setup write (anything that is not a GET under
+`/api/setup/`) whose `Origin` or `Referer` names a host other than the one
+the request was addressed to. That is what stops a page on some other site -
+including another app under the same domain - from flipping the tracking
+switch or revoking every link with an officer's cookie attached. The
+comparison is against the `Host` header, so the proxy has to pass the
+browser's `Host` through: the template does (`ProxyPreserveHost On`). Take
+that line out and every save on the setup screen answers 403 "Cross-site
+request refused".
+
 ## 3. Certificate
 
 ```bash
