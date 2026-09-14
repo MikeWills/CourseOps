@@ -741,6 +741,16 @@ def rename_station_key(
         " WHERE event_id = ? AND station_key = ?",
         (new_key, bound, event_id, old_key),
     )
+    # The history is keyed by station_key text with no foreign key, so it
+    # does not follow on its own. Left behind, the per-station log that a
+    # shift handover reads came back empty for a station corrected
+    # mid-event - the rows were there, under a key nothing asked for.
+    # This is a rename, not a rebinding, so moving the history is right.
+    conn.execute(
+        "UPDATE roster_status_log SET station_key = ?"
+        " WHERE event_id = ? AND station_key = ?",
+        (new_key, event_id, old_key),
+    )
     return conn.execute(
         "SELECT * FROM roster WHERE event_id = ? AND station_key = ?",
         (event_id, new_key),

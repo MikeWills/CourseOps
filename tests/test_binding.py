@@ -296,6 +296,24 @@ def test_renaming_onto_another_entry_is_refused(tmp_path):
     assert [r[0] for r in _rows(conn, event_id)] == ["K0JZP-1", "W1AW"]
 
 
+@pytest.mark.parametrize("via", ["setup", "ncs"])
+def test_the_status_log_follows_a_rename(tmp_path, via):
+    """Shift handover reads the station's log. A station corrected mid-event
+    used to look as if it had never changed status: the rows were still
+    there, under a key nothing asked for any more."""
+    conn, event_id = _event(tmp_path, station_key="K0JZP-1")
+    db.set_op_status(conn, event_id, "K0JZP-1", "active", "MW")
+
+    if via == "setup":
+        _edit(conn, event_id, "K0JZP-1", "K0JZP-7")
+    else:
+        db.change_station_key(conn, event_id, "K0JZP-1", "K0JZP-7")
+
+    assert [r["to_status"] for r in db.op_status_log(conn, event_id, "K0JZP-7")] \
+        == ["active"]
+    assert db.op_status_log(conn, event_id, "K0JZP-1") == []
+
+
 def test_editing_an_entry_that_does_not_exist_is_refused(tmp_path):
     conn, event_id = _event(tmp_path)
     with pytest.raises(ValueError, match="not on this event's roster"):

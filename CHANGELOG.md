@@ -12,6 +12,15 @@ month, PATCH counting releases in that month from 0. Before that they were
 ## [Unreleased]
 
 ### Fixed
+- **Renaming a station left its status history under the old callsign.**
+  `roster_status_log` is keyed by callsign text with no foreign key, so a
+  same-callsign SSID correction (`N0CALL-1` to `N0CALL-7`, which really
+  renames) left every status change filed under the old key: the rows were
+  still there, and the event-wide handover log still showed them, but the
+  per-station log NCS opens on that station came back empty, as if it had
+  never changed status. A rename now moves the history with the row - it is
+  a rename, not a rebinding, so the history belongs on the new key. (Audit
+  2026-09-14, B4.)
 - **Correcting a callsign on the Roster tab created a second roster row.**
   The setup form sent the edit through the same code NCS's "this is really
   Aid 3" uses, which deliberately BINDS rather than renames - so for a bare
