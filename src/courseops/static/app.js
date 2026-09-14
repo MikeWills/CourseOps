@@ -1926,14 +1926,28 @@ async function createIncident(latlng) {
     });
     if (!response.ok) throw new Error(String(response.status));
     const created = await response.json();
+    // Put the row up NOW rather than wait for our own broadcast to come
+    // back round: on a slow link the socket message can land after the
+    // focus below fires, and the field would not exist yet. The server
+    // publishes before it responds, so the message may already have arrived
+    // - and it carries the course position this response lacks - in which
+    // case the row is left alone; otherwise the message overwrites this
+    // copy when it does arrive.
+    if (!state.incidents.has(created.id)) {
+      state.incidents.set(created.id, created);
+      upsertIncidentMarker(created);
+      renderIncidents();
+    }
     setSheet(true);
     // Straight into the field that will be filled in next: the bib for a
     // pickup, the text for a note. A pickup is called in before the bib is
-    // known, so this is a convenience and never a requirement.
+    // known, so this is a convenience and never a requirement. Selected by
+    // the same data-edit-key the rebuild-safe rows carry - the attributes
+    // this used to look for went away in #93 and nothing noticed, because a
+    // focus that does not happen makes no error.
     window.setTimeout(() => {
-      const selector = created.kind === 'note'
-        ? `[data-note-for="${created.id}"]` : `[data-bib-for="${created.id}"]`;
-      const field = document.querySelector(selector);
+      const key = `${created.kind === 'note' ? 'note' : 'bib'}:${created.id}`;
+      const field = document.querySelector(`[data-edit-key="${CSS.escape(key)}"]`);
       if (field) { field.focus(); field.select(); }
     }, 60);
     return created;

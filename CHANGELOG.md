@@ -12,6 +12,15 @@ month, PATCH counting releases in that month from 0. Before that they were
 ## [Unreleased]
 
 ### Fixed
+- **Dropping a pin no longer puts the cursor in the bib box - it had not
+  since #93.** "Create first, fill the bib in after" is the documented
+  flow, and the step that put the cursor where the bib goes selected the
+  field by attributes that #93 renamed to `data-edit-key`. Nothing matched,
+  nothing errored, and a SAG driver dropped a pin and then had to find the
+  row and tap the box in a glove. The selector matches the rows again, and
+  the new row is put up from the server's response immediately rather than
+  waiting for the broadcast to come back round, so on a slow link the
+  field exists when the focus fires. (Audit F5.)
 - **The layer and role switches did not follow a resync.** Every setup
   change pushes a resync so the field sees it, and the pins did redraw with
   a layer's new name and colour - but the "Places" switch list was built
