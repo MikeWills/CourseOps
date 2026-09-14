@@ -12,6 +12,14 @@ month, PATCH counting releases in that month from 0. Before that they were
 ## [Unreleased]
 
 ### Fixed
+- **A lead runner sighting could be recorded for a leader the event does
+  not track.** `record_sighting` checked only that the division was
+  non-empty, so a client holding a stale leader list - one deleted in setup
+  since the page loaded - got a 201 for a report that was stored and then
+  shown on no panel at all. It is checked against the event's own leaders
+  now. Also: undo compared the division raw while record and clear
+  lower-cased it, so a report sent as "Male" landed under `male` and then
+  would not undo; the three normalise the same way. (Audit 2026-09-14, B8.)
 - **A wrong-typed or half-filled setup request was a 500, not a message.**
   The shipped client sends the right types, so these needed a hand-made
   request - but the cost was "Internal Server Error" on the setup screen

@@ -158,6 +158,16 @@ def set_bib_color(
     return conn.execute("SELECT * FROM course WHERE id = ?", (course_id,)).fetchone()
 
 
+def _division(value: object) -> str:
+    """The key as stored: stripped and lower-cased, the same in record, undo
+    and clear. They disagreed once - undo compared the raw string - so a
+    report recorded as "Male" landed under `male` and then would not undo."""
+    key = (db.clean_text(value) or "").lower()
+    if not key:
+        raise ValueError("A division is required.")
+    return key
+
+
 def record_sighting(
     conn: sqlite3.Connection,
     event_id: int,
@@ -168,9 +178,15 @@ def record_sighting(
     by: str | None = None,
 ) -> sqlite3.Row:
     """Log that the leader for a division passed an aid station."""
-    division = (db.clean_text(division) or "").lower()
-    if not division:
-        raise ValueError("A division is required.")
+    division = _division(division)
+    # Against the event's own list, not just non-empty: a client holding a
+    # stale leader list (one deleted in setup since the page loaded) would
+    # otherwise get a 201 for a report that is stored and then shown on no
+    # panel at all - the same "stored and displayed as nothing" shape the
+    # per-course station picker once had.
+    from . import categories
+    if division not in categories.lead_division_labels(conn, event_id):
+        raise ValueError(f"This event does not track a {division!r} leader.")
 
     course = conn.execute(
         "SELECT 1 FROM course WHERE id = ? AND event_id = ?", (course_id, event_id)
@@ -203,7 +219,7 @@ def undo_last_sighting(
     row = conn.execute(
         "SELECT id FROM lead_sighting WHERE event_id = ? AND course_id = ?"
         " AND division = ? ORDER BY at DESC, id DESC LIMIT 1",
-        (event_id, course_id, division),
+        (event_id, course_id, _division(division)),
     ).fetchone()
     if row is None:
         return False
@@ -228,7 +244,7 @@ def clear_sightings(
     cur = conn.execute(
         "DELETE FROM lead_sighting WHERE event_id = ? AND course_id = ?"
         " AND division = ?",
-        (event_id, course_id, (division or "").strip().lower()),
+        (event_id, course_id, _division(division)),
     )
     return int(cur.rowcount)
 
