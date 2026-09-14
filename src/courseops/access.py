@@ -73,11 +73,12 @@ CAP_INCIDENTS = "incidents"   # move a pickup along its workflow, delete one
 CAP_STATIONS = "stations"     # a roster entry's operational status
 CAP_SSID = "ssid"             # adopt or dismiss an unexpected SSID
 CAP_LEADERS = "leaders"       # lead runner sightings
-CAP_COURSE = "course"         # bib colours and course styling
+# There is no capability for bib colours or course styling: those are set in
+# setup, by an administrator, before the race, and a resync carries them to
+# the field. A live-app write for them existed with no control behind it.
 
 ALL_CAPABILITIES = frozenset(
-    {CAP_INCIDENT_REPORT, CAP_INCIDENTS, CAP_STATIONS, CAP_SSID, CAP_LEADERS,
-     CAP_COURSE}
+    {CAP_INCIDENT_REPORT, CAP_INCIDENTS, CAP_STATIONS, CAP_SSID, CAP_LEADERS}
 )
 
 ROLE_CAPABILITIES = {

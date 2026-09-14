@@ -2413,6 +2413,12 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
 
         Readable by every role: the incoming operator needs it regardless of
         whether they can write.
+
+        API-only: no screen in the live app fetches this yet (the panel shows
+        the current status and its age). It is the read side of
+        `roster_status_log`, which is append-only precisely so that a history
+        view can be added later without rebuilding anything; the tests reach
+        it here. Deleting it would leave that log write-only.
         """
         conn, granted = require_access(event_slug, token)
         try:
@@ -2429,7 +2435,9 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         event_slug: str, token: str, incident_id: int
     ) -> JSONResponse:
         # Readable by every role that sees the queue: the log is what a
-        # shift handover reads.
+        # shift handover reads. API-only for now, like station-log above:
+        # the queue shows the current status and its age, and the history
+        # behind it is reachable here and from the tests.
         conn, granted = require_capability(
             event_slug, token, access.CAP_INCIDENT_REPORT)
         try:
@@ -2522,29 +2530,6 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         if removed:
             await _publish_leaders(granted.event_id)
         return JSONResponse({"removed": removed})
-
-    @app.post("/api/{event_slug}/{token}/course/{course_id}/bib-color")
-    async def set_bib_color(
-        event_slug: str, token: str, course_id: int, request: Request
-    ) -> JSONResponse:
-        conn, granted = require_capability(event_slug, token, access.CAP_COURSE)
-        body = await _json_body(request, conn)
-        try:
-            row = leaders.set_bib_color(
-                conn, granted.event_id, course_id,
-                body.get("bib_color"), body.get("bib_color_name"),
-            )
-        except ValueError as exc:
-            conn.close()
-            raise HTTPException(status_code=400, detail=str(exc))
-        payload = {
-            "course_id": row["id"],
-            "bib_color": row["bib_color"],
-            "bib_color_name": row["bib_color_name"],
-        }
-        conn.close()
-        await _publish_leaders(granted.event_id)
-        return JSONResponse(payload)
 
     # --- live feed ---------------------------------------------------------
 

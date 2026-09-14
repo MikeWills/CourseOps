@@ -87,6 +87,29 @@ page each, written for the phone they will be holding.
 > treated like door keys - sent to the right group and no other. Nothing is lost
 > if someone's phone dies: any officer holding the link can send it again.
 
+## Administrators
+
+Volunteers get links; only the people doing setup get accounts. The **Users**
+tab (shown to system and organization administrators) is where they are made.
+
+- **System administrator** - sees every club on the server. One or two people.
+- **Organization administrator** - everything in your club: its events, its
+  administrators, its links.
+- **Event administrator** - one or more named events, and nothing outside them.
+  Their events are the checkboxes in the **Events** column, and you can change
+  them at any time - moving someone to next year's race is a tick, not a new
+  account.
+
+**Set a password** (the key icon) on someone's row sets *their* password, and
+you will know it - so tell them to change it. **Your own** is the **Password**
+button in the top bar, beside *Sign out*: it asks for the current one first,
+and when it succeeds you are signed out everywhere and sign back in with the
+new one.
+
+**Disable** keeps the account and its event list but stops it signing in;
+**Delete** removes it. The last system administrator can be neither, because
+that would lock everyone out with no way back.
+
 ---
 
 **Next:** [Race week and after](setup-race-week.md) - turning tracking on, the

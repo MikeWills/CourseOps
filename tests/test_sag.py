@@ -44,7 +44,7 @@ def test_only_ncs_and_sag_work_the_queue():
 
 
 @pytest.mark.parametrize("capability", [
-    access.CAP_STATIONS, access.CAP_SSID, access.CAP_LEADERS, access.CAP_COURSE,
+    access.CAP_STATIONS, access.CAP_SSID, access.CAP_LEADERS,
 ])
 def test_sag_may_do_nothing_else(capability):
     """A bearer link in a moving vehicle. The blast radius of a lost phone

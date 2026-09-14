@@ -83,6 +83,8 @@ function showGate(firstRun, notice) {
   $('app').hidden = true;
   $('whoami').hidden = true;
   $('logout').hidden = true;
+  $('change-pw').hidden = true;
+  $('pw-form').hidden = true;
   const banner = $('gate-notice');
   banner.textContent = notice || '';
   banner.hidden = !notice;
@@ -167,6 +169,45 @@ $('logout').addEventListener('click', async () => {
   location.reload();
 });
 
+/* ---------- own password ------------------------------------------------ */
+
+/* The Users tab's "Set a password" is a manager setting someone ELSE's, and
+   the manager then knows it. This is the signed-in person's own. The server
+   re-checks the current password and signs every session out on success -
+   this one included - so the form ends on the sign-in page with the
+   username filled in, the same shape as the first-run flow. */
+$('change-pw').addEventListener('click', () => {
+  const form = $('pw-form');
+  form.hidden = !form.hidden;
+  if (!form.hidden) $('pw-current').focus();
+});
+$('pw-cancel').addEventListener('click', () => {
+  $('pw-form').reset();
+  $('pw-error').hidden = true;
+  $('pw-form').hidden = true;
+});
+$('pw-form').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  $('pw-error').hidden = true;
+  const username = S.user.username;
+  try {
+    await post('/api/setup/password', {
+      current_password: $('pw-current').value,
+      new_password: $('pw-new').value,
+    });
+  } catch (err) {
+    $('pw-error').textContent = err.message;
+    $('pw-error').hidden = false;
+    return;
+  }
+  $('pw-form').reset();
+  S.user = null;
+  showGate(false, 'Password changed. Sign in with the new one to continue.');
+  $('gate-username').value = username;
+  $('gate-password').value = '';
+  $('gate-password').focus();
+});
+
 /* ---------- tabs --------------------------------------------------------- */
 
 /* The setup guide is four pages, split where the job splits, so the ? follows
@@ -176,6 +217,7 @@ const HELP_BASE = '/help/';
 const HELP_FOR_TAB = {
   roster: 'setup-people',
   links: 'setup-people',
+  users: 'setup-people',
   layers: 'setup-ideas',
   roles: 'setup-ideas',
   leaders: 'setup-ideas',
@@ -2556,8 +2598,7 @@ async function loadUsers() {
       <td><strong>${esc(u.username)}</strong>${u.display_name
         ? `<br><span class="muted">${esc(u.display_name)}</span>` : ''}</td>
       <td>${esc(u.role_label)}</td>
-      <td>${u.is_system_admin ? '<span class="muted">all</span>'
-        : (u.is_org_admin ? '<span class="muted">whole club</span>' : u.events.length)}</td>
+      <td>${userEventsCell(u)}</td>
       <td>${u.is_active ? '<span class="pill">active</span>'
         : '<span class="pill is-off">disabled</span>'}</td>
       <td class="actions">
@@ -2577,6 +2618,16 @@ async function loadUsers() {
         banner('Password changed. Their existing sessions were signed out.');
       } catch (err) { banner(err.message, true); }
     }));
+  $('user-list').querySelectorAll('[data-uev]').forEach((box) =>
+    box.addEventListener('change', async () => {
+      const ids = [...$('user-list').querySelectorAll(
+        `[data-uev="${box.dataset.uev}"]:checked`)].map((c) => Number(c.value));
+      try {
+        await post(`/api/setup/users/${box.dataset.uev}`, {event_ids: ids});
+        banner('Events updated.');
+      } catch (err) { banner(err.message, true); }
+      loadUsers();   // on failure too: the box must show what is stored
+    }));
   $('user-list').querySelectorAll('[data-toggle]').forEach((b) =>
     b.addEventListener('click', async () => {
       try {
@@ -2593,6 +2644,24 @@ async function loadUsers() {
         loadUsers();
       } catch (err) { banner(err.message, true); }
     }));
+}
+
+/* Which events an event administrator may manage, editable in place. Only
+   an event admin has a list - system and org admins are scoped by the
+   system and by their club - and the choice was only ever offered at
+   creation, so changing it meant delete and recreate, which also threw
+   away their password. Each box posts on its own and the table reloads:
+   the row holds no typed text, so the reload discards nothing. */
+function userEventsCell(u) {
+  if (u.is_system_admin) return '<span class="muted">all</span>';
+  if (u.is_org_admin) return '<span class="muted">whole club</span>';
+  const events = S.events.filter((e) => e.organization_id === u.organization_id);
+  if (!events.length) return '<span class="muted">no events in their club yet</span>';
+  return events.map((e) =>
+    `<label class="check"><input type="checkbox" value="${e.id}" data-uev="${u.id}"
+      ${u.events.includes(e.id) ? 'checked' : ''}
+      aria-label="${esc(u.username)} may manage ${esc(e.name)}">
+      <span>${esc(e.name)}</span></label>`).join('');
 }
 
 function renderUserEvents() {
@@ -2640,6 +2709,7 @@ async function start() {
   $('whoami').hidden = false;
   $('whoami').textContent = `${S.user.display_name || S.user.username} · ${S.user.role_label}`;
   $('logout').hidden = false;
+  $('change-pw').hidden = false;
   document.querySelector('[data-tab="users"]').hidden = !S.user.may_manage_users;
   document.querySelector('[data-tab="orgs"]').hidden = !S.user.is_system_admin;
   fillTimeZones();

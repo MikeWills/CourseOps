@@ -2488,7 +2488,7 @@ function applyState(data) {
   state.poiCategories = data.poi_categories || [];
   state.roleLabels = data.role_labels || {};
   state.can = new Set(data.capabilities || (data.can_write ? ['incident_report',
-    'incidents', 'stations', 'ssid', 'leaders', 'course'] : []));
+    'incidents', 'stations', 'ssid', 'leaders'] : []));
   state.thresholds = data.thresholds;
   if (Array.isArray(data.op_statuses)) state.opStatuses = data.op_statuses;
   if (Array.isArray(data.incident_statuses)) state.incidentStatuses = data.incident_statuses;

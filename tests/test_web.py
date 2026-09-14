@@ -906,20 +906,30 @@ def test_a_mis_tap_can_be_undone_over_the_api(setup):
     assert male["last_poi_id"] is None
 
 
-def test_bib_colour_can_be_set_over_the_api(setup):
-    app, tokens, db_path, _ = setup
+def test_bib_colour_is_set_in_setup_and_reaches_the_field(setup):
+    """The live app once had its own bib-colour write with no control
+    behind it; setup owns the colour and the field reads it."""
+    app, tokens, db_path, event_id = setup
     conn = db.connect(db_path)
     course_id = conn.execute("SELECT id FROM course").fetchone()["id"]
     conn.close()
+    _make_admin(db_path)
 
     with TestClient(app) as client:
+        client.post("/api/setup/login",
+                    json={"username": "mike", "password": "a-long-enough-password"})
         response = client.post(
-            f"/api/m2026/{tokens['ncs']}/course/{course_id}/bib-color",
+            f"/api/setup/events/{event_id}/courses/{course_id}",
             json={"bib_color": "#ffcc00", "bib_color_name": "Yellow"},
+        )
+        assert response.status_code == 200, response.text
+        gone = client.post(
+            f"/api/m2026/{tokens['ncs']}/course/{course_id}/bib-color",
+            json={"bib_color": "#000000"},
         )
         data = client.get(f"/api/m2026/{tokens['ncs']}/state").json()
 
-    assert response.status_code == 200
+    assert gone.status_code == 404
     male = next(e for e in data["leaders"] if e["division"] == "male")
     assert male["bib_color"] == "#ffcc00"
     assert male["bib_color_name"] == "Yellow"
@@ -1483,10 +1493,8 @@ def test_sag_cannot_touch_anything_else(setup):
                               "to_station_key": "N0CALL-5"}),
             client.post(f"/api/m2026/{sag}/leaders/sighting",
                         json={"division": "male", "poi_id": 1}),
-            client.post(f"/api/m2026/{sag}/course/1/bib-color",
-                        json={"bib_color": "#ffffff"}),
         ]
-    assert [r.status_code for r in forbidden] == [403] * 5
+    assert [r.status_code for r in forbidden] == [403] * 4
 
 
 def test_a_reporting_role_gains_nothing_else(setup):
@@ -2719,3 +2727,67 @@ def test_the_event_form_can_set_the_centre(setup):
     event = next(e for e in events if e["id"] == event_id)
     assert (round(float(event["center_lat"]), 5),
             round(float(event["center_lon"]), 5)) == (44.13906, -93.98921)
+
+
+# --- the two setup routes that had no control (audit D2) --------------------
+
+def test_an_admin_can_change_their_own_password(setup):
+    """The only password UI was a manager's "Set a password" on the Users
+    tab, so changing your own meant asking someone who then knew it. The
+    route re-checks the current password and signs every session out."""
+    app, _, db_path, _ = setup
+    _make_admin(db_path)
+
+    with TestClient(app) as client:
+        _login(client)
+        wrong = client.post("/api/setup/password",
+                            json={"current_password": "not-the-password",
+                                  "new_password": "a-different-long-one"})
+        assert wrong.status_code == 400
+        assert client.get("/api/setup/session").json()["user"] is not None
+
+        changed = client.post("/api/setup/password",
+                              json={"current_password": "a-long-enough-password",
+                                    "new_password": "a-different-long-one"})
+        assert changed.status_code == 200, changed.text
+        # Signed out everywhere, this session included.
+        assert client.get("/api/setup/session").json()["user"] is None
+        assert client.post("/api/setup/login",
+                           json={"username": "mike",
+                                 "password": "a-long-enough-password"}).status_code == 401
+        assert client.post("/api/setup/login",
+                           json={"username": "mike",
+                                 "password": "a-different-long-one"}).status_code == 200
+
+
+def test_an_event_admins_events_can_be_changed_after_creation(setup):
+    """The list was only ever offered on the create form, so moving an
+    event admin to next year's event meant delete and recreate - and a new
+    password for them."""
+    app, _, db_path, event_id = setup
+    _make_admin(db_path)
+    conn = db.connect(db_path)
+    from courseops import users
+    org = conn.execute("SELECT id FROM organization").fetchone()["id"]
+    conn.execute("UPDATE event SET organization_id = ? WHERE id = ?", (org, event_id))
+    other = db.create_event(conn, "m2027", "Spring Marathon 2027", organization_id=org)
+    conn.close()
+
+    with TestClient(app) as client:
+        _login(client)
+        created = client.post("/api/setup/users", json={
+            "username": "officer", "password": "a-long-enough-password",
+            "role": "event_admin", "organization_id": org,
+            "event_ids": [event_id]})
+        assert created.status_code == 201, created.text
+        uid = created.json()["id"]
+
+        moved = client.post(f"/api/setup/users/{uid}", json={"event_ids": [other]})
+        assert moved.status_code == 200, moved.text
+        listed = client.get("/api/setup/users").json()["users"]
+        assert next(u for u in listed if u["id"] == uid)["events"] == [other]
+
+        cleared = client.post(f"/api/setup/users/{uid}", json={"event_ids": []})
+        assert cleared.status_code == 200
+        listed = client.get("/api/setup/users").json()["users"]
+        assert next(u for u in listed if u["id"] == uid)["events"] == []

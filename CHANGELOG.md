@@ -39,6 +39,31 @@ month, PATCH counting releases in that month from 0. Before that they were
   `start_session`), `suggest_event_center` (now wired to import), the
   duplicate `payload["role"]` assignment. (Audit D1.)
 
+### Added
+- **Change my password, and change an administrator's events.** Both routes
+  existed on the server with nothing in the setup client calling them
+  (audit D2). The only password control was a manager's *Set a password* on
+  someone's row - so changing your own meant asking a manager, who then knew
+  it. A **Password** button in the setup bar opens a form that asks for the
+  current password first and, because the server signs every session out
+  on success, ends on the sign-in page with the username filled in. An
+  event administrator's events were only ever chosen on the create form, so
+  reassigning someone meant delete and recreate, and a new password for
+  them; the Events column of the Users table is now that administrator's
+  checkboxes, each saving on its own. The setup guide gained an
+  *Administrators* section.
+
+### Removed
+- **The live app's bib-colour route.** `POST .../course/{id}/bib-color` was
+  an NCS write with no control behind it - bib colours are set in setup,
+  before the race, and a resync carries them to the field - and it kept a
+  `CAP_COURSE` capability alive that nothing else used, including a
+  fallback list in `app.js` naming a power no button offered. The route,
+  the capability and the fallback entry are gone; the two read-only history
+  routes (`station-log`, `incidents/{id}/log`) stay, marked API-only: they
+  are the read side of append-only logs that a handover view can be built
+  on, and deleting them would leave those logs write-only. (Audit D2.)
+
 ### Fixed
 - **Deleting a course or a place sends what it was built from back to
   review.** The staged import features behind it were left `assigned` with
