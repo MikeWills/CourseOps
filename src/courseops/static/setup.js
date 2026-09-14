@@ -1077,8 +1077,7 @@ async function loadCourses() {
             data-bib="${c.id}">
           <input placeholder="Yellow" value="${esc(c.bib_color_name || '')}"
             data-bibname="${c.id}" style="width:90px"></td>
-      <td class="actions">${iconBtn('save', {'data-savec': c.id}, `Save ${c.name}`)
-        + iconBtn('remove', {'data-delc': c.id}, `Delete ${c.name}`)}</td>
+      <td class="actions">${iconBtn('remove', {'data-delc': c.id}, `Delete ${c.name}`)}</td>
     </tr>`).join('') + '</tbody></table>'
     : '<p class="muted">No courses yet — upload a KML on the Import tab.</p>';
 
@@ -1093,20 +1092,34 @@ async function loadCourses() {
     }
   });
 
-  $('course-table').querySelectorAll('[data-savec]').forEach((b) =>
-    b.addEventListener('click', async () => {
-      const id = b.dataset.savec;
-      try {
-        await post(`/api/setup/events/${S.eventId}/courses/${id}`, {
-          name: $('course-table').querySelector(`[data-name="${id}"]`).value,
-          color: $('course-table').querySelector(`[data-color="${id}"]`).value,
-          bib_color: $('course-table').querySelector(`[data-bib="${id}"]`).value,
-          bib_color_name: $('course-table').querySelector(`[data-bibname="${id}"]`).value,
-        });
-        banner('Course saved.');
-        loadCourses();
-      } catch (err) { banner(err.message, true); }
-    }));
+  /* Saved as a unit, like every other editable table. This one kept a save
+     button per row longest, and each press reloaded the courses AND the
+     places table under it - so a colour saved on one race threw away a
+     half-edited Places table nobody had pressed anything on. */
+  bindSaveAll({
+    table: 'course-table',
+    button: 'course-save-all',
+    status: 'course-dirty',
+    fields: [
+      { attr: 'name', name: 'name' },
+      { attr: 'color', name: 'color' },
+      { attr: 'bib', name: 'bib_color' },
+      { attr: 'bibname', name: 'bib_color_name' },
+    ],
+    save: (id, payload) => {
+      // The two bib fields are one setting on the server (set_bib_color
+      // writes both, and a missing colour falls back to the line colour),
+      // so a change to either travels with the other as it stands.
+      if ('bib_color' in payload || 'bib_color_name' in payload) {
+        const row = $('course-table').querySelector(`tr[data-row="${id}"]`);
+        payload.bib_color = row.querySelector('[data-bib]').value;
+        payload.bib_color_name = row.querySelector('[data-bibname]').value;
+      }
+      return post(`/api/setup/events/${S.eventId}/courses/${id}`, payload);
+    },
+    noun: 'course(s)',
+    reload: loadCourses,
+  });
   $('course-table').querySelectorAll('[data-delc]').forEach((b) =>
     b.addEventListener('click', async () => {
       if (!confirm('Delete this course?')) return;

@@ -11,6 +11,17 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Changed
+- **The Courses table saves as a unit**, like every other editable table in
+  setup. It was the last one with a save button per row, and each press
+  reloaded the courses table AND the Places table under it - so saving a
+  bib colour on one race threw away every other course edit in progress and
+  a half-sorted Places table nobody had pressed anything on: the same
+  failure that cost a real user twelve renames, one table over. One
+  **Save N changes** button above the table now, sending only what changed.
+  The two bib fields travel together because the server stores them as one
+  setting. `setup-courses.png` shows the old per-row button.
+
 ### Fixed
 - **Seven setup actions failed silently when the server refused them.**
   Delete a course, delete a place, remove a roster entry, issue another

@@ -80,6 +80,10 @@ Where routes share pavement, the course nearest the top of this list draws on
 top. Drag the grip to change it. That is the order everyone starts with; any
 viewer can re-stack their own screen without affecting anybody else.
 
+Names and colours save together: edit as many rows as you like and one
+**Save** button appears above the table, the same as on Places. Dragging saves
+the order on its own.
+
 **Check the distance.** If a course reads 3 mi when it should read 13, segments
 are missing or one belongs to a different route.
 

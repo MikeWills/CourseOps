@@ -95,6 +95,19 @@ def test_every_mutating_handler_reports_a_refusal():
         assert "try {" in SETUP_JS[handler:at], call
 
 
+def test_the_courses_table_saves_as_a_unit():
+    """The last editable table with a save button per row, and each press
+    reloaded the courses AND the places table under it - the pattern that
+    cost a real user twelve renames. bindSaveAll is the one implementation;
+    the two bib fields are one setting on the server, so a change to either
+    has to carry the other."""
+    assert "data-savec" not in SETUP_JS
+    courses = _block("bindSaveAll({\n    table: 'course-table'", "noun: 'course(s)'")
+    assert "payload.bib_color = " in courses and "payload.bib_color_name = " in courses
+    html = (web.STATIC_DIR / "setup.html").read_text(encoding="utf-8")
+    assert 'id="course-save-all"' in html and 'id="course-dirty"' in html
+
+
 def test_the_upload_parses_the_body_before_trusting_it_is_json():
     """A 413 from Apache or a 502 from the proxy is an HTML page, and
     parsing it before checking the status showed "Unexpected token '<'"
