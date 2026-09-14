@@ -65,7 +65,11 @@ async function api(path, options) {
   if (response.status === 409 && S.user === null) {
     const check = await fetch('/api/setup/session').then((r) => r.json())
       .catch(() => ({}));
-    if (check.user) { S.user = check.user; await start(); }
+    if (check.user) {
+      S.user = check.user;
+      noteVersion(check); showVersion(check);
+      await start();
+    }
   }
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.detail || `Error ${response.status}`);
@@ -130,6 +134,7 @@ $('gate-form').addEventListener('submit', async (ev) => {
     } else {
       const data = await post(LOGIN_PATH, body);
       S.user = data.user;
+      await noteSignedInVersion();
       await start();
     }
   } catch (err) {
@@ -1622,9 +1627,32 @@ function versionKey(info) {
 }
 
 function noteVersion(info) {
-  // What this page is running. Recorded once, at startup, and never updated:
-  // the whole point is to compare against it later.
-  if (S.loadedVersion === undefined) S.loadedVersion = versionKey(info);
+  // What this page is running. Recorded at startup and then left alone: the
+  // whole point is to compare against it later.
+  //
+  // With one exception. Signed out, the session says nothing about the build
+  // (web.py keeps the commit behind the login), so a page that loaded on the
+  // sign-in form recorded the bare version. After signing in the poll sees a
+  // build, the two keys differ, and the notice fired on a page that IS the
+  // current code - on every fresh sign-in on the deployed server, where every
+  // build carries a git describe. So a record taken without a build is
+  // replaced by the first one taken with a build, and never again.
+  const hasBuild = !!(info && info.build);
+  if (S.loadedVersion === undefined || (hasBuild && !S.loadedVersionHasBuild)) {
+    S.loadedVersion = versionKey(info);
+    S.loadedVersionHasBuild = hasBuild;
+  }
+}
+
+/* The session, re-read once signed in, so the build is on record before the
+   first poll compares against it. Failure is not worth a banner: the notice
+   simply stays on the bare version until the next successful poll. */
+async function noteSignedInVersion() {
+  try {
+    const info = await api('/api/setup/session');
+    noteVersion(info);
+    showVersion(info);
+  } catch (err) { /* offline, or not signed in after all; the poll retries */ }
 }
 
 function checkVersion(info) {
@@ -1653,7 +1681,9 @@ async function pollVersion() {
     const data = await api('/api/setup/session');
     // A signed-out session answers with no user; nothing to say, and an error
     // banner here would be noise about a thing nobody asked for.
-    if (data && data.version) { showVersion(data); checkVersion(data); }
+    // noteVersion first: a no-op once a build is on record, and the thing
+    // that stops a bare-version record being compared against a build.
+    if (data && data.version) { showVersion(data); noteVersion(data); checkVersion(data); }
   } catch (err) { /* offline, or the session went away. Try again later. */ }
 }
 

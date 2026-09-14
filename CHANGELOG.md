@@ -12,6 +12,17 @@ month, PATCH counting releases in that month from 0. Before that they were
 ## [Unreleased]
 
 ### Fixed
+- **"New version - reload" appeared after signing in on a page that was
+  the current code.** The notice compares the build the page loaded with
+  against what the server reports, and the build is kept behind the login -
+  so a page that loaded on the sign-in form recorded the bare version, and
+  the first poll after sign-in (a tab switch is enough) saw a build, found
+  the keys different and fired. On the deployed server every build carries
+  a git describe, so this was every fresh sign-in. A record taken without a
+  build now gives way to the first one taken with one, and the session is
+  re-read on sign-in so the chip and the record are right before the first
+  poll. A notice that cries wolf on the only screen it lives on trains the
+  officer to ignore it on the day it is true.
 - **A mistyped password said "Sign in again."** The setup client treats a
   401 from any call as an expired session, puts the sign-in form up and
   replaces the server's message with its own - and the sign-in call answers

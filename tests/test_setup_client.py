@@ -42,3 +42,20 @@ def test_a_wrong_password_gets_the_servers_message_not_sign_in_again():
     api = _block("async function api(", "const post =")
     assert "path !== LOGIN_PATH" in api
     assert "const data = await post(LOGIN_PATH, body);" in SETUP_JS
+
+
+def test_the_version_record_is_upgraded_once_a_build_is_known():
+    """Signed out, the session carries no build (the commit stays behind the
+    login), so a page that loaded on the sign-in form recorded the bare
+    version. After sign-in the poll saw a build, the keys differed, and
+    "New version - reload" fired on the page that IS the current code - on
+    every fresh sign-in on the deployed server. The record taken without a
+    build has to give way to the first taken with one, and the poll has to
+    offer it before comparing."""
+    note = _block("function noteVersion(", "async function noteSignedInVersion")
+    assert "hasBuild && !S.loadedVersionHasBuild" in note
+    poll = _block("async function pollVersion(",
+                  "document.addEventListener('visibilitychange'")
+    assert poll.index("noteVersion(data)") < poll.index("checkVersion(data)")
+    login = _block("const data = await post(LOGIN_PATH, body);", "await start();")
+    assert "noteSignedInVersion()" in login
