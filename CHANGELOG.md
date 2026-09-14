@@ -33,6 +33,16 @@ month, PATCH counting releases in that month from 0. Before that they were
   explicitly rather than relying on the backend's default.
 
 ### Changed
+- **A burst of setup saves reaches the field as one resync.** Save-all
+  posts one request per changed row, and each published its own resync -
+  which every phone answers with a full snapshot fetch and a map rebuild.
+  Twelve renames were twelve rebuilds per phone, on the one day setup
+  edits happen live. The server now waits a moment for the burst to end
+  (never more than a second and a half) and publishes once; the client
+  fetches at most one snapshot per half second and never two at once,
+  since two landing out of order would leave the older on screen. Flipping
+  the tracking switch and editing links no longer resync anyone: neither
+  changes anything a phone draws.
 - **The snapshot, the report and a course import are built off the event
   loop.** Every route ran its SQLite work on the loop, and the snapshot is
   the heavy one: while one phone's was being built nothing else moved - no

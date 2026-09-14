@@ -763,7 +763,14 @@ usability, not style preferences.
   `POST /api/setup/events/{id}/...`, never per-endpoint - a renamed station has
   to reach the field, and the failure is silent because NCS sees their own
   screen update. Resync reloads data, not the page: view and layer choices are
-  restored only on first load, so they survive.
+  restored only on first load, so they survive. A burst of saves is ONE
+  resync: save-all posts a request per row, and each used to be a snapshot
+  fetch and a map rebuild on every phone. `request_resync` waits
+  `RESYNC_DELAY_SECONDS` for the burst to end (capped by
+  `RESYNC_MAX_WAIT_SECONDS`), and the client's `requestState()` debounces
+  the other side and never runs two fetches at once - two snapshots landing
+  out of order would leave the older one on screen. `/tracking` and
+  `/links` are excluded: neither changes anything a phone draws.
 - **Verify setup instructions by cold-starting a clean clone into an empty
   virtualenv.** A missing dependency (`python-multipart`) that this machine
   happened to have made the app fail to boot for everyone else, and no test

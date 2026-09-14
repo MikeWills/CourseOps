@@ -2390,6 +2390,41 @@ async function loadState() {
   return true;
 }
 
+/* A resync means "fetch everything again", so several in quick succession
+   are worth exactly one fetch - and they do arrive in bursts: the server
+   coalesces a run of setup saves, but a phone can still be told twice within
+   a moment (a setup change and an overflow, say). One fetch per half second
+   at most; a resync that lands while a fetch is in flight is answered by one
+   more fetch afterwards, never by a second in parallel - two snapshots
+   applied out of order would leave the older one on screen. */
+const RESYNC_DEBOUNCE_MS = 500;
+let stateRequestTimer = null;
+let stateFetchInFlight = false;
+let stateRequestedAgain = false;
+
+function requestState() {
+  if (stateRequestTimer !== null) return;
+  stateRequestTimer = setTimeout(fetchStateOnce, RESYNC_DEBOUNCE_MS);
+}
+
+async function fetchStateOnce() {
+  stateRequestTimer = null;
+  if (stateFetchInFlight) {
+    stateRequestedAgain = true;
+    return;
+  }
+  stateFetchInFlight = true;
+  try {
+    await loadState();
+  } finally {
+    stateFetchInFlight = false;
+    if (stateRequestedAgain) {
+      stateRequestedAgain = false;
+      requestState();
+    }
+  }
+}
+
 function applyState(data) {
   const firstLoad = state.event === null;
   state.event = data.event;
@@ -2527,7 +2562,7 @@ function connect() {
       return;
     }
     if (message.type === 'resync') {
-      loadState();
+      requestState();
       return;
     }
     if (message.type === 'leaders') {
@@ -2806,7 +2841,7 @@ document.addEventListener('visibilitychange', () => {
   // deleted, a station renamed - nothing will send again. A fresh snapshot
   // is the only way to be sure; a minute is long enough that a quick
   // app-switch does not cost one.
-  if (state.event && Date.now() - state.lastMessageAt > 60 * 1000) loadState();
+  if (state.event && Date.now() - state.lastMessageAt > 60 * 1000) requestState();
 });
 
 /* ---------- go ---------------------------------------------------------- */

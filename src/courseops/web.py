@@ -105,6 +105,13 @@ SILENT_AFTER_SECONDS = 20 * 60
 # client gives up on a socket after three of these have failed to arrive.
 HEARTBEAT_SECONDS = 60
 
+# How long a burst of setup saves is given to finish before the field is told
+# to resync, and the most a resync may be held back while saves keep coming.
+# Save-all posts one request per changed row; without this each row was a
+# full snapshot fetch and a map rebuild on every phone.
+RESYNC_DELAY_SECONDS = 0.3
+RESYNC_MAX_WAIT_SECONDS = 1.5
+
 
 # A link's label is a note to the officer handing links out - "Dana, phone" -
 # so it is trimmed and capped and never validated further. Nothing reads it but
@@ -418,6 +425,10 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         finally:
             for slug in list(application.state.ingest_tasks):
                 await _stop_ingest(slug)
+            # A resync still waiting on a burst of saves has nobody left to
+            # reach; drop it rather than leave a pending task at loop close.
+            for task in list(resync_tasks):
+                task.cancel()
 
     app = FastAPI(
         title="Course Ops", docs_url=None, redoc_url=None, lifespan=lifespan
@@ -449,7 +460,51 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     # Done here rather than in each endpoint on purpose. There are a dozen ways
     # to change what the map shows and there will be more; one place cannot be
     # forgotten, and a new setup endpoint gets this for free.
-    _SETUP_EVENT_PATH = re.compile(r"^/api/setup/events/(\d+)(?:/|$)")
+    #
+    # Two things under an event change nothing a phone draws and are left
+    # out: the tracking switch and the links. Both are worked on race
+    # morning, when every phone rebuilding its map for nothing is the wrong
+    # kind of activity.
+    _SETUP_EVENT_PATH = re.compile(
+        r"^/api/setup/events/(\d+)(?:/(?!tracking(?:/|$)|links(?:/|$))|$)")
+
+    # Save-all posts one request per changed row, so twelve renames arrive
+    # as twelve POSTs a few milliseconds apart - and each used to publish its
+    # own resync, which is a full snapshot fetch and a map rebuild on every
+    # phone, twelve times over. A burst is coalesced per event: the first
+    # POST starts a short timer, each further one pushes it out a little,
+    # and RESYNC_MAX_WAIT_SECONDS caps how long a long burst can hold the
+    # field back. Nothing is lost by waiting: a resync is "fetch everything",
+    # so the last one covers all that came before it.
+    resync_due: dict[int, float] = {}       # event_id -> loop time to publish
+    resync_tasks: set[asyncio.Task] = set()
+
+    async def _publish_resync_when_quiet(event_id: int) -> None:
+        loop = asyncio.get_running_loop()
+        latest = loop.time() + RESYNC_MAX_WAIT_SECONDS
+        while True:
+            now = loop.time()
+            due = min(resync_due.get(event_id, now), latest)
+            if now >= due:
+                break
+            await asyncio.sleep(due - now)
+        resync_due.pop(event_id, None)
+        # A resync rather than a diff: setup edits rewrite whole sets -
+        # layers, roster, courses - which no incremental message expresses,
+        # and a resync cannot leave a client half-updated.
+        await app.state.hub.publish(event_id, {"type": "resync"})
+
+    def request_resync(event_id: int) -> None:
+        loop = asyncio.get_running_loop()
+        already = event_id in resync_due
+        resync_due[event_id] = loop.time() + RESYNC_DELAY_SECONDS
+        if already:
+            return
+        task = asyncio.create_task(_publish_resync_when_quiet(event_id))
+        resync_tasks.add(task)
+        task.add_done_callback(resync_tasks.discard)
+
+    app.state.request_resync = request_resync
 
     @app.middleware("http")
     async def publish_setup_changes(request: Request, call_next):
@@ -458,10 +513,7 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
             return response
         match = _SETUP_EVENT_PATH.match(request.url.path)
         if match:
-            # A resync rather than a diff: setup edits rewrite whole sets -
-            # layers, roster, courses - which no incremental message expresses,
-            # and a resync cannot leave a client half-updated.
-            await app.state.hub.publish(int(match.group(1)), {"type": "resync"})
+            request_resync(int(match.group(1)))
         return response
 
     def get_conn() -> sqlite3.Connection:

@@ -293,9 +293,25 @@ def test_the_client_reloads_after_a_gap_and_gives_up_on_a_silent_socket():
     script = (resources.package_file("static") / "app.js").read_text(encoding="utf-8")
     visible = script.split("document.addEventListener('visibilitychange'", 1)[1]
     visible = visible.split("});", 1)[0]
-    assert "loadState" in visible
+    assert "requestState()" in visible
     assert "SILENT_SOCKET_MS" in script
     assert "lastMessageAt" in script
+
+
+def test_the_client_answers_a_burst_of_resyncs_with_one_fetch():
+    """The socket's resync branch goes through the debounced requestState,
+    never straight to loadState: a resync is "fetch everything", so several
+    in a moment are worth one fetch, and two snapshots in flight at once
+    could land out of order and leave the older one on screen."""
+    from courseops import resources
+
+    script = (resources.package_file("static") / "app.js").read_text(encoding="utf-8")
+    branch = script.split("if (message.type === 'resync') {", 1)[1].split("}", 1)[0]
+    assert "requestState()" in branch
+    assert "loadState" not in branch
+    assert "RESYNC_DEBOUNCE_MS" in script
+    debounce = script.split("async function fetchStateOnce()", 1)[1].split("\n}\n", 1)[0]
+    assert "stateFetchInFlight" in debounce and "stateRequestedAgain" in debounce
 
 
 # --- static assets ----------------------------------------------------------
@@ -1304,6 +1320,58 @@ def test_adding_a_leader_reaches_a_connected_map(setup, tmp_path):
             client.post(f"/api/setup/events/{event_id}/leaders",
                         json={"name": "First junior"})
             assert ws.receive_json()["type"] == "resync"
+            ws.close()
+
+
+def test_a_burst_of_setup_saves_is_one_resync(setup, monkeypatch):
+    """Save-all posts one request per changed row, and every one used to
+    publish its own resync - so twelve renames were twelve full snapshot
+    fetches and twelve map rebuilds on every phone, on the one day setup
+    edits happen live. A burst now waits a moment and goes out once."""
+    import time
+
+    monkeypatch.setattr(web, "RESYNC_DELAY_SECONDS", 0.2)
+    monkeypatch.setattr(web, "RESYNC_MAX_WAIT_SECONDS", 0.5)
+    app, tokens, db_path, event_id = setup
+    _make_admin(db_path)
+    conn = db.connect(db_path)
+    poi_id = conn.execute("SELECT id FROM poi").fetchone()["id"]
+    conn.close()
+
+    with TestClient(app) as client:
+        _login(client)
+        with client.websocket_connect(f"/ws/m2026/{tokens['liaison']}") as ws:
+            sub = next(iter(app.state.hub._subscribers[event_id]))
+            for n in range(5):
+                client.post(f"/api/setup/events/{event_id}/pois/{poi_id}",
+                            json={"name": f"Ham {n}"})
+            assert ws.receive_json()["type"] == "resync"
+            time.sleep(0.8)          # anything else due would have landed
+            assert sub.queue.qsize() == 0
+            ws.close()
+
+
+def test_tracking_and_link_changes_do_not_resync_the_field(setup, monkeypatch):
+    """Neither changes anything a phone draws. The switch is flipped and
+    links are handed out on race morning, when every phone rebuilding its
+    map for nothing is the wrong kind of activity."""
+    import time
+
+    monkeypatch.setattr(web, "RESYNC_DELAY_SECONDS", 0.05)
+    app, tokens, db_path, event_id = setup
+    _make_admin(db_path)
+
+    with TestClient(app) as client:
+        _login(client)
+        with client.websocket_connect(f"/ws/m2026/{tokens['liaison']}") as ws:
+            sub = next(iter(app.state.hub._subscribers[event_id]))
+            assert client.post(f"/api/setup/events/{event_id}/links",
+                               json={"action": "add", "role": "staff",
+                                     "label": "Dana"}).status_code == 200
+            assert client.post(f"/api/setup/events/{event_id}/tracking",
+                               json={"enabled": False}).status_code == 200
+            time.sleep(0.3)
+            assert sub.queue.qsize() == 0
             ws.close()
 
 
