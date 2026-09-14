@@ -9,7 +9,7 @@ import sys
 
 from . import (access, aprsis, categories, db, discovery, importer, kml,
                leaders, styling, units, users, what3words)
-from .config import Settings, load_dotenv
+from .config import ConfigError, Settings, load_dotenv
 
 # Station roles are a fixed set - each carries its own status wording - so the
 # CLI can still offer them as choices. Their *names* are per event and edited in
@@ -93,7 +93,7 @@ def cmd_roster(args: argparse.Namespace) -> int:
 
 
 def cmd_ingest(args: argparse.Namespace) -> int:
-    from .ingest import run_ingest
+    from .ingest import IngestError, run_ingest
 
     settings = _settings()
     logging.basicConfig(
@@ -104,6 +104,13 @@ def cmd_ingest(args: argparse.Namespace) -> int:
         asyncio.run(run_ingest(settings, args.event, max_packets=args.max_packets))
     except KeyboardInterrupt:
         print("\nStopped.")
+    except IngestError as exc:
+        # The feed says why it cannot run with an ordinary exception, because
+        # the same function runs inside the web server, where a SystemExit
+        # would take the whole site down. Here, at the terminal, an exit code
+        # and the message are the right shape - so this is the one place
+        # that translation happens.
+        raise SystemExit(str(exc)) from exc
     return 0
 
 
@@ -158,6 +165,10 @@ def cmd_check_in(args: argparse.Namespace) -> int:
     except KeyboardInterrupt:
         print("\nStopped early.")
         return 1
+    except ConfigError as exc:
+        # require_callsign raises an ordinary error (see config.ConfigError);
+        # the terminal is where it becomes an exit code.
+        raise SystemExit(str(exc)) from exc
 
     def line_for(entry):
         where = (f"{entry.last_lat:.4f},{entry.last_lon:.4f}"
@@ -404,8 +415,12 @@ def cmd_assign_poi(args: argparse.Namespace) -> int:
 def cmd_discard(args: argparse.Namespace) -> int:
     settings = _settings()
     conn = db.connect(settings.db_path)
-    _event_or_exit(conn, args.event)
-    count = importer.discard(conn, args.ids)
+    event = _event_or_exit(conn, args.event)
+    try:
+        count = importer.discard(conn, event["id"], args.ids)
+    except ValueError as exc:
+        print(f"Could not discard: {exc}", file=sys.stderr)
+        return 1
     print(f"Discarded {count} feature(s).")
     return 0
 
@@ -420,17 +435,14 @@ def cmd_layers(args: argparse.Namespace) -> int:
     conn = db.connect(settings.db_path)
     event = _event_or_exit(conn, args.event)
     rows = categories.poi_categories(conn, event["id"])
-    conn.commit()
+    counts = categories.place_counts(conn, event["id"])
 
     print()
     print(f"Place layers for {event['name']!r}")
     print()
     print(f"  {'KEY':<20} {'NAME':<22} {'STAFFED':<9} PLACES")
     for row in rows:
-        count = conn.execute(
-            "SELECT COUNT(*) AS c FROM poi WHERE event_id = ? AND poi_type = ?",
-            (event["id"], row["key"]),
-        ).fetchone()["c"]
+        count = counts.get(row["key"], 0)
         staffed = "yes" if row["staffed"] else "-"
         print(f"  {row['key']:<20} {row['name']:<22} {staffed:<9} {count}")
 
@@ -618,12 +630,29 @@ def cmd_list_links(args: argparse.Namespace) -> int:
 def cmd_revoke_link(args: argparse.Namespace) -> int:
     settings = _settings()
     conn = db.connect(settings.db_path)
-    _event_or_exit(conn, args.event)
-    if access.revoke(conn, args.token_id):
+    event = _event_or_exit(conn, args.event)
+    if access.revoke(conn, event["id"], args.token_id):
         print(f"Link {args.token_id} revoked. Anyone holding it now gets a 404.")
         return 0
-    print(f"No link with id {args.token_id}.", file=sys.stderr)
+    print(f"No link with id {args.token_id} in {args.event}.", file=sys.stderr)
     return 1
+
+
+def links_are_printable(stream=None) -> bool:
+    """Whether the role links may be written to `stream` (default stdout).
+
+    The links ARE the credentials. On a terminal the person who started the
+    server reads them once and they are gone with the scrollback; under
+    systemd the same print lands in the journal on every restart and every
+    deploy, readable by anyone in systemd-journal, and a revoked link does
+    nothing about old journal lines. So they are printed only to a terminal;
+    everywhere else the officer reads them off the Links tab.
+    """
+    stream = sys.stdout if stream is None else stream
+    try:
+        return bool(stream.isatty())
+    except (AttributeError, ValueError):
+        return False
 
 
 def cmd_serve(args: argparse.Namespace) -> int:
@@ -655,11 +684,16 @@ def cmd_serve(args: argparse.Namespace) -> int:
         tokens = access.ensure_tokens(conn, event["id"])
         lines.append(f"Event: {event['name']}")
         lines.append("")
-        for role in access.ROLES:
-            lines.append(
-                f"  {access.ROLE_LABELS[role]:<14} "
-                f"{base}/e/{event['slug']}/{tokens[role]}"
-            )
+        if links_are_printable():
+            for role in access.ROLES:
+                lines.append(
+                    f"  {access.ROLE_LABELS[role]:<14} "
+                    f"{base}/e/{event['slug']}/{tokens[role]}"
+                )
+        else:
+            lines.append("  Role links are on the Links tab in setup.")
+            lines.append("  (Not printed: this is not a terminal, so it is a")
+            lines.append("  log, and a log is no place for credentials.)")
         if args.no_ingest:
             lines.append("")
             lines.append("  APRS-IS ingest disabled (--no-ingest).")
@@ -708,6 +742,16 @@ def cmd_serve(args: argparse.Namespace) -> int:
     # `forwarded_allow_ips` is what stops any client simply claiming HTTPS:
     # only the named proxy is believed. It defaults to the loopback address,
     # which is the normal Apache-on-the-same-host case.
+    # Protocol-level pings so the SERVER notices a phone that vanished without
+    # a close frame and drops its subscription, rather than queueing for it
+    # until the process restarts. These are uvicorn's defaults with the
+    # `websockets` backend that uvicorn[standard] installs; stated here so
+    # a change of backend or of defaults cannot quietly switch them off.
+    # The client's own liveness check is web.HEARTBEAT_SECONDS.
+    options = dict(
+        host=args.host, port=args.port, log_level="warning",
+        ws_ping_interval=20.0, ws_ping_timeout=20.0,
+    )
     if args.behind_proxy:
         print(f"Trusting proxy headers from {args.trusted_proxy}.")
         if args.host not in ("127.0.0.1", "::1", "localhost"):
@@ -719,11 +763,11 @@ def cmd_serve(args: argparse.Namespace) -> int:
                 file=sys.stderr,
             )
         uvicorn.run(
-            app, host=args.host, port=args.port, log_level="warning",
-            proxy_headers=True, forwarded_allow_ips=args.trusted_proxy,
+            app, proxy_headers=True, forwarded_allow_ips=args.trusted_proxy,
+            **options,
         )
     else:
-        uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
+        uvicorn.run(app, **options)
     return 0
 
 

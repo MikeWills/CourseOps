@@ -24,6 +24,7 @@ from __future__ import annotations
 import posixpath
 import re
 from dataclasses import dataclass
+from functools import lru_cache
 from html import escape, unescape
 from pathlib import Path
 
@@ -70,15 +71,24 @@ class Page:
     html: str
 
 
-def page_names(root: Path = GUIDES_DIR) -> list[str]:
+# The pages ship in the package and do not change while the server runs, and
+# /help is the one unauthenticated endpoint anyone can hammer. Without these,
+# every request globbed the directory, read every page for its navigation
+# title, then read and rendered the page again - all on the event loop, next
+# to the live map. Editing a guide during development means restarting, which
+# `courseops serve` already needs for any other change.
+
+@lru_cache(maxsize=None)
+def page_names(root: Path = GUIDES_DIR) -> tuple[str, ...]:
     """Every page, index first, then `ORDER`, then the rest by filename."""
     found = {p.stem for p in root.glob("*.md")}
     names = [INDEX] if INDEX in found else []
     names += [n for n in ORDER if n in found]
     names += sorted(n for n in found if n not in names)
-    return names
+    return tuple(names)
 
 
+@lru_cache(maxsize=None)
 def nav_title(name: str, root: Path = GUIDES_DIR) -> str:
     if name in NAV_TITLES:
         return NAV_TITLES[name]
@@ -89,6 +99,13 @@ def load(name: str, root: Path = GUIDES_DIR) -> Page | None:
     """The rendered page, or None for anything that is not a page."""
     if name != INDEX and not PAGE_NAME.match(name):
         return None
+    return _load(name, root)
+
+
+# Cached only past the name check, and bounded, so a stream of made-up names
+# cannot grow it or evict the real pages of a dozen-entry cache.
+@lru_cache(maxsize=128)
+def _load(name: str, root: Path) -> Page | None:
     path = root / f"{name}.md"
     if not path.is_file():
         return None

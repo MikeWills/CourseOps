@@ -89,6 +89,15 @@ class CourseIndex:
                  max_offset_m: float = DEFAULT_MAX_OFFSET_M) -> None:
         self._courses = courses
         self.max_offset_m = max_offset_m
+        # (lat, lon) -> the answer, misses included. One snapshot locates
+        # every place four times over: in the course-order sort key, for its
+        # own course_position, and twice again in the leader progression -
+        # and each lookup walks every vertex of every course in pure Python.
+        # That was 88 % of a snapshot build, and it grows as places times
+        # vertices; the organizer's file has 48 mile markers on a 1258-point
+        # course. The index is built per request, so the memo needs no
+        # invalidation: it dies with the request.
+        self._located: dict[tuple[float, float], CoursePosition | None] = {}
 
     def __len__(self) -> int:
         return len(self._courses)
@@ -170,6 +179,11 @@ class CourseIndex:
         shared pavement, so the course name is always shown alongside the mile
         figure rather than the mile alone.
         """
+        key = (lat, lon)
+        try:
+            return self._located[key]
+        except KeyError:
+            pass
         best: CoursePosition | None = None
         for course in self._courses:
             projection = geo.project_onto_line(course.coords, (lon, lat), course.totals)
@@ -185,4 +199,5 @@ class CourseIndex:
                 course_length_m=course.length_m,
                 offset_m=projection.offset_m,
             )
+        self._located[key] = best
         return best

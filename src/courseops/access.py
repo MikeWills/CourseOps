@@ -16,6 +16,7 @@ from __future__ import annotations
 import secrets
 import sqlite3
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 
 # 32 url-safe characters, ~192 bits. Long enough that guessing is hopeless,
 # short enough to survive being pasted into a text message.
@@ -220,23 +221,50 @@ def ensure_tokens(conn: sqlite3.Connection, event_id: int) -> dict[str, str]:
     return existing
 
 
-def set_label(conn: sqlite3.Connection, token_id: int, label: str | None) -> bool:
+def set_label(
+    conn: sqlite3.Connection, event_id: int, token_id: int, label: str | None
+) -> bool:
     """Name a link, so the right one can be revoked later.
 
     A role may hold several links - one per operator - and they are otherwise
     told apart only by a random string. The label is a note for whoever hands
     them out; nothing authenticates on it.
+
+    Scoped to the event, like `revoke`: the id comes from the request body
+    and the route only authorised the event in the URL.
     """
     cur = conn.execute(
-        "UPDATE access_token SET label = ? WHERE id = ?", (label, token_id))
+        "UPDATE access_token SET label = ? WHERE id = ? AND event_id = ?",
+        (label, token_id, event_id))
     return cur.rowcount > 0
 
 
-def revoke(conn: sqlite3.Connection, token_id: int) -> bool:
+def revoke(conn: sqlite3.Connection, event_id: int, token_id: int) -> bool:
+    """Revoke one link. False if no link with that id is in this event.
+
+    Token ids are small sequential integers, and the route that calls this
+    authorises on the event in the URL while the id arrives in the body. An
+    id-only UPDATE let an admin of one club revoke another club's NCS link on
+    race morning - which on the other club's phones is a 404 with no error
+    anywhere on their side. `AND event_id` is what keeps `may_access_event`
+    the one place access is decided.
+    """
     cur = conn.execute(
-        "UPDATE access_token SET revoked = 1 WHERE id = ?", (token_id,)
+        "UPDATE access_token SET revoked = 1 WHERE id = ? AND event_id = ?",
+        (token_id, event_id),
     )
     return cur.rowcount > 0
+
+
+# How stale a link's last_used may be before a request refreshes it.
+LAST_USED_RESOLUTION = timedelta(minutes=1)
+
+
+def _stamp_cutoff() -> str:
+    """The same shape SQLite writes (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+    so the two compare as strings."""
+    cutoff = datetime.now(timezone.utc) - LAST_USED_RESOLUTION
+    return cutoff.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def resolve(
@@ -252,7 +280,7 @@ def resolve(
         return None
     row = conn.execute(
         """
-        SELECT t.token, t.role, e.id AS event_id, e.slug
+        SELECT t.token, t.role, t.last_used, e.id AS event_id, e.slug
         FROM access_token t
         JOIN event e ON e.id = t.event_id
         WHERE t.token = ? AND e.slug = ? AND t.revoked = 0
@@ -262,11 +290,18 @@ def resolve(
     if row is None:
         return None
 
-    conn.execute(
-        "UPDATE access_token SET last_used = strftime('%Y-%m-%dT%H:%M:%SZ','now')"
-        " WHERE token = ?",
-        (token,),
-    )
+    # last_used is read by a human on the Links tab, to tell a link in use
+    # from one never opened; a minute is all the resolution that needs.
+    # Stamping it on every request made each phone poll a writer competing
+    # with the ingest loop for the one lock. Decided here rather than in the
+    # UPDATE's WHERE, because an UPDATE that matches nothing still opens a
+    # write transaction.
+    if row["last_used"] is None or row["last_used"] < _stamp_cutoff():
+        conn.execute(
+            "UPDATE access_token SET last_used = strftime('%Y-%m-%dT%H:%M:%SZ','now')"
+            " WHERE token = ?",
+            (token,),
+        )
     return Access(
         event_id=row["event_id"],
         event_slug=row["slug"],

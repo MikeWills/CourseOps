@@ -388,3 +388,33 @@ def test_reorder_refuses_an_id_from_another_event(tmp_path):
     # Nothing was written.
     assert all(r["sort_order"] == 0 for r in conn.execute(
         "SELECT sort_order FROM poi WHERE event_id = ?", (event_id,)))
+
+
+# --- the index remembers what it has already projected ----------------------
+
+def test_locate_projects_each_point_once(course_file, monkeypatch):
+    """The same place is located four times per snapshot: in the sort key, for
+    its own course_position, and twice more by the leader progression. Each
+    projection walks every vertex of every course in pure Python, and it was
+    88 % of the snapshot build - so a repeat lookup must be a dict hit."""
+    conn, event_id = course_file
+    index = progress.CourseIndex.for_event(conn, event_id)
+    calls = []
+    real = geo.project_onto_line
+
+    def counting(coords, target, totals=None):
+        calls.append(target)
+        return real(coords, target, totals)
+
+    monkeypatch.setattr(progress.geo, "project_onto_line", counting)
+
+    first = index.locate(44.15, -93.99)
+    again = index.locate(44.15, -93.99)
+    assert again == first
+    assert len(calls) == len(index) == 1
+
+    # A miss is remembered too: "not near any course" is the answer that is
+    # asked about every mile marker on a parallel street.
+    assert index.locate(44.50, -93.99) is None
+    assert index.locate(44.50, -93.99) is None
+    assert len(calls) == 2

@@ -151,6 +151,26 @@ def test_unknown_guide_is_404(client):
     assert client.get("/help/..%2Fschema.sql").status_code == 404
 
 
+def test_a_guide_is_read_from_disk_once(client, monkeypatch):
+    """The pages ship in the package and do not change while the server
+    runs, and /help is the one unauthenticated endpoint anyone can hammer:
+    every request used to glob the directory, read every page for its
+    navigation title, and read and render the page again. All of it on the
+    event loop, next to the live map."""
+    client.get("/help/sag")                       # warm
+    reads = []
+    real = Path.read_text
+
+    def counting(self, *args, **kwargs):
+        reads.append(self)
+        return real(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", counting)
+    assert client.get("/help/sag").status_code == 200
+    assert client.get("/help/").status_code == 200
+    assert [p for p in reads if p.suffix == ".md"] == []
+
+
 def test_screenshots_are_served_beside_the_pages(client):
     r = client.get("/help/images/shared-topbar.png")
     assert r.status_code == 200

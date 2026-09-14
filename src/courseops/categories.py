@@ -32,8 +32,11 @@ up - because a club tracking "Masters winner" has no first anything.
 
 from __future__ import annotations
 
+import functools
 import re
 import sqlite3
+
+from . import db, resources, styling
 
 # Seeded into every new event. Not a limit — a starting point a club edits.
 # `staffed` is off for medical by default: a medic tent is run by the race's own
@@ -81,6 +84,44 @@ DEFAULT_LEAD_DIVISIONS: list[tuple[str, str]] = [
 
 _KEY_OK = re.compile(r"^[a-z0-9][a-z0-9_]{0,39}$")
 
+_GLYPH_LINE = re.compile(r"^\s+([a-z_]+):\s+\[", re.M)
+
+
+@functools.lru_cache(maxsize=1)
+def icon_names() -> tuple[str, ...]:
+    """The icon palette, read from the one place it is defined: `icons.js`.
+
+    Mirroring the list in Python would drift the first time someone added a
+    glyph; parsing the shipped file cannot. It is read once per process.
+    """
+    script = (resources.package_file("static") / "icons.js").read_text("utf-8")
+    block = script.split("const POI_GLYPHS = {", 1)[1].split("\n};", 1)[0]
+    return tuple(_GLYPH_LINE.findall(block))
+
+
+def _icon(value: object) -> str:
+    """A glyph name the client can draw, defaulting to the pin.
+
+    Checked here and not only in the client: the server is the boundary
+    between an admin and the field phones, and an unknown name draws as the
+    default pin with nothing to say why.
+    """
+    name = db.clean_text(value) or "pin"
+    if name not in icon_names():
+        raise CategoryError(f"{name!r} is not an icon in the palette.")
+    return name
+
+
+def _color(value: object) -> str | None:
+    """A hex colour or nothing. The client interpolates this into a style
+    attribute; it is safe only because it never holds anything else."""
+    text = db.clean_text(value)
+    if text is None:
+        return None
+    if not styling.is_valid_color(text):
+        raise CategoryError(f"{text!r} is not a hex colour like #0072b2.")
+    return styling.normalize_color(text)
+
 
 class CategoryError(ValueError):
     """Rejected input. The message is safe to show a user."""
@@ -126,15 +167,36 @@ def seed_poi_categories(conn: sqlite3.Connection, event_id: int) -> None:
                 (event_id, key, name, int(staffed), icon, color, order * 10,
                  _labels_default(staffed)),
             )
-    # Unlike the defaults, this runs every time: a place whose layer does not
-    # exist is in the database, off the map, with no error to say so. Better an
-    # unnamed layer the club can rename than a place nobody can see.
-    for row in conn.execute(
-        "SELECT DISTINCT poi_type FROM poi WHERE event_id = ?", (event_id,)
-    ).fetchall():
-        key = (row["poi_type"] or "").strip()
-        if not key:
-            continue
+
+
+def adopt_orphan_poi_types(conn: sqlite3.Connection, event_id: int) -> list[str]:
+    """Give every place whose layer does not exist a layer.
+
+    Such a place is in the database, off the map, with no error to say so.
+    Better an unnamed layer the club can rename than a place nobody can see.
+
+    This used to run on every READ of the layer list, as INSERT OR IGNORE per
+    place type - and an INSERT OR IGNORE that ignores still takes the writer
+    lock. Every phone's snapshot reads the layer list, so every snapshot was
+    a writer competing with the ingest loop and with each other, and with
+    busy_timeout at 5 s a snapshot could stall the event loop waiting for a
+    lock it had no use for. So it runs at startup and after the one write
+    that can orphan a key (`importer.assign_poi`; the setup edits validate the
+    layer first). The SELECT finds the missing keys and the INSERT happens only
+    when there are some, which is nearly never.
+    """
+    missing = [
+        row["poi_type"] for row in conn.execute(
+            """
+            SELECT DISTINCT poi_type FROM poi
+            WHERE event_id = ? AND TRIM(COALESCE(poi_type, '')) <> ''
+              AND poi_type NOT IN
+                (SELECT key FROM poi_category WHERE event_id = ?)
+            """,
+            (event_id, event_id),
+        ).fetchall()
+    ]
+    for key in missing:
         conn.execute(
             """
             INSERT OR IGNORE INTO poi_category
@@ -144,15 +206,52 @@ def seed_poi_categories(conn: sqlite3.Connection, event_id: int) -> None:
             """,
             (event_id, key, key.replace("_", " ").title()),
         )
+    return missing
 
 
 def poi_categories(conn: sqlite3.Connection, event_id: int) -> list[sqlite3.Row]:
+    # Only the defaults, and only into an event with none: a SELECT that finds
+    # a row. Nothing else here may write - see adopt_orphan_poi_types.
     seed_poi_categories(conn, event_id)
     return conn.execute(
         "SELECT * FROM poi_category WHERE event_id = ?"
         " ORDER BY sort_order, name",
         (event_id,),
     ).fetchall()
+
+
+# How many things each taxonomy row is holding up. The count is what makes
+# "delete" honest - a layer with places, a role someone holds, a leader with
+# sightings cannot go, and the number says how many are in the way - and it
+# is one GROUP BY per taxonomy rather than one COUNT per row. The setup
+# screen and `courseops layers` both read these.
+
+def _counts(conn: sqlite3.Connection, table: str, column: str,
+            event_id: int) -> dict[str, int]:
+    assert (table, column) in {("poi", "poi_type"), ("roster", "category"),
+                               ("lead_sighting", "division")}
+    return {
+        row[0]: row[1] for row in conn.execute(
+            f"SELECT {column}, COUNT(*) FROM {table} WHERE event_id = ?"
+            f" GROUP BY {column}",
+            (event_id,),
+        ).fetchall()
+    }
+
+
+def place_counts(conn: sqlite3.Connection, event_id: int) -> dict[str, int]:
+    """Places per layer key."""
+    return _counts(conn, "poi", "poi_type", event_id)
+
+
+def role_counts(conn: sqlite3.Connection, event_id: int) -> dict[str, int]:
+    """Roster entries per role key."""
+    return _counts(conn, "roster", "category", event_id)
+
+
+def sighting_counts(conn: sqlite3.Connection, event_id: int) -> dict[str, int]:
+    """Lead runner sightings per leader key."""
+    return _counts(conn, "lead_sighting", "division", event_id)
 
 
 def staffed_keys(conn: sqlite3.Connection, event_id: int) -> set[str]:
@@ -201,7 +300,7 @@ def add_poi_category(
              visible, show_labels)
         VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)
         """,
-        (event_id, key, name, int(staffed), icon or "pin", color, top + 10,
+        (event_id, key, name, int(staffed), _icon(icon), _color(color), top + 10,
          _labels_default(staffed)),
     )
     return get_poi_category(conn, event_id, key)
@@ -242,10 +341,10 @@ def update_poi_category(
             values.append(int(bool(payload[flag])))
     if "icon" in payload:
         fields.append("icon = ?")
-        values.append((payload.get("icon") or "pin").strip() or "pin")
+        values.append(_icon(payload.get("icon")))
     if "color" in payload:
         fields.append("color = ?")
-        values.append((payload.get("color") or "").strip() or None)
+        values.append(_color(payload.get("color")))
     if "sort_order" in payload and payload["sort_order"] is not None:
         fields.append("sort_order = ?")
         values.append(int(payload["sort_order"]))
@@ -273,21 +372,12 @@ def reorder_poi_categories(
     chose. Numbered in tens so a new layer, which takes max + 1, still
     lands at the end.
     """
-    wanted = [str(k) for k in keys or []]
-    known = {
-        row["key"] for row in conn.execute(
-            "SELECT key FROM poi_category WHERE event_id = ?", (event_id,)
-        ).fetchall()
-    }
-    if not wanted or set(wanted) != known or len(wanted) != len(known):
-        raise CategoryError("Every layer in the event must be listed, once.")
-    for position, key in enumerate(wanted, start=1):
-        conn.execute(
-            "UPDATE poi_category SET sort_order = ?"
-            " WHERE event_id = ? AND key = ?",
-            (position * 10, event_id, key),
-        )
-    return len(wanted)
+    try:
+        return db.reorder(conn, "poi_category", "key", event_id,
+                          [str(k) for k in keys or []])
+    except ValueError:
+        raise CategoryError(
+            "Every layer in the event must be listed, once.") from None
 
 
 def delete_poi_category(conn: sqlite3.Connection, event_id: int, key: str) -> int:
@@ -400,6 +490,14 @@ def delete_roster_role(conn: sqlite3.Connection, event_id: int, key: str) -> int
     say why. Returns the count that blocked it, or 0 on success.
     """
     seed_roster_roles(conn, event_id)
+    # The same existence check as the other two: without it a stale client
+    # row "deleted" and the list reloaded unchanged.
+    known = conn.execute(
+        "SELECT 1 FROM roster_role WHERE event_id = ? AND key = ?",
+        (event_id, key),
+    ).fetchone()
+    if known is None:
+        raise CategoryError(f"Unknown role {key!r}.")
     in_use = conn.execute(
         "SELECT COUNT(*) AS c FROM roster WHERE event_id = ? AND category = ?",
         (event_id, key),
@@ -456,29 +554,47 @@ def seed_lead_divisions(conn: sqlite3.Connection, event_id: int) -> None:
                 " (event_id, key, name, sort_order) VALUES (?, ?, ?, ?)",
                 (event_id, key, name, order * 10),
             )
-    # Unlike the defaults, this runs every time. A sighting whose leader is not
-    # in the list is a report that was made on the net and would then show as
-    # nothing at all - the leader would appear stuck at the previous station,
-    # with no error anywhere. Better a plainly-named row the club can rename.
-    #
-    # It is also the upgrade path: events that predate this table already hold
-    # male and female sightings, and this is what puts them back on the panel.
-    for row in conn.execute(
-        "SELECT DISTINCT division FROM lead_sighting WHERE event_id = ?",
-        (event_id,),
-    ).fetchall():
-        key = (row["division"] or "").strip()
-        if not key:
-            continue
+
+
+def adopt_orphan_divisions(conn: sqlite3.Connection, event_id: int) -> list[str]:
+    """Give every sighting whose leader is not in the list a leader.
+
+    A sighting whose leader is not in the list is a report that was made on
+    the net and would then show as nothing at all - the leader would appear
+    stuck at the previous station, with no error anywhere. Better a
+    plainly-named row the club can rename.
+
+    It is also the upgrade path: events that predate this table already hold
+    male and female sightings, and this is what puts them back on the panel.
+
+    Runs at startup and after `leaders.record_sighting`, not on read - the
+    same reason as adopt_orphan_poi_types: the leader list is read by every
+    phone's snapshot, and a read that writes is a writer.
+    """
+    missing = [
+        row["division"] for row in conn.execute(
+            """
+            SELECT DISTINCT division FROM lead_sighting
+            WHERE event_id = ? AND TRIM(COALESCE(division, '')) <> ''
+              AND division NOT IN
+                (SELECT key FROM lead_division WHERE event_id = ?)
+            """,
+            (event_id, event_id),
+        ).fetchall()
+    ]
+    for key in missing:
         conn.execute(
             "INSERT OR IGNORE INTO lead_division"
             " (event_id, key, name, sort_order) VALUES (?, ?, ?, 900)",
             (event_id, key, "First " + key.replace("_", " ")),
         )
+    return missing
 
 
 def lead_divisions(conn: sqlite3.Connection, event_id: int) -> list[sqlite3.Row]:
     """Every leader this event tracks, in the club's order."""
+    # Only the defaults, and only into an event with none. Nothing else here
+    # may write - see adopt_orphan_divisions.
     seed_lead_divisions(conn, event_id)
     return conn.execute(
         "SELECT * FROM lead_division WHERE event_id = ?"
@@ -596,18 +712,9 @@ def reorder_lead_divisions(
     defaults do not exist yet, and every list would look partial.
     """
     seed_lead_divisions(conn, event_id)
-    wanted = [str(k) for k in keys or []]
-    known = {
-        row["key"] for row in conn.execute(
-            "SELECT key FROM lead_division WHERE event_id = ?", (event_id,)
-        ).fetchall()
-    }
-    if not wanted or set(wanted) != known or len(wanted) != len(known):
-        raise CategoryError("Every leader in the event must be listed, once.")
-    for position, key in enumerate(wanted, start=1):
-        conn.execute(
-            "UPDATE lead_division SET sort_order = ?"
-            " WHERE event_id = ? AND key = ?",
-            (position * 10, event_id, key),
-        )
-    return len(wanted)
+    try:
+        return db.reorder(conn, "lead_division", "key", event_id,
+                          [str(k) for k in keys or []])
+    except ValueError:
+        raise CategoryError(
+            "Every leader in the event must be listed, once.") from None

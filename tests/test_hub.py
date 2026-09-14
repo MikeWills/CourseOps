@@ -36,11 +36,7 @@ def test_events_are_isolated_from_each_other():
 
 
 def test_a_stalled_subscriber_drops_messages_instead_of_blocking_ingest():
-    """A phone that slept or hit a dead zone must not stall the feed.
-
-    Dropping is safe: the client resyncs full state on reconnect, and the next
-    position report supersedes the lost one anyway.
-    """
+    """A phone that slept or hit a dead zone must not stall the feed."""
     async def scenario():
         hub = Hub()
         stalled = hub.subscribe(1)
@@ -52,9 +48,41 @@ def test_a_stalled_subscriber_drops_messages_instead_of_blocking_ingest():
         return stalled, healthy
 
     stalled, healthy = run(scenario())
-    assert stalled.queue.qsize() == QUEUE_MAXSIZE
-    assert stalled.dropped == 10
+    # One overflow: the backlog went, a resync took its place, and the nine
+    # published after it queued behind that.
+    assert stalled.dropped == 1
+    assert stalled.queue.qsize() == 10
+    assert stalled.queue.get_nowait() == {"type": "resync"}
     assert healthy.queue.qsize() <= QUEUE_MAXSIZE   # never grows unbounded
+
+
+def test_an_overflowed_subscriber_is_told_to_resync_and_nothing_stale():
+    """Dropping a position is harmless - the next one supersedes it - but the
+    same path dropped a pickup's deletion, a station rename and a resync
+    itself, none of which anything later repeats. A phone that stalled and
+    recovered kept a deleted pickup on its map forever, with the badge
+    reading "Live". So the first drop empties the queue and leaves one
+    resync in it: what was queued is stale the moment anything is missing,
+    and the resync replaces all of it."""
+    async def scenario():
+        hub = Hub()
+        sub = hub.subscribe(1)
+        for i in range(QUEUE_MAXSIZE):
+            await hub.publish(1, {"type": "position", "n": i})
+        await hub.publish(1, {"type": "incident", "change": "deleted", "id": 7})
+        # What arrives after the overflow queues behind the resync as usual:
+        # every message is an upsert, so one the snapshot already reflects
+        # does no harm applied again.
+        await hub.publish(1, {"type": "position", "n": 99})
+        queued = [sub.queue.get_nowait() for _ in range(sub.queue.qsize())]
+        dropped = sub.dropped
+        sub.caught_up()      # what the socket does once the resync is sent
+        return queued, dropped, sub.dropped
+
+    queued, dropped, after = run(scenario())
+    assert queued == [{"type": "resync"}, {"type": "position", "n": 99}]
+    assert dropped == 1
+    assert after == 0
 
 
 def test_unsubscribe_stops_delivery():
@@ -75,15 +103,11 @@ def test_position_message_keeps_metric_units_on_the_wire():
     assert "speed_mph" not in message
 
 
-def test_position_message_carries_roster_label_when_known():
-    report = parse_packet(PACKET)
-    roster_row = {"display_label": "Half-back", "category": "sweep"}
-    message = position_message(report, roster_row)
-    assert message["label"] == "Half-back"
-    assert message["category"] == "sweep"
-
-
-def test_position_message_without_roster_omits_label():
-    """A station can report before the roster is filled in."""
+def test_position_message_carries_no_roster_fields():
+    """The client joins a position to the roster by key, from the snapshot.
+    The message used to carry `label`/`category` from a roster read once at
+    feed start - nothing read them, and had anything started to, it would
+    have shown the roster as it was hours ago."""
     message = position_message(parse_packet(PACKET))
     assert "label" not in message
+    assert "category" not in message
