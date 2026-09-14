@@ -344,10 +344,16 @@ def test_the_client_answers_a_burst_of_resyncs_with_one_fetch():
 # --- static assets ----------------------------------------------------------
 
 def test_client_assets_are_served(setup):
-    app, _, _, _ = setup
+    app, tokens, _, _ = setup
     with TestClient(app) as client:
         assert client.get("/static/app.js").status_code == 200
         assert client.get("/static/app.css").status_code == 200
+        # Shared by the map and setup; both pages must load it BEFORE their
+        # own script or every escapeHtml call is a ReferenceError.
+        assert client.get("/static/util.js").status_code == 200
+        for page in ("/e/m2026/" + tokens["ncs"], "/setup"):
+            html = client.get(page).text
+            assert html.index("/static/util.js") < html.index("/static/icons.js")
 
 
 # --- roles ------------------------------------------------------------------
@@ -452,6 +458,41 @@ def test_status_change_is_broadcast_to_every_viewer(setup):
     assert message["op_status_label"] == "Finished"
 
 
+def test_status_broadcast_carries_the_tracking_key_for_a_bound_entry(setup):
+    """The client keys its roster by what it HEARS, not by what was typed.
+
+    A bare-callsign entry bound to the SSID that beaconed lives in the
+    client's map under that SSID. A broadcast keyed only by the roster's own
+    key misses that map on every other screen: the operator who pressed the
+    button sees the change (optimistic update), the second NCS operator and
+    Logistics keep the old status until an unrelated resync happens by.
+    """
+    app, tokens, db_path, event_id = setup
+    conn = db.connect(db_path)
+    db.upsert_roster_entry(conn, event_id, "WX0MIK", "Aid 9", "aid_station")
+    assert db.bind_heard_ssid(conn, event_id, "WX0MIK-5") is not None
+    conn.close()
+
+    with TestClient(app) as client:
+        with client.websocket_connect(f"/ws/m2026/{tokens['logistics']}") as ws:
+            # NCS's screen holds the tracking key, and that is what it sends.
+            response = client.post(status_url(tokens["ncs"], "WX0MIK-5"),
+                                   json={"op_status": "active"})
+            assert response.status_code == 200
+            message = ws.receive_json()
+
+    assert message["type"] == "station_status"
+    assert message["station_key"] == "WX0MIK"
+    assert message["tracking_key"] == "WX0MIK-5"
+
+    # An unbound entry carries its own key in both, so the client never
+    # needs a fallback to find the row.
+    with TestClient(app) as client:
+        plain = client.post(status_url(tokens["ncs"]),
+                            json={"op_status": "active"}).json()
+    assert plain["tracking_key"] == "N0CALL-7"
+
+
 def test_state_carries_both_status_axes_independently(setup):
     """expects_aprs=0 plus op_status=active is a healthy row, not a conflict."""
     app, tokens, _, _ = setup
@@ -477,13 +518,20 @@ def test_category_specific_wording(setup):
 
 
 def test_initials_are_truncated_not_trusted(setup):
-    """A log annotation for shift handover, never identity."""
+    """A log annotation for shift handover, never identity.
+
+    One cap for every log the operator field feeds: the same shift's
+    entries in roster_status_log and incident_log have to match each other
+    on a handover read, and they did not while this was 12 and the incident
+    log 24.
+    """
+    from courseops import incidents
     app, tokens, _, _ = setup
     with TestClient(app) as client:
         body = client.post(status_url(tokens["ncs"]),
                            json={"op_status": "active",
                                  "changed_by": "x" * 50}).json()
-    assert len(body["op_status_by"]) == 12
+    assert len(body["op_status_by"]) == incidents.MAX_WHO_LENGTH == 24
 
 
 # --- icons and home screen install ------------------------------------------

@@ -2175,8 +2175,12 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
             op_status = (db.clean_text(body.get("op_status")) or "").lower()
             # Free-text initials typed once per shift. A log annotation for
             # handover, never authentication - do not start trusting it as
-            # identity.
-            changed_by = db.clean_text(body.get("changed_by"), 12)
+            # identity. Same cap as the incident and sighting logs, so one
+            # shift's entries match on a handover read: this was 12 while
+            # the others were 24, and "Christopher Wainwright" signed a
+            # pickup whole and a status change as "Christopher ".
+            changed_by = db.clean_text(body.get("changed_by"),
+                                       incidents.MAX_WHO_LENGTH)
             row = db.set_op_status(
                 conn, granted.event_id, station_key, op_status, changed_by
             )
@@ -2187,6 +2191,11 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         payload = {
             "type": "station_status",
             "station_key": row["station_key"],
+            # The client keys its roster by what it HEARS (the bound SSID for
+            # a bare-callsign entry), so a message keyed only by the roster's
+            # own key misses that map on every screen but the one that
+            # pressed the button. Same helper as the snapshot uses.
+            "tracking_key": db.tracking_key(row),
             "op_status": row["op_status"],
             "op_status_at": row["op_status_at"],
             "op_status_by": row["op_status_by"],

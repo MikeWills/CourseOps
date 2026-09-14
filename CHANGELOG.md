@@ -11,6 +11,95 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Changed
+- **One `post()` in the field app, and the server's reason on screen.**
+  Nine hand-rolled POSTs carried three different ideas of what a failure
+  looked like, and all but one threw away the `detail` the server writes -
+  so "Staff is read-only." and "Unknown status" reached nobody, and the
+  status message said "check the connection" for a refusal that had nothing
+  to do with the connection. Every write goes through `post(path, body)`
+  now, which throws the server's wording, and every status line shows it.
+  `escapeHtml` moved to a shared `static/util.js` (setup's `esc` is an
+  alias): the two copies were character-for-character identical, and two
+  copies of an escaper are two places to get it wrong.
+
+### Fixed
+- **Small field-app fixes.** The operator name was cut to 12 characters on
+  a station status change and 24 on a pickup or sighting, so one shift's
+  log entries did not match each other on a handover read; it is one cap
+  (24) everywhere now. The sheet's drag grip was announced as a button but
+  ignored Enter and Space; it answers them like the fold headings. And
+  every SSID match or ignore fetched the snapshot twice - once from the
+  client, once from the resync the server publishes for the same action -
+  on the busiest panel NCS uses; the client-side fetch is gone. (Audit F8.)
+- **The "This is..." list on an SSID alert snapped shut under NCS's
+  thumb.** Every packet from an unknown station rebuilt the whole SSID
+  panel, select included - and with an area filter around a course in a
+  town, unknown stations beacon continuously. NCS scrolling thirty names to
+  match a borrowed rig to the person holding it had the dropdown close
+  every few seconds. The rebuild now waits while a select in that panel
+  has focus and runs when it lets go; nothing is lost, only delayed a few
+  seconds. The select carries `data-edit-key` like every other editable
+  field in a socket-rendered list. (Audit F7.)
+- **Leader Undo and Clear could fail silently.** Neither checked the
+  response, so NCS confirmed "Clear every First male sighting for Half?
+  This cannot be undone", the server refused (a stale division key after a
+  setup edit is the realistic case), and the list sat there reading as "the
+  button did nothing". Both go through `post()` and say why. (Audit F6.)
+- **Dropping a pin no longer puts the cursor in the bib box - it had not
+  since #93.** "Create first, fill the bib in after" is the documented
+  flow, and the step that put the cursor where the bib goes selected the
+  field by attributes that #93 renamed to `data-edit-key`. Nothing matched,
+  nothing errored, and a SAG driver dropped a pin and then had to find the
+  row and tap the box in a glove. The selector matches the rows again, and
+  the new row is put up from the server's response immediately rather than
+  waiting for the broadcast to come back round, so on a slow link the
+  field exists when the focus fires. (Audit F5.)
+- **The layer and role switches did not follow a resync.** Every setup
+  change pushes a resync so the field sees it, and the pins did redraw with
+  a layer's new name and colour - but the "Places" switch list was built
+  once, on first load. A layer added on race morning had no switch, so it
+  could not be turned on or off from a phone already holding the page; a
+  renamed layer or station role kept its old name beside pins showing the
+  new one; a deleted layer kept a dead switch. The switches are rebuilt on
+  every load now; the viewer's own on/off choices survive because they are
+  read from the browser's prefs. (Audit F4.)
+- **A dropped-off pickup drew on the map as an invisible pin.** Only
+  `closed` was removed from the map, so a delivered runner kept a marker at
+  the place they were picked up - and that status had no colour rule, so
+  the marker was white text inside a white border with no fill: on light
+  tiles, a pin that exists and cannot be seen, while the row sat in the
+  list. The map now removes a pickup when the queue count stops counting
+  it (delivered or closed - one `incidentDone()` for both, because they
+  are read as the same claim and had drifted), and every status has a
+  colour rule so this shape of bug cannot come back silently. (Audit F3.)
+- **A phone coming back from a dead zone could stop reconnecting for
+  good.** The reconnect timer fetched the snapshot before opening the
+  socket, with nothing catching a failed fetch - and a phone still out of
+  coverage when the 1-2 s retry fired is the normal case. The rejection
+  went unhandled, the socket was never opened, and nothing scheduled
+  another attempt: the badge read "Connecting..." until someone reloaded
+  the page by hand, on the exact day and the exact phones the loop exists
+  for. `loadState` never throws now, every path out of a failed attempt
+  schedules the next one, and the socket is opened FIRST with the snapshot
+  fetched on open - which also closes the gap in which a status change or
+  a pickup published between "snapshot served" and "subscribed" was never
+  seen by that browser. Frames arriving during the fetch are held and
+  replayed after it. And only a 403/404 reads "Access denied" now; a 502
+  from Apache during a deploy restart says "Server unavailable - retrying"
+  instead of sending a volunteer to ask for a new link. (Audit F2.)
+- **A status change on a matched station reached only the screen that made
+  it.** The `station_status` socket message carried the roster's own key,
+  but the client keys its roster by the SSID it hears - the bound key for a
+  bare-callsign entry, which is a supported, documented path. Every other
+  browser looked that key up, missed, and dropped the message: the NCS
+  operator who pressed the button saw "Rolling" (optimistic update), the
+  second NCS screen and Logistics - who wait on the sweep's status to say a
+  road is clear - kept the old one until an unrelated resync happened by.
+  The message now carries `tracking_key` from the same helper the snapshot
+  uses, and the client looks that up. (Audit F1.)
+
+
 ### Fixed
 - **The SSID alerts go only to a role that can act on them.** They were in
   every role's snapshot and rendered by none but NCS: which rostered

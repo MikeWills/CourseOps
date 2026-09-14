@@ -57,6 +57,13 @@ const state = {
   panelState: { sheet: true, stations: true },
   socket: null,
   reconnectDelay: 1000,
+  reconnectTimer: null,
+  // Set once the server has said the LINK is dead (403/404), which is the
+  // one failure retrying cannot fix. Everything else keeps retrying.
+  linkDead: false,
+  // A rebuild of the SSID panel was skipped because a "This is..." select
+  // had focus; that select's blur runs it.
+  ssidRenderDeferred: false,
   // When the socket last carried anything, heartbeat included. The only
   // evidence the page has that the socket is alive: a phone that slept, or
   // a NAT that forgot the connection, never fires `close`.
@@ -666,14 +673,8 @@ function stationPopup(stationKey) {
     '</dl>';
 }
 
-/* Escapes quotes as well as angle brackets. The textContent->innerHTML trick
-   does NOT escape " or ', which makes it unsafe the moment a value lands inside
-   an attribute. Everything interpolated into markup below goes through here. */
-function escapeHtml(text) {
-  return String(text ?? '').replace(/[&<>"']/g, (ch) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-  }[ch]));
-}
+/* escapeHtml lives in util.js, shared with the setup screen. Everything
+   interpolated into markup below goes through it. */
 
 function stationVisible(stationKey) {
   const layer = CATEGORY_TO_LAYER[categoryOf(stationKey)] || 'rover';
@@ -1147,22 +1148,15 @@ async function setStationStatus(stationKey, opStatus) {
   renderStations();
 
   try {
-    const response = await fetch(
-      `/api/${M.slug}/${M.token}/station/${encodeURIComponent(stationKey)}/status`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ op_status: opStatus, changed_by: state.operatorInitials }),
-      }
-    );
-    if (!response.ok) throw new Error(String(response.status));
+    await post(`station/${encodeURIComponent(stationKey)}/status`,
+      { op_status: opStatus, changed_by: state.operatorInitials });
   } catch (err) {
     // Roll back. Leaving NCS believing an aid station was marked torn down when
     // the server never got it is worse than showing the failure.
     entry.op_status = previous;
     entry.op_status_label = previousLabel;
     renderStations();
-    setLocateStatus('Could not save status - check the connection');
+    setLocateStatus(`Could not save status - ${err.message}`);
   }
 }
 
@@ -1299,16 +1293,11 @@ function renderStations() {
 
 async function resolveSsid(path, body) {
   try {
-    const response = await fetch(`/api/${M.slug}/${M.token}/ssid/${path}`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(body),
-    });
-    if (!response.ok) {
-      const detail = await response.json().catch(() => ({}));
-      throw new Error(detail.detail || String(response.status));
-    }
-    await loadState();          // the roster changed; resync rather than patch
+    await post(`ssid/${path}`, body);
+    // The roster changed, which is more than a patch can express - and the
+    // server publishes a `resync` for exactly that, to this browser as well
+    // as every other. Fetching the snapshot here too made every tap on the
+    // busiest panel NCS uses cost two full snapshots.
   } catch (err) {
     setLocateStatus(`Could not update: ${err.message}`);
   }
@@ -1352,6 +1341,19 @@ function renderSsidAlerts() {
   // the person whose callsign is on the roster.
   const rosterEntries = [...state.roster.values()]
     .sort((a, b) => String(a.display_label).localeCompare(String(b.display_label)));
+
+  // Not while NCS has a "This is..." list open. With an area filter around
+  // a course in a town, unknown stations beacon continuously and every one
+  // lands here as a rebuild; replacing the <select> under someone's thumb
+  // snaps the dropdown shut every few seconds while they scroll thirty
+  // names for the right one. The rebuild waits for that select to let go
+  // (its blur handler runs it), so nothing is lost, only delayed.
+  const active = document.activeElement;
+  if (active && active.tagName === 'SELECT' && host.contains(active)) {
+    state.ssidRenderDeferred = true;
+    return;
+  }
+  state.ssidRenderDeferred = false;
 
   host.innerHTML = '';
   items.forEach((item) => {
@@ -1406,6 +1408,9 @@ function renderSsidAlerts() {
     const pick = document.createElement('select');
     pick.className = 'ssid-pick';
     pick.setAttribute('aria-label', `Who is ${item.station_key}`);
+    // Keyed like every other editable field in a socket-rendered list, so a
+    // rebuild that does get through carries the chosen value across.
+    pick.dataset.editKey = `ssidpick:${item.station_key}`;
     const first = document.createElement('option');
     first.value = '';
     first.textContent = 'This is…';
@@ -1418,10 +1423,16 @@ function renderSsidAlerts() {
     });
     pick.addEventListener('change', () => {
       if (!pick.value) return;
+      // The choice is made; let go of focus so the resync this causes is
+      // not itself deferred behind the select that asked for it.
+      pick.blur();
       resolveSsid('adopt', {
         from_station_key: pick.value,
         to_station_key: item.station_key,
       });
+    });
+    pick.addEventListener('blur', () => {
+      if (state.ssidRenderDeferred) renderSsidAlerts();
     });
     actions.appendChild(pick);
 
@@ -1507,17 +1518,12 @@ function paceLabel(mps) {
 
 async function recordSighting(leader, poiId, bib) {
   try {
-    const response = await fetch(`/api/${M.slug}/${M.token}/leaders/sighting`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        course_id: leader.course_id, division: leader.division,
-        poi_id: poiId, bib: bib || null, changed_by: state.operatorInitials,
-      }),
+    await post('leaders/sighting', {
+      course_id: leader.course_id, division: leader.division,
+      poi_id: poiId, bib: bib || null, changed_by: state.operatorInitials,
     });
-    if (!response.ok) throw new Error(String(response.status));
   } catch (err) {
-    setLocateStatus('Could not record the sighting');
+    setLocateStatus(`Could not record the sighting - ${err.message}`);
   }
 }
 
@@ -1528,28 +1534,24 @@ async function resetLeader(leader) {
   if (!confirm(
       `Clear every ${leader.division_label} sighting for ${leader.course_name}?`
       + '\n\nThis cannot be undone.')) return;
+  // A refused clear used to look exactly like a successful one: nothing
+  // checked the response, so NCS confirmed the dialog and the list just sat
+  // there. post() throws on any 4xx, with the server's reason.
   try {
-    await fetch(`/api/${M.slug}/${M.token}/leaders/reset`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        course_id: leader.course_id, division: leader.division,
-      }),
+    await post('leaders/reset', {
+      course_id: leader.course_id, division: leader.division,
     });
   } catch (err) {
-    setLocateStatus('Could not clear');
+    setLocateStatus(`Could not clear - ${err.message}`);
   }
 }
 
 async function undoSighting(leader) {
   try {
-    await fetch(`/api/${M.slug}/${M.token}/leaders/undo`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({course_id: leader.course_id, division: leader.division}),
-    });
+    await post('leaders/undo',
+      {course_id: leader.course_id, division: leader.division});
   } catch (err) {
-    setLocateStatus('Could not undo');
+    setLocateStatus(`Could not undo - ${err.message}`);
   }
 }
 
@@ -1779,7 +1781,8 @@ function restoreFieldEdit(saved) {
   try {
     el.setSelectionRange(saved.start, saved.end);
   } catch (e) {
-    // Some input types refuse a selection range. The text is what matters.
+    // Some input types refuse a selection range, and a <select> has none
+    // (the SSID panel's "This is..." pick). The value is what matters.
   }
 }
 
@@ -1796,6 +1799,13 @@ const INCIDENT_RANK = {
 
 function isNote(incident) {
   return (incident.kind || 'pickup') === 'note';
+}
+
+/* Nobody is waiting on this one any more. ONE definition, because the
+   queue count and the map are read as the same claim - "who is still out" -
+   and they drifted once: the count excluded dropped-off, the map kept it. */
+function incidentDone(incident) {
+  return incident.status === 'closed' || incident.status === 'dropped_off';
 }
 
 function incidentIcon(incident) {
@@ -1863,9 +1873,13 @@ function upsertIncidentMarker(incident) {
     marker.setLatLng([incident.lat, incident.lon]);
     marker.setIcon(incidentIcon(incident));
   }
-  // A closed incident leaves the map but stays in the list, so the map shows
-  // only what is still live.
-  if (incident.status === 'closed') {
+  // A finished pickup leaves the map but stays in the list, so the map shows
+  // only what is still live. Finished means what the queue count means:
+  // delivered or closed. A delivered runner is not at the pin any more, and
+  // a pin nobody is waiting at reads as somebody waiting. (Dropped-off
+  // markers used to stay, with no colour rule: a white square with a white
+  // bib on light tiles, listed but invisible.)
+  if (incidentDone(incident)) {
     if (map.hasLayer(marker)) map.removeLayer(marker);
   } else if (!map.hasLayer(marker)) {
     marker.addTo(map);
@@ -1882,19 +1896,12 @@ async function setIncidentStatus(id, status) {
   renderIncidents();
 
   try {
-    const response = await fetch(
-      `/api/${M.slug}/${M.token}/incidents/${id}/status`,
-      {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({status, changed_by: state.operatorInitials}),
-      }
-    );
-    if (!response.ok) throw new Error(String(response.status));
+    await post(`incidents/${id}/status`,
+      {status, changed_by: state.operatorInitials});
   } catch (err) {
     Object.assign(incident, previous);   // never leave NCS believing a false save
     renderIncidents();
-    setLocateStatus('Could not save incident - check the connection');
+    setLocateStatus(`Could not save incident - ${err.message}`);
   }
 }
 
@@ -1904,30 +1911,38 @@ async function setIncidentStatus(id, status) {
    opened immediately and the bib field is filled in when it is known. */
 async function createIncident(latlng) {
   try {
-    const response = await fetch(`/api/${M.slug}/${M.token}/incidents`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        lat: latlng.lat, lon: latlng.lng,
-        kind: state.pinKind,
-        changed_by: state.operatorInitials,
-      }),
+    const created = await post('incidents', {
+      lat: latlng.lat, lon: latlng.lng,
+      kind: state.pinKind,
+      changed_by: state.operatorInitials,
     });
-    if (!response.ok) throw new Error(String(response.status));
-    const created = await response.json();
+    // Put the row up NOW rather than wait for our own broadcast to come
+    // back round: on a slow link the socket message can land after the
+    // focus below fires, and the field would not exist yet. The server
+    // publishes before it responds, so the message may already have arrived
+    // - and it carries the course position this response lacks - in which
+    // case the row is left alone; otherwise the message overwrites this
+    // copy when it does arrive.
+    if (!state.incidents.has(created.id)) {
+      state.incidents.set(created.id, created);
+      upsertIncidentMarker(created);
+      renderIncidents();
+    }
     setSheet(true);
     // Straight into the field that will be filled in next: the bib for a
     // pickup, the text for a note. A pickup is called in before the bib is
-    // known, so this is a convenience and never a requirement.
+    // known, so this is a convenience and never a requirement. Selected by
+    // the same data-edit-key the rebuild-safe rows carry - the attributes
+    // this used to look for went away in #93 and nothing noticed, because a
+    // focus that does not happen makes no error.
     window.setTimeout(() => {
-      const selector = created.kind === 'note'
-        ? `[data-note-for="${created.id}"]` : `[data-bib-for="${created.id}"]`;
-      const field = document.querySelector(selector);
+      const key = `${created.kind === 'note' ? 'note' : 'bib'}:${created.id}`;
+      const field = document.querySelector(`[data-edit-key="${CSS.escape(key)}"]`);
       if (field) { field.focus(); field.select(); }
     }, 60);
     return created;
   } catch (err) {
-    setLocateStatus('Could not create the incident');
+    setLocateStatus(`Could not create the incident - ${err.message}`);
     return null;
   }
 }
@@ -2006,15 +2021,10 @@ async function dropPinHere() {
 
 async function editIncident(id, fields) {
   try {
-    const response = await fetch(`/api/${M.slug}/${M.token}/incidents/${id}`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({...fields, changed_by: state.operatorInitials}),
-    });
-    if (!response.ok) throw new Error(String(response.status));
+    await post(`incidents/${id}`, {...fields, changed_by: state.operatorInitials});
     return true;
   } catch (err) {
-    setLocateStatus('Could not save - check the connection');
+    setLocateStatus(`Could not save - ${err.message}`);
     return false;
   }
 }
@@ -2043,17 +2053,13 @@ async function deleteIncident(incident) {
     : `the pickup${incident.bib ? ` for bib ${incident.bib}` : ''}`;
   if (!confirm(`Delete ${what}?\n\nThis cannot be undone.`)) return;
   try {
-    const response = await fetch(
-      `/api/${M.slug}/${M.token}/incidents/${incident.id}/delete`,
-      { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}) });
-    if (!response.ok) throw new Error('refused');
+    await post(`incidents/${incident.id}/delete`, {});
     // Do not wait for the broadcast to come back round: on a flaky phone that
     // is the difference between the row going and the row appearing stuck.
     forgetIncident(incident.id);
     renderIncidents();
   } catch (err) {
-    setLocateStatus('Could not delete');
+    setLocateStatus(`Could not delete - ${err.message}`);
   }
 }
 
@@ -2109,8 +2115,7 @@ function renderPickups(pickups) {
   const list = sortPickups(pickups);
 
   // "Open" means somebody is still waiting: delivered and closed are done.
-  const live = list.filter(
-    (i) => i.status !== 'closed' && i.status !== 'dropped_off').length;
+  const live = list.filter((i) => !incidentDone(i)).length;
   document.getElementById('incident-count').textContent = live ? `(${live} waiting)` : '';
 
   // Nearest is only meaningful once the browser knows where we are, which
@@ -2378,14 +2383,69 @@ function setConnection(kind, text) {
   document.getElementById('conn-text').textContent = text;
 }
 
-async function loadState() {
-  const response = await fetch(`/api/${M.slug}/${M.token}/state`);
+/* The one POST for the field app. `path` is relative to this event's API
+   root. Resolves to the parsed response body; throws an Error whose message
+   is fit to show - the server's `detail` when it sent one, because that is
+   where "Staff is read-only." and "Unknown status" are written, and they
+   were being thrown away in favour of a bare status number. Nine copies of
+   this fetch existed with three different ideas of what a failure looked
+   like; write a tenth and the next 403 is silent again. */
+async function post(path, body) {
+  let response;
+  try {
+    response = await fetch(`/api/${M.slug}/${M.token}/${path}`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body || {}),
+    });
+  } catch (err) {
+    throw new Error('no connection');
+  }
+  let data = null;
+  try {
+    data = await response.json();
+  } catch (err) {
+    // A proxy error page is HTML, not JSON. The status is what we have.
+  }
   if (!response.ok) {
+    const detail = data && typeof data.detail === 'string' ? data.detail : '';
+    throw new Error(detail || `server error ${response.status}`);
+  }
+  return data;
+}
+
+/* Fetch and apply the snapshot. Returns true on success and NEVER throws:
+   the reconnect loop awaits this from a timer, and a phone still in a dead
+   zone when the timer fires is the normal case, not the exception. An
+   unhandled rejection here once ended reconnection for good, with the badge
+   reading "Connecting..." until someone reloaded the page by hand. */
+async function loadState() {
+  let response;
+  try {
+    response = await fetch(`/api/${M.slug}/${M.token}/state`);
+  } catch (err) {
+    // No network. The socket is closing or closed, and the reconnect loop
+    // owns recovery; the badge just has to say the picture is not current.
+    setConnection('down', 'Reconnecting…');
+    return false;
+  }
+  if (response.status === 403 || response.status === 404) {
+    // Only these mean the LINK is dead - revoked, or for another event.
+    // Everything else is the server (a 502 from Apache during a deploy
+    // restart, say) and reads as "ask for a new link" if it says this.
+    state.linkDead = true;
     setConnection('down', 'Access denied');
     document.getElementById('event-name').textContent = 'Not available';
     return false;
   }
-  const data = await response.json();
+  let data;
+  try {
+    if (!response.ok) throw new Error(String(response.status));
+    data = await response.json();
+  } catch (err) {
+    setConnection('down', 'Server unavailable - retrying');
+    return false;
+  }
   applyState(data);
   return true;
 }
@@ -2524,7 +2584,12 @@ function applyState(data) {
   state.positions.forEach((_, stationKey) => upsertStationMarker(stationKey));
 
   renderCourseToggles(data.courses);
-  if (firstLoad) renderLayerToggles();
+  // Every load, not just the first: every setup change publishes a resync
+  // precisely so a layer added or renamed on race morning reaches the
+  // field, and the pins redrew while the switch list kept the old names -
+  // or had no switch at all for the new layer. The viewer's own choices
+  // survive because the switches are built from state.layerPrefs.
+  renderLayerToggles();
   // Reporting, not managing: every role is somewhere an incident can happen,
   // so all four get the pin controls. What they cannot do is work the queue.
   document.getElementById('pin-actions').hidden = !can('incident_report');
@@ -2542,12 +2607,45 @@ function applyState(data) {
   if (firstLoad) fitToContent();
 }
 
+/* Subscribe FIRST, then fetch the snapshot. The server sends nothing on
+   open, so anything published between "snapshot served" and "subscription
+   registered" - seconds on a slow phone, and reconnects cluster on race
+   morning when statuses change every few seconds - was simply never seen.
+   Frames that arrive while the snapshot is in flight are held and replayed
+   after it applies: every message is a whole row, so applying one twice or
+   after a newer snapshot is harmless. */
 function connect() {
+  if (state.linkDead) return;
   const scheme = location.protocol === 'https:' ? 'wss' : 'ws';
-  const socket = new WebSocket(`${scheme}://${location.host}/ws/${M.slug}/${M.token}`);
+  let socket;
+  try {
+    socket = new WebSocket(`${scheme}://${location.host}/ws/${M.slug}/${M.token}`);
+  } catch (err) {
+    scheduleReconnect();
+    return;
+  }
   state.socket = socket;
+  // Raw frames held until the snapshot lands; null once it has.
+  let held = [];
+  let opened = false;
 
-  socket.addEventListener('open', () => {
+  socket.addEventListener('open', async () => {
+    opened = true;
+    const ok = await loadState();
+    // The socket may have dropped during the fetch; its close handler owns
+    // the retry then, and "Live" over a dead socket is the lie this badge
+    // exists to prevent.
+    if (socket.readyState !== WebSocket.OPEN) return;
+    if (!ok) {
+      // The server answered the socket but not the snapshot. Closing puts
+      // this through the same backoff as any other failure (unless the link
+      // is dead, in which case the close handler stops there).
+      socket.close();
+      return;
+    }
+    const replay = held;
+    held = null;
+    replay.forEach((data) => socket.dispatchEvent(new MessageEvent('message', { data })));
     state.reconnectDelay = 1000;
     state.lastMessageAt = Date.now();
     setConnection('live', 'Live');
@@ -2555,6 +2653,10 @@ function connect() {
 
   socket.addEventListener('message', (ev) => {
     state.lastMessageAt = Date.now();
+    if (held) {
+      held.push(ev.data);
+      return;
+    }
     let message;
     try {
       message = JSON.parse(ev.data);
@@ -2584,7 +2686,11 @@ function connect() {
       return;
     }
     if (message.type === 'station_status') {
-      const entry = state.roster.get(message.station_key);
+      // state.roster is keyed by the tracking key (see applyState), so a
+      // bound bare-callsign entry is NOT found under its roster key - and
+      // that miss was silent: every screen but the one that pressed the
+      // button kept the old status until an unrelated resync.
+      const entry = state.roster.get(message.tracking_key || message.station_key);
       if (entry) {
         entry.op_status = message.op_status;
         entry.op_status_at = message.op_status_at;
@@ -2606,7 +2712,15 @@ function connect() {
     }
   });
 
-  socket.addEventListener('close', () => {
+  socket.addEventListener('close', async () => {
+    // A socket that never opened looks the same from here whether the
+    // phone is in a dead zone or the link was revoked: the server refuses a
+    // bad token before the handshake completes, and the browser reports
+    // that as an opaque 1006. The snapshot can tell the two apart - 403/404
+    // marks the link dead, a network failure keeps retrying - so ask it
+    // once rather than retry a revoked link every 30 s all day.
+    if (!opened) await loadState();
+    if (state.linkDead) return;
     setConnection('down', 'Reconnecting…');
     scheduleReconnect();
   });
@@ -2614,13 +2728,17 @@ function connect() {
   socket.addEventListener('error', () => socket.close());
 }
 
+/* Always ends in another attempt. The snapshot is fetched once the socket is
+   open (see connect), so nothing in here can reject and strand the loop. */
 function scheduleReconnect() {
+  if (state.linkDead) return;
   const delay = Math.min(state.reconnectDelay, 30000);
-  setTimeout(async () => {
+  clearTimeout(state.reconnectTimer);
+  state.reconnectTimer = setTimeout(() => {
+    state.reconnectTimer = null;
     setConnection('connecting', 'Connecting…');
     // Full resync, not a replay: a phone back from a dead zone must not show a
     // stale picture as if it were current.
-    await loadState();
     connect();
   }, delay);
   state.reconnectDelay = Math.min(state.reconnectDelay * 2, 30000);
@@ -2818,7 +2936,13 @@ function setSheet(open) {
 }
 
 sheetToggle.addEventListener('click', () => setSheet(!sheet.classList.contains('open')));
-document.getElementById('sheet-grip').addEventListener('click', () => setSheet(false));
+// The grip is announced as a button (role, tabindex), so it has to answer
+// the keyboard the way the fold headings do, not only a tap.
+const sheetGrip = document.getElementById('sheet-grip');
+sheetGrip.addEventListener('click', () => setSheet(false));
+sheetGrip.addEventListener('keydown', (ev) => {
+  if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); setSheet(false); }
+});
 
 /* ---------- coming back ------------------------------------------------- */
 
@@ -2846,6 +2970,6 @@ document.addEventListener('visibilitychange', () => {
 
 /* ---------- go ---------------------------------------------------------- */
 
-(async () => {
-  if (await loadState()) connect();
-})();
+// The socket first; the snapshot follows on open. A transient failure on
+// first load used to leave a page that never connected at all.
+connect();

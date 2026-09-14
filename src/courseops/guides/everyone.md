@@ -39,7 +39,8 @@ thing that tells you whether what you are looking at is current.
 |---|---|
 | **Live** | Connected. Positions and reports arrive as they happen |
 | **Connecting...** | Trying |
-| **Reconnecting...** | The connection dropped. What is on screen may be minutes old |
+| **Reconnecting...** | The connection dropped. What is on screen may be minutes old. It retries on its own |
+| **Server unavailable - retrying** | The server is restarting or unreachable. Your link is fine; wait |
 | **Access denied** | The link has been revoked, or it is for a different event. Ask for a new one |
 
 The app checks the connection itself. If nothing has arrived for three
@@ -68,7 +69,9 @@ holding, the `?` goes to the page written for it.
   general station, **square is a sweep**, **diamond is SAG**. The two or three
   characters on the marker come from the station's name.
 - **A red square with a bib number** is a pickup - somebody waiting for a ride.
-  It changes colour as it is dispatched and delivered.
+  It changes colour as a vehicle is dispatched and the runner picked up, and
+  leaves the map once they are dropped off or the pickup is closed. The row
+  stays in the list.
 - **A round purple pin** is a course note: a cone in the road, a turn nobody is
   marshalling. Nobody is waiting at one. It is a different shape as well as a
   different colour, so the two never have to be told apart by colour alone.
