@@ -99,6 +99,33 @@ def test_revoked_token_stops_working(setup):
         assert client.get(f"/api/m2026/{tokens['ncs']}/state").status_code == 200
 
 
+def test_a_link_records_when_it_was_last_used_but_not_on_every_request(setup):
+    """last_used is shown on the Links tab so an officer can tell a link
+    that is in use from one that was never opened - minute resolution is
+    plenty. Writing it on EVERY request made each phone poll a writer
+    competing with the ingest loop for the one lock."""
+    app, tokens, db_path, event_id = setup
+    conn = db.connect(db_path)
+    seen = []
+    conn.set_trace_callback(seen.append)
+
+    first = access.resolve(conn, "m2026", tokens["ncs"])
+    again = access.resolve(conn, "m2026", tokens["ncs"])
+    assert first is not None and again is not None
+    writes = [s for s in seen if s.lstrip().upper().startswith("UPDATE")]
+    assert len(writes) == 1
+
+    # Once the stamp is old, the next request refreshes it.
+    conn.set_trace_callback(None)
+    conn.execute("UPDATE access_token SET last_used = '2020-01-01T00:00:00Z'"
+                 " WHERE token = ?", (tokens["ncs"],))
+    access.resolve(conn, "m2026", tokens["ncs"])
+    stamp = conn.execute("SELECT last_used FROM access_token WHERE token = ?",
+                         (tokens["ncs"],)).fetchone()["last_used"]
+    assert stamp > "2020-01-02"
+    conn.close()
+
+
 def test_roles_differ_on_write_permission(setup):
     app, tokens, _, _ = setup
     with TestClient(app) as client:

@@ -38,6 +38,14 @@ month, PATCH counting releases in that month from 0. Before that they were
   explicitly rather than relying on the backend's default.
 
 ### Changed
+- **Two small writes-on-read are gone.** A link's `last_used` was stamped
+  on every request - each phone poll a writer competing with the feed for
+  the one lock - and it is read by a human on the Links tab, where a
+  minute's resolution is plenty; it is refreshed only when a minute old.
+  The guides at `/help/` were globbed, read and rendered on every request
+  (the one unauthenticated endpoint anyone can hammer, and on the event
+  loop); they are read once per server run, since they ship in the
+  package and cannot change while it runs.
 - **A burst of setup saves reaches the field as one resync.** Save-all
   posts one request per changed row, and each published its own resync -
   which every phone answers with a full snapshot fetch and a map rebuild.
