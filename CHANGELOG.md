@@ -11,6 +11,8 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+## [2026.9.4] - 2026-09-14
+
 ### Added
 - **The guides are inside the app.** Every running copy serves them at
   `/help/` - one page per role, the basics, the four setup pages, with the
