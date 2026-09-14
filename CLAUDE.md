@@ -336,6 +336,18 @@ usability, not style preferences.
   order and toggling a line back on re-adds it on top, so `restackCourses()`
   runs after every draw and every toggle - forgetting it puts a course on
   top with no error.
+- **A write that touches more than one row goes inside `db.transaction`,
+  and nothing calls `conn.commit()`.** The connection is autocommit, so
+  each statement used to be its own transaction and `create_poi` INSERTed
+  the place before validating its What3Words address - a 400 left the
+  place behind it, and the corrected resubmit made two pins. `@db.transactional`
+  on the domain function (not the route) gives the CLI the same guarantee;
+  it nests, so a function that wraps itself can be called from one that
+  already has. `conn.commit()` is a no-op on a bare connection and an EARLY
+  commit inside a transaction block, which is why there is a test that no
+  source file contains it. Parse a file BEFORE opening the transaction:
+  `BEGIN IMMEDIATE` holds the write lock, and the ingest task is writing
+  positions on its own connection meanwhile.
 - **Adding a schema column requires a migration entry.** `CREATE TABLE IF NOT
   EXISTS` skips existing tables, so a new column never reaches an existing
   database. Add it to `_ADDED_COLUMNS` in `db.py` as well as `schema.sql`.

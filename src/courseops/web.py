@@ -907,7 +907,6 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         try:
             count = _guard(
                 admin.reorder_courses, conn, event_id, body.get("course_ids") or [])
-            conn.commit()
         finally:
             conn.close()
         return JSONResponse({"ordered": count})
@@ -955,7 +954,6 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         body = await _json_body(request, conn)
         try:
             row = _guard(admin.create_poi, conn, event_id, body)
-            conn.commit()
         finally:
             conn.close()
         return JSONResponse(row, status_code=201)
@@ -967,7 +965,6 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         try:
             count = _guard(
                 admin.reorder_pois, conn, event_id, body.get("poi_ids") or [])
-            conn.commit()
         finally:
             conn.close()
         return JSONResponse({"ordered": count})
@@ -981,7 +978,6 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
                 admin.move_pois, conn, event_id,
                 body.get("poi_ids") or [], (body.get("poi_type") or "").strip(),
             )
-            conn.commit()
         finally:
             conn.close()
         return JSONResponse({"moved": moved})
@@ -1123,7 +1119,6 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
                     detail=" ".join(
                         state["callsign_problem"].split()))
             db.set_ingest_enabled(conn, slug, wanted)
-            conn.commit()
         finally:
             conn.close()
 
@@ -1176,7 +1171,6 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
                 body.get("name", ""), bool(body.get("staffed")),
                 body.get("icon") or "pin", body.get("color"),
             )
-            conn.commit()
         finally:
             conn.close()
         return JSONResponse(dict(row), status_code=201)
@@ -1192,7 +1186,6 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
             count = _guard(
                 categories.reorder_poi_categories, conn, event_id,
                 body.get("keys") or [])
-            conn.commit()
         finally:
             conn.close()
         return JSONResponse({"ordered": count})
@@ -1207,7 +1200,6 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
             row = _guard(
                 categories.update_poi_category, conn, event_id, key, body
             )
-            conn.commit()
         finally:
             conn.close()
         return JSONResponse(dict(row))
@@ -1219,7 +1211,6 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         conn, user = require_event_admin(request, event_id)
         try:
             in_use = _guard(categories.delete_poi_category, conn, event_id, key)
-            conn.commit()
         finally:
             conn.close()
         if in_use:
@@ -1239,7 +1230,6 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         try:
             row = _guard(categories.add_roster_role, conn, event_id,
                          body.get("name") or "")
-            conn.commit()
         finally:
             conn.close()
         return JSONResponse(dict(row), status_code=201)
@@ -1252,7 +1242,6 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         conn, user = require_event_admin(request, event_id)
         try:
             in_use = _guard(categories.delete_roster_role, conn, event_id, key)
-            conn.commit()
         finally:
             conn.close()
         if in_use:
@@ -1275,7 +1264,6 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
                 categories.rename_roster_role, conn, event_id, key,
                 body.get("name", ""),
             )
-            conn.commit()
         finally:
             conn.close()
         return JSONResponse(dict(row))
@@ -1290,7 +1278,6 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         try:
             row = _guard(categories.add_lead_division, conn, event_id,
                          body.get("name") or "")
-            conn.commit()
         finally:
             conn.close()
         return JSONResponse(dict(row), status_code=201)
@@ -1306,7 +1293,6 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         try:
             count = _guard(categories.reorder_lead_divisions, conn, event_id,
                            body.get("keys") or [])
-            conn.commit()
         finally:
             conn.close()
         return JSONResponse({"ordered": count})
@@ -1318,7 +1304,6 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         conn, user = require_event_admin(request, event_id)
         try:
             in_use = _guard(categories.delete_lead_division, conn, event_id, key)
-            conn.commit()
         finally:
             conn.close()
         if in_use:
@@ -1339,7 +1324,6 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         try:
             row = _guard(categories.rename_lead_division, conn, event_id, key,
                          body.get("name", ""))
-            conn.commit()
         finally:
             conn.close()
         return JSONResponse(dict(row))
@@ -1543,11 +1527,12 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         # behind the error.
         org = _int(organization_id, "organization") if organization_id else None
         event_ids = _event_ids(conn, body.get("event_ids", []), org)
-        created = users.create_user(
-            conn, body.get("username", ""), body.get("password", ""), role,
-            body.get("display_name"), org,
-        )
-        users.set_events(conn, created.id, event_ids)
+        with db.transaction(conn):
+            created = users.create_user(
+                conn, body.get("username", ""), body.get("password", ""), role,
+                body.get("display_name"), org,
+            )
+            users.set_events(conn, created.id, event_ids)
         return created
 
     def _event_ids(conn, values, organization_id) -> list[int]:

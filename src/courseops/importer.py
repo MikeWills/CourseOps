@@ -22,7 +22,7 @@ import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import categories, geo, kml, styling
+from . import categories, db, geo, kml, styling
 from .geo import LonLat
 
 
@@ -112,6 +112,9 @@ def stage_file(
 ) -> ImportSummary:
     """Parse a KML/KMZ/GPX and stage its features for review. Raises kml.KmlError."""
     file_path = Path(path)
+    # Parsed before the transaction opens: the write lock must not be held
+    # for however long a large organizer file takes to read, because the
+    # ingest task is writing positions on its own connection meanwhile.
     features = kml.load(file_path)
     if zipfile.is_zipfile(file_path):
         source_kind = "kmz"
@@ -120,6 +123,15 @@ def stage_file(
     else:
         source_kind = "kml"
 
+    with db.transaction(conn):
+        return _stage_features(conn, event_id, file_path, source_kind, features)
+
+
+def _stage_features(
+    conn: sqlite3.Connection, event_id: int, file_path: Path,
+    source_kind: str, features: list,
+) -> ImportSummary:
+    """The batch, its layers and its features, as one unit."""
     cur = conn.execute(
         "INSERT INTO import_batch (event_id, filename, source_kind) VALUES (?, ?, ?)",
         (event_id, file_path.name, source_kind),
@@ -263,6 +275,7 @@ def set_course_style(
     return conn.execute("SELECT * FROM course WHERE id = ?", (course_id,)).fetchone()
 
 
+@db.transactional
 def assign_course(
     conn: sqlite3.Connection,
     event_id: int,
@@ -343,6 +356,7 @@ def assign_course(
     return course_id, distance_m, warnings
 
 
+@db.transactional
 def assign_poi(
     conn: sqlite3.Connection,
     event_id: int,
@@ -394,6 +408,7 @@ def assign_poi(
     return poi_id
 
 
+@db.transactional
 def discard(conn: sqlite3.Connection, event_id: int, feature_ids: list[int]) -> int:
     """Take staged features out of review. Refuses any id not in this event.
 

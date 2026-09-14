@@ -11,6 +11,26 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Fixed
+- **A refused setup change could leave half of itself behind.** The
+  connection is autocommit, so every statement was its own transaction and
+  the eighteen `conn.commit()` calls in the routes were no-ops that read as
+  if the statements before them were one unit. `create_poi` INSERTed the
+  place and THEN validated its What3Words address, so a 400 left a place
+  behind it and the officer who corrected the address and submitted again
+  had two "Water Stop C" pins; a roster edit's rename survived a bad
+  posting; a course assignment or a reorder could stop half way and look
+  as if it had worked. `db.transaction` (`BEGIN IMMEDIATE` / `COMMIT` /
+  `ROLLBACK`) now wraps every write that touches more than one row -
+  creating an event with its seeds and links, staging a file, assigning
+  features, creating and editing a place, saving a roster entry, renaming a
+  station with its status log, setting a status with its log row, every
+  reorder, creating an administrator with their events - so a 4xx means
+  nothing landed. The decorative commits are gone and a test keeps them
+  gone: inside a real transaction they would have committed early. A file
+  is parsed before its transaction opens, so the write lock is never held
+  while a large organizer file is read. (Audit 2026-09-14, B6.)
+
 ### Changed
 - **One reorder routine.** Places, courses, layers and leaders each had a
   textually identical loop - four places to fix the next ordering bug.

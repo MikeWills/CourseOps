@@ -106,6 +106,7 @@ def _zoom(value: object) -> int:
     return zoom
 
 
+@db.transactional
 def create_event(conn: sqlite3.Connection, payload: dict,
                  organization_id: int | None = None) -> dict[str, Any]:
     slug = (_text(payload, "slug") or "").lower()
@@ -209,6 +210,7 @@ def staged_features(conn: sqlite3.Connection, event_id: int) -> list[dict]:
     return out
 
 
+@db.transactional
 def assign_features(conn: sqlite3.Connection, event_id: int, payload: dict) -> dict:
     kind = _text(payload, "kind") or ""
     ids = _ids(payload.get("ids", []), "features")
@@ -252,6 +254,7 @@ def list_courses(conn: sqlite3.Connection, event_id: int) -> list[dict]:
     return [_row(row) for row in importer.courses_for_event(conn, event_id)]
 
 
+@db.transactional
 def update_course(conn: sqlite3.Connection, event_id: int, course_id: int,
                   payload: dict) -> dict:
     if "bib_color" in payload or "bib_color_name" in payload:
@@ -386,6 +389,7 @@ def _coordinate(value, axis: str) -> float:
     return number
 
 
+@db.transactional
 def create_poi(conn: sqlite3.Connection, event_id: int, payload: dict) -> dict:
     """Put a place on the map by hand.
 
@@ -431,6 +435,7 @@ def create_poi(conn: sqlite3.Connection, event_id: int, payload: dict) -> dict:
         "SELECT * FROM poi WHERE id = ?", (poi_id,)).fetchone())
 
 
+@db.transactional
 def update_poi(conn: sqlite3.Connection, event_id: int, poi_id: int,
                payload: dict) -> dict:
     # Checked first, not left to the UPDATE's rowcount: a payload carrying
@@ -664,6 +669,7 @@ def list_roster(conn: sqlite3.Connection, event_id: int) -> list[dict]:
     return out
 
 
+@db.transactional
 def save_roster_entry(conn: sqlite3.Connection, event_id: int, payload: dict) -> dict:
     station_key = (_text(payload, "station_key") or "").upper()
     label = _text(payload, "display_label", 80) or ""

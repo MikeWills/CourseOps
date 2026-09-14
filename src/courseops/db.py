@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import contextlib
+import functools
 import sqlite3
 from pathlib import Path
+from typing import Iterator
 
 from . import resources
 from .parser import PositionReport
@@ -35,12 +38,58 @@ def clean_text(value: object, limit: int | None = None) -> str | None:
 def connect(db_path: str | Path) -> sqlite3.Connection:
     path = Path(db_path)
     path.parent.mkdir(parents=True, exist_ok=True)
+    # Autocommit: each statement is its own transaction unless wrapped in
+    # `transaction()` below. This means a commit() call is a no-op on a bare
+    # connection and an EARLY commit inside a `transaction()` block - so
+    # nothing calls it; there is a test asserting that.
     conn = sqlite3.connect(path, isolation_level=None)  # autocommit
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode = WAL")
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute("PRAGMA busy_timeout = 5000")
     return conn
+
+
+@contextlib.contextmanager
+def transaction(conn: sqlite3.Connection) -> Iterator[None]:
+    """Make a multi-statement mutation one unit: all of it, or none of it.
+
+    A place used to be INSERTed and then have its What3Words address
+    validated, so a 400 left the place behind it and the officer who fixed
+    the address and submitted again had two "Water Stop C" pins. Every
+    write that touches more than one row goes inside this, and a 4xx then
+    means nothing landed.
+
+    BEGIN IMMEDIATE takes the write lock at the start rather than on the
+    first write, so two writers - the ingest task and a request, during an
+    event - queue on `busy_timeout` instead of one of them failing half way
+    with SQLITE_BUSY. Nestable: an inner block joins the outer one rather
+    than committing early, which lets `assign_features` wrap several
+    `assign_poi` calls that each wrap themselves for the CLI's sake.
+    """
+    if conn.in_transaction:
+        yield
+        return
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        yield
+    except BaseException:
+        conn.execute("ROLLBACK")
+        raise
+    else:
+        conn.execute("COMMIT")
+
+
+def transactional(fn):
+    """`transaction()` as a decorator, for a function whose first argument
+    is the connection. Every domain function that writes more than one row
+    carries this, so the CLI and the setup routes get the same guarantee
+    without each route wrapping the call."""
+    @functools.wraps(fn)
+    def wrapper(conn: sqlite3.Connection, *args, **kwargs):
+        with transaction(conn):
+            return fn(conn, *args, **kwargs)
+    return wrapper
 
 
 # Columns added after a database may already exist in the wild. `CREATE TABLE
@@ -189,19 +238,21 @@ def _adopt_orphan_events(conn: sqlite3.Connection) -> None:
 def create_event(conn: sqlite3.Connection, slug: str, name: str, **fields) -> int:
     columns = ["slug", "name", *fields]
     placeholders = ", ".join("?" for _ in columns)
-    cur = conn.execute(
-        f"INSERT INTO event ({', '.join(columns)}) VALUES ({placeholders})",
-        [slug, name, *fields.values()],
-    )
-    event_id = int(cur.lastrowid)
+    with transaction(conn):
+        cur = conn.execute(
+            f"INSERT INTO event ({', '.join(columns)}) VALUES ({placeholders})",
+            [slug, name, *fields.values()],
+        )
+        event_id = int(cur.lastrowid)
 
-    # A new event starts with the usual layers and role names, which the club
-    # then edits. Seeded here rather than lazily because everything that joins
-    # a place to its layer assumes the layer exists.
-    from . import categories
+        # A new event starts with the usual layers and role names, which the
+        # club then edits. Seeded here rather than lazily because everything
+        # that joins a place to its layer assumes the layer exists - and in
+        # the same transaction, so an event never exists without them.
+        from . import categories
 
-    categories.seed_poi_categories(conn, event_id)
-    categories.seed_roster_roles(conn, event_id)
+        categories.seed_poi_categories(conn, event_id)
+        categories.seed_roster_roles(conn, event_id)
     return event_id
 
 
@@ -264,11 +315,13 @@ def reorder(
         raise ValueError("Every entry in the event must be listed, once.")
 
     ordered = list(reversed(wanted)) if top_first else wanted
-    conn.executemany(
-        f"UPDATE {table} SET sort_order = ? WHERE {key_column} = ? AND event_id = ?",
-        [(position * 10, key, event_id)
-         for position, key in enumerate(ordered, start=1)],
-    )
+    with transaction(conn):
+        conn.executemany(
+            f"UPDATE {table} SET sort_order = ?"
+            f" WHERE {key_column} = ? AND event_id = ?",
+            [(position * 10, key, event_id)
+             for position, key in enumerate(ordered, start=1)],
+        )
     return len(wanted)
 
 
@@ -548,33 +601,38 @@ def set_op_status(
 
     # Read the outgoing value first: the roster row is about to be overwritten,
     # and the transition is the useful part at handover.
-    previous = conn.execute(
-        "SELECT op_status FROM roster WHERE event_id = ? AND station_key = ?",
-        (event_id, station_key.upper()),
-    ).fetchone()
+    # One unit: the read of the previous status, the overwrite and the log
+    # row. Two NCS screens setting the same station at once must not both
+    # log the same "from" status, and a crash between the UPDATE and the
+    # INSERT must not lose the history that cannot be rebuilt later.
+    with transaction(conn):
+        previous = conn.execute(
+            "SELECT op_status FROM roster WHERE event_id = ? AND station_key = ?",
+            (event_id, station_key.upper()),
+        ).fetchone()
 
-    cur = conn.execute(
-        """
-        UPDATE roster
-           SET op_status = ?,
-               op_status_at = strftime('%Y-%m-%dT%H:%M:%SZ','now'),
-               op_status_by = ?
-         WHERE event_id = ? AND station_key = ?
-        """,
-        (op_status, changed_by, event_id, station_key.upper()),
-    )
-    if cur.rowcount == 0:
-        raise ValueError(f"{station_key} is not on this event's roster.")
+        cur = conn.execute(
+            """
+            UPDATE roster
+               SET op_status = ?,
+                   op_status_at = strftime('%Y-%m-%dT%H:%M:%SZ','now'),
+                   op_status_by = ?
+             WHERE event_id = ? AND station_key = ?
+            """,
+            (op_status, changed_by, event_id, station_key.upper()),
+        )
+        if cur.rowcount == 0:
+            raise ValueError(f"{station_key} is not on this event's roster.")
 
-    # Appended, never overwritten. This history cannot be reconstructed later,
-    # so it has to be captured as it happens.
-    conn.execute(
-        "INSERT INTO roster_status_log"
-        " (event_id, station_key, by, from_status, to_status)"
-        " VALUES (?, ?, ?, ?, ?)",
-        (event_id, station_key.upper(), changed_by,
-         previous["op_status"] if previous else None, op_status),
-    )
+        # Appended, never overwritten. This history cannot be reconstructed
+        # later, so it has to be captured as it happens.
+        conn.execute(
+            "INSERT INTO roster_status_log"
+            " (event_id, station_key, by, from_status, to_status)"
+            " VALUES (?, ?, ?, ?, ?)",
+            (event_id, station_key.upper(), changed_by,
+             previous["op_status"] if previous else None, op_status),
+        )
     return conn.execute(
         "SELECT * FROM roster WHERE event_id = ? AND station_key = ?",
         (event_id, station_key.upper()),
@@ -814,21 +872,24 @@ def rename_station_key(
         raise ValueError(f"{new_key} already belongs to {taken['station_key']}.")
 
     bound = None if row["bound_key"] == new_key else row["bound_key"]
-    conn.execute(
-        "UPDATE roster SET station_key = ?, bound_key = ?"
-        " WHERE event_id = ? AND station_key = ?",
-        (new_key, bound, event_id, old_key),
-    )
-    # The history is keyed by station_key text with no foreign key, so it
-    # does not follow on its own. Left behind, the per-station log that a
-    # shift handover reads came back empty for a station corrected
-    # mid-event - the rows were there, under a key nothing asked for.
-    # This is a rename, not a rebinding, so moving the history is right.
-    conn.execute(
-        "UPDATE roster_status_log SET station_key = ?"
-        " WHERE event_id = ? AND station_key = ?",
-        (new_key, event_id, old_key),
-    )
+    with transaction(conn):
+        conn.execute(
+            "UPDATE roster SET station_key = ?, bound_key = ?"
+            " WHERE event_id = ? AND station_key = ?",
+            (new_key, bound, event_id, old_key),
+        )
+        # The history is keyed by station_key text with no foreign key, so
+        # it does not follow on its own. Left behind, the per-station log
+        # that a shift handover reads came back empty for a station
+        # corrected mid-event - the rows were there, under a key nothing
+        # asked for. This is a rename, not a rebinding, so moving the
+        # history is right - and in the same transaction, or a crash between
+        # the two leaves the log orphaned.
+        conn.execute(
+            "UPDATE roster_status_log SET station_key = ?"
+            " WHERE event_id = ? AND station_key = ?",
+            (new_key, event_id, old_key),
+        )
     return conn.execute(
         "SELECT * FROM roster WHERE event_id = ? AND station_key = ?",
         (event_id, new_key),
