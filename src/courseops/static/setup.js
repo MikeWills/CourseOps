@@ -379,8 +379,17 @@ function bindReorder(tableEl, persist) {
   // layers. The caller knows which.
   const order = () => [...tableEl.querySelectorAll('tbody tr[data-row]')]
     .map((tr) => tr.dataset.row);
-  const save = () => { const ids = order(); if (ids.length) persist(ids); };
-  let dragRow = null;
+
+  /* The container outlives every render - its innerHTML is replaced, the
+     element is not - so listeners put on it accumulate: after twenty saves
+     on the Places tab one drag ran twenty dragend handlers, each posting the
+     order and each broadcasting a resync to every phone in the field. The
+     container-level listeners are registered once and read the CURRENT
+     render's `persist` from here; only the per-row grip handlers are fresh
+     each time, because the rows are. */
+  const live = tableEl._reorder || (tableEl._reorder = { dragRow: null, bound: false });
+  live.persist = persist;
+  const save = () => { const ids = order(); if (ids.length) live.persist(ids); };
 
   tableEl.querySelectorAll('[data-grip]').forEach((grip) => {
     const row = grip.closest('tr');
@@ -403,24 +412,26 @@ function bindReorder(tableEl, persist) {
     });
   });
 
+  if (live.bound) return;
+  live.bound = true;
   tableEl.addEventListener('dragstart', (ev) => {
-    dragRow = ev.target.closest('tr[data-row]');
-    if (dragRow) dragRow.classList.add('is-dragging');
+    live.dragRow = ev.target.closest('tr[data-row]');
+    if (live.dragRow) live.dragRow.classList.add('is-dragging');
   });
   tableEl.addEventListener('dragover', (ev) => {
-    if (!dragRow) return;
+    if (!live.dragRow) return;
     ev.preventDefault();
     const over = ev.target.closest('tr[data-row]');
-    if (!over || over === dragRow) return;
+    if (!over || over === live.dragRow) return;
     const box = over.getBoundingClientRect();
     const after = (ev.clientY - box.top) > box.height / 2;
-    over.parentNode.insertBefore(dragRow, after ? over.nextSibling : over);
+    over.parentNode.insertBefore(live.dragRow, after ? over.nextSibling : over);
   });
   tableEl.addEventListener('dragend', () => {
-    if (!dragRow) return;
-    dragRow.classList.remove('is-dragging');
-    dragRow.draggable = false;
-    dragRow = null;
+    if (!live.dragRow) return;
+    live.dragRow.classList.remove('is-dragging');
+    live.dragRow.draggable = false;
+    live.dragRow = null;
     save();
   });
 }
@@ -1536,8 +1547,16 @@ function bindSaveAll({ table, button, status, fields, save, noun, reload }) {
     if (status) $(status).textContent = count ? 'unsaved' : '';
   }
 
-  root.addEventListener('input', refresh);
-  root.addEventListener('change', refresh);
+  // Once per container, for the same reason as bindReorder: the element
+  // survives every re-render, and a listener per render meant every
+  // keystroke in a 78-row table ran one full-table diff per save so far.
+  const live = root._saveAll || (root._saveAll = { bound: false });
+  live.refresh = refresh;
+  if (!live.bound) {
+    live.bound = true;
+    root.addEventListener('input', () => live.refresh());
+    root.addEventListener('change', () => live.refresh());
+  }
 
   btn.onclick = async () => {
     const changed = dirty();

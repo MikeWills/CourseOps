@@ -23,6 +23,16 @@ month, PATCH counting releases in that month from 0. Before that they were
   setting. `setup-courses.png` shows the old per-row button.
 
 ### Fixed
+- **Every re-render of a setup table stacked another set of listeners on
+  it.** The drag-to-reorder and save-all handlers listen on the table's
+  container, whose contents are replaced on every load while the element
+  itself persists, and nothing removed the previous set. After twenty saves
+  on the Places tab one drag posted the order twenty times and broadcast
+  twenty resyncs to every phone in the field, and every keystroke in a
+  78-row table ran twenty full-table diffs. Nothing visible until the tab
+  had been used for a while, which is race week. The container-level
+  listeners are registered once per table now and read the current
+  render's state.
 - **Seven setup actions failed silently when the server refused them.**
   Delete a course, delete a place, remove a roster entry, issue another
   link, save a link's label, revoke a link and replace a role's links all

@@ -108,6 +108,24 @@ def test_the_courses_table_saves_as_a_unit():
     assert 'id="course-save-all"' in html and 'id="course-dirty"' in html
 
 
+def test_container_listeners_are_bound_once_per_table():
+    """bindReorder and bindSaveAll listen on the table CONTAINER, whose
+    innerHTML is replaced on every load while the element itself persists.
+    Nothing removed the previous listeners, so after twenty saves on Places
+    one drag posted the order twenty times and broadcast twenty resyncs to
+    every phone in the field, and every keystroke ran twenty full-table
+    diffs. Invisible until the tab has been used for a while - race week."""
+    reorder = _block("function bindReorder(", "/* ---------- organizations")
+    assert "if (live.bound) return;" in reorder
+    # Every container-level listener sits after the guard.
+    guard = reorder.index("if (live.bound) return;")
+    assert "tableEl.addEventListener" not in reorder[:guard]
+    assert reorder.count("tableEl.addEventListener") == 3
+    save_all = _block("function bindSaveAll(", "/* Layers and roles share")
+    assert "root.addEventListener('input', () => live.refresh());" in save_all
+    assert "if (!live.bound) {" in save_all
+
+
 def test_the_upload_parses_the_body_before_trusting_it_is_json():
     """A 413 from Apache or a 502 from the proxy is an HTML page, and
     parsing it before checking the status showed "Unexpected token '<'"
