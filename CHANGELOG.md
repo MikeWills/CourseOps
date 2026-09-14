@@ -150,6 +150,81 @@ month, PATCH counting releases in that month from 0. Before that they were
   event-scoped UPDATE, so it wrote race assignments for - and returned the
   name and coordinates of - a place in any event. It checks the place is in
   the event before doing anything.
+- **A feed that could not start took the whole server down, and the
+  persisted switch restarted it into the same crash.** `run_ingest` signalled
+  "no callsign", "no such event" and "nothing to listen for" with
+  `SystemExit`, which asyncio re-raises out of a task and out of the event
+  loop itself; the supervisor caught only `Exception`. An officer who flipped
+  Tracking on before importing the course - or a deploy whose `.env` had
+  lost its callsign while an event was flagged on - ended every role page
+  at once, and systemd restarted the service into the identical exit until
+  someone edited the database by hand. The feed now raises an ordinary
+  `IngestError` (`require_callsign` a `ConfigError`); only `cli.py` turns
+  either into an exit code. The supervisor records any `BaseException` but
+  its own cancellation. The tracking switch refuses an event with no station
+  expected to beacon, no course and no extra filter the same way it already
+  refused a missing callsign, and persists the flag only AFTER the feed got
+  as far as connecting - a feed that dies on its first step leaves the
+  switch off with the reason on the tab. An event flagged on that cannot
+  start at boot now comes up as "Tracking on - but not connected" with the
+  reason, and the site stays up. (Audit 2026-09-14, A1.)
+- **Ignore did not reach the feed until a stranger happened to beacon, and
+  the first packet after a match was thrown away.** The ingest loop re-read
+  who the roster knows only after a packet from an UNKNOWN station. An
+  ignored SSID under a rostered callsign - the operator's own digipeater,
+  the usual case - is never unknown, so its beacons kept being stored and
+  pushed to every screen until some unrelated station was heard; on a quiet
+  band that could be most of a morning, and an igate that reappears at the
+  operator's house after every Ignore teaches NCS the button does not work.
+  The same ordering meant the packet that revealed a station had been
+  matched was dropped before the re-read showed it was wanted, one beacon
+  interval late. Membership is now re-read (rate-limited as before) before
+  each packet is judged, so both take effect on the next packet. (Audit
+  2026-09-14, A2.)
+- **Two events could both be switched on, and deleting an event left its
+  feed running.** Turning tracking on for one event stopped any other feed
+  but left the other event's persisted switch at "on": its tab read
+  "Tracking on - but not connected" with an empty reason, and the next boot
+  found two flagged events, started the lower id and then cancelled it for
+  the higher - so after a deploy the live event's feed could be the one
+  that lost. Deleting an event never stopped its feed at all: the wildcard
+  filter on its volunteers' callsigns ran on until the next restart, and
+  re-creating the slug found a feed "already running" bound to the dead
+  event id. Displacing a feed now turns its switch off and leaves the
+  reason on its tab ("Tracking was turned on for <event>"); a boot with
+  several flagged starts one - the slug on the command line, else the
+  newest - and switches the rest off the same way; deleting an event or an
+  organization stops the feeds it owned and drops their nearby lists.
+  (Audit 2026-09-14, A3.)
+- **The feed wrote the public's packets to disk after all.** Every line
+  that failed to parse or carried no position - a status, a message,
+  telemetry - was logged raw to `raw_packet` BEFORE the roster check. With
+  the area filter on, that was every ham near the course, verbatim, in a
+  database that is backed up nightly and can be handed to an organizer,
+  against the rule the area filter was accepted under: seen in memory,
+  never stored. The table was also write-only and unbounded, and every
+  stored position was written to it a second time beside `position.raw`.
+  Nothing writes it now; the definition stays in `schema.sql`, marked
+  retired, so an existing database is untouched. (Audit 2026-09-14, A4.)
+- **The "Needs attention" list could describe a symbol no packet sent.**
+  `unexpected_ssids` took `MAX(symbol_table)` and `MAX(symbol_code)` as two
+  separate aggregates, so a station that beaconed `/#` and then `\&` was
+  reported as `\#` - a table from one packet with a code from another. The
+  table character changes what the code means, and that description is
+  what tells NCS whether an SSID is a person to adopt or an igate to
+  dismiss. Both now come from the station's newest packet. (Audit
+  2026-09-14, A6.)
+
+### Changed
+- Two per-packet costs on the ingest loop are gone. `bind_heard_ssid` ran
+  its two lookups for every stored packet, including ones whose key the
+  roster names outright and which can therefore never bind; it is skipped
+  for those. And `position` socket messages carried `label` and `category`
+  from a roster read once when the feed started - nothing on the client read
+  them (it joins by key, from the snapshot), and had anything started to it
+  would have shown the roster as it was hours before. `position_message`
+  and `make_position_handler` lose the roster argument. (Audit 2026-09-14,
+  A5.)
 
 ## [2026.9.4] - 2026-09-14
 

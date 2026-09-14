@@ -28,6 +28,17 @@ nothing will ever arrive**, however healthy everything else on the screen looks 
 which is the failure that is hardest to spot on race morning, because a quiet
 feed and a quiet net look identical.
 
+For that reason the switch refuses to turn on while there is nothing to listen
+for - no station expected to beacon and no course imported - and says so. Add
+the people or the course first, then come back. If the feed cannot connect for
+some other reason, the switch stays off and the tab reads *Last attempt
+stopped:* with the reason.
+
+There is one APRS-IS connection for the whole server, so turning tracking on
+for one event turns it off for any other - a rehearsal event left on, say. The
+other event's tab says which event took the connection. Deleting an event
+stops its feed.
+
 ## A check-in rehearsal is worth an hour
 
 Turn tracking on a week out and ask everyone who will beacon to do so. What it

@@ -34,8 +34,7 @@ def _handler(tmp_path, hub, known):
     db.init_schema(conn)
     event_id = db.create_event(conn, "e", "Event")
     index = progress.CourseIndex.for_event(conn, event_id)
-    roster_by_key = {"N0CALL-7": {"display_label": "Sweep", "category": "sweep"}}
-    return web.make_position_handler(hub, roster_by_key, known, index), event_id
+    return web.make_position_handler(hub, known, index), event_id
 
 
 def _types(hub):

@@ -9,7 +9,7 @@ import sys
 
 from . import (access, aprsis, categories, db, discovery, importer, kml,
                leaders, styling, units, users, what3words)
-from .config import Settings, load_dotenv
+from .config import ConfigError, Settings, load_dotenv
 
 # Station roles are a fixed set - each carries its own status wording - so the
 # CLI can still offer them as choices. Their *names* are per event and edited in
@@ -93,7 +93,7 @@ def cmd_roster(args: argparse.Namespace) -> int:
 
 
 def cmd_ingest(args: argparse.Namespace) -> int:
-    from .ingest import run_ingest
+    from .ingest import IngestError, run_ingest
 
     settings = _settings()
     logging.basicConfig(
@@ -104,6 +104,13 @@ def cmd_ingest(args: argparse.Namespace) -> int:
         asyncio.run(run_ingest(settings, args.event, max_packets=args.max_packets))
     except KeyboardInterrupt:
         print("\nStopped.")
+    except IngestError as exc:
+        # The feed says why it cannot run with an ordinary exception, because
+        # the same function runs inside the web server, where a SystemExit
+        # would take the whole site down. Here, at the terminal, an exit code
+        # and the message are the right shape - so this is the one place
+        # that translation happens.
+        raise SystemExit(str(exc)) from exc
     return 0
 
 
@@ -158,6 +165,10 @@ def cmd_check_in(args: argparse.Namespace) -> int:
     except KeyboardInterrupt:
         print("\nStopped early.")
         return 1
+    except ConfigError as exc:
+        # require_callsign raises an ordinary error (see config.ConfigError);
+        # the terminal is where it becomes an exit code.
+        raise SystemExit(str(exc)) from exc
 
     def line_for(entry):
         where = (f"{entry.last_lat:.4f},{entry.last_lon:.4f}"

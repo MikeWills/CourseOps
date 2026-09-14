@@ -75,15 +75,11 @@ def test_position_message_keeps_metric_units_on_the_wire():
     assert "speed_mph" not in message
 
 
-def test_position_message_carries_roster_label_when_known():
-    report = parse_packet(PACKET)
-    roster_row = {"display_label": "Half-back", "category": "sweep"}
-    message = position_message(report, roster_row)
-    assert message["label"] == "Half-back"
-    assert message["category"] == "sweep"
-
-
-def test_position_message_without_roster_omits_label():
-    """A station can report before the roster is filled in."""
+def test_position_message_carries_no_roster_fields():
+    """The client joins a position to the roster by key, from the snapshot.
+    The message used to carry `label`/`category` from a roster read once at
+    feed start - nothing read them, and had anything started to, it would
+    have shown the roster as it was hours ago."""
     message = position_message(parse_packet(PACKET))
     assert "label" not in message
+    assert "category" not in message

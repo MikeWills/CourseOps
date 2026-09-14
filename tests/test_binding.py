@@ -98,6 +98,27 @@ def test_binding_happens_once_and_does_not_flip(tmp_path):
     assert _roster_row(conn, event_id, "K0JZP")["bound_key"] == "K0JZP-9"
 
 
+def test_an_exact_roster_match_does_not_go_looking_for_a_bind(tmp_path, monkeypatch):
+    """A key the roster names outright can never bind - the lookup is two
+    SELECTs per packet on the loop the feed blocks on, for nothing."""
+    conn, event_id = _event(tmp_path, "K0JZP-9")
+    calls = []
+    real = db.bind_heard_ssid
+
+    def counted(*args, **kwargs):
+        calls.append(args[2])
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(db, "bind_heard_ssid", counted)
+    _feed(conn, event_id, _packet("K0JZP-9"))
+    assert calls == []
+    # ...while an SSID of a bare entry still gets the chance to bind.
+    db.upsert_roster_entry(conn, event_id, "N0PBA", "Aid 4", "aid_station")
+    _feed(conn, event_id, _packet("N0PBA-7"))
+    assert calls == ["N0PBA-7"]
+    assert _roster_row(conn, event_id, "N0PBA")["bound_key"] == "N0PBA-7"
+
+
 def test_an_ssid_already_on_the_roster_is_not_stolen(tmp_path):
     """Two entries under one callsign: a bare one, and an explicit -5 that
     belongs to someone else's assignment. -5 must stay where it was put."""
@@ -174,6 +195,28 @@ def test_an_unbound_extra_ssid_is_still_reported(tmp_path):
 
     heard = {row["station_key"] for row in db.unexpected_ssids(conn, event_id)}
     assert heard == {"K0JZP-5"}
+
+
+def test_an_unexpected_ssid_reports_the_symbol_pair_from_its_newest_packet(tmp_path):
+    """Symbol table and code travel as a pair: the table character changes
+    what the code means. Aggregating the two columns separately (MAX of
+    each) once paired a table from one packet with a code from another and
+    described a symbol no packet carried - and that description is what
+    tells NCS whether to adopt or dismiss the station."""
+    conn, event_id = _event(tmp_path, "K0JZP-9")
+    # Same station, two symbols: first '\\#' (alternate table), then '/&'
+    # (primary table, '&' = igate). MAX() of each column separately gives
+    # table '\\' with code '&', which no packet sent.
+    _feed(conn, event_id,
+          _packet("K0JZP-5", "!4408.55N\\09359.20W#first"),
+          _packet("K0JZP-5", "!4408.55N/09359.20W&second"))
+
+    rows = db.unexpected_ssids(conn, event_id)
+    assert [r["station_key"] for r in rows] == ["K0JZP-5"]
+    assert (rows[0]["symbol_table"], rows[0]["symbol_code"]) == ("/", "&")
+    assert rows[0]["packets"] == 2
+    assert rows[0]["last_at"] == conn.execute(
+        "SELECT MAX(received_at) FROM position").fetchone()[0]
 
 
 def test_a_bare_callsign_is_accepted_by_setup(tmp_path):
