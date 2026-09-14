@@ -99,6 +99,33 @@ def test_revoked_token_stops_working(setup):
         assert client.get(f"/api/m2026/{tokens['ncs']}/state").status_code == 200
 
 
+def test_a_link_records_when_it_was_last_used_but_not_on_every_request(setup):
+    """last_used is shown on the Links tab so an officer can tell a link
+    that is in use from one that was never opened - minute resolution is
+    plenty. Writing it on EVERY request made each phone poll a writer
+    competing with the ingest loop for the one lock."""
+    app, tokens, db_path, event_id = setup
+    conn = db.connect(db_path)
+    seen = []
+    conn.set_trace_callback(seen.append)
+
+    first = access.resolve(conn, "m2026", tokens["ncs"])
+    again = access.resolve(conn, "m2026", tokens["ncs"])
+    assert first is not None and again is not None
+    writes = [s for s in seen if s.lstrip().upper().startswith("UPDATE")]
+    assert len(writes) == 1
+
+    # Once the stamp is old, the next request refreshes it.
+    conn.set_trace_callback(None)
+    conn.execute("UPDATE access_token SET last_used = '2020-01-01T00:00:00Z'"
+                 " WHERE token = ?", (tokens["ncs"],))
+    access.resolve(conn, "m2026", tokens["ncs"])
+    stamp = conn.execute("SELECT last_used FROM access_token WHERE token = ?",
+                         (tokens["ncs"],)).fetchone()["last_used"]
+    assert stamp > "2020-01-02"
+    conn.close()
+
+
 def test_roles_differ_on_write_permission(setup):
     app, tokens, _, _ = setup
     with TestClient(app) as client:
@@ -162,6 +189,63 @@ def test_state_exposes_staleness_thresholds(setup):
     assert data["thresholds"]["stale_after_s"] < data["thresholds"]["silent_after_s"]
 
 
+def test_the_snapshot_is_built_off_the_event_loop(setup, monkeypatch):
+    """While one phone's snapshot is being built, everything else must keep
+    moving: WebSocket sends, the ingest loop, the other phones. It used to
+    run on the loop - 180 ms on the demo event, seconds on the real course -
+    so a setup save that resynced twelve phones froze positions for the
+    sum of twelve builds. Here a build that takes 0.4 s must not delay a
+    request that needs nothing."""
+    import asyncio
+    import time
+
+    import httpx
+
+    app, tokens, _, _ = setup
+    real = web.build_state
+
+    def slow(conn, event_id):
+        time.sleep(0.4)
+        return real(conn, event_id)
+
+    monkeypatch.setattr(web, "build_state", slow)
+
+    async def scenario():
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://t") as client:
+            started = time.perf_counter()
+            snapshot = asyncio.create_task(
+                client.get(f"/api/m2026/{tokens['ncs']}/state"))
+            await asyncio.sleep(0.05)          # let the build start
+            ping = await client.get("/healthz")
+            # Measured from before the snapshot began: a blocked loop holds
+            # the 0.05 s timer as well as the ping until the build is done.
+            waited = time.perf_counter() - started
+            return waited, ping.status_code, (await snapshot).status_code
+
+    waited, ping, snapshot = asyncio.run(scenario())
+    assert ping == 200 and snapshot == 200
+    assert waited < 0.3, f"/healthz waited {waited:.2f}s behind the snapshot build"
+
+
+def test_the_snapshot_uses_one_connection(setup, monkeypatch):
+    """Opening a connection is not free, and /state used to open three - one
+    for the snapshot, one for the ignored list, one for the nearby list."""
+    app, tokens, _, _ = setup
+    opened = []
+    real = db.connect
+
+    def counting(path):
+        opened.append(path)
+        return real(path)
+
+    monkeypatch.setattr(web.db, "connect", counting)
+    with TestClient(app) as client:
+        opened.clear()                      # startup opens its own
+        assert client.get(f"/api/m2026/{tokens['ncs']}/state").status_code == 200
+    assert len(opened) == 1
+
+
 # --- live feed --------------------------------------------------------------
 
 def test_websocket_rejects_a_bad_token(setup):
@@ -186,6 +270,75 @@ def test_websocket_subscription_is_released_on_disconnect(setup):
         with client.websocket_connect(f"/ws/m2026/{tokens['ncs']}"):
             pass
     assert app.state.hub.subscriber_count(event_id) == 0
+
+
+def test_a_sent_resync_marks_the_subscriber_caught_up(setup):
+    """The hub counts what it dropped for a stalled phone and answers with
+    one resync; once that resync has actually gone down the socket the
+    phone is about to fetch a fresh snapshot, so the count starts over."""
+    app, tokens, db_path, event_id = setup
+    conn = db.connect(db_path)
+    poi_id = conn.execute("SELECT id FROM poi").fetchone()["id"]
+    from courseops import users
+    users.create_user(conn, "mike", "a-long-enough-password", "system_admin")
+    conn.close()
+    with TestClient(app) as client:
+        client.post("/api/setup/login",
+                    json={"username": "mike", "password": "a-long-enough-password"})
+        with client.websocket_connect(f"/ws/m2026/{tokens['liaison']}") as ws:
+            sub = next(iter(app.state.hub._subscribers[event_id]))
+            sub.dropped = 5
+            client.post(f"/api/setup/events/{event_id}/pois/{poi_id}",
+                        json={"name": "Ham Alpha"})
+            assert ws.receive_json()["type"] == "resync"
+            ws.close()
+    assert sub.dropped == 0
+
+
+def test_a_quiet_socket_still_carries_a_heartbeat(setup, monkeypatch):
+    """A phone that has heard nothing for minutes cannot tell a quiet net from
+    a dead socket, and the badge reads "Live" either way. The server says
+    something on its own every so often so the client can give up on a
+    socket that has gone silent for longer than that."""
+    monkeypatch.setattr(web, "HEARTBEAT_SECONDS", 0.05)
+    app, tokens, _, _ = setup
+    with TestClient(app) as client:
+        with client.websocket_connect(f"/ws/m2026/{tokens['staff']}") as ws:
+            assert ws.receive_json() == {"type": "heartbeat"}
+            ws.close()
+
+
+def test_the_client_reloads_after_a_gap_and_gives_up_on_a_silent_socket():
+    """Two client-side halves of the same fix, checked at source level
+    because app.js needs a browser: a phone coming back to the foreground
+    after a while fetches a fresh snapshot - its socket may have been
+    throttled with a deleted pickup still on the map - and a socket that
+    has carried nothing for three heartbeats is closed so the ordinary
+    reconnect takes over."""
+    from courseops import resources
+
+    script = (resources.package_file("static") / "app.js").read_text(encoding="utf-8")
+    visible = script.split("document.addEventListener('visibilitychange'", 1)[1]
+    visible = visible.split("});", 1)[0]
+    assert "requestState()" in visible
+    assert "SILENT_SOCKET_MS" in script
+    assert "lastMessageAt" in script
+
+
+def test_the_client_answers_a_burst_of_resyncs_with_one_fetch():
+    """The socket's resync branch goes through the debounced requestState,
+    never straight to loadState: a resync is "fetch everything", so several
+    in a moment are worth one fetch, and two snapshots in flight at once
+    could land out of order and leave the older one on screen."""
+    from courseops import resources
+
+    script = (resources.package_file("static") / "app.js").read_text(encoding="utf-8")
+    branch = script.split("if (message.type === 'resync') {", 1)[1].split("}", 1)[0]
+    assert "requestState()" in branch
+    assert "loadState" not in branch
+    assert "RESYNC_DEBOUNCE_MS" in script
+    debounce = script.split("async function fetchStateOnce()", 1)[1].split("\n}\n", 1)[0]
+    assert "stateFetchInFlight" in debounce and "stateRequestedAgain" in debounce
 
 
 # --- static assets ----------------------------------------------------------
@@ -563,6 +716,14 @@ def test_staff_are_never_sent_pickups_or_notes(setup):
         data = client.get(f"/api/m2026/{tokens['staff']}/state").json()
         assert "incidents" not in data and "pickups_waiting" not in data
         assert "roster" in data and "positions" in data and "pois" in data
+        # Roster-adjacent, and only a role that can match or dismiss a
+        # station renders it. Left out, like everything else role-gated.
+        assert "ssid_alerts" not in data
+        for role in ("liaison", "logistics", "sag"):
+            assert "ssid_alerts" not in client.get(
+                f"/api/m2026/{tokens[role]}/state").json(), role
+        assert "ssid_alerts" in client.get(
+            f"/api/m2026/{tokens['ncs']}/state").json()
 
         with client.websocket_connect(f"/ws/m2026/{tokens['staff']}") as ws:
             client.post(f"{incidents_url(tokens['ncs'])}/{created['id']}/status",
@@ -890,7 +1051,12 @@ def test_adopting_across_callsigns_binds_rather_than_renames(setup):
     assert entry["tracking_key"] == "N0CALL-5"
 
 
-def test_read_only_roles_see_alerts_but_cannot_resolve_them(setup):
+def test_read_only_roles_are_neither_sent_alerts_nor_allowed_to_resolve_them(setup):
+    """The alerts are for whoever can act on them - match a station to a
+    roster entry or dismiss it - and that is NCS. They used to go to every
+    role and be rendered by none but NCS: roster-adjacent data (which
+    rostered callsign owns which digipeater) handed to the forwarded link
+    for nothing. Left out, not sent empty, like everything role-gated."""
     app, tokens, db_path, event_id = setup
     conn = db.connect(db_path)
     db.upsert_roster_entry(conn, event_id, "WX0MIK-1", "Aid 3", "aid_station")
@@ -901,9 +1067,11 @@ def test_read_only_roles_see_alerts_but_cannot_resolve_them(setup):
         data = client.get(f"/api/m2026/{tokens['liaison']}/state").json()
         blocked = client.post(f"/api/m2026/{tokens['liaison']}/ssid/ignore",
                               json={"station_key": "WX0MIK-5"})
+        ncs = client.get(f"/api/m2026/{tokens['ncs']}/state").json()
 
-    assert len(data["ssid_alerts"]) == 1
+    assert "ssid_alerts" not in data
     assert blocked.status_code == 403
+    assert len(ncs["ssid_alerts"]) == 1
 
 
 def test_a_correctly_rostered_station_raises_no_alert(setup):
@@ -1414,6 +1582,58 @@ def test_adding_a_leader_reaches_a_connected_map(setup, tmp_path):
             client.post(f"/api/setup/events/{event_id}/leaders",
                         json={"name": "First junior"})
             assert ws.receive_json()["type"] == "resync"
+            ws.close()
+
+
+def test_a_burst_of_setup_saves_is_one_resync(setup, monkeypatch):
+    """Save-all posts one request per changed row, and every one used to
+    publish its own resync - so twelve renames were twelve full snapshot
+    fetches and twelve map rebuilds on every phone, on the one day setup
+    edits happen live. A burst now waits a moment and goes out once."""
+    import time
+
+    monkeypatch.setattr(web, "RESYNC_DELAY_SECONDS", 0.2)
+    monkeypatch.setattr(web, "RESYNC_MAX_WAIT_SECONDS", 0.5)
+    app, tokens, db_path, event_id = setup
+    _make_admin(db_path)
+    conn = db.connect(db_path)
+    poi_id = conn.execute("SELECT id FROM poi").fetchone()["id"]
+    conn.close()
+
+    with TestClient(app) as client:
+        _login(client)
+        with client.websocket_connect(f"/ws/m2026/{tokens['liaison']}") as ws:
+            sub = next(iter(app.state.hub._subscribers[event_id]))
+            for n in range(5):
+                client.post(f"/api/setup/events/{event_id}/pois/{poi_id}",
+                            json={"name": f"Ham {n}"})
+            assert ws.receive_json()["type"] == "resync"
+            time.sleep(0.8)          # anything else due would have landed
+            assert sub.queue.qsize() == 0
+            ws.close()
+
+
+def test_tracking_and_link_changes_do_not_resync_the_field(setup, monkeypatch):
+    """Neither changes anything a phone draws. The switch is flipped and
+    links are handed out on race morning, when every phone rebuilding its
+    map for nothing is the wrong kind of activity."""
+    import time
+
+    monkeypatch.setattr(web, "RESYNC_DELAY_SECONDS", 0.05)
+    app, tokens, db_path, event_id = setup
+    _make_admin(db_path)
+
+    with TestClient(app) as client:
+        _login(client)
+        with client.websocket_connect(f"/ws/m2026/{tokens['liaison']}") as ws:
+            sub = next(iter(app.state.hub._subscribers[event_id]))
+            assert client.post(f"/api/setup/events/{event_id}/links",
+                               json={"action": "add", "role": "staff",
+                                     "label": "Dana"}).status_code == 200
+            assert client.post(f"/api/setup/events/{event_id}/tracking",
+                               json={"enabled": False}).status_code == 200
+            time.sleep(0.3)
+            assert sub.queue.qsize() == 0
             ws.close()
 
 

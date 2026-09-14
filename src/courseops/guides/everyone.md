@@ -42,6 +42,12 @@ thing that tells you whether what you are looking at is current.
 | **Reconnecting...** | The connection dropped. What is on screen may be minutes old |
 | **Access denied** | The link has been revoked, or it is for a different event. Ask for a new one |
 
+The app checks the connection itself. If nothing has arrived for three
+minutes it treats the connection as dead, shows **Reconnecting...** and
+starts again; and when you come back to the app after having something else
+open for a while, it fetches a fresh picture before you read it. You do not
+need to reload the page by hand.
+
 The badge beside it is your role. It never changes colour, and it is never an
 alarm - it is there so you can tell at a glance which link you are holding.
 

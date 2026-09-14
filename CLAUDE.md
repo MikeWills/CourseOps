@@ -346,6 +346,21 @@ usability, not style preferences.
   order and toggling a line back on re-adds it on top, so `restackCourses()`
   runs after every draw and every toggle - forgetting it puts a course on
   top with no error.
+- **A heavy read runs in a worker thread; nothing else on the loop
+  moves while a route does its own SQLite work.** `build_state`, the
+  report and a course import go through `asyncio.to_thread`. That works
+  because `db.connect` sets `check_same_thread=False` - a request may hand
+  its connection to a thread, but a connection is one request's and is
+  never shared between two, and a write is never started in a thread while
+  the request goes on using the connection on the loop. `PRAGMA
+  journal_mode = WAL` lives in `init_schema`, not `connect`: it is stored in
+  the file, and asking for it per connect was most of the connect cost.
+- **A read must be a read.** The layer and leader lists used to repair
+  orphaned keys with `INSERT OR IGNORE` on every call, and an INSERT that
+  ignores still takes the writer lock - every phone's snapshot was a writer
+  competing with the feed. `adopt_orphan_poi_types`/`adopt_orphan_divisions`
+  run at startup only - every write now validates the key first - and
+  anything new that "fixes up" data on the way out goes the same way.
 - **A write that touches more than one row goes inside `db.transaction`,
   and nothing calls `conn.commit()`.** The connection is autocommit, so
   each statement used to be its own transaction and `create_poi` INSERTed
@@ -789,7 +804,14 @@ usability, not style preferences.
   `POST /api/setup/events/{id}/...`, never per-endpoint - a renamed station has
   to reach the field, and the failure is silent because NCS sees their own
   screen update. Resync reloads data, not the page: view and layer choices are
-  restored only on first load, so they survive.
+  restored only on first load, so they survive. A burst of saves is ONE
+  resync: save-all posts a request per row, and each used to be a snapshot
+  fetch and a map rebuild on every phone. `request_resync` waits
+  `RESYNC_DELAY_SECONDS` for the burst to end (capped by
+  `RESYNC_MAX_WAIT_SECONDS`), and the client's `requestState()` debounces
+  the other side and never runs two fetches at once - two snapshots landing
+  out of order would leave the older one on screen. `/tracking` and
+  `/links` are excluded: neither changes anything a phone draws.
 - **Verify setup instructions by cold-starting a clean clone into an empty
   virtualenv.** A missing dependency (`python-multipart`) that this machine
   happened to have made the app fail to boot for everyone else, and no test

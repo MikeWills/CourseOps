@@ -42,9 +42,17 @@ def connect(db_path: str | Path) -> sqlite3.Connection:
     # `transaction()` below. This means a commit() call is a no-op on a bare
     # connection and an EARLY commit inside a `transaction()` block - so
     # nothing calls it; there is a test asserting that.
-    conn = sqlite3.connect(path, isolation_level=None)  # autocommit
+    # check_same_thread=False so a request can hand its connection to a worker
+    # thread (asyncio.to_thread) for the heavy reads - the snapshot, the
+    # report, the import - instead of building them on the event loop, where
+    # nothing else moves until they finish. A connection is still used by one
+    # request at a time, sequentially; it is never shared between two.
+    conn = sqlite3.connect(path, isolation_level=None,  # autocommit
+                           check_same_thread=False)
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode = WAL")
+    # WAL is set once, in init_schema: the journal mode is stored in the file,
+    # and asking for it on every connect cost 5 ms of a 6 ms connect - per
+    # request, with one connection per request.
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute("PRAGMA busy_timeout = 5000")
     return conn
@@ -156,6 +164,10 @@ def _apply_migrations(conn: sqlite3.Connection) -> list[str]:
 
 
 def init_schema(conn: sqlite3.Connection) -> list[str]:
+    # Readers never block the one writer (the ingest loop), and the mode
+    # persists in the file, so once here is enough - every server start and
+    # `init-db` come through this.
+    conn.execute("PRAGMA journal_mode = WAL")
     conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
     applied = _apply_migrations(conn)
     _adopt_orphan_events(conn)
@@ -203,6 +215,11 @@ def _seed_categories(conn: sqlite3.Connection) -> None:
     for row in conn.execute("SELECT id FROM event").fetchall():
         categories.seed_poi_categories(conn, row["id"])
         categories.seed_roster_roles(conn, row["id"])
+        # A place or a sighting under a key nothing names is invisible, with
+        # no error to say so. Repaired here, once, at startup - it used to be
+        # done on every read of the list, which made every snapshot a writer.
+        categories.adopt_orphan_poi_types(conn, row["id"])
+        categories.adopt_orphan_divisions(conn, row["id"])
 
 
 def _adopt_orphan_events(conn: sqlite3.Connection) -> None:

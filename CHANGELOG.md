@@ -11,6 +11,89 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Fixed
+- **The SSID alerts go only to a role that can act on them.** They were in
+  every role's snapshot and rendered by none but NCS: which rostered
+  callsign owns which digipeater, handed to the forwarded Staff link for
+  nothing. Now sent with the nearby and ignored lists, to a role holding
+  the SSID capability, and left out for the rest.
+- **A phone that fell behind is told to resync instead of being left with
+  what it missed.** Each browser's queue is bounded so a stalled phone
+  cannot back up the feed, and on overflow messages were simply dropped.
+  Dropping a position is harmless - the next one supersedes it - but the
+  same queue carries a pickup's deletion, a station rename and resyncs
+  themselves, and nothing later repeats those: a phone that was throttled
+  in the background and then recovered kept a deleted pickup on its map
+  indefinitely, with the badge reading "Live". The first overflow now
+  empties the queue and leaves a single `resync` in it, and the count of
+  overflows resets once that resync has gone out.
+- **A dead socket is noticed.** A phone that slept, or a NAT that forgot
+  the connection, never fires `close`, so the badge said "Live" over a
+  socket carrying nothing. The server now sends a heartbeat frame after a
+  minute of quiet (uvicorn's protocol pings, which it also runs, are
+  invisible to the page), the client closes a socket that has carried
+  nothing for three minutes so the ordinary reconnect takes over, and
+  coming back to the foreground after more than a minute away fetches a
+  fresh snapshot. `courseops serve` states the protocol ping interval
+  explicitly rather than relying on the backend's default.
+
+### Changed
+- **Two small writes-on-read are gone.** A link's `last_used` was stamped
+  on every request - each phone poll a writer competing with the feed for
+  the one lock - and it is read by a human on the Links tab, where a
+  minute's resolution is plenty; it is refreshed only when a minute old.
+  The guides at `/help/` were globbed, read and rendered on every request
+  (the one unauthenticated endpoint anyone can hammer, and on the event
+  loop); they are read once per server run, since they ship in the
+  package and cannot change while it runs.
+- **A burst of setup saves reaches the field as one resync.** Save-all
+  posts one request per changed row, and each published its own resync -
+  which every phone answers with a full snapshot fetch and a map rebuild.
+  Twelve renames were twelve rebuilds per phone, on the one day setup
+  edits happen live. The server now waits a moment for the burst to end
+  (never more than a second and a half) and publishes once; the client
+  fetches at most one snapshot per half second and never two at once,
+  since two landing out of order would leave the older on screen. Flipping
+  the tracking switch and editing links no longer resync anyone: neither
+  changes anything a phone draws.
+- **The snapshot, the report and a course import are built off the event
+  loop.** Every route ran its SQLite work on the loop, and the snapshot is
+  the heavy one: while one phone's was being built nothing else moved - no
+  WebSocket send, no ingest, no other phone - and a setup save resyncs
+  every phone at once, so twelve phones were twelve builds in a row with
+  positions frozen for the sum of them. Those three now run in a worker
+  thread (`asyncio.to_thread`); the rest of the routes are quick and stay
+  where they are. Two smaller things on the same path: `/state` opened
+  three connections and now opens one, and `PRAGMA journal_mode = WAL` -
+  5 ms of a 6 ms connect, per request - is set once in `init_schema`, since
+  the mode lives in the file. On the demo event a request issued during a
+  snapshot build waited 195 ms and now waits 79 ms (the geometry still
+  holds the GIL, so the loop gets turns rather than the whole wait);
+  twelve simultaneous snapshots took 2.2 s and take under 1 s.
+- **Reading the layer or leader list no longer writes.** Both readers ran
+  an `INSERT OR IGNORE` per place type and per sighted division on every
+  call - the repair that gives an orphaned key a row so the place or the
+  report does not vanish - and an `INSERT OR IGNORE` that ignores still
+  takes the writer lock. Every phone's snapshot reads both lists, so every
+  snapshot was a writer competing with the ingest loop and with each other,
+  and with the 5 s busy timeout one could stall the event loop waiting for
+  a lock it had no use for. The repair now runs once at startup, for
+  databases written before the layer and leader keys were validated on the
+  way in; the readers only SELECT. Seeding the
+  defaults into an event that has none is unchanged. A demo snapshot went
+  from 43 statements with 9 writes to 31 with none.
+- **The snapshot build is half the work it was.** `CourseIndex.locate`
+  walks every vertex of every course in pure Python, and one snapshot asked
+  it about each place four times over - in the course-order sort key, for
+  the place's own mile figure, and twice again in the leader progression.
+  That was 88 % of `build_state`, and it grew as places times vertices:
+  the organizer's real file has 48 mile markers on a 1258-point course.
+  The index now remembers each answer for the life of the request, misses
+  included. On the demo event `build_state` went from 178 ms to 89 ms
+  median. Why it matters: the snapshot is built on the event loop, and
+  while it is, no phone's position moves.
+
+
 ### Changed
 - **Leaflet is shipped with the app instead of loaded from unpkg.com.** The
   same reason the fonts are: every field phone was reporting to a third

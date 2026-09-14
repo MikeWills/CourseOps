@@ -203,6 +203,22 @@ def _page(html: str) -> HTMLResponse:
 STALE_AFTER_SECONDS = 10 * 60
 SILENT_AFTER_SECONDS = 20 * 60
 
+# How long a WebSocket may carry nothing before the server says something on
+# its own. A phone cannot tell a quiet net from a dead socket - both are
+# silence, and the badge reads "Live" for both - and a socket that dies
+# without a close frame (a phone that slept, a NAT that forgot) never fires
+# `close`. Uvicorn pings at the protocol level, which the browser answers
+# without telling the page; this is the heartbeat the page can see. The
+# client gives up on a socket after three of these have failed to arrive.
+HEARTBEAT_SECONDS = 60
+
+# How long a burst of setup saves is given to finish before the field is told
+# to resync, and the most a resync may be held back while saves keep coming.
+# Save-all posts one request per changed row; without this each row was a
+# full snapshot fetch and a map rebuild on every phone.
+RESYNC_DELAY_SECONDS = 0.3
+RESYNC_MAX_WAIT_SECONDS = 1.5
+
 
 # A link's label is a note to the officer handing links out - "Dana, phone" -
 # so it is trimmed and capped and never validated further. Nothing reads it but
@@ -453,10 +469,9 @@ def build_state(conn: sqlite3.Connection, event_id: int) -> dict[str, Any]:
         "pois": pois,
         "roster": roster,
         "positions": positions,
-        # Surfaced in the UI rather than left to a command someone has to
-        # remember: the failure this catches is silent, and a check that must be
-        # remembered will be forgotten.
-        "ssid_alerts": _ssid_alerts(conn, event_id),
+        # ssid_alerts is NOT here: it is roster-adjacent and only a role
+        # holding CAP_SSID can act on it, so `state()` adds it for those
+        # roles alone - left out for the rest, like everything role-gated.
         "leaders": [entry.as_dict() for entry in
                     leaders.for_event(conn, event_id, index)],
         # The leaders this event tracks, in the club's order. Per event, not a
@@ -525,6 +540,10 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         finally:
             for slug in list(application.state.ingest_tasks):
                 await _stop_ingest(slug)
+            # A resync still waiting on a burst of saves has nobody left to
+            # reach; drop it rather than leave a pending task at loop close.
+            for task in list(resync_tasks):
+                task.cancel()
 
     app = FastAPI(
         title="Course Ops", docs_url=None, redoc_url=None, lifespan=lifespan
@@ -560,7 +579,51 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     # Done here rather than in each endpoint on purpose. There are a dozen ways
     # to change what the map shows and there will be more; one place cannot be
     # forgotten, and a new setup endpoint gets this for free.
-    _SETUP_EVENT_PATH = re.compile(r"^/api/setup/events/(\d+)(?:/|$)")
+    #
+    # Two things under an event change nothing a phone draws and are left
+    # out: the tracking switch and the links. Both are worked on race
+    # morning, when every phone rebuilding its map for nothing is the wrong
+    # kind of activity.
+    _SETUP_EVENT_PATH = re.compile(
+        r"^/api/setup/events/(\d+)(?:/(?!tracking(?:/|$)|links(?:/|$))|$)")
+
+    # Save-all posts one request per changed row, so twelve renames arrive
+    # as twelve POSTs a few milliseconds apart - and each used to publish its
+    # own resync, which is a full snapshot fetch and a map rebuild on every
+    # phone, twelve times over. A burst is coalesced per event: the first
+    # POST starts a short timer, each further one pushes it out a little,
+    # and RESYNC_MAX_WAIT_SECONDS caps how long a long burst can hold the
+    # field back. Nothing is lost by waiting: a resync is "fetch everything",
+    # so the last one covers all that came before it.
+    resync_due: dict[int, float] = {}       # event_id -> loop time to publish
+    resync_tasks: set[asyncio.Task] = set()
+
+    async def _publish_resync_when_quiet(event_id: int) -> None:
+        loop = asyncio.get_running_loop()
+        latest = loop.time() + RESYNC_MAX_WAIT_SECONDS
+        while True:
+            now = loop.time()
+            due = min(resync_due.get(event_id, now), latest)
+            if now >= due:
+                break
+            await asyncio.sleep(due - now)
+        resync_due.pop(event_id, None)
+        # A resync rather than a diff: setup edits rewrite whole sets -
+        # layers, roster, courses - which no incremental message expresses,
+        # and a resync cannot leave a client half-updated.
+        await app.state.hub.publish(event_id, {"type": "resync"})
+
+    def request_resync(event_id: int) -> None:
+        loop = asyncio.get_running_loop()
+        already = event_id in resync_due
+        resync_due[event_id] = loop.time() + RESYNC_DELAY_SECONDS
+        if already:
+            return
+        task = asyncio.create_task(_publish_resync_when_quiet(event_id))
+        resync_tasks.add(task)
+        task.add_done_callback(resync_tasks.discard)
+
+    app.state.request_resync = request_resync
 
     @app.middleware("http")
     async def publish_setup_changes(request: Request, call_next):
@@ -569,10 +632,7 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
             return response
         match = _SETUP_EVENT_PATH.match(request.url.path)
         if match:
-            # A resync rather than a diff: setup edits rewrite whole sets -
-            # layers, roster, courses - which no incremental message expresses,
-            # and a resync cannot leave a client half-updated.
-            await app.state.hub.publish(int(match.group(1)), {"type": "resync"})
+            request_resync(int(match.group(1)))
         return response
 
     # The setup API is cookie-authenticated, and SameSite=Lax is a same-SITE
@@ -831,7 +891,9 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     async def setup_report(event_id: int, request: Request) -> HTMLResponse:
         conn, user = require_event_admin(request, event_id)
         try:
-            data = report.build(conn, event_id)
+            # Off the loop: this walks every incident and sighting of the
+            # event, and the live map must not pause while the officer reads.
+            data = await asyncio.to_thread(report.build, conn, event_id)
         finally:
             conn.close()
         return HTMLResponse(report.render(data),
@@ -1124,7 +1186,12 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
                                        f"{kml.MAX_KML_BYTES / 1e6:.0f} MB limit.")
                         out.write(chunk)
                 try:
-                    summary = importer.stage_file(conn, event_id, tmp)
+                    # Off the loop: parsing a 1200-point KMZ and measuring
+                    # every segment takes long enough that positions would
+                    # visibly stall for everyone if the course were
+                    # re-imported during the event.
+                    summary = await asyncio.to_thread(
+                        importer.stage_file, conn, event_id, tmp)
                 except (kml.KmlError, zipfile.BadZipFile) as exc:
                     # BadZipFile: a truncated KMZ passes is_zipfile and fails
                     # inside the reader, which was a 500 with a traceback in
@@ -1990,12 +2057,37 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     async def state(event_slug: str, token: str) -> JSONResponse:
         conn, granted = require_access(event_slug, token)
         try:
-            payload = build_state(conn, granted.event_id)
+            # Off the loop. The snapshot is the one heavy read in the live
+            # app - 90 ms on the demo event, seconds on the real course - and
+            # while it was being built on the loop nothing else moved: no
+            # WebSocket send, no ingest, no other phone. A setup save resyncs
+            # every phone at once, so twelve phones were twelve builds in a
+            # row with positions frozen for the sum of them.
+            payload = await asyncio.to_thread(build_state, conn, granted.event_id)
+            # The public, heard near the course. Only for a role that can
+            # match or dismiss them; nobody else needs a list of who is
+            # driving past. Same connection: opening one is not free, and
+            # this route used to open three.
+            if granted.can(access.CAP_SSID):
+                # Callsigns on an SSID the roster does not name. Surfaced
+                # in the UI rather than left to a command someone has to
+                # remember: the failure it catches is silent, and a check
+                # that must be remembered will be forgotten. Only NCS
+                # renders it, and the field links do not need a list of
+                # which roster callsigns own which digipeaters.
+                payload["ssid_alerts"] = _ssid_alerts(conn, granted.event_id)
+                payload["nearby"] = _nearby_for(conn, granted.event_id)
+                # What has been ignored, so a mis-tap on Ignore can be
+                # undone. An ignored station is silent in every other list,
+                # which is the point of ignoring it and also what makes the
+                # mistake invisible.
+                payload["ignored"] = [
+                    _row_to_dict(row) for row in db.exclusions(conn, granted.event_id)
+                ]
         finally:
             conn.close()
         payload["role"] = granted.role
         payload["role_label"] = granted.role_label
-        payload["role"] = granted.role
         payload["can_write"] = granted.can_write
         # Per capability, so the client shows exactly the controls this role can
         # actually use. A button the server would refuse is worse than no button.
@@ -2008,30 +2100,12 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         if not granted.can(access.CAP_INCIDENT_REPORT):
             for key in ("incidents", "pickups_waiting"):
                 payload.pop(key, None)
-        # The public, heard near the course. Only for a role that can match or
-        # dismiss them; nobody else needs a list of who is driving past.
-        if granted.can(access.CAP_SSID):
-            payload["nearby"] = _nearby_for(granted.event_id)
-            # What has been ignored, so a mis-tap on Ignore can be undone.
-            # An ignored station is silent in every other list, which is the
-            # point of ignoring it and also what makes the mistake invisible.
-            conn = get_conn()
-            try:
-                payload["ignored"] = [
-                    _row_to_dict(row) for row in db.exclusions(conn, granted.event_id)
-                ]
-            finally:
-                conn.close()
         return JSONResponse(payload)
 
-    def _nearby_for(event_id: int) -> list[dict[str, Any]]:
-        conn = get_conn()
-        try:
-            known = set(db.all_station_keys(conn, event_id))
-            known |= db.bound_station_keys(conn, event_id)
-            known |= db.excluded_station_keys(conn, event_id)
-        finally:
-            conn.close()
+    def _nearby_for(conn: sqlite3.Connection, event_id: int) -> list[dict[str, Any]]:
+        known = set(db.all_station_keys(conn, event_id))
+        known |= db.bound_station_keys(conn, event_id)
+        known |= db.excluded_station_keys(conn, event_id)
         entries = app.state.nearby.get(event_id, {})
         for key in [k for k in entries if k in known]:
             entries.pop(key, None)         # assigned or dismissed since heard
@@ -2462,8 +2536,16 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
             granted.event_id, granted.capabilities)
         try:
             while True:
-                message = await subscription.queue.get()
+                try:
+                    message = await asyncio.wait_for(
+                        subscription.queue.get(), timeout=HEARTBEAT_SECONDS)
+                except asyncio.TimeoutError:
+                    message = {"type": "heartbeat"}
                 await websocket.send_json(message)
+                if message.get("type") == "resync":
+                    # Whatever the hub dropped for this phone before now is
+                    # covered by the snapshot it is about to fetch.
+                    subscription.caught_up()
         except WebSocketDisconnect:
             pass
         except Exception as exc:  # pragma: no cover - transport level

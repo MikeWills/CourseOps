@@ -633,6 +633,9 @@ def test_a_sighting_whose_leader_is_missing_puts_it_back(race):
         " VALUES (?, ?, 'wheelchair', ?)",
         (event_id, course_id, poi_id(conn, "Charlie")),
     )
+    # The repair is a startup step, not a read: every phone's snapshot reads
+    # this list, and a read that writes competes for the lock with the feed.
+    db.init_schema(conn)
     keys = categories.lead_division_keys(conn, event_id)
     assert "wheelchair" in keys
     entry = leader(conn, event_id, index, "wheelchair")
@@ -652,3 +655,4 @@ def test_a_leader_needs_a_name(race):
     conn, event_id, course_id, index = race
     with pytest.raises(categories.CategoryError):
         categories.add_lead_division(conn, event_id, "   ")
+

@@ -742,6 +742,16 @@ def cmd_serve(args: argparse.Namespace) -> int:
     # `forwarded_allow_ips` is what stops any client simply claiming HTTPS:
     # only the named proxy is believed. It defaults to the loopback address,
     # which is the normal Apache-on-the-same-host case.
+    # Protocol-level pings so the SERVER notices a phone that vanished without
+    # a close frame and drops its subscription, rather than queueing for it
+    # until the process restarts. These are uvicorn's defaults with the
+    # `websockets` backend that uvicorn[standard] installs; stated here so
+    # a change of backend or of defaults cannot quietly switch them off.
+    # The client's own liveness check is web.HEARTBEAT_SECONDS.
+    options = dict(
+        host=args.host, port=args.port, log_level="warning",
+        ws_ping_interval=20.0, ws_ping_timeout=20.0,
+    )
     if args.behind_proxy:
         print(f"Trusting proxy headers from {args.trusted_proxy}.")
         if args.host not in ("127.0.0.1", "::1", "localhost"):
@@ -753,11 +763,11 @@ def cmd_serve(args: argparse.Namespace) -> int:
                 file=sys.stderr,
             )
         uvicorn.run(
-            app, host=args.host, port=args.port, log_level="warning",
-            proxy_headers=True, forwarded_allow_ips=args.trusted_proxy,
+            app, proxy_headers=True, forwarded_allow_ips=args.trusted_proxy,
+            **options,
         )
     else:
-        uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
+        uvicorn.run(app, **options)
     return 0
 
 

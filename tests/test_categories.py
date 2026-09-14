@@ -269,9 +269,13 @@ def test_an_empty_layer_deletes(event):
 
 def test_places_imported_under_an_unknown_key_still_get_a_layer(event):
     """From an older database or a CLI import. Better an unnamed layer the club
-    can rename than a place that belongs to nothing and never draws."""
+    can rename than a place that belongs to nothing and never draws.
+
+    The repair runs at startup, not on every read: a read that writes takes
+    the writer lock, and every phone's snapshot was doing it."""
     conn, event_id = event
     _poi(conn, event_id, "Somewhere", "porta_potty")
+    db.init_schema(conn)
 
     keys = {c["key"] for c in categories.poi_categories(conn, event_id)}
     assert "porta_potty" in keys
@@ -534,3 +538,51 @@ def test_an_added_role_can_be_renamed(event):
     row = categories.rename_roster_role(conn, event_id, "liaison", "PS Liaison")
     assert row["name"] == "PS Liaison"
     assert row["key"] == "liaison"          # the key never moves
+
+
+def _statements(conn):
+    """Collect every statement the connection runs, for asserting a read is
+    only a read."""
+    seen = []
+    conn.set_trace_callback(seen.append)
+    return seen
+
+
+def _writes(statements):
+    return [s for s in statements
+            if s.lstrip().upper().startswith(("INSERT", "UPDATE", "DELETE"))]
+
+
+def test_reading_the_layers_writes_nothing(event):
+    """Every phone's snapshot reads the layer list, and it used to INSERT OR
+    IGNORE a row per place type on the way - which takes the writer lock even
+    when it ignores, and waits up to busy_timeout for the ingest loop to let
+    go of it. A read must be a read."""
+    conn, event_id = event
+    _poi(conn, event_id, "Aid 1", "aid_station")
+    seen = _statements(conn)
+
+    categories.poi_categories(conn, event_id)
+
+    assert _writes(seen) == []
+
+
+def test_reading_the_leaders_writes_nothing(event):
+    conn, event_id = event
+    categories.lead_divisions(conn, event_id)      # seeds the defaults, once
+    seen = _statements(conn)
+
+    categories.lead_divisions(conn, event_id)
+
+    assert _writes(seen) == []
+
+
+def test_an_event_with_no_layers_at_all_is_still_seeded_on_read(event):
+    """The one write a read may do, and only once: an event from before layers
+    existed gets the defaults. Seeding an event that HAS layers would resurrect
+    what the club deleted."""
+    conn, event_id = event
+    conn.execute("DELETE FROM poi_category WHERE event_id = ?", (event_id,))
+    keys = {c["key"] for c in categories.poi_categories(conn, event_id)}
+    assert "aid_station" in keys
+

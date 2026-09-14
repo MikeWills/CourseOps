@@ -20,7 +20,7 @@ import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from . import db
+from . import categories, db
 
 # Which leaders an event tracks is the club's, not the code's: `lead_division`,
 # one row per kind of racer, seeded with the two below and edited in setup. This
