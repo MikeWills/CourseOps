@@ -176,7 +176,7 @@ def assign_features(conn: sqlite3.Connection, event_id: int, payload: dict) -> d
         return {"poi_ids": created}
 
     if kind == "discard":
-        return {"discarded": importer.discard(conn, ids)}
+        return {"discarded": importer.discard(conn, event_id, ids)}
 
     raise ValueError(f"Unknown assignment {kind!r}.")
 
@@ -325,6 +325,16 @@ def create_poi(conn: sqlite3.Connection, event_id: int, payload: dict) -> dict:
 
 def update_poi(conn: sqlite3.Connection, event_id: int, poi_id: int,
                payload: dict) -> dict:
+    # Checked first, not left to the UPDATE's rowcount: a payload carrying
+    # only `course_ids` never reaches that UPDATE, and used to write
+    # poi_course rows for - and hand back the name and coordinates of - a
+    # place in another club's event.
+    current = conn.execute(
+        "SELECT * FROM poi WHERE id = ? AND event_id = ?", (poi_id, event_id)
+    ).fetchone()
+    if current is None:
+        raise ValueError(f"No aid station with id {poi_id} in this event.")
+
     fields, values = [], []
     if "name" in payload:
         name = (payload.get("name") or "").strip()
@@ -355,11 +365,7 @@ def update_poi(conn: sqlite3.Connection, event_id: int, poi_id: int,
         # label: rename "Aid 3" to "Aid 4" and the pin would still read 3.
         override = labels.clean(payload.get("label"))
         if override and override == labels.derive(
-            (payload.get("name") or "").strip()
-            or conn.execute(
-                "SELECT name FROM poi WHERE id = ? AND event_id = ?",
-                (poi_id, event_id),
-            ).fetchone()["name"]
+            (payload.get("name") or "").strip() or current["name"]
         ):
             override = None
         fields.append("label = ?")

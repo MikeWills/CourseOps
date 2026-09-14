@@ -404,8 +404,12 @@ def cmd_assign_poi(args: argparse.Namespace) -> int:
 def cmd_discard(args: argparse.Namespace) -> int:
     settings = _settings()
     conn = db.connect(settings.db_path)
-    _event_or_exit(conn, args.event)
-    count = importer.discard(conn, args.ids)
+    event = _event_or_exit(conn, args.event)
+    try:
+        count = importer.discard(conn, event["id"], args.ids)
+    except ValueError as exc:
+        print(f"Could not discard: {exc}", file=sys.stderr)
+        return 1
     print(f"Discarded {count} feature(s).")
     return 0
 

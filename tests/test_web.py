@@ -1347,6 +1347,89 @@ def test_a_place_needs_a_layer_that_exists(setup, tmp_path):
     assert refused.status_code == 400
 
 
+# --- tenancy: ids from another event are refused, never acted on ------------
+
+def _second_event(db_path):
+    """Another club's event with its own staged file and one place."""
+    conn = db.connect(db_path)
+    other = db.create_event(conn, "other", "Other Club's Race")
+    importer.stage_file(conn, other, FIXTURE)
+    features = importer.pending_features(conn, other)
+    point = next(r["id"] for r in features if r["geom_type"] == "point")
+    line = next(r["id"] for r in features if r["geom_type"] == "linestring")
+    poi_id = importer.assign_poi(conn, other, point, "aid_station",
+                                 name="Secret stop")
+    conn.close()
+    return other, line, poi_id
+
+
+def test_assigning_another_events_feature_is_a_400(setup, tmp_path):
+    """Feature ids are one global sequence. Event A's admin naming event B's
+    id must get a refusal, not B's course geometry copied into A and B's
+    review row flipped to assigned behind their back."""
+    app, _, db_path, event_id = setup
+    _make_admin(db_path)
+    other, line, _ = _second_event(db_path)
+
+    with TestClient(app) as client:
+        _login(client)
+        stolen = client.post(f"/api/setup/events/{event_id}/assign",
+                             json={"kind": "course", "ids": [line],
+                                   "name": "Stolen"})
+        discarded = client.post(f"/api/setup/events/{event_id}/assign",
+                                json={"kind": "discard", "ids": [line]})
+        courses = client.get(
+            f"/api/setup/events/{event_id}/courses").json()["courses"]
+
+    assert stolen.status_code == 400
+    assert discarded.status_code == 400
+    assert [c["name"] for c in courses] == ["Half"]
+    conn = db.connect(db_path)
+    status = conn.execute("SELECT status FROM import_feature WHERE id = ?",
+                          (line,)).fetchone()["status"]
+    conn.close()
+    assert status == "pending"
+
+
+def test_assigning_a_staged_point_into_a_missing_layer_is_a_400(setup, tmp_path):
+    """"Assign all suggestions" posts whatever layer key the hint produced. A
+    club that deleted that default layer must be told, not left with a place
+    in the table that draws nowhere."""
+    app, _, db_path, event_id = setup
+    _make_admin(db_path)
+
+    with TestClient(app) as client:
+        _login(client)
+        staged = client.get(
+            f"/api/setup/events/{event_id}/staged").json()["features"]
+        point = next(f["id"] for f in staged if f["geom_type"] == "point")
+        refused = client.post(f"/api/setup/events/{event_id}/assign",
+                              json={"kind": "poi", "ids": [point],
+                                    "poi_type": "not_a_layer"})
+
+    assert refused.status_code == 400
+    assert "layer" in refused.json()["detail"].lower()
+
+
+def test_editing_another_events_place_is_refused(setup, tmp_path):
+    """`course_ids` alone used to skip the scoped UPDATE and return the other
+    event's row - name and coordinates included."""
+    app, _, db_path, event_id = setup
+    _make_admin(db_path)
+    _, _, foreign_poi = _second_event(db_path)
+
+    with TestClient(app) as client:
+        _login(client)
+        peek = client.post(f"/api/setup/events/{event_id}/pois/{foreign_poi}",
+                           json={"course_ids": []})
+        rename = client.post(f"/api/setup/events/{event_id}/pois/{foreign_poi}",
+                             json={"name": "Renamed from outside"})
+
+    assert peek.status_code == 400
+    assert "Secret stop" not in peek.text
+    assert rename.status_code == 400
+
+
 def test_adding_a_place_reaches_a_connected_map(setup, tmp_path):
     """A place added on race-week evening has to appear on the phones already
     holding a link, without anyone being told to reload."""

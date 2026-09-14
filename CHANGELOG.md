@@ -11,6 +11,29 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Fixed
+- **A staged import feature could be assigned, or discarded, from another
+  event.** `import_feature.id` is one global sequence and the assign route
+  looked features up by id alone, so an admin of one club naming another
+  club's id got that club's course geometry copied into their own event and
+  the original review row flipped to `assigned` or `discarded` - which to
+  the other club looks like a failed import the week before their race. The
+  organizer's course file is exactly the third-party data this repo's
+  history was purged for. Every staged-feature read and write now carries
+  the event, a foreign id is a 400, and `discard` checks the whole list
+  before writing any of it. (Audit 2026-09-14, B1.)
+- **Assigning a staged point into a layer that does not exist was accepted.**
+  "Assign all suggestions" posts whatever key the hint produced, and a club
+  that had deleted that default layer got a place in the table that drew
+  nowhere, with no error - the rule "a suggestion must name a layer that
+  exists" was enforced for hand-added and edited places but not on the
+  review screen. `assign_poi` checks the layer first, so the CLI and the
+  setup screen both refuse.
+- `update_poi` with only `course_ids` in the payload never reached the
+  event-scoped UPDATE, so it wrote race assignments for - and returned the
+  name and coordinates of - a place in any event. It checks the place is in
+  the event before doing anything.
+
 ## [2026.9.4] - 2026-09-14
 
 ### Added
