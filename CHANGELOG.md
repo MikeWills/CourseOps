@@ -11,6 +11,28 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Fixed
+- **Signing in ran scrypt on the event loop, unthrottled.** A password hash
+  costs about a third of a second (the comment said "tens of milliseconds";
+  it was measured at 0.25-0.36 s), and it ran inline in the login route -
+  so for that third of a second nothing else was served: no WebSocket
+  fan-out, no snapshot, no incident post. Two wrong passwords a second from
+  anyone on the internet, with no credential, took the map offline for every
+  volunteer, and on the phones it looked exactly like a bad signal. Login,
+  first-user and password change now hash in a worker thread on a connection
+  opened there, and an in-memory limiter refuses the sixth failure in a
+  minute from one username or one address with a 429 - checked before the
+  hash, so a flood costs nothing. Behind `--behind-proxy` the address is the
+  one uvicorn already resolved from the proxy, never a header a client can
+  set. Per application instance, so the test suite's hundreds of sign-ins
+  never throttle each other.
+- **An unknown username took twice as long to refuse as a wrong password.**
+  The "dummy hash for timing" was computed fresh on every miss and then
+  verified against - two scrypts to the real path's one - so the gap the
+  comment promised to close was in fact doubled, and a stopwatch could list
+  which officers have accounts. The dummy is computed once and both paths
+  run exactly one hash; there is a test counting them.
+
 ## [2026.9.4] - 2026-09-14
 
 ### Added

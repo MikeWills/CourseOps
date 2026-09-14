@@ -426,6 +426,10 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     # the kind of failure nobody notices until the net is quiet for the wrong
     # reason, so it is kept and shown rather than only logged.
     app.state.ingest_errors = {}
+    # Recent sign-in failures, by username and by address. Per application
+    # rather than module-level so every test gets a clean one - the suite
+    # signs in hundreds of times and must never throttle itself.
+    app.state.login_limiter = users.LoginLimiter()
 
     # A setup change during an event has to reach the field, not wait for
     # someone to pull to refresh.
@@ -541,6 +545,36 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         """
         return request.url.scheme == "https"
 
+    def client_host(request: Request) -> str:
+        """The address a request came from, for the sign-in limiter.
+
+        Behind Apache every request arrives from 127.0.0.1; with
+        `--behind-proxy` uvicorn has already replaced the peer with the
+        X-Forwarded-For address, and only for a peer it was told to trust -
+        so this is the real client there and the loopback address otherwise,
+        and never a header any client could set.
+        """
+        return request.client.host if request.client else ""
+
+    def _refuse_if_throttled(request: Request, username: str) -> tuple[str, ...]:
+        """The limiter keys for this attempt, or a 429 if it is over the line.
+
+        Checked BEFORE the body is hashed: the whole point is that a flood of
+        wrong passwords costs the server nothing, because every hash it does
+        run takes a third of a second during which no phone in the field
+        receives a position.
+        """
+        keys = ("user:" + users.normalize_username(username),
+                "addr:" + client_host(request))
+        wait = app.state.login_limiter.retry_after(*keys)
+        if wait is not None:
+            raise HTTPException(
+                status_code=429,
+                detail=f"Too many attempts. Try again in {wait} seconds.",
+                headers={"Retry-After": str(wait)},
+            )
+        return keys
+
     def _set_session_cookie(response, token: str, secure: bool) -> None:
         response.set_cookie(
             SESSION_COOKIE, token,
@@ -644,24 +678,35 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         Does NOT start a session: the account is created and the person then
         signs in with it.
         """
-        conn = get_conn()
-        body = await _json_body(request, conn)
-        try:
-            if users.any_users(conn):
-                raise HTTPException(
-                    status_code=409,
-                    detail="Setup is already complete. Sign in instead.",
+        body = await _json_body(request)
+        username = str(body.get("username", "") or "")
+        keys = _refuse_if_throttled(request, username)
+
+        def create() -> users.User:
+            # Its own connection, opened in the worker thread: a sqlite
+            # connection refuses to be used from any thread but the one
+            # that opened it, and the hash has to run off the loop.
+            conn = get_conn()
+            try:
+                if users.any_users(conn):
+                    raise HTTPException(
+                        status_code=409,
+                        detail="Setup is already complete. Sign in instead.",
+                    )
+                return users.create_user(
+                    conn, username, body.get("password", ""),
+                    users.ROLE_SYSTEM_ADMIN, body.get("display_name"),
                 )
-            user = users.create_user(
-                conn, body.get("username", ""), body.get("password", ""),
-                users.ROLE_SYSTEM_ADMIN, body.get("display_name"),
-            )
+            finally:
+                conn.close()
+
+        try:
+            user = await asyncio.to_thread(create)
         except users.AuthError as exc:
             # Two submits can race: both see no users, both try to create, and
             # the loser hits the unique constraint. From the person's point of
             # view their account WAS created, so say that rather than the
             # confusing "already exists".
-            conn.close()
             check = get_conn()
             try:
                 exists = users.any_users(check)
@@ -672,10 +717,10 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
                     status_code=409,
                     detail="Setup is already complete. Sign in instead.",
                 )
+            # A rejected password is a failure worth counting: this route is
+            # open to the whole internet until the first account exists.
+            app.state.login_limiter.failed(*keys)
             raise HTTPException(status_code=400, detail=str(exc))
-        finally:
-            if conn:
-                conn.close()
         # Deliberately no session: they sign in with the account straight away,
         # which proves the password works while they still remember typing it.
         # This is a credential they may not use again until the next event.
@@ -684,17 +729,33 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
 
     @app.post("/api/setup/login")
     async def login(request: Request) -> JSONResponse:
-        conn = get_conn()
-        body = await _json_body(request, conn)
+        """Sign an administrator in.
+
+        The hash runs in a worker thread, on a connection opened there. It
+        ran on the event loop once: a third of a second per attempt during
+        which the WebSocket fan-out, the snapshots and the incident posts all
+        waited - so two wrong passwords a second from anyone at all, with no
+        credential, froze the map for every volunteer, and on the phones it
+        looked exactly like a bad signal.
+        """
+        body = await _json_body(request)
+        username = str(body.get("username", "") or "")
+        keys = _refuse_if_throttled(request, username)
+
+        def sign_in() -> tuple[users.User, str]:
+            conn = get_conn()
+            try:
+                user = users.authenticate(conn, username, body.get("password", ""))
+                return user, users.start_session(conn, user.id)
+            finally:
+                conn.close()
+
         try:
-            user = users.authenticate(
-                conn, body.get("username", ""), body.get("password", "")
-            )
-            token = users.start_session(conn, user.id)
+            user, token = await asyncio.to_thread(sign_in)
         except users.AuthError as exc:
-            conn.close()
+            app.state.login_limiter.failed(*keys)
             raise HTTPException(status_code=401, detail=str(exc))
-        conn.close()
+        app.state.login_limiter.succeeded(*keys)
         response = JSONResponse({"user": user.as_dict()})
         _set_session_cookie(response, token, request_is_secure(request))
         return response
@@ -713,16 +774,27 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     @app.post("/api/setup/password")
     async def change_own_password(request: Request) -> JSONResponse:
         conn, user = require_user(request)
-        body = await _json_body(request, conn)
-        try:
-            # Re-authenticate first: a borrowed unlocked laptop must not be
-            # enough to lock the real owner out.
-            users.authenticate(conn, user.username, body.get("current_password", ""))
-            users.set_password(conn, user.id, body.get("new_password", ""))
-        except users.AuthError as exc:
-            conn.close()
-            raise HTTPException(status_code=400, detail=str(exc))
         conn.close()
+        body = await _json_body(request)
+        keys = _refuse_if_throttled(request, user.username)
+
+        def change() -> None:
+            conn = get_conn()
+            try:
+                # Re-authenticate first: a borrowed unlocked laptop must not
+                # be enough to lock the real owner out.
+                users.authenticate(conn, user.username,
+                                   body.get("current_password", ""))
+                users.set_password(conn, user.id, body.get("new_password", ""))
+            finally:
+                conn.close()
+
+        try:
+            await asyncio.to_thread(change)
+        except users.AuthError as exc:
+            app.state.login_limiter.failed(*keys)
+            raise HTTPException(status_code=400, detail=str(exc))
+        app.state.login_limiter.succeeded(*keys)
         response = JSONResponse({"ok": True})
         response.delete_cookie(SESSION_COOKIE, path="/")   # sessions were cleared
         return response
@@ -1675,14 +1747,16 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     # rewrite of each endpoint. It used to be a single yes/no; SAG needs to work
     # its pickup queue without being able to revoke a link or edit the roster.
 
-    async def _json_body(request: Request, conn) -> dict:
+    async def _json_body(request: Request, conn=None) -> dict:
         try:
             body = await request.json()
         except Exception:
-            conn.close()
+            if conn is not None:
+                conn.close()
             raise HTTPException(status_code=400, detail="Expected a JSON body.")
         if not isinstance(body, dict):
-            conn.close()
+            if conn is not None:
+                conn.close()
             raise HTTPException(status_code=400, detail="Expected a JSON object.")
         return body
 

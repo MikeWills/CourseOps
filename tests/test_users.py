@@ -107,6 +107,85 @@ def test_a_missing_user_and_a_wrong_password_are_indistinguishable(conn, admin):
     assert str(wrong_password.value) == str(no_such_user.value)
 
 
+def test_a_missing_user_costs_exactly_one_hash_like_a_wrong_password(
+        conn, admin, monkeypatch):
+    """The timing side of the same property. The unknown-name path used to
+    build a fresh dummy hash and THEN verify against it - two scrypts to the
+    wrong-password path's one, half a second against a quarter, a gap that
+    survives any network jitter. That was a list of which officers have
+    accounts, offered to anyone with a stopwatch."""
+    users.dummy_hash()          # warm the one-time dummy, which is not a login
+    calls = []
+    real = users.scrypt
+
+    def counting(*args, **kwargs):
+        calls.append(1)
+        return real(*args, **kwargs)
+    monkeypatch.setattr(users, "scrypt", counting)
+
+    with pytest.raises(users.AuthError):
+        users.authenticate(conn, "mike", "not the password")
+    wrong_password = len(calls)
+    calls.clear()
+    with pytest.raises(users.AuthError):
+        users.authenticate(conn, "nobody", "not the password")
+    no_such_user = len(calls)
+
+    assert wrong_password == 1
+    assert no_such_user == 1
+
+
+# --- sign-in throttling -----------------------------------------------------
+
+class _Clock:
+    def __init__(self):
+        self.now = 1000.0
+
+    def __call__(self):
+        return self.now
+
+
+def test_the_limiter_refuses_after_five_failures_in_a_minute():
+    clock = _Clock()
+    limiter = users.LoginLimiter(clock=clock)
+    for _ in range(5):
+        assert limiter.retry_after("user:mike") is None
+        limiter.failed("user:mike")
+    assert limiter.retry_after("user:mike") == 60
+
+
+def test_the_limiter_forgets_after_the_window():
+    """A minute, not an hour: the person locked out is the officer at 6am."""
+    clock = _Clock()
+    limiter = users.LoginLimiter(clock=clock)
+    for _ in range(5):
+        limiter.failed("user:mike")
+    clock.now += 30
+    assert limiter.retry_after("user:mike") == 30
+    clock.now += 31
+    assert limiter.retry_after("user:mike") is None
+
+
+def test_either_key_alone_is_enough_to_refuse():
+    """A guesser cycling usernames is stopped by the address; one cycling
+    addresses is stopped by the username."""
+    limiter = users.LoginLimiter(clock=_Clock())
+    for name in ("a", "b", "c", "d", "e"):
+        limiter.failed("user:" + name, "addr:1.2.3.4")
+    assert limiter.retry_after("user:f", "addr:1.2.3.4") is not None
+    assert limiter.retry_after("user:f", "addr:5.6.7.8") is None
+
+
+def test_a_correct_password_clears_the_count():
+    limiter = users.LoginLimiter(clock=_Clock())
+    for _ in range(4):
+        limiter.failed("user:mike", "addr:x")
+    limiter.succeeded("user:mike", "addr:x")
+    for _ in range(4):
+        limiter.failed("user:mike", "addr:x")
+    assert limiter.retry_after("user:mike", "addr:x") is None
+
+
 def test_a_deactivated_account_cannot_log_in(conn, admin):
     users.set_active(conn, admin.id, False)
     with pytest.raises(users.AuthError):

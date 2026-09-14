@@ -1243,6 +1243,68 @@ def test_deleting_a_sighted_leader_is_refused_with_the_count(setup, tmp_path):
     assert "1 sighting" in refused.json()["detail"]
 
 
+def test_a_sixth_wrong_password_in_a_minute_is_refused_without_hashing(
+        setup, monkeypatch):
+    """Sign-in is the one route open to the whole internet with no
+    credential, and every attempt costs the server a third of a second of
+    scrypt. Unthrottled, two wrong passwords a second was enough to keep
+    the map from updating for every volunteer, and on the phones that is
+    indistinguishable from a bad signal. The refusal has to come BEFORE the
+    hash or it saves nothing."""
+    app, _, db_path, _ = setup
+    _make_admin(db_path)
+    from courseops import users
+    with TestClient(app) as client:
+        for _ in range(5):
+            response = client.post("/api/setup/login",
+                                   json={"username": "mike", "password": "wrong"})
+            assert response.status_code == 401
+        calls = []
+        real = users.scrypt
+        monkeypatch.setattr(users, "scrypt",
+                            lambda *a, **k: calls.append(1) or real(*a, **k))
+        response = client.post("/api/setup/login",
+                               json={"username": "mike", "password": "wrong"})
+        assert response.status_code == 429
+        assert "Retry-After" in response.headers
+        assert calls == []
+        # And the right password does not get through either, until the
+        # window passes - otherwise the limiter is a hint about which of the
+        # six was correct.
+        response = client.post("/api/setup/login",
+                               json={"username": "mike",
+                                     "password": "a-long-enough-password"})
+        assert response.status_code == 429
+
+
+def test_login_does_not_block_the_event_loop(setup):
+    """The hash runs in a worker thread. While it runs, another request on
+    the same loop must be answered - which it was not when scrypt ran
+    inline, and the whole map waited on whoever was signing in."""
+    import asyncio
+    import httpx
+    app, _, db_path, _ = setup
+    _make_admin(db_path)
+
+    async def race():
+        transport = httpx.ASGITransport(app=app)
+        async with app.router.lifespan_context(app):
+            async with httpx.AsyncClient(transport=transport,
+                                         base_url="http://t") as client:
+                login = asyncio.create_task(client.post(
+                    "/api/setup/login",
+                    json={"username": "mike", "password": "wrong"}))
+                # Give the login a moment to reach the hash, then see whether
+                # a trivial request is answered before it completes.
+                await asyncio.sleep(0.02)
+                ping = await asyncio.wait_for(client.get("/healthz"), 0.2)
+                assert ping.status_code == 200
+                assert not login.done()
+                assert (await login).status_code == 401
+
+    asyncio.run(race())
+
+
 # --- places added and moved by hand (#108) ----------------------------------
 
 def _login(client):
