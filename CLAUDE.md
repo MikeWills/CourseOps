@@ -57,7 +57,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 593 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 721 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -1069,13 +1069,13 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
-- **2026-09-13** The guides moved into the app: `/help/`, rendered from `src/courseops/guides/`; the GitHub Wiki is retired.
-- **2026-09-13** Nightly backups (`deploy/backup.sh`), a forced-command validator for the Actions key, `DEPLOY_PATH` required.
-- **2026-09-12** The setup bar shows the reversed lockup.
-- **2026-09-12** Versions are dates: `2026.9.0` replaces `0.10.x`.
-- **2026-09-12** Fixed: beside the map the lockup head lines up with the top bar and the other panel head.
-- **2026-09-12** The full lockup on the sign-in page and, reversed, in the live app's panel head.
-- **2026-09-12** The new mark everywhere: top bar, sign-in, favicon, home-screen icons; the lockup and icon as traced SVG in `docs/brand/`.
-- **2026-09-12** Fixed: tapping a posted, non-beaconing station's row goes to the place they are posted at.
-- **2026-09-12** Fixed: on a phone, tapping a row flew the map under the open panel; the panel closes first now.
-- **2026-09-12** Fixed: `Referrer-Policy: same-origin` in Apache blanked the Referer to OSM and every tile came back "Access blocked".
+- **2026-09-14** Audit (`docs/audit/`): eight reviews, seven PRs (#143-#149). Highlights below; the rest is in `CHANGELOG.md`.
+- **2026-09-14** Fixed: turning Tracking on for an event with nothing to listen for exited the server and boot-looped; the switch now refuses, and persists only after the feed starts.
+- **2026-09-14** Fixed: staged import features and access links were addressed by bare id - one event's admin could reach another's. Both scoped by event.
+- **2026-09-14** Fixed: correcting a callsign on the Roster tab made a second roster row; a setup edit is a RENAME (status log follows), binding stays NCS's.
+- **2026-09-14** Sign-in hashes off the event loop with a per-username/IP limiter; the first account needs the setup code printed at startup.
+- **2026-09-14** The feed no longer writes the public's packets to disk (`raw_packet` retired); Ignore takes effect on the next packet.
+- **2026-09-14** Snapshot off the loop, `locate` memoised, no writes on read: `/state` 178 -> 89 ms, 12 concurrent snapshots 2.2 -> 0.97 s.
+- **2026-09-14** Fixed in the field app: status changes on matched stations reach every screen; reconnect survives a dead zone; dropped-off pins visible; layer switches follow a resync.
+- **2026-09-14** Fixed in setup: Export CSV coordinates, the login error text, Courses saves as a unit, layers per event, touch drag on the Places map, an event centre from the form.
+- **2026-09-14** Leaflet vendored, CSP from the app, body-size caps, tokens redacted from Apache logs, `db.transaction`, ~20 dead functions removed.
