@@ -1239,7 +1239,7 @@ def test_deleting_a_sighted_leader_is_refused_with_the_count(setup, tmp_path):
         refused = client.post(
             f"/api/setup/events/{event_id}/leaders/male/delete")
 
-    assert refused.status_code == 400
+    assert refused.status_code == 409
     assert "1 sighting" in refused.json()["detail"]
 
 

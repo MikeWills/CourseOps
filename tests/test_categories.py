@@ -495,6 +495,32 @@ def test_a_role_in_use_cannot_be_deleted(event):
     assert "sweep" in keys
 
 
+def test_deleting_a_role_that_does_not_exist_is_refused(event):
+    """Layers and leaders already did; roles reported success for nothing,
+    so a stale client row "deleted" and the list reloaded unchanged."""
+    conn, event_id = event
+    with pytest.raises(categories.CategoryError, match="Unknown role"):
+        categories.delete_roster_role(conn, event_id, "nope")
+
+
+def test_the_in_use_counts_match_a_count_per_row(event):
+    """One GROUP BY per taxonomy feeds the setup screen and the CLI; it has
+    to agree with counting each key on its own, and omit nothing."""
+    conn, event_id = event
+    _poi(conn, event_id, "A", "aid_station")
+    _poi(conn, event_id, "B", "aid_station")
+    _poi(conn, event_id, "P", "parking")
+    categories.roster_roles(conn, event_id)
+    conn.execute(
+        "INSERT INTO roster (event_id, station_key, display_label, category)"
+        " VALUES (?, 'N0CALL-7', 'Sweep 1', 'sweep')", (event_id,))
+
+    assert categories.place_counts(conn, event_id) == {"aid_station": 2,
+                                                       "parking": 1}
+    assert categories.role_counts(conn, event_id) == {"sweep": 1}
+    assert categories.sighting_counts(conn, event_id) == {}
+
+
 def test_duplicate_role_names_are_refused(event):
     conn, event_id = event
     categories.roster_roles(conn, event_id)

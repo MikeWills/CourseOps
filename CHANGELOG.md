@@ -11,7 +11,26 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Changed
+- **One reorder routine.** Places, courses, layers and leaders each had a
+  textually identical loop - four places to fix the next ordering bug.
+  `db.reorder` is the one implementation, with the two real differences as
+  arguments: places may be ordered a few at a time, and courses read as a
+  stack so the first id given draws on top. Every key is still checked
+  before anything is written.
+- **One GROUP BY per count.** The events list ran four COUNTs per event,
+  the organizations list two per club, and the setup taxonomy screen and
+  `courseops layers` each counted every layer, role and leader one at a
+  time - the CLI with its own copy of the web's query. `categories.place_counts`,
+  `role_counts` and `sighting_counts` feed both.
+- Refusing to delete a layer, a role or a leader that is still in use is a
+  409 in all three cases; roles and leaders said 400. The client treats them
+  alike, but the next taxonomy copies whichever one it reads first.
+
 ### Fixed
+- Deleting a station role that did not exist reported success. A stale row
+  on the Roles tab "deleted" and the list reloaded unchanged; it is refused
+  like an unknown layer or leader. (Audit 2026-09-14, B10.)
 - **A layer's colour and icon were accepted unchecked by the server.**
   Course colours went through `styling.is_valid_color`; layer colours and
   icon names were stored as sent, and the map was safe only because the

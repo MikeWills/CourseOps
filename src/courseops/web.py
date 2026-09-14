@@ -1142,41 +1142,26 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     async def setup_categories(event_id: int, request: Request) -> JSONResponse:
         conn, user = require_event_admin(request, event_id)
         try:
+            # The counts are what make "delete" honest: a layer with places,
+            # a role someone holds, a leader with sightings cannot go, and
+            # the number says how many are in the way.
+            places = categories.place_counts(conn, event_id)
+            roles = categories.role_counts(conn, event_id)
+            sightings = categories.sighting_counts(conn, event_id)
             payload = {
                 "poi_categories": [
-                    # The count is what makes "delete" honest: a layer with
-                    # places in it cannot go, and the number says how many.
-                    dict(row) | {"place_count": conn.execute(
-                        "SELECT COUNT(*) AS c FROM poi"
-                        " WHERE event_id = ? AND poi_type = ?",
-                        (event_id, row["key"]),
-                    ).fetchone()["c"]}
+                    dict(row) | {"place_count": places.get(row["key"], 0)}
                     for row in categories.poi_categories(conn, event_id)
                 ],
                 "roster_roles": [
-                    # The count is what makes "delete" honest: a role someone
-                    # on the roster holds cannot go, and the number says how
-                    # many would have to move first.
-                    dict(row) | {"in_use": conn.execute(
-                        "SELECT COUNT(*) AS c FROM roster"
-                        " WHERE event_id = ? AND category = ?",
-                        (event_id, row["key"]),
-                    ).fetchone()["c"]}
+                    dict(row) | {"in_use": roles.get(row["key"], 0)}
                     for row in categories.roster_roles(conn, event_id)
                 ],
                 "lead_divisions": [
-                    # The count is what makes "delete" honest: a leader with
-                    # sightings against it cannot go, and the number says how
-                    # many reports would disappear with it.
-                    dict(row) | {"in_use": conn.execute(
-                        "SELECT COUNT(*) AS c FROM lead_sighting"
-                        " WHERE event_id = ? AND division = ?",
-                        (event_id, row["key"]),
-                    ).fetchone()["c"]}
+                    dict(row) | {"in_use": sightings.get(row["key"], 0)}
                     for row in categories.lead_divisions(conn, event_id)
                 ],
             }
-            conn.commit()
         finally:
             conn.close()
         return JSONResponse(payload)
@@ -1271,8 +1256,10 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         finally:
             conn.close()
         if in_use:
+            # 409 like the other in-use refusals: the request was well
+            # formed, it is the data that is in the way.
             raise HTTPException(
-                status_code=400,
+                status_code=409,
                 detail=f"{in_use} roster entr{'y' if in_use == 1 else 'ies'} "
                        "still use this role. Move them first.")
         return JSONResponse({"deleted": key})
@@ -1338,7 +1325,7 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
             # The sightings would stay in the database and vanish from the
             # panel, with nothing on screen to say where they went.
             raise HTTPException(
-                status_code=400,
+                status_code=409,
                 detail=f"{in_use} sighting{'' if in_use == 1 else 's'} "
                        "recorded against this leader. Clear them first.")
         return JSONResponse({"deleted": key})

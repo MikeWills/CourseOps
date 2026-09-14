@@ -48,24 +48,28 @@ def list_events(conn: sqlite3.Connection,
     if organization_id is not None:
         query += " WHERE organization_id = ?"
         params.append(organization_id)
+    rows = conn.execute(query + " ORDER BY id DESC", params).fetchall()
+
+    # One GROUP BY per table rather than four COUNTs per event.
+    def per_event(sql: str) -> dict[int, int]:
+        return {r[0]: r[1] for r in conn.execute(sql).fetchall()}
+
+    counts = {
+        "courses": per_event(
+            "SELECT event_id, COUNT(*) FROM course GROUP BY event_id"),
+        "pois": per_event(
+            "SELECT event_id, COUNT(*) FROM poi GROUP BY event_id"),
+        "roster": per_event(
+            "SELECT event_id, COUNT(*) FROM roster GROUP BY event_id"),
+        "pending_imports": per_event(
+            "SELECT event_id, COUNT(*) FROM import_feature"
+            " WHERE status = 'pending' GROUP BY event_id"),
+    }
     out = []
-    for row in conn.execute(query + " ORDER BY id DESC", params).fetchall():
+    for row in rows:
         entry = _row(row)
-        entry["counts"] = {
-            "courses": conn.execute(
-                "SELECT COUNT(*) FROM course WHERE event_id = ?", (row["id"],)
-            ).fetchone()[0],
-            "pois": conn.execute(
-                "SELECT COUNT(*) FROM poi WHERE event_id = ?", (row["id"],)
-            ).fetchone()[0],
-            "roster": conn.execute(
-                "SELECT COUNT(*) FROM roster WHERE event_id = ?", (row["id"],)
-            ).fetchone()[0],
-            "pending_imports": conn.execute(
-                "SELECT COUNT(*) FROM import_feature"
-                " WHERE event_id = ? AND status = 'pending'", (row["id"],)
-            ).fetchone()[0],
-        }
+        entry["counts"] = {name: table.get(row["id"], 0)
+                           for name, table in counts.items()}
         out.append(entry)
     return out
 
@@ -561,28 +565,14 @@ def reorder_pois(conn: sqlite3.Connection, event_id: int,
 
     Only the ids passed are numbered. Anything omitted keeps its 0 and stays
     at the end - which is what should happen to a place the club has not
-    thought about yet.
+    thought about yet. `db.reorder` is the one implementation.
     """
-    ids = _ids(poi_ids or [], "places")
-    if not ids:
-        raise ValueError("Nothing to reorder.")
-    known = {
-        row["id"] for row in conn.execute(
-            "SELECT id FROM poi WHERE event_id = ?", (event_id,)
-        ).fetchall()
-    }
-    unknown = [i for i in ids if i not in known]
-    if unknown:
-        # Refuse rather than silently ordering a subset: a half-applied order
-        # is worse than none, because it looks like it worked.
-        raise ValueError(f"No such place in this event: {unknown[0]}")
-
-    for position, poi_id in enumerate(ids, start=1):
-        conn.execute(
-            "UPDATE poi SET sort_order = ? WHERE id = ? AND event_id = ?",
-            (position * 10, poi_id, event_id),
-        )
-    return len(ids)
+    try:
+        return db.reorder(conn, "poi", "id", event_id,
+                          _ids(poi_ids or [], "places"), allow_subset=True)
+    except ValueError as exc:
+        raise ValueError(str(exc).replace(
+            "Not in this event", "No such place in this event")) from None
 
 
 def reorder_courses(conn: sqlite3.Connection, event_id: int,
@@ -595,20 +585,12 @@ def reorder_courses(conn: sqlite3.Connection, event_id: int,
     must be listed: a course left out would keep its old number and land
     somewhere in the stack nobody chose.
     """
-    ids = _ids(course_ids or [], "courses")
-    known = {
-        row["id"] for row in conn.execute(
-            "SELECT id FROM course WHERE event_id = ?", (event_id,)
-        ).fetchall()
-    }
-    if not ids or set(ids) != known or len(ids) != len(known):
-        raise ValueError("Every course in the event must be listed, once.")
-    for position, course_id in enumerate(reversed(ids), start=1):
-        conn.execute(
-            "UPDATE course SET sort_order = ? WHERE id = ? AND event_id = ?",
-            (position * 10, course_id, event_id),
-        )
-    return len(ids)
+    try:
+        return db.reorder(conn, "course", "id", event_id,
+                          _ids(course_ids or [], "courses"), top_first=True)
+    except ValueError:
+        raise ValueError(
+            "Every course in the event must be listed, once.") from None
 
 
 def move_pois(conn: sqlite3.Connection, event_id: int,

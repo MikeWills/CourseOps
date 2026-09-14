@@ -196,6 +196,40 @@ def poi_categories(conn: sqlite3.Connection, event_id: int) -> list[sqlite3.Row]
     ).fetchall()
 
 
+# How many things each taxonomy row is holding up. The count is what makes
+# "delete" honest - a layer with places, a role someone holds, a leader with
+# sightings cannot go, and the number says how many are in the way - and it
+# is one GROUP BY per taxonomy rather than one COUNT per row. The setup
+# screen and `courseops layers` both read these.
+
+def _counts(conn: sqlite3.Connection, table: str, column: str,
+            event_id: int) -> dict[str, int]:
+    assert (table, column) in {("poi", "poi_type"), ("roster", "category"),
+                               ("lead_sighting", "division")}
+    return {
+        row[0]: row[1] for row in conn.execute(
+            f"SELECT {column}, COUNT(*) FROM {table} WHERE event_id = ?"
+            f" GROUP BY {column}",
+            (event_id,),
+        ).fetchall()
+    }
+
+
+def place_counts(conn: sqlite3.Connection, event_id: int) -> dict[str, int]:
+    """Places per layer key."""
+    return _counts(conn, "poi", "poi_type", event_id)
+
+
+def role_counts(conn: sqlite3.Connection, event_id: int) -> dict[str, int]:
+    """Roster entries per role key."""
+    return _counts(conn, "roster", "category", event_id)
+
+
+def sighting_counts(conn: sqlite3.Connection, event_id: int) -> dict[str, int]:
+    """Lead runner sightings per leader key."""
+    return _counts(conn, "lead_sighting", "division", event_id)
+
+
 def staffed_keys(conn: sqlite3.Connection, event_id: int) -> set[str]:
     """The categories where a person stands.
 
@@ -314,21 +348,12 @@ def reorder_poi_categories(
     chose. Numbered in tens so a new layer, which takes max + 1, still
     lands at the end.
     """
-    wanted = [str(k) for k in keys or []]
-    known = {
-        row["key"] for row in conn.execute(
-            "SELECT key FROM poi_category WHERE event_id = ?", (event_id,)
-        ).fetchall()
-    }
-    if not wanted or set(wanted) != known or len(wanted) != len(known):
-        raise CategoryError("Every layer in the event must be listed, once.")
-    for position, key in enumerate(wanted, start=1):
-        conn.execute(
-            "UPDATE poi_category SET sort_order = ?"
-            " WHERE event_id = ? AND key = ?",
-            (position * 10, event_id, key),
-        )
-    return len(wanted)
+    try:
+        return db.reorder(conn, "poi_category", "key", event_id,
+                          [str(k) for k in keys or []])
+    except ValueError:
+        raise CategoryError(
+            "Every layer in the event must be listed, once.") from None
 
 
 def delete_poi_category(conn: sqlite3.Connection, event_id: int, key: str) -> int:
@@ -441,6 +466,14 @@ def delete_roster_role(conn: sqlite3.Connection, event_id: int, key: str) -> int
     say why. Returns the count that blocked it, or 0 on success.
     """
     seed_roster_roles(conn, event_id)
+    # The same existence check as the other two: without it a stale client
+    # row "deleted" and the list reloaded unchanged.
+    known = conn.execute(
+        "SELECT 1 FROM roster_role WHERE event_id = ? AND key = ?",
+        (event_id, key),
+    ).fetchone()
+    if known is None:
+        raise CategoryError(f"Unknown role {key!r}.")
     in_use = conn.execute(
         "SELECT COUNT(*) AS c FROM roster WHERE event_id = ? AND category = ?",
         (event_id, key),
@@ -637,18 +670,9 @@ def reorder_lead_divisions(
     defaults do not exist yet, and every list would look partial.
     """
     seed_lead_divisions(conn, event_id)
-    wanted = [str(k) for k in keys or []]
-    known = {
-        row["key"] for row in conn.execute(
-            "SELECT key FROM lead_division WHERE event_id = ?", (event_id,)
-        ).fetchall()
-    }
-    if not wanted or set(wanted) != known or len(wanted) != len(known):
-        raise CategoryError("Every leader in the event must be listed, once.")
-    for position, key in enumerate(wanted, start=1):
-        conn.execute(
-            "UPDATE lead_division SET sort_order = ?"
-            " WHERE event_id = ? AND key = ?",
-            (position * 10, event_id, key),
-        )
-    return len(wanted)
+    try:
+        return db.reorder(conn, "lead_division", "key", event_id,
+                          [str(k) for k in keys or []])
+    except ValueError:
+        raise CategoryError(
+            "Every leader in the event must be listed, once.") from None

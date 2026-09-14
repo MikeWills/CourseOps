@@ -215,6 +215,63 @@ def active_events(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     ).fetchall()
 
 
+# --- ordering ---------------------------------------------------------------
+
+def reorder(
+    conn: sqlite3.Connection,
+    table: str,
+    key_column: str,
+    event_id: int,
+    keys: list,
+    *,
+    allow_subset: bool = False,
+    top_first: bool = False,
+) -> int:
+    """Renumber `sort_order` for one event's rows in the order given.
+
+    The one implementation behind places, courses, layers and leaders, which
+    were four textually identical loops. Numbered in tens from 1 so a later
+    insertion has somewhere to go and nothing lands on 0, which for places
+    means "never placed by hand".
+
+    `allow_subset`: places may be ordered a few at a time - anything omitted
+    keeps its 0 and stays at the end, which is right for a place the club
+    has not thought about yet. Everything else must be listed once, or a
+    row would keep an old number and land in a slot nobody chose.
+
+    `top_first`: courses read as a stack, so the first id given draws on
+    top and therefore gets the HIGHEST number.
+
+    Every key is checked before anything is written. A half-applied order
+    is worse than none, because it looks like it worked.
+    """
+    assert table in {"poi", "course", "poi_category", "lead_division"}
+    assert key_column in {"id", "key"}
+    wanted = list(keys or [])
+    if not wanted:
+        raise ValueError("Nothing to reorder.")
+    known = {
+        row[0] for row in conn.execute(
+            f"SELECT {key_column} FROM {table} WHERE event_id = ?", (event_id,)
+        ).fetchall()
+    }
+    if len(set(wanted)) != len(wanted):
+        raise ValueError("Each entry may be listed only once.")
+    unknown = [k for k in wanted if k not in known]
+    if unknown:
+        raise ValueError(f"Not in this event: {unknown[0]!r}")
+    if not allow_subset and set(wanted) != known:
+        raise ValueError("Every entry in the event must be listed, once.")
+
+    ordered = list(reversed(wanted)) if top_first else wanted
+    conn.executemany(
+        f"UPDATE {table} SET sort_order = ? WHERE {key_column} = ? AND event_id = ?",
+        [(position * 10, key, event_id)
+         for position, key in enumerate(ordered, start=1)],
+    )
+    return len(wanted)
+
+
 # --- roster ---------------------------------------------------------------
 
 def upsert_roster_entry(

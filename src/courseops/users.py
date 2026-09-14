@@ -251,17 +251,19 @@ def delete_user(conn: sqlite3.Connection, user_id: int) -> None:
 
 
 def list_organizations(conn: sqlite3.Connection) -> list[dict]:
+    events = {r[0]: r[1] for r in conn.execute(
+        "SELECT organization_id, COUNT(*) FROM event GROUP BY organization_id"
+    ).fetchall()}
+    admins = {r[0]: r[1] for r in conn.execute(
+        "SELECT organization_id, COUNT(*) FROM user GROUP BY organization_id"
+    ).fetchall()}
     out = []
     for row in conn.execute(
         "SELECT * FROM organization ORDER BY name"
     ).fetchall():
         entry = {key: row[key] for key in row.keys()}
-        entry["event_count"] = conn.execute(
-            "SELECT COUNT(*) FROM event WHERE organization_id = ?", (row["id"],)
-        ).fetchone()[0]
-        entry["admin_count"] = conn.execute(
-            "SELECT COUNT(*) FROM user WHERE organization_id = ?", (row["id"],)
-        ).fetchone()[0]
+        entry["event_count"] = events.get(row["id"], 0)
+        entry["admin_count"] = admins.get(row["id"], 0)
         out.append(entry)
     return out
 

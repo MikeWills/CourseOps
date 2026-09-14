@@ -424,17 +424,14 @@ def cmd_layers(args: argparse.Namespace) -> int:
     conn = db.connect(settings.db_path)
     event = _event_or_exit(conn, args.event)
     rows = categories.poi_categories(conn, event["id"])
-    conn.commit()
+    counts = categories.place_counts(conn, event["id"])
 
     print()
     print(f"Place layers for {event['name']!r}")
     print()
     print(f"  {'KEY':<20} {'NAME':<22} {'STAFFED':<9} PLACES")
     for row in rows:
-        count = conn.execute(
-            "SELECT COUNT(*) AS c FROM poi WHERE event_id = ? AND poi_type = ?",
-            (event["id"], row["key"]),
-        ).fetchone()["c"]
+        count = counts.get(row["key"], 0)
         staffed = "yes" if row["staffed"] else "-"
         print(f"  {row['key']:<20} {row['name']:<22} {staffed:<9} {count}")
 
