@@ -588,17 +588,24 @@ def unexpected_ssids(conn: sqlite3.Connection, event_id: int) -> list[sqlite3.Ro
     if not bases:
         return []
 
+    # The symbol pair comes from ONE packet - the newest - never from two
+    # aggregates. MAX(symbol_table) with MAX(symbol_code) once paired the
+    # table of one packet with the code of another and described a symbol
+    # nothing had sent, and that description is what tells NCS whether
+    # this is a person to adopt or an igate to dismiss.
     rows = conn.execute(
         """
         SELECT p.station_key,
-               COUNT(*)                AS packets,
-               MAX(p.received_at)      AS last_at,
-               MAX(p.symbol_table)     AS symbol_table,
-               MAX(p.symbol_code)      AS symbol_code
+               counts.packets          AS packets,
+               p.received_at           AS last_at,
+               p.symbol_table          AS symbol_table,
+               p.symbol_code           AS symbol_code
           FROM position p
-         WHERE p.event_id = ?
-      GROUP BY p.station_key
-      ORDER BY packets DESC
+          JOIN (
+                SELECT station_key, COUNT(*) AS packets, MAX(id) AS max_id
+                  FROM position WHERE event_id = ? GROUP BY station_key
+               ) counts ON counts.max_id = p.id
+      ORDER BY counts.packets DESC
         """,
         (event_id,),
     ).fetchall()

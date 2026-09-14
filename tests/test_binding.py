@@ -197,6 +197,28 @@ def test_an_unbound_extra_ssid_is_still_reported(tmp_path):
     assert heard == {"K0JZP-5"}
 
 
+def test_an_unexpected_ssid_reports_the_symbol_pair_from_its_newest_packet(tmp_path):
+    """Symbol table and code travel as a pair: the table character changes
+    what the code means. Aggregating the two columns separately (MAX of
+    each) once paired a table from one packet with a code from another and
+    described a symbol no packet carried - and that description is what
+    tells NCS whether to adopt or dismiss the station."""
+    conn, event_id = _event(tmp_path, "K0JZP-9")
+    # Same station, two symbols: first '\\#' (alternate table), then '/&'
+    # (primary table, '&' = igate). MAX() of each column separately gives
+    # table '\\' with code '&', which no packet sent.
+    _feed(conn, event_id,
+          _packet("K0JZP-5", "!4408.55N\\09359.20W#first"),
+          _packet("K0JZP-5", "!4408.55N/09359.20W&second"))
+
+    rows = db.unexpected_ssids(conn, event_id)
+    assert [r["station_key"] for r in rows] == ["K0JZP-5"]
+    assert (rows[0]["symbol_table"], rows[0]["symbol_code"]) == ("/", "&")
+    assert rows[0]["packets"] == 2
+    assert rows[0]["last_at"] == conn.execute(
+        "SELECT MAX(received_at) FROM position").fetchone()[0]
+
+
 def test_a_bare_callsign_is_accepted_by_setup(tmp_path):
     from courseops import admin
 

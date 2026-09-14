@@ -68,6 +68,14 @@ month, PATCH counting releases in that month from 0. Before that they were
   stored position was written to it a second time beside `position.raw`.
   Nothing writes it now; the definition stays in `schema.sql`, marked
   retired, so an existing database is untouched. (Audit 2026-09-14, A4.)
+- **The "Needs attention" list could describe a symbol no packet sent.**
+  `unexpected_ssids` took `MAX(symbol_table)` and `MAX(symbol_code)` as two
+  separate aggregates, so a station that beaconed `/#` and then `\&` was
+  reported as `\#` - a table from one packet with a code from another. The
+  table character changes what the code means, and that description is
+  what tells NCS whether an SSID is a person to adopt or an igate to
+  dismiss. Both now come from the station's newest packet. (Audit
+  2026-09-14, A6.)
 
 ### Changed
 - Two per-packet costs on the ingest loop are gone. `bind_heard_ssid` ran
