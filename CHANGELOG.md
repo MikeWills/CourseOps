@@ -11,6 +11,18 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Changed
+- **The snapshot build is half the work it was.** `CourseIndex.locate`
+  walks every vertex of every course in pure Python, and one snapshot asked
+  it about each place four times over - in the course-order sort key, for
+  the place's own mile figure, and twice again in the leader progression.
+  That was 88 % of `build_state`, and it grew as places times vertices:
+  the organizer's real file has 48 mile markers on a 1258-point course.
+  The index now remembers each answer for the life of the request, misses
+  included. On the demo event `build_state` went from 178 ms to 89 ms
+  median. Why it matters: the snapshot is built on the event loop, and
+  while it is, no phone's position moves.
+
 ## [2026.9.4] - 2026-09-14
 
 ### Added
