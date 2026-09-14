@@ -18,7 +18,6 @@ there is still time to fix things.
 
 from __future__ import annotations
 
-import sqlite3
 from collections import OrderedDict
 from dataclasses import dataclass, field
 

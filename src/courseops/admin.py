@@ -20,7 +20,7 @@ import sqlite3
 from typing import Any
 
 from . import (access, categories, db, importer, labels, leaders,
-               progress, styling, what3words)
+               progress, what3words)
 
 
 # Loose on purpose: this is a sanity check against a typed label or a pasted

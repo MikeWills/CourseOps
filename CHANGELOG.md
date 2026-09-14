@@ -24,8 +24,9 @@ month, PATCH counting releases in that month from 0. Before that they were
   `discovery.roster_keys_for_event`; `leaders.DIVISIONS` (the pair lives in
   `categories.DEFAULT_LEAD_DIVISIONS`); `units.miles_to_meters` and
   `units.format_mile`; `build.version_string` and
-  `categories.lead_division_keys`, which only tests called; the `geo` and
-  `Form` imports in `admin.py` and `web.py`; the unused `.swatch-dot` rule
+  `categories.lead_division_keys`, which only tests called; the `geo`,
+  `styling`, `Form` and (after the deletion above) `sqlite3` imports in
+  `admin.py`, `web.py` and `discovery.py`; the unused `.swatch-dot` rule
   in `setup.css`. `incidents.waiting_count` went with them: the client has
   derived the queue count from the list since the count and the map
   drifted, and a count sent once in the snapshot was stale by the next
