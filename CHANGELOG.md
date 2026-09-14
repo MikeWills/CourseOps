@@ -12,6 +12,21 @@ month, PATCH counting releases in that month from 0. Before that they were
 ## [Unreleased]
 
 ### Fixed
+- **A phone coming back from a dead zone could stop reconnecting for
+  good.** The reconnect timer fetched the snapshot before opening the
+  socket, with nothing catching a failed fetch - and a phone still out of
+  coverage when the 1-2 s retry fired is the normal case. The rejection
+  went unhandled, the socket was never opened, and nothing scheduled
+  another attempt: the badge read "Connecting..." until someone reloaded
+  the page by hand, on the exact day and the exact phones the loop exists
+  for. `loadState` never throws now, every path out of a failed attempt
+  schedules the next one, and the socket is opened FIRST with the snapshot
+  fetched on open - which also closes the gap in which a status change or
+  a pickup published between "snapshot served" and "subscribed" was never
+  seen by that browser. Frames arriving during the fetch are held and
+  replayed after it. And only a 403/404 reads "Access denied" now; a 502
+  from Apache during a deploy restart says "Server unavailable - retrying"
+  instead of sending a volunteer to ask for a new link. (Audit F2.)
 - **A status change on a matched station reached only the screen that made
   it.** The `station_status` socket message carried the roster's own key,
   but the client keys its roster by the SSID it hears - the bound key for a

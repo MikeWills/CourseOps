@@ -57,6 +57,10 @@ const state = {
   panelState: { sheet: true, stations: true },
   socket: null,
   reconnectDelay: 1000,
+  reconnectTimer: null,
+  // Set once the server has said the LINK is dead (403/404), which is the
+  // one failure retrying cannot fix. Everything else keeps retrying.
+  linkDead: false,
   opStatuses: ['pending', 'active', 'closed'],
   incidents: new Map(),       // id -> incident
   incidentMarkers: new Map(), // id -> L.Marker
@@ -2374,14 +2378,38 @@ function setConnection(kind, text) {
   document.getElementById('conn-text').textContent = text;
 }
 
+/* Fetch and apply the snapshot. Returns true on success and NEVER throws:
+   the reconnect loop awaits this from a timer, and a phone still in a dead
+   zone when the timer fires is the normal case, not the exception. An
+   unhandled rejection here once ended reconnection for good, with the badge
+   reading "Connecting..." until someone reloaded the page by hand. */
 async function loadState() {
-  const response = await fetch(`/api/${M.slug}/${M.token}/state`);
-  if (!response.ok) {
+  let response;
+  try {
+    response = await fetch(`/api/${M.slug}/${M.token}/state`);
+  } catch (err) {
+    // No network. The socket is closing or closed, and the reconnect loop
+    // owns recovery; the badge just has to say the picture is not current.
+    setConnection('down', 'Reconnecting…');
+    return false;
+  }
+  if (response.status === 403 || response.status === 404) {
+    // Only these mean the LINK is dead - revoked, or for another event.
+    // Everything else is the server (a 502 from Apache during a deploy
+    // restart, say) and reads as "ask for a new link" if it says this.
+    state.linkDead = true;
     setConnection('down', 'Access denied');
     document.getElementById('event-name').textContent = 'Not available';
     return false;
   }
-  const data = await response.json();
+  let data;
+  try {
+    if (!response.ok) throw new Error(String(response.status));
+    data = await response.json();
+  } catch (err) {
+    setConnection('down', 'Server unavailable - retrying');
+    return false;
+  }
   applyState(data);
   return true;
 }
@@ -2503,17 +2531,54 @@ function applyState(data) {
   if (firstLoad) fitToContent();
 }
 
+/* Subscribe FIRST, then fetch the snapshot. The server sends nothing on
+   open, so anything published between "snapshot served" and "subscription
+   registered" - seconds on a slow phone, and reconnects cluster on race
+   morning when statuses change every few seconds - was simply never seen.
+   Frames that arrive while the snapshot is in flight are held and replayed
+   after it applies: every message is a whole row, so applying one twice or
+   after a newer snapshot is harmless. */
 function connect() {
+  if (state.linkDead) return;
   const scheme = location.protocol === 'https:' ? 'wss' : 'ws';
-  const socket = new WebSocket(`${scheme}://${location.host}/ws/${M.slug}/${M.token}`);
+  let socket;
+  try {
+    socket = new WebSocket(`${scheme}://${location.host}/ws/${M.slug}/${M.token}`);
+  } catch (err) {
+    scheduleReconnect();
+    return;
+  }
   state.socket = socket;
+  // Raw frames held until the snapshot lands; null once it has.
+  let held = [];
+  let opened = false;
 
-  socket.addEventListener('open', () => {
+  socket.addEventListener('open', async () => {
+    opened = true;
+    const ok = await loadState();
+    // The socket may have dropped during the fetch; its close handler owns
+    // the retry then, and "Live" over a dead socket is the lie this badge
+    // exists to prevent.
+    if (socket.readyState !== WebSocket.OPEN) return;
+    if (!ok) {
+      // The server answered the socket but not the snapshot. Closing puts
+      // this through the same backoff as any other failure (unless the link
+      // is dead, in which case the close handler stops there).
+      socket.close();
+      return;
+    }
+    const replay = held;
+    held = null;
+    replay.forEach((data) => socket.dispatchEvent(new MessageEvent('message', { data })));
     state.reconnectDelay = 1000;
     setConnection('live', 'Live');
   });
 
   socket.addEventListener('message', (ev) => {
+    if (held) {
+      held.push(ev.data);
+      return;
+    }
     let message;
     try {
       message = JSON.parse(ev.data);
@@ -2569,7 +2634,15 @@ function connect() {
     }
   });
 
-  socket.addEventListener('close', () => {
+  socket.addEventListener('close', async () => {
+    // A socket that never opened looks the same from here whether the
+    // phone is in a dead zone or the link was revoked: the server refuses a
+    // bad token before the handshake completes, and the browser reports
+    // that as an opaque 1006. The snapshot can tell the two apart - 403/404
+    // marks the link dead, a network failure keeps retrying - so ask it
+    // once rather than retry a revoked link every 30 s all day.
+    if (!opened) await loadState();
+    if (state.linkDead) return;
     setConnection('down', 'Reconnecting…');
     scheduleReconnect();
   });
@@ -2577,13 +2650,17 @@ function connect() {
   socket.addEventListener('error', () => socket.close());
 }
 
+/* Always ends in another attempt. The snapshot is fetched once the socket is
+   open (see connect), so nothing in here can reject and strand the loop. */
 function scheduleReconnect() {
+  if (state.linkDead) return;
   const delay = Math.min(state.reconnectDelay, 30000);
-  setTimeout(async () => {
+  clearTimeout(state.reconnectTimer);
+  state.reconnectTimer = setTimeout(() => {
+    state.reconnectTimer = null;
     setConnection('connecting', 'Connecting…');
     // Full resync, not a replay: a phone back from a dead zone must not show a
     // stale picture as if it were current.
-    await loadState();
     connect();
   }, delay);
   state.reconnectDelay = Math.min(state.reconnectDelay * 2, 30000);
@@ -2786,6 +2863,6 @@ document.addEventListener('visibilitychange', () => {
 
 /* ---------- go ---------------------------------------------------------- */
 
-(async () => {
-  if (await loadState()) connect();
-})();
+// The socket first; the snapshot follows on open. A transient failure on
+// first load used to leave a page that never connected at all.
+connect();

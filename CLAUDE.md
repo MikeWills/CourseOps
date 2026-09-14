@@ -460,6 +460,16 @@ usability, not style preferences.
   exists. Tokens are also scoped to their event: valid elsewhere means nothing.
 - **Never interpolate marker movement in the client** (same rule as the plan).
   `setLatLng`, not an animated transition.
+- **The socket opens FIRST; the snapshot follows on `open`, and `loadState`
+  never throws.** The reconnect loop runs from a timer, and a phone still
+  out of coverage when it fires is the normal case: one unhandled rejection
+  there ended reconnection for good, with the badge reading "Connecting..."
+  until a manual reload. Subscribing before fetching also closes the gap in
+  which a status published between "snapshot served" and "subscribed" was
+  never seen. Frames arriving during the fetch are held and replayed after
+  it. Only 403/404 means the LINK is dead (`state.linkDead`, stop retrying);
+  everything else is the server and keeps retrying, because "Access denied"
+  during a deploy restart sends a volunteer to ask for a new link.
 - **A station row's "where" is its own marker OR its posted place.** Most
   aid station operators never beacon (the rule above), so `state.markers`
   has nothing for them and a tap on their row was silently dead - nine of

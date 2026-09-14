@@ -39,7 +39,8 @@ thing that tells you whether what you are looking at is current.
 |---|---|
 | **Live** | Connected. Positions and reports arrive as they happen |
 | **Connecting...** | Trying |
-| **Reconnecting...** | The connection dropped. What is on screen may be minutes old |
+| **Reconnecting...** | The connection dropped. What is on screen may be minutes old. It retries on its own |
+| **Server unavailable - retrying** | The server is restarting or unreachable. Your link is fine; wait |
 | **Access denied** | The link has been revoked, or it is for a different event. Ask for a new one |
 
 The badge beside it is your role. It never changes colour, and it is never an
