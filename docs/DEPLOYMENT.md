@@ -341,6 +341,13 @@ sudo systemctl enable --now courseops
 sudo journalctl -u courseops -f
 ```
 
+The journal is where the first-run **setup code** appears (`Setup code:
+XXXXXXXX`, beside the setup address). The first-user form on `/setup` asks for
+it, so the vhost being public before you have signed up is not an open door.
+It changes on every restart: if the one in the journal has scrolled past,
+`sudo systemctl restart courseops` prints a fresh one. Once the account exists
+nothing prints and nothing asks.
+
 Then check each thing that can fail independently:
 
 | Check | Command | Expect |

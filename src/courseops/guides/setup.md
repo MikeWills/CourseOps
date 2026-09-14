@@ -33,6 +33,13 @@ you are on, in a new tab.
 
 ## 1. Organizations, then an event
 
+**The very first visit** asks you to create a system administrator account,
+and for the **setup code** that the server printed where it was started -
+beside the setup address in the console window, or in the server's log. That
+code is what makes the person creating the account the person who started
+the server, rather than whoever reached the page first. It is new on every
+start and asked for exactly once; after that, sign in.
+
 An **organization** is your club. It owns its events and its administrators and
 cannot see another club's - so a second club on the same server is properly
 walled off, not just tidily separated.

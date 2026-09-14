@@ -2791,3 +2791,53 @@ def test_an_event_admins_events_can_be_changed_after_creation(setup):
         assert cleared.status_code == 200
         listed = client.get("/api/setup/users").json()["users"]
         assert next(u for u in listed if u["id"] == uid)["events"] == []
+
+
+# --- the first account needs the code from the console (audit C7) ----------
+
+def test_the_first_account_needs_the_setup_code_from_the_console(setup):
+    """Until one user existed, whoever reached /setup first became the
+    system administrator - on a VPS that is anyone, from the moment certbot
+    finishes until the officer signs up, and a deploy that recreated the
+    database reopened it silently. The code printed where the server
+    started is what proves the person at the form is the person at the
+    console."""
+    app, _, _, _ = setup
+    code = app.state.setup_code
+    assert len(code) >= 8 and code == code.upper()
+
+    with TestClient(app) as client:
+        assert client.get("/api/setup/session").json()["first_run"] is True
+        account = {"username": "mike", "password": "a-long-enough-password"}
+
+        missing = client.post("/api/setup/first-user", json=account)
+        assert missing.status_code == 403
+        assert "setup code" in missing.json()["detail"].lower()
+        wrong = client.post("/api/setup/first-user",
+                            json={**account, "setup_code": "NOT-IT-1"})
+        assert wrong.status_code == 403
+        assert client.get("/api/setup/session").json()["first_run"] is True
+
+        # Case and surrounding space are forgiven: it is read off a screen
+        # and typed on a phone.
+        right = client.post("/api/setup/first-user",
+                            json={**account, "setup_code": f" {code.lower()} "})
+        assert right.status_code == 201, right.text
+        assert client.get("/api/setup/session").json()["first_run"] is False
+        # And closed for good, code or no code.
+        again = client.post("/api/setup/first-user",
+                            json={**account, "setup_code": code})
+        assert again.status_code == 409
+
+
+def test_guessing_the_setup_code_is_throttled_like_a_password(setup):
+    """Eight hex characters is a small space if guessing is free."""
+    app, _, _, _ = setup
+    with TestClient(app) as client:
+        account = {"username": "mike", "password": "a-long-enough-password"}
+        statuses = [
+            client.post("/api/setup/first-user",
+                        json={**account, "setup_code": f"WRONG{n:03d}"}).status_code
+            for n in range(8)
+        ]
+    assert 403 in statuses and statuses[-1] == 429

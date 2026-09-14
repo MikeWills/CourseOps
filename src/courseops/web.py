@@ -9,10 +9,12 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import hmac
 import json
 import importlib.metadata as _metadata
 import logging
 import re
+import secrets
 import sqlite3
 import tempfile
 import zipfile
@@ -582,6 +584,15 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     # rather than module-level so every test gets a clean one - the suite
     # signs in hundreds of times and must never throttle itself.
     app.state.login_limiter = users.LoginLimiter()
+    # What the first-user form has to be shown before it creates the system
+    # administrator. Until that account exists the form is open to whoever
+    # reaches /setup first - on a VPS that is the whole internet from the
+    # moment TLS is up until the officer gets there, and a deploy that
+    # recreated the database (a restore gone wrong, a wrong DB_PATH) would
+    # reopen it silently. The code is printed where the server started,
+    # so holding it means being at the console. New on every start: a code
+    # that survived a restart would be a second password for the box.
+    app.state.setup_code = secrets.token_hex(4).upper()
 
     # A setup change during an event has to reach the field, not wait for
     # someone to pull to refresh.
@@ -949,6 +960,19 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         body = await _json_body(request)
         username = str(body.get("username", "") or "")
         keys = _refuse_if_throttled(request, username)
+
+        # The code is read off a screen and typed on a phone, so case and
+        # surrounding space are forgiven; nothing else is. Checked before
+        # the hash, and a miss counts like a wrong password, because eight
+        # hex characters is a small space if guessing is free.
+        offered = str(body.get("setup_code", "") or "").strip().upper()
+        if not hmac.compare_digest(offered, app.state.setup_code):
+            app.state.login_limiter.failed(*keys)
+            raise HTTPException(
+                status_code=403,
+                detail="The setup code is wrong. It is printed where the "
+                       "server was started (or in its log).",
+            )
 
         def create() -> users.User:
             # Its own connection, opened in the worker thread: a sqlite

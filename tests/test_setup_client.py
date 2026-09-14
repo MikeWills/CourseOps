@@ -239,3 +239,16 @@ def test_an_event_admins_events_are_editable_in_the_users_table():
     assert "{event_ids: ids}" in handler
     assert "post(`/api/setup/users/${box.dataset.uev}`" in handler
     assert "loadUsers()" in handler
+
+
+def test_the_first_run_form_sends_the_setup_code():
+    """The server refuses the first account without the code printed at
+    its console (audit C7); a gate form that did not send it would make
+    first run impossible from the browser, which is the only place it is
+    meant to happen."""
+    gate = _block("function showGate(", "$('gate-form').addEventListener")
+    assert "$('gate-code-field').hidden = !firstRun;" in gate
+    assert "$('gate-code').required = firstRun;" in gate
+    submit = _block("$('gate-form').addEventListener('submit'", "$('version-notice')")
+    assert "body.setup_code = $('gate-code').value;" in submit
+    assert 'id="gate-code"' in SETUP_HTML

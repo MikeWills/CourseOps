@@ -94,9 +94,10 @@ never transmits.
 
 Grab **CourseOps.exe** from the
 [latest release](../../releases/latest) and double-click it. One file, nothing
-to install, no Python. It prints a setup address, opens no windows of its own,
-and keeps its database in `%LOCALAPPDATA%\CourseOps` so nothing is scattered
-next to your download.
+to install, no Python. It opens a console window that prints the setup address
+and, the first time, a **setup code** - keep that window open, the first form
+asks for the code - and keeps its database in `%LOCALAPPDATA%\CourseOps` so
+nothing is scattered next to your download.
 
 Windows may warn that the publisher is unknown - the build is not code-signed.
 
@@ -149,6 +150,8 @@ and prints where to go:
   Course Ops
   Setup: http://localhost:8000/setup
          (first run - it will ask you to create an administrator)
+         Setup code: 7F3A9C1E
+         The form asks for it. Nobody else can create that account.
 
   Listening on http://127.0.0.1:8000   Ctrl-C to stop
 ```
@@ -159,7 +162,9 @@ file but have not edited it yet - that is the step above.
 ### Then do the rest in a browser
 
 Open **http://localhost:8000/setup**. The first visit asks you to create a
-system administrator; after that you sign in.
+system administrator and for the **setup code** printed above - so that
+whoever started the server, not whoever reached the page first, gets that
+account. After that you sign in.
 
 Everything else is forms: create an organization and an event, upload the
 organizer's KML, KMZ or GPX and assign each feature by looking at it on a map, name

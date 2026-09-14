@@ -72,3 +72,33 @@ def test_serve_keeps_the_links_out_of_the_journal(served):
         assert token not in out
     # And says where they are instead, rather than printing nothing.
     assert "Links tab" in out
+
+
+def test_serve_prints_the_setup_code_on_first_run_even_to_a_log(served):
+    """Unlike the role links, the setup code IS printed to a log: it is
+    worthless once the first account exists, and under systemd the journal
+    is the only console there is - without it a VPS could never complete
+    its first run. It has to be the code the app will accept."""
+    import os
+    import re
+    caught = {}
+    sys.modules["uvicorn"].run = lambda app, **k: caught.setdefault("app", app)
+
+    out, _ = served(io.StringIO())
+
+    printed = re.search(r"Setup code: ([0-9A-F]{8})", out)
+    assert printed, out
+    assert printed.group(1) == caught["app"].state.setup_code
+    assert "first run" in out
+
+
+def test_serve_says_nothing_about_a_setup_code_once_an_account_exists(served):
+    import os
+    from courseops import users
+    conn = db.connect(os.environ["DB_PATH"])
+    users.create_user(conn, "mike", "a-long-enough-password", users.ROLE_SYSTEM_ADMIN)
+    conn.close()
+
+    out, _ = served(_Terminal())
+
+    assert "Setup code" not in out and "first run" not in out

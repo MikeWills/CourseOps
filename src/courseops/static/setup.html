@@ -79,6 +79,16 @@
       <input id="gate-display" type="text" autocomplete="name">
     </label>
 
+    <!-- First run only. Printed where the server was started, so that
+         holding it means being at the console: until this account exists
+         the form is otherwise open to whoever reaches /setup first. -->
+    <label class="field" id="gate-code-field" hidden>
+      <span>Setup code</span>
+      <input id="gate-code" type="text" autocomplete="one-time-code"
+        autocapitalize="characters" spellcheck="false" placeholder="from the server's console">
+      <small>Printed beside "Setup:" where <code>courseops serve</code> was started (on the server, in its log).</small>
+    </label>
+
     <label class="field">
       <span>Password</span>
       <input id="gate-password" type="password" autocomplete="current-password" required>

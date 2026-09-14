@@ -40,6 +40,17 @@ month, PATCH counting releases in that month from 0. Before that they were
   duplicate `payload["role"]` assignment. (Audit D1.)
 
 ### Added
+- **The first account needs the setup code from the console.** Until one
+  user existed, `POST /api/setup/first-user` made a system administrator
+  for anyone - on a VPS that is the whole internet from the moment TLS is
+  up until the officer signs up, and a deploy that recreated the database
+  (a restore gone wrong, a wrong `DB_PATH`) reopened it silently. The
+  server now mints an eight-character code on every start, prints it beside
+  the setup address when no users exist (to the journal too, unlike the
+  role links: it is worthless once the account exists and under systemd
+  the journal is the only console), and the first-user form asks for it.
+  A wrong code counts like a wrong password for throttling. The Windows
+  build stays a console build for this reason. (Audit C7.)
 - **Change my password, and change an administrator's events.** Both routes
   existed on the server with nothing in the setup client calling them
   (audit D2). The only password control was a manager's *Set a password* on

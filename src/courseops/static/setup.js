@@ -94,6 +94,8 @@ function showGate(firstRun, notice) {
       + 'this form closes as soon as it exists.'
     : '';
   $('gate-display-field').hidden = !firstRun;
+  $('gate-code-field').hidden = !firstRun;
+  $('gate-code').required = firstRun;
   $('gate-submit').textContent = firstRun ? 'Create account' : 'Sign in';
   $('gate-password').autocomplete = firstRun ? 'new-password' : 'current-password';
   $('gate-form').dataset.firstRun = firstRun ? 'true' : 'false';
@@ -120,7 +122,10 @@ $('gate-form').addEventListener('submit', async (ev) => {
       username: $('gate-username').value,
       password: $('gate-password').value,
     };
-    if (firstRun) body.display_name = $('gate-display').value;
+    if (firstRun) {
+      body.display_name = $('gate-display').value;
+      body.setup_code = $('gate-code').value;
+    }
 
     if (firstRun) {
       await post('/api/setup/first-user', body);

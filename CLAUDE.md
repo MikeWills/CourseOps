@@ -882,6 +882,13 @@ usability, not style preferences.
   error.
 - **A frozen build must not write beside itself.** It is run from a Downloads
   folder or a USB stick; the database goes to `%LOCALAPPDATA%`.
+- **The first account needs the setup code printed at the console, and
+  the Windows build stays `console=True` because of it.** `app.state
+  .setup_code` is new on every start and `cmd_serve` prints it beside the
+  setup address only while no user exists - to the journal too, unlike the
+  role links, because it is worthless once the account exists and under
+  systemd the journal is the only console. A windowed .exe would print it
+  to nowhere and no first account could ever be created.
 - **A callsign is required where it is USED, never at startup.** Everything
   except the live APRS-IS connection works without one, and refusing to boot
   over it turns the Windows download into a console window that flashes and
