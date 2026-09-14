@@ -62,7 +62,7 @@ reload. That is the same relay everything else in this app uses.
 
 The full event-day procedure - what Net Control does through the morning, and
 what to do when something breaks - is in
-[`docs/RUNBOOK.md`](../RUNBOOK.md) in the repository.
+[`docs/RUNBOOK.md`](../../../docs/RUNBOOK.md) in the repository.
 
 ---
 

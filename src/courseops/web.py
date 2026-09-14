@@ -24,7 +24,7 @@ from fastapi.responses import (HTMLResponse, JSONResponse, PlainTextResponse,
                                RedirectResponse)
 from fastapi.staticfiles import StaticFiles
 
-from . import (access, admin, build, categories, db, hub as hub_module, importer,
+from . import (access, admin, build, categories, db, guides, hub as hub_module, importer,
                incidents, labels as poi_labels, report, resources,
                kml, leaders, progress, symbols, users)
 from .config import Settings
@@ -2081,9 +2081,37 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         finally:
             app.state.hub.unsubscribe(subscription)
 
+    # --- the guides --------------------------------------------------------
+
+    # Unauthenticated on purpose: these are the volunteer guides, public in
+    # the repository already, and the `?` on a role page has to open without
+    # asking anyone for anything. They name no event and hold no token. What
+    # they must not do is leak a path: `guides.load` refuses anything that is
+    # not a bare page name before touching the filesystem.
+    @app.get("/help")
+    @app.get("/help/")
+    async def help_index() -> HTMLResponse:
+        return _guide(guides.INDEX)
+
+    @app.get("/help/{page}")
+    async def help_page(page: str) -> HTMLResponse:
+        return _guide(page)
+
+    def _guide(name: str) -> HTMLResponse:
+        page = guides.load(name)
+        if page is None:
+            raise HTTPException(status_code=404, detail="No such guide")
+        html = guides.page_html(page, guides.page_names())
+        return _page(html)
+
     # --- static ------------------------------------------------------------
 
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+    # The screenshots, beside the pages they belong to. Declared after the
+    # /help/{page} routes so a page named "images" could never shadow them -
+    # a mount is matched after the routes above it.
+    app.mount("/help/images", StaticFiles(directory=guides.GUIDES_DIR / "images"),
+              name="guide-images")
 
     # --- ingest lifecycle --------------------------------------------------
 

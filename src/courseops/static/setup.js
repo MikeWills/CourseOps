@@ -156,7 +156,7 @@ $('logout').addEventListener('click', async () => {
 /* The setup guide is four pages, split where the job splits, so the ? follows
    the tab rather than always landing on page one. Anything not named here -
    organizations, events, import, courses, places - is the first page. */
-const HELP_BASE = 'https://github.com/MikeWills/CourseOps/wiki/';
+const HELP_BASE = '/help/';
 const HELP_FOR_TAB = {
   roster: 'setup-people',
   links: 'setup-people',

@@ -11,6 +11,29 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Added
+- **The guides are inside the app.** Every running copy serves them at
+  `/help/` - one page per role, the basics, the four setup pages, with the
+  screenshots - in the app's own bar and faces, and the `?` on every screen
+  opens the page for the link that person is holding on the same server the
+  map came from. The pages are the same Markdown files, moved from
+  `docs/wiki/` to `src/courseops/guides/` so they ship in the wheel and the
+  Windows build, and rendered by a small converter of our own (`guides.py`)
+  rather than a fifth dependency. `tests/test_guides.py` renders every page
+  and checks that every link and image in it resolves.
+
+### Changed
+- The GitHub Wiki is retired. It put the one thing a volunteer reads on race
+  morning on a different site, in a different look, at a URL naming a
+  code-hosting service - and a club running its own copy was either sending
+  people to our wiki or maintaining a fork of it. `tools/build_wiki.py` and
+  `.github/workflows/wiki.yml` are gone; the wiki should be switched off in
+  the repository settings so the stale copy does not outlive the source.
+
+### Fixed
+- Three setup guides linked to `Home`, a page that existed only in the wiki.
+  The new link check caught it; they point at the guides index now.
+
 ## [2026.9.3] - 2026-09-13
 
 ### Fixed

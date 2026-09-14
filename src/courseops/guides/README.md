@@ -46,7 +46,7 @@ exactly why it cannot change anything.
 
 These guides are for event day. Setting an event up - importing the course,
 building the roster, handing out the links - is in
-[docs/RUNBOOK.md](../RUNBOOK.md).
+[docs/RUNBOOK.md](../../../docs/RUNBOOK.md).
 
 ---
 

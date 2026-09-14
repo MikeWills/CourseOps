@@ -45,7 +45,7 @@ where = ["src"]
 # page 404s, and nobody notices because development uses `pip install -e .`,
 # which reads straight from the source tree. Found by building a wheel and
 # looking inside it, which is the only thing that shows this.
-courseops = ["*.sql", "static/*", "static/**/*"]
+courseops = ["*.sql", "static/*", "static/**/*", "guides/*.md", "guides/images/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
