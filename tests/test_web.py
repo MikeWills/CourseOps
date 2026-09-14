@@ -245,6 +245,59 @@ def test_websocket_subscription_is_released_on_disconnect(setup):
     assert app.state.hub.subscriber_count(event_id) == 0
 
 
+def test_a_sent_resync_marks_the_subscriber_caught_up(setup):
+    """The hub counts what it dropped for a stalled phone and answers with
+    one resync; once that resync has actually gone down the socket the
+    phone is about to fetch a fresh snapshot, so the count starts over."""
+    app, tokens, db_path, event_id = setup
+    conn = db.connect(db_path)
+    poi_id = conn.execute("SELECT id FROM poi").fetchone()["id"]
+    from courseops import users
+    users.create_user(conn, "mike", "a-long-enough-password", "system_admin")
+    conn.close()
+    with TestClient(app) as client:
+        client.post("/api/setup/login",
+                    json={"username": "mike", "password": "a-long-enough-password"})
+        with client.websocket_connect(f"/ws/m2026/{tokens['liaison']}") as ws:
+            sub = next(iter(app.state.hub._subscribers[event_id]))
+            sub.dropped = 5
+            client.post(f"/api/setup/events/{event_id}/pois/{poi_id}",
+                        json={"name": "Ham Alpha"})
+            assert ws.receive_json()["type"] == "resync"
+            ws.close()
+    assert sub.dropped == 0
+
+
+def test_a_quiet_socket_still_carries_a_heartbeat(setup, monkeypatch):
+    """A phone that has heard nothing for minutes cannot tell a quiet net from
+    a dead socket, and the badge reads "Live" either way. The server says
+    something on its own every so often so the client can give up on a
+    socket that has gone silent for longer than that."""
+    monkeypatch.setattr(web, "HEARTBEAT_SECONDS", 0.05)
+    app, tokens, _, _ = setup
+    with TestClient(app) as client:
+        with client.websocket_connect(f"/ws/m2026/{tokens['staff']}") as ws:
+            assert ws.receive_json() == {"type": "heartbeat"}
+            ws.close()
+
+
+def test_the_client_reloads_after_a_gap_and_gives_up_on_a_silent_socket():
+    """Two client-side halves of the same fix, checked at source level
+    because app.js needs a browser: a phone coming back to the foreground
+    after a while fetches a fresh snapshot - its socket may have been
+    throttled with a deleted pickup still on the map - and a socket that
+    has carried nothing for three heartbeats is closed so the ordinary
+    reconnect takes over."""
+    from courseops import resources
+
+    script = (resources.package_file("static") / "app.js").read_text(encoding="utf-8")
+    visible = script.split("document.addEventListener('visibilitychange'", 1)[1]
+    visible = visible.split("});", 1)[0]
+    assert "loadState" in visible
+    assert "SILENT_SOCKET_MS" in script
+    assert "lastMessageAt" in script
+
+
 # --- static assets ----------------------------------------------------------
 
 def test_client_assets_are_served(setup):

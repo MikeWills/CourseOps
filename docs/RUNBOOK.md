@@ -577,7 +577,13 @@ reconnect in a tight loop.
 
 **A viewer's map looks stale.** Have them check the badge. If it says
 Reconnecting, they are in a dead zone and the map is frozen; it resyncs fully
-when they get signal back.
+when they get signal back. If it says Live, it has heard from the server
+within the last three minutes - the server sends a heartbeat every minute
+when the net is quiet, and a phone that misses three closes the socket and
+reconnects on its own. Coming back to the app after more than a minute away
+also fetches a fresh snapshot. A phone that fell behind mid-event (a
+throttled background tab) is told to resync by the server rather than left
+with whatever it missed.
 
 **A link leaks to the wrong people.**
 

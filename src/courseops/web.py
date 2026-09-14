@@ -96,6 +96,15 @@ def _page(html: str) -> HTMLResponse:
 STALE_AFTER_SECONDS = 10 * 60
 SILENT_AFTER_SECONDS = 20 * 60
 
+# How long a WebSocket may carry nothing before the server says something on
+# its own. A phone cannot tell a quiet net from a dead socket - both are
+# silence, and the badge reads "Live" for both - and a socket that dies
+# without a close frame (a phone that slept, a NAT that forgot) never fires
+# `close`. Uvicorn pings at the protocol level, which the browser answers
+# without telling the page; this is the heartbeat the page can see. The
+# client gives up on a socket after three of these have failed to arrive.
+HEARTBEAT_SECONDS = 60
+
 
 # A link's label is a note to the officer handing links out - "Dana, phone" -
 # so it is trimmed and capped and never validated further. Nothing reads it but
@@ -2077,8 +2086,16 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
             granted.event_id, granted.capabilities)
         try:
             while True:
-                message = await subscription.queue.get()
+                try:
+                    message = await asyncio.wait_for(
+                        subscription.queue.get(), timeout=HEARTBEAT_SECONDS)
+                except asyncio.TimeoutError:
+                    message = {"type": "heartbeat"}
                 await websocket.send_json(message)
+                if message.get("type") == "resync":
+                    # Whatever the hub dropped for this phone before now is
+                    # covered by the snapshot it is about to fetch.
+                    subscription.caught_up()
         except WebSocketDisconnect:
             pass
         except Exception as exc:  # pragma: no cover - transport level

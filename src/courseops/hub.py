@@ -6,10 +6,13 @@ handful of viewers per event, a broker would be one more thing for a club to
 install and nothing more.
 
 Each subscriber gets a bounded queue. If a browser stalls (a phone that slept,
-a dead cell zone), its queue fills and further messages for THAT subscriber are
-dropped rather than allowed to back up and stall the ingest loop. A dropped
-update is harmless: the client resyncs the full state on reconnect, and the
-next position report supersedes the lost one anyway.
+a dead cell zone), its queue fills and what it holds is thrown away rather than
+allowed to back up and stall the ingest loop - replaced by a single `resync`,
+which tells the client to fetch a fresh snapshot. Dropping a position alone
+would be harmless, since the next one supersedes it, but the same queue
+carries a pickup's deletion, a station rename and resyncs themselves, and
+nothing later repeats those. A phone that stalled and recovered used to keep a
+deleted pickup on its map indefinitely, with the badge reading "Live".
 """
 
 from __future__ import annotations
@@ -40,7 +43,14 @@ class Subscription:
     queue: asyncio.Queue = field(
         default_factory=lambda: asyncio.Queue(maxsize=QUEUE_MAXSIZE)
     )
+    # Overflows since the client last received a resync. Diagnostic only:
+    # the resync is what repairs the picture, this is what says it was needed.
     dropped: int = 0
+
+    def caught_up(self) -> None:
+        """A resync has gone down the socket; the client is about to fetch a
+        fresh snapshot, so whatever was dropped before it no longer matters."""
+        self.dropped = 0
 
 
 class Hub:
@@ -76,9 +86,22 @@ class Hub:
                 sub.queue.put_nowait(message)
             except asyncio.QueueFull:
                 sub.dropped += 1
+                # The moment one message is lost, everything queued behind
+                # it is a partial picture: throw it all away and leave a
+                # single resync, which cannot fail to fit in an emptied
+                # queue. Later messages queue behind it as usual - every one
+                # is an upsert, so one the snapshot already reflects does no
+                # harm applied again - and a second overflow repeats this.
+                while True:
+                    try:
+                        sub.queue.get_nowait()
+                    except asyncio.QueueEmpty:
+                        break
+                sub.queue.put_nowait({"type": "resync"})
                 if sub.dropped in (1, 10, 100):
                     log.warning(
-                        "Subscriber on event %s is not keeping up (%d dropped)",
+                        "Subscriber on event %s is not keeping up "
+                        "(%d overflows); told to resync",
                         event_id, sub.dropped,
                     )
 

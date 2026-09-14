@@ -57,6 +57,10 @@ const state = {
   panelState: { sheet: true, stations: true },
   socket: null,
   reconnectDelay: 1000,
+  // When the socket last carried anything, heartbeat included. The only
+  // evidence the page has that the socket is alive: a phone that slept, or
+  // a NAT that forgot the connection, never fires `close`.
+  lastMessageAt: 0,
   opStatuses: ['pending', 'active', 'closed'],
   incidents: new Map(),       // id -> incident
   incidentMarkers: new Map(), // id -> L.Marker
@@ -2510,10 +2514,12 @@ function connect() {
 
   socket.addEventListener('open', () => {
     state.reconnectDelay = 1000;
+    state.lastMessageAt = Date.now();
     setConnection('live', 'Live');
   });
 
   socket.addEventListener('message', (ev) => {
+    state.lastMessageAt = Date.now();
     let message;
     try {
       message = JSON.parse(ev.data);
@@ -2584,6 +2590,22 @@ function scheduleReconnect() {
   }, delay);
   state.reconnectDelay = Math.min(state.reconnectDelay * 2, 30000);
 }
+
+/* The server says something at least every minute (a heartbeat when the net
+   is quiet), so a socket that has carried nothing for three of those is dead
+   whatever the browser thinks - a phone that slept or a NAT that forgot the
+   connection never fires `close`. Closing it here fires `close`, and the
+   ordinary reconnect takes it from there. Checked every 30 s rather than on
+   a timer per message so a throttled background tab cannot starve it. */
+const SILENT_SOCKET_MS = 3 * 60 * 1000;
+setInterval(() => {
+  const socket = state.socket;
+  if (!socket || socket.readyState !== WebSocket.OPEN) return;
+  if (Date.now() - state.lastMessageAt > SILENT_SOCKET_MS) {
+    setConnection('down', 'Reconnecting…');
+    socket.close();
+  }
+}, 30000);
 
 /* Ages are relative, so redraw on a timer even when no packet arrives —
    otherwise "2m ago" would sit there reading 2m forever. */
@@ -2777,7 +2799,14 @@ function restoreViewport() {
 }
 window.addEventListener('pageshow', restoreViewport);
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') restoreViewport();
+  if (document.visibilityState !== 'visible') return;
+  restoreViewport();
+  // Back from the background after a while: the socket may have been
+  // throttled to nothing without closing, and what it missed - a pickup
+  // deleted, a station renamed - nothing will send again. A fresh snapshot
+  // is the only way to be sure; a minute is long enough that a quick
+  // app-switch does not cost one.
+  if (state.event && Date.now() - state.lastMessageAt > 60 * 1000) loadState();
 });
 
 /* ---------- go ---------------------------------------------------------- */

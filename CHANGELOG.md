@@ -11,6 +11,27 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Fixed
+- **A phone that fell behind is told to resync instead of being left with
+  what it missed.** Each browser's queue is bounded so a stalled phone
+  cannot back up the feed, and on overflow messages were simply dropped.
+  Dropping a position is harmless - the next one supersedes it - but the
+  same queue carries a pickup's deletion, a station rename and resyncs
+  themselves, and nothing later repeats those: a phone that was throttled
+  in the background and then recovered kept a deleted pickup on its map
+  indefinitely, with the badge reading "Live". The first overflow now
+  empties the queue and leaves a single `resync` in it, and the count of
+  overflows resets once that resync has gone out.
+- **A dead socket is noticed.** A phone that slept, or a NAT that forgot
+  the connection, never fires `close`, so the badge said "Live" over a
+  socket carrying nothing. The server now sends a heartbeat frame after a
+  minute of quiet (uvicorn's protocol pings, which it also runs, are
+  invisible to the page), the client closes a socket that has carried
+  nothing for three minutes so the ordinary reconnect takes over, and
+  coming back to the foreground after more than a minute away fetches a
+  fresh snapshot. `courseops serve` states the protocol ping interval
+  explicitly rather than relying on the backend's default.
+
 ### Changed
 - **The snapshot, the report and a course import are built off the event
   loop.** Every route ran its SQLite work on the loop, and the snapshot is
