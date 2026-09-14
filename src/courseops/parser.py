@@ -18,7 +18,8 @@ import aprslib
 
 
 class Rejected(Exception):
-    """Packet is not a usable position report. `reason` maps to raw_packet.status."""
+    """Packet is not a usable position report. `reason` is `parse_error` or
+    `no_position`; ingest counts them and writes nothing."""
 
     def __init__(self, reason: str, detail: str = ""):
         super().__init__(detail or reason)
