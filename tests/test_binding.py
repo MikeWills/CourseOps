@@ -98,6 +98,27 @@ def test_binding_happens_once_and_does_not_flip(tmp_path):
     assert _roster_row(conn, event_id, "K0JZP")["bound_key"] == "K0JZP-9"
 
 
+def test_an_exact_roster_match_does_not_go_looking_for_a_bind(tmp_path, monkeypatch):
+    """A key the roster names outright can never bind - the lookup is two
+    SELECTs per packet on the loop the feed blocks on, for nothing."""
+    conn, event_id = _event(tmp_path, "K0JZP-9")
+    calls = []
+    real = db.bind_heard_ssid
+
+    def counted(*args, **kwargs):
+        calls.append(args[2])
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(db, "bind_heard_ssid", counted)
+    _feed(conn, event_id, _packet("K0JZP-9"))
+    assert calls == []
+    # ...while an SSID of a bare entry still gets the chance to bind.
+    db.upsert_roster_entry(conn, event_id, "N0PBA", "Aid 4", "aid_station")
+    _feed(conn, event_id, _packet("N0PBA-7"))
+    assert calls == ["N0PBA-7"]
+    assert _roster_row(conn, event_id, "N0PBA")["bound_key"] == "N0PBA-7"
+
+
 def test_an_ssid_already_on_the_roster_is_not_stolen(tmp_path):
     """Two entries under one callsign: a bare one, and an explicit -5 that
     belongs to someone else's assignment. -5 must stay where it was put."""

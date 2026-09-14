@@ -69,6 +69,17 @@ month, PATCH counting releases in that month from 0. Before that they were
   Nothing writes it now; the definition stays in `schema.sql`, marked
   retired, so an existing database is untouched. (Audit 2026-09-14, A4.)
 
+### Changed
+- Two per-packet costs on the ingest loop are gone. `bind_heard_ssid` ran
+  its two lookups for every stored packet, including ones whose key the
+  roster names outright and which can therefore never bind; it is skipped
+  for those. And `position` socket messages carried `label` and `category`
+  from a roster read once when the feed started - nothing on the client read
+  them (it joins by key, from the snapshot), and had anything started to it
+  would have shown the roster as it was hours before. `position_message`
+  and `make_position_handler` lose the roster argument. (Audit 2026-09-14,
+  A5.)
+
 ## [2026.9.4] - 2026-09-14
 
 ### Added

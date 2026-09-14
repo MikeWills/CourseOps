@@ -117,7 +117,7 @@ def _course_position(index: "progress.CourseIndex", lat: float, lon: float):
     return located.as_dict() if located else None
 
 
-def make_position_handler(hub, roster_by_key: dict, known_keys: set[str], index):
+def make_position_handler(hub, known_keys: set[str], index):
     """The ingest callback: fan a position out, and announce a new station.
 
     The SSID alerts ("Needs attention") are computed from stored positions
@@ -137,10 +137,7 @@ def make_position_handler(hub, roster_by_key: dict, known_keys: set[str], index)
         await hub.publish(
             event_id,
             hub_module.position_message(
-                report,
-                roster_by_key.get(report.station_key),
-                _course_position(index, report.lat, report.lon),
-            ),
+                report, _course_position(index, report.lat, report.lon)),
         )
         key = report.station_key
         if key not in known_keys and key not in announced:
@@ -2171,9 +2168,6 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
             # records it and the tracking panel can say so.
             raise ingest_module.IngestError(
                 f"No event with slug {slug!r}. Create it first.")
-        roster_by_key = {
-            row["station_key"]: row for row in db.roster_for_event(conn, event["id"])
-        }
         known_keys = set(db.all_station_keys(conn, event["id"]))
         known_keys |= db.bound_station_keys(conn, event["id"])
         # Course geometry is loaded once for the life of the ingest task rather
@@ -2182,8 +2176,7 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         index = progress.CourseIndex.for_event(conn, event["id"])
         conn.close()
 
-        on_position = make_position_handler(
-            app.state.hub, roster_by_key, known_keys, index)
+        on_position = make_position_handler(app.state.hub, known_keys, index)
         on_nearby = make_nearby_handler(app.state.hub, app.state.nearby, index)
         await run_ingest(settings, slug, on_position=on_position,
                          on_nearby=on_nearby)

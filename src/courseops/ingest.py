@@ -134,8 +134,12 @@ def handle_line(
     # Infrastructure is skipped deliberately: the wildcard filter drags in the
     # operator's own digipeater or igate, and binding an aid station to their
     # home igate would park that person on the map at their house all day -
-    # confidently, and wrongly.
-    if not symbols.is_infrastructure(report.symbol_table, report.symbol_code):
+    # confidently, and wrongly. A key the roster names outright (or has
+    # already bound) is skipped too: it can never bind, and the lookup is
+    # two SELECTs per packet on the loop the feed blocks on.
+    if (report.station_key not in roster_keys
+            and not symbols.is_infrastructure(
+                report.symbol_table, report.symbol_code)):
         bound = db.bind_heard_ssid(conn, event_id, report.station_key)
         if bound is not None:
             stats.bound[report.station_key] = bound["display_label"]
