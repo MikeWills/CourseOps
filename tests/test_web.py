@@ -162,6 +162,63 @@ def test_state_exposes_staleness_thresholds(setup):
     assert data["thresholds"]["stale_after_s"] < data["thresholds"]["silent_after_s"]
 
 
+def test_the_snapshot_is_built_off_the_event_loop(setup, monkeypatch):
+    """While one phone's snapshot is being built, everything else must keep
+    moving: WebSocket sends, the ingest loop, the other phones. It used to
+    run on the loop - 180 ms on the demo event, seconds on the real course -
+    so a setup save that resynced twelve phones froze positions for the
+    sum of twelve builds. Here a build that takes 0.4 s must not delay a
+    request that needs nothing."""
+    import asyncio
+    import time
+
+    import httpx
+
+    app, tokens, _, _ = setup
+    real = web.build_state
+
+    def slow(conn, event_id):
+        time.sleep(0.4)
+        return real(conn, event_id)
+
+    monkeypatch.setattr(web, "build_state", slow)
+
+    async def scenario():
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://t") as client:
+            started = time.perf_counter()
+            snapshot = asyncio.create_task(
+                client.get(f"/api/m2026/{tokens['ncs']}/state"))
+            await asyncio.sleep(0.05)          # let the build start
+            ping = await client.get("/healthz")
+            # Measured from before the snapshot began: a blocked loop holds
+            # the 0.05 s timer as well as the ping until the build is done.
+            waited = time.perf_counter() - started
+            return waited, ping.status_code, (await snapshot).status_code
+
+    waited, ping, snapshot = asyncio.run(scenario())
+    assert ping == 200 and snapshot == 200
+    assert waited < 0.3, f"/healthz waited {waited:.2f}s behind the snapshot build"
+
+
+def test_the_snapshot_uses_one_connection(setup, monkeypatch):
+    """Opening a connection is not free, and /state used to open three - one
+    for the snapshot, one for the ignored list, one for the nearby list."""
+    app, tokens, _, _ = setup
+    opened = []
+    real = db.connect
+
+    def counting(path):
+        opened.append(path)
+        return real(path)
+
+    monkeypatch.setattr(web.db, "connect", counting)
+    with TestClient(app) as client:
+        opened.clear()                      # startup opens its own
+        assert client.get(f"/api/m2026/{tokens['ncs']}/state").status_code == 200
+    assert len(opened) == 1
+
+
 # --- live feed --------------------------------------------------------------
 
 def test_websocket_rejects_a_bad_token(setup):

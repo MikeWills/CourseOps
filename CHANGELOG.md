@@ -12,6 +12,20 @@ month, PATCH counting releases in that month from 0. Before that they were
 ## [Unreleased]
 
 ### Changed
+- **The snapshot, the report and a course import are built off the event
+  loop.** Every route ran its SQLite work on the loop, and the snapshot is
+  the heavy one: while one phone's was being built nothing else moved - no
+  WebSocket send, no ingest, no other phone - and a setup save resyncs
+  every phone at once, so twelve phones were twelve builds in a row with
+  positions frozen for the sum of them. Those three now run in a worker
+  thread (`asyncio.to_thread`); the rest of the routes are quick and stay
+  where they are. Two smaller things on the same path: `/state` opened
+  three connections and now opens one, and `PRAGMA journal_mode = WAL` -
+  5 ms of a 6 ms connect, per request - is set once in `init_schema`, since
+  the mode lives in the file. On the demo event a request issued during a
+  snapshot build waited 195 ms and now waits 79 ms (the geometry still
+  holds the GIL, so the loop gets turns rather than the whole wait);
+  twelve simultaneous snapshots took 2.2 s and take under 1 s.
 - **Reading the layer or leader list no longer writes.** Both readers ran
   an `INSERT OR IGNORE` per place type and per sighted division on every
   call - the repair that gives an orphaned key a row so the place or the

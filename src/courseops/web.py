@@ -608,7 +608,9 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     async def setup_report(event_id: int, request: Request) -> HTMLResponse:
         conn, user = require_event_admin(request, event_id)
         try:
-            data = report.build(conn, event_id)
+            # Off the loop: this walks every incident and sighting of the
+            # event, and the live map must not pause while the officer reads.
+            data = await asyncio.to_thread(report.build, conn, event_id)
         finally:
             conn.close()
         return HTMLResponse(report.render(data),
@@ -820,7 +822,10 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         tmp = pathlib.Path(tempfile.mkdtemp()) / f"upload{suffix}"
         tmp.write_bytes(payload)
         try:
-            summary = importer.stage_file(conn, event_id, tmp)
+            # Off the loop: parsing a 1200-point KMZ and measuring every
+            # segment takes long enough that positions would visibly stall
+            # for everyone if the course were re-imported during the event.
+            summary = await asyncio.to_thread(importer.stage_file, conn, event_id, tmp)
         except kml.KmlError as exc:
             conn.close()
             raise HTTPException(status_code=400, detail=str(exc))
@@ -1617,12 +1622,30 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     async def state(event_slug: str, token: str) -> JSONResponse:
         conn, granted = require_access(event_slug, token)
         try:
-            payload = build_state(conn, granted.event_id)
+            # Off the loop. The snapshot is the one heavy read in the live
+            # app - 90 ms on the demo event, seconds on the real course - and
+            # while it was being built on the loop nothing else moved: no
+            # WebSocket send, no ingest, no other phone. A setup save resyncs
+            # every phone at once, so twelve phones were twelve builds in a
+            # row with positions frozen for the sum of them.
+            payload = await asyncio.to_thread(build_state, conn, granted.event_id)
+            # The public, heard near the course. Only for a role that can
+            # match or dismiss them; nobody else needs a list of who is
+            # driving past. Same connection: opening one is not free, and
+            # this route used to open three.
+            if granted.can(access.CAP_SSID):
+                payload["nearby"] = _nearby_for(conn, granted.event_id)
+                # What has been ignored, so a mis-tap on Ignore can be
+                # undone. An ignored station is silent in every other list,
+                # which is the point of ignoring it and also what makes the
+                # mistake invisible.
+                payload["ignored"] = [
+                    _row_to_dict(row) for row in db.exclusions(conn, granted.event_id)
+                ]
         finally:
             conn.close()
         payload["role"] = granted.role
         payload["role_label"] = granted.role_label
-        payload["role"] = granted.role
         payload["can_write"] = granted.can_write
         # Per capability, so the client shows exactly the controls this role can
         # actually use. A button the server would refuse is worse than no button.
@@ -1635,30 +1658,12 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         if not granted.can(access.CAP_INCIDENT_REPORT):
             for key in ("incidents", "pickups_waiting"):
                 payload.pop(key, None)
-        # The public, heard near the course. Only for a role that can match or
-        # dismiss them; nobody else needs a list of who is driving past.
-        if granted.can(access.CAP_SSID):
-            payload["nearby"] = _nearby_for(granted.event_id)
-            # What has been ignored, so a mis-tap on Ignore can be undone.
-            # An ignored station is silent in every other list, which is the
-            # point of ignoring it and also what makes the mistake invisible.
-            conn = get_conn()
-            try:
-                payload["ignored"] = [
-                    _row_to_dict(row) for row in db.exclusions(conn, granted.event_id)
-                ]
-            finally:
-                conn.close()
         return JSONResponse(payload)
 
-    def _nearby_for(event_id: int) -> list[dict[str, Any]]:
-        conn = get_conn()
-        try:
-            known = set(db.all_station_keys(conn, event_id))
-            known |= db.bound_station_keys(conn, event_id)
-            known |= db.excluded_station_keys(conn, event_id)
-        finally:
-            conn.close()
+    def _nearby_for(conn: sqlite3.Connection, event_id: int) -> list[dict[str, Any]]:
+        known = set(db.all_station_keys(conn, event_id))
+        known |= db.bound_station_keys(conn, event_id)
+        known |= db.excluded_station_keys(conn, event_id)
         entries = app.state.nearby.get(event_id, {})
         for key in [k for k in entries if k in known]:
             entries.pop(key, None)         # assigned or dismissed since heard

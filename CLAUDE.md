@@ -336,6 +336,21 @@ usability, not style preferences.
   order and toggling a line back on re-adds it on top, so `restackCourses()`
   runs after every draw and every toggle - forgetting it puts a course on
   top with no error.
+- **A heavy read runs in a worker thread; nothing else on the loop
+  moves while a route does its own SQLite work.** `build_state`, the
+  report and a course import go through `asyncio.to_thread`. That works
+  because `db.connect` sets `check_same_thread=False` - a request may hand
+  its connection to a thread, but a connection is one request's and is
+  never shared between two, and a write is never started in a thread while
+  the request goes on using the connection on the loop. `PRAGMA
+  journal_mode = WAL` lives in `init_schema`, not `connect`: it is stored in
+  the file, and asking for it per connect was most of the connect cost.
+- **A read must be a read.** The layer and leader lists used to repair
+  orphaned keys with `INSERT OR IGNORE` on every call, and an INSERT that
+  ignores still takes the writer lock - every phone's snapshot was a writer
+  competing with the feed. `adopt_orphan_poi_types`/`adopt_orphan_divisions`
+  run at startup and after the writes that can orphan a key; anything new
+  that "fixes up" data on the way out goes the same way.
 - **Adding a schema column requires a migration entry.** `CREATE TABLE IF NOT
   EXISTS` skips existing tables, so a new column never reaches an existing
   database. Add it to `_ADDED_COLUMNS` in `db.py` as well as `schema.sql`.
