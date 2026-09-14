@@ -24,6 +24,15 @@ month, PATCH counting releases in that month from 0. Before that they were
   copies of an escaper are two places to get it wrong.
 
 ### Fixed
+- **The "This is..." list on an SSID alert snapped shut under NCS's
+  thumb.** Every packet from an unknown station rebuilt the whole SSID
+  panel, select included - and with an area filter around a course in a
+  town, unknown stations beacon continuously. NCS scrolling thirty names to
+  match a borrowed rig to the person holding it had the dropdown close
+  every few seconds. The rebuild now waits while a select in that panel
+  has focus and runs when it lets go; nothing is lost, only delayed a few
+  seconds. The select carries `data-edit-key` like every other editable
+  field in a socket-rendered list. (Audit F7.)
 - **Leader Undo and Clear could fail silently.** Neither checked the
   response, so NCS confirmed "Clear every First male sighting for Half?
   This cannot be undone", the server refused (a stale division key after a

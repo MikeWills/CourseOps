@@ -61,6 +61,9 @@ const state = {
   // Set once the server has said the LINK is dead (403/404), which is the
   // one failure retrying cannot fix. Everything else keeps retrying.
   linkDead: false,
+  // A rebuild of the SSID panel was skipped because a "This is..." select
+  // had focus; that select's blur runs it.
+  ssidRenderDeferred: false,
   opStatuses: ['pending', 'active', 'closed'],
   incidents: new Map(),       // id -> incident
   incidentMarkers: new Map(), // id -> L.Marker
@@ -1332,6 +1335,19 @@ function renderSsidAlerts() {
   const rosterEntries = [...state.roster.values()]
     .sort((a, b) => String(a.display_label).localeCompare(String(b.display_label)));
 
+  // Not while NCS has a "This is..." list open. With an area filter around
+  // a course in a town, unknown stations beacon continuously and every one
+  // lands here as a rebuild; replacing the <select> under someone's thumb
+  // snaps the dropdown shut every few seconds while they scroll thirty
+  // names for the right one. The rebuild waits for that select to let go
+  // (its blur handler runs it), so nothing is lost, only delayed.
+  const active = document.activeElement;
+  if (active && active.tagName === 'SELECT' && host.contains(active)) {
+    state.ssidRenderDeferred = true;
+    return;
+  }
+  state.ssidRenderDeferred = false;
+
   host.innerHTML = '';
   items.forEach((item) => {
     const box = document.createElement('div');
@@ -1385,6 +1401,9 @@ function renderSsidAlerts() {
     const pick = document.createElement('select');
     pick.className = 'ssid-pick';
     pick.setAttribute('aria-label', `Who is ${item.station_key}`);
+    // Keyed like every other editable field in a socket-rendered list, so a
+    // rebuild that does get through carries the chosen value across.
+    pick.dataset.editKey = `ssidpick:${item.station_key}`;
     const first = document.createElement('option');
     first.value = '';
     first.textContent = 'This is…';
@@ -1397,10 +1416,16 @@ function renderSsidAlerts() {
     });
     pick.addEventListener('change', () => {
       if (!pick.value) return;
+      // The choice is made; let go of focus so the resync this causes is
+      // not itself deferred behind the select that asked for it.
+      pick.blur();
       resolveSsid('adopt', {
         from_station_key: pick.value,
         to_station_key: item.station_key,
       });
+    });
+    pick.addEventListener('blur', () => {
+      if (state.ssidRenderDeferred) renderSsidAlerts();
     });
     actions.appendChild(pick);
 
@@ -1749,7 +1774,8 @@ function restoreFieldEdit(saved) {
   try {
     el.setSelectionRange(saved.start, saved.end);
   } catch (e) {
-    // Some input types refuse a selection range. The text is what matters.
+    // Some input types refuse a selection range, and a <select> has none
+    // (the SSID panel's "This is..." pick). The value is what matters.
   }
 }
 
