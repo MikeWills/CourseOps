@@ -1721,3 +1721,70 @@ def test_the_help_link_opens_in_a_new_tab():
         assert 'target="_blank"' in anchor, page
         # Without noopener the opened page can navigate this one.
         assert "noopener" in anchor, page
+
+
+# --- the event's map centre (#108, the parade with nothing to import) -------
+
+def test_an_import_seeds_the_centre_of_an_event_that_has_none(setup):
+    """The Places map opens on the event's centre when there is no course
+    or place to fit - and nothing but the CLI ever set one, so for exactly
+    the event the picker exists for it opened on the whole country. The
+    staged file says where the event is."""
+    app, _, db_path, _ = setup
+    _make_admin(db_path)
+    conn = db.connect(db_path)
+    blank = db.create_event(conn, "parade", "Parade")
+    conn.close()
+
+    with TestClient(app) as client:
+        _login(client)
+        with FIXTURE.open("rb") as fh:
+            response = client.post(
+                f"/api/setup/events/{blank}/import",
+                files={"file": ("course.kml", fh, "application/vnd.google-earth.kml+xml")},
+            )
+        assert response.status_code == 201, response.text
+        events = client.get("/api/setup/events").json()["events"]
+
+    event = next(e for e in events if e["id"] == blank)
+    assert event["center_lat"] is not None and event["center_lon"] is not None
+    # Inside the fixture's box, and the right way round: geo speaks
+    # (lon, lat) and the table stores lat, lon.
+    assert 34.72 < event["center_lat"] < 34.75
+    assert -86.61 < event["center_lon"] < -86.55
+
+
+def test_an_import_never_moves_a_centre_that_is_already_set(setup):
+    """A centre the club typed, or the first file set, stays. A second
+    file - a shuttle route, a parking map - is not the event."""
+    app, _, db_path, event_id = setup   # created with a centre at 34.7, -86.5
+    _make_admin(db_path)
+
+    with TestClient(app) as client:
+        _login(client)
+        with FIXTURE.open("rb") as fh:
+            client.post(f"/api/setup/events/{event_id}/import",
+                        files={"file": ("course.kml", fh, "application/octet-stream")})
+        events = client.get("/api/setup/events").json()["events"]
+
+    event = next(e for e in events if e["id"] == event_id)
+    assert (event["center_lat"], event["center_lon"]) == (34.7, -86.5)
+
+
+def test_the_event_form_can_set_the_centre(setup):
+    """The routes took center_lat/center_lon all along; the form never sent
+    them. They arrive as typed - the pois route's coordinates do too - and
+    the picker reads them straight from the event list."""
+    app, _, db_path, event_id = setup
+    _make_admin(db_path)
+
+    with TestClient(app) as client:
+        _login(client)
+        saved = client.post(f"/api/setup/events/{event_id}",
+                            json={"center_lat": "44.13906", "center_lon": "-93.98921"})
+        assert saved.status_code == 200, saved.text
+        events = client.get("/api/setup/events").json()["events"]
+
+    event = next(e for e in events if e["id"] == event_id)
+    assert (round(float(event["center_lat"]), 5),
+            round(float(event["center_lon"]), 5)) == (44.13906, -93.98921)

@@ -699,6 +699,8 @@ function editEvent(event) {
   $('ev-name').value = event.name;
   $('ev-date').value = event.event_date || '';
   if (event.timezone) $('ev-tz').value = event.timezone;
+  $('ev-lat').value = event.center_lat != null ? String(event.center_lat) : '';
+  $('ev-lon').value = event.center_lon != null ? String(event.center_lon) : '';
   $('ev-org-field').hidden = true;
   $('event-submit').textContent = 'Save changes';
   $('event-cancel').hidden = false;
@@ -724,15 +726,33 @@ function resetEventForm() {
 
 $('event-cancel').addEventListener('click', () => resetEventForm());
 
+/* The centre goes in the payload only when both boxes hold something.
+   Left blank it is left alone on the server: an import may already have
+   set it, and a blank box on the edit form means "not changing this",
+   not "forget it". Sent as typed - the server decides what a coordinate
+   is, and says so. */
+function eventCentre() {
+  const lat = $('ev-lat').value.trim();
+  const lon = $('ev-lon').value.trim();
+  if (!lat && !lon) return {};
+  return { center_lat: lat, center_lon: lon };
+}
+
+$('ev-lat').addEventListener('change', () => splitPair($('ev-lat'), $('ev-lon')));
+$('ev-lat').addEventListener('paste',
+  () => setTimeout(() => splitPair($('ev-lat'), $('ev-lon')), 0));
+
 $('event-form').addEventListener('submit', async (ev) => {
   ev.preventDefault();
   $('event-error').hidden = true;
   try {
+    splitPair($('ev-lat'), $('ev-lon'));
     if (S.editingEvent) {
       const saved = await post(`/api/setup/events/${S.editingEvent}`, {
         name: $('ev-name').value,
         event_date: $('ev-date').value,
         timezone: $('ev-tz').value,
+        ...eventCentre(),
       });
       resetEventForm();
       banner(`Saved ${saved.name}.`);
@@ -746,6 +766,7 @@ $('event-form').addEventListener('submit', async (ev) => {
       timezone: $('ev-tz').value,
       organization_id: S.user.is_system_admin
         ? Number($('ev-org').value) : undefined,
+      ...eventCentre(),
     });
     $('ev-slug').value = ''; $('ev-name').value = '';
     banner(`Created ${created.name}.`);
@@ -818,6 +839,10 @@ async function importFiles(files) {
   $('import-status').hidden = true;
   $('course-file').value = '';
   loadStaged();
+  // An import seeds the event's map centre when it had none, and the Places
+  // map reads that from S.events - which would otherwise say "none" until
+  // the next visit to the Events tab.
+  loadEvents().catch((err) => banner(err.message, true));
 }
 
 $('course-file').addEventListener('change', (ev) => {
@@ -2159,15 +2184,16 @@ function writeRowCoordinates(poiId, latlng) {
    click, paste, then go back for the other half - on race-week evening, for
    forty places. Splitting on the comma costs four lines and removes the whole
    chore. A lone number is left exactly where it was typed. */
-function splitCoordinates() {
-  const lat = $('poi-new-lat');
+function splitPair(lat, lon) {
   const parts = lat.value.split(',');
   if (parts.length !== 2) return;
   const [a, b] = parts.map((t) => t.trim());
   if (!a || !b) return;
   lat.value = a;
-  $('poi-new-lon').value = b;
+  lon.value = b;
 }
+
+function splitCoordinates() { splitPair($('poi-new-lat'), $('poi-new-lon')); }
 
 $('poi-new-lat').addEventListener('change', splitCoordinates);
 $('poi-new-lat').addEventListener('paste', () => setTimeout(splitCoordinates, 0));

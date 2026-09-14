@@ -163,6 +163,26 @@ def test_a_links_last_use_is_shown_in_the_events_zone():
     assert "timeZone: zone" in clock and "hour12: false" in clock
 
 
+def test_the_event_form_carries_the_map_centre():
+    """The routes accepted center_lat/center_lon from the start and the
+    form never sent them, so for the event the Places picker exists for -
+    nothing to import - the map opened on the whole country. The fields
+    are filled on edit and sent on both create and update, only when
+    typed: a blank box on the edit form means "leave it", not "forget it"."""
+    html = (web.STATIC_DIR / "setup.html").read_text(encoding="utf-8")
+    assert 'id="ev-lat"' in html and 'id="ev-lon"' in html
+    edit = _block("function editEvent(", "function resetEventForm(")
+    assert "$('ev-lat').value = event.center_lat" in edit
+    submit = _block("$('event-form').addEventListener('submit'", "/* ---------- course import")
+    assert submit.count("...eventCentre()") == 2
+    helper = _block("function eventCentre(", "$('ev-lat').addEventListener")
+    assert "if (!lat && !lon) return {};" in helper
+    # An import seeds the centre server-side; the picker reads it from
+    # S.events, so the list is refreshed after one.
+    imports = _block("async function importFiles(", "$('course-file').addEventListener")
+    assert "loadEvents()" in imports
+
+
 def test_the_upload_parses_the_body_before_trusting_it_is_json():
     """A 413 from Apache or a 502 from the proxy is an HTML page, and
     parsing it before checking the status showed "Unexpected token '<'"

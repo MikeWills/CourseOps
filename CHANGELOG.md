@@ -11,6 +11,18 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Added
+- **An event's map centre can be set from the browser, and an import sets
+  it for you.** The Places map opens on the event's centre when there is no
+  course or place to fit - the parade, the 5K with no file, exactly the
+  case the picker was built for (#108) - but only the CLI's `--lat/--lon`
+  ever set one, so that map opened on the whole country and the first
+  click landed in Kansas. The event form has an optional *Map centre*
+  (paste both numbers into the first box and they split), sent only when
+  typed, and an import seeds it from the middle of the staged file when
+  the event has none - once, never overwriting a centre someone set or an
+  earlier file chose. `setup-events.png` predates the field.
+
 ### Changed
 - **The Courses table saves as a unit**, like every other editable table in
   setup. It was the last one with a save button per row, and each press
