@@ -198,7 +198,20 @@ agreed to by being on a roster.
 
 The tab shows the filter your roster produces. If that line is empty, nothing
 will ever arrive no matter how healthy everything else looks - check the roster
-before blaming the radios.
+before blaming the radios. The switch refuses to turn on while the event has
+nothing to listen for (no station expected to beacon, no course) or no usable
+callsign in `.env`, and says which. A feed that fails for any other reason
+leaves the switch off and the reason on the tab as *Last attempt stopped:*.
+After a restart, an event whose switch was on but whose feed cannot start
+shows *Tracking on - but not connected* with the same reason; the site itself
+stays up.
+
+One APRS-IS connection per server: turning tracking on for an event turns it
+off for any other, and that event's tab says which one took the connection.
+At a restart with two events flagged on (a database from before this rule, or
+`courseops serve <slug>` beside a stale flag) the slug on the command line
+wins, else the newest event; the other is switched off with the same note.
+Deleting an event or an organization stops the feeds it owned.
 
 Worth turning on for a check-in rehearsal a week or two before the event, to
 see which SSIDs actually appear. Then off again.
@@ -390,7 +403,10 @@ check and when._
 courseops serve mankato2026
 ```
 
-This opens **one** APRS-IS connection and prints one link per role.
+This opens **one** APRS-IS connection and, when run from a terminal, prints
+one link per role. Under systemd on the VPS it does not - stdout is the
+journal there, and a journal is no place for credentials - so read the links
+off the Links tab in setup instead.
 
 Confirm before going live:
 
@@ -580,7 +596,13 @@ reconnect in a tight loop.
 
 **A viewer's map looks stale.** Have them check the badge. If it says
 Reconnecting, they are in a dead zone and the map is frozen; it resyncs fully
-when they get signal back.
+when they get signal back. If it says Live, it has heard from the server
+within the last three minutes - the server sends a heartbeat every minute
+when the net is quiet, and a phone that misses three closes the socket and
+reconnects on its own. Coming back to the app after more than a minute away
+also fetches a fresh snapshot. A phone that fell behind mid-event (a
+throttled background tab) is told to resync by the server rather than left
+with whatever it missed.
 
 **A link leaks to the wrong people.**
 

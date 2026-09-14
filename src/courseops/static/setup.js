@@ -28,11 +28,9 @@ const S = {
 
 const $ = (id) => document.getElementById(id);
 
-function esc(text) {
-  return String(text ?? '').replace(/[&<>"']/g, (c) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-  }[c]));
-}
+// The one escaper is escapeHtml in util.js, shared with the map client; the
+// short name stays because it is on eighty lines of markup below.
+const esc = escapeHtml;
 
 function miles(m) { return m == null ? '' : (m / 1609.344).toFixed(1) + ' mi'; }
 

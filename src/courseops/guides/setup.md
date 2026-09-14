@@ -159,6 +159,13 @@ figure, which race it snaps to, where the pin draws - so fixing it fixes all of
 them at once. Latitude first, then longitude; the app refuses a latitude outside
 -90 to 90, which is what catches the two pasted the wrong way round.
 
+**A place with a lead runner sighting at it, or an operator posted to it,
+cannot be deleted** until the sightings are cleared and the operator moved, and
+the app says how many of each are in the way. Deleting would otherwise take
+the sightings with it and quietly un-post the operator - for someone who never
+transmits, the only thing putting them on the map. The same applies to a
+course with sightings recorded on it.
+
 ---
 
 **Next:** [Roster and links](setup-people.md) - who is out there, and how they

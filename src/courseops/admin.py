@@ -48,32 +48,69 @@ def list_events(conn: sqlite3.Connection,
     if organization_id is not None:
         query += " WHERE organization_id = ?"
         params.append(organization_id)
+    rows = conn.execute(query + " ORDER BY id DESC", params).fetchall()
+
+    # One GROUP BY per table rather than four COUNTs per event.
+    def per_event(sql: str) -> dict[int, int]:
+        return {r[0]: r[1] for r in conn.execute(sql).fetchall()}
+
+    counts = {
+        "courses": per_event(
+            "SELECT event_id, COUNT(*) FROM course GROUP BY event_id"),
+        "pois": per_event(
+            "SELECT event_id, COUNT(*) FROM poi GROUP BY event_id"),
+        "roster": per_event(
+            "SELECT event_id, COUNT(*) FROM roster GROUP BY event_id"),
+        "pending_imports": per_event(
+            "SELECT event_id, COUNT(*) FROM import_feature"
+            " WHERE status = 'pending' GROUP BY event_id"),
+    }
     out = []
-    for row in conn.execute(query + " ORDER BY id DESC", params).fetchall():
+    for row in rows:
         entry = _row(row)
-        entry["counts"] = {
-            "courses": conn.execute(
-                "SELECT COUNT(*) FROM course WHERE event_id = ?", (row["id"],)
-            ).fetchone()[0],
-            "pois": conn.execute(
-                "SELECT COUNT(*) FROM poi WHERE event_id = ?", (row["id"],)
-            ).fetchone()[0],
-            "roster": conn.execute(
-                "SELECT COUNT(*) FROM roster WHERE event_id = ?", (row["id"],)
-            ).fetchone()[0],
-            "pending_imports": conn.execute(
-                "SELECT COUNT(*) FROM import_feature"
-                " WHERE event_id = ? AND status = 'pending'", (row["id"],)
-            ).fetchone()[0],
-        }
+        entry["counts"] = {name: table.get(row["id"], 0)
+                           for name, table in counts.items()}
         out.append(entry)
     return out
 
 
+def _text(payload: dict, key: str, limit: int | None = None) -> str | None:
+    """A free-text field of a JSON body, whatever type arrived."""
+    return db.clean_text(payload.get(key), limit)
+
+
+def _ids(values: object, what: str) -> list[int]:
+    """A list of integer ids from a JSON body, or a complaint.
+
+    A string where a list was expected iterates its characters, and a null
+    inside the list is a TypeError from int() - both were tracebacks.
+    """
+    if isinstance(values, (str, bytes)) or not isinstance(values, (list, tuple)):
+        raise ValueError(f"{what} must be a list.")
+    out = []
+    for value in values:
+        try:
+            out.append(int(value))
+        except (TypeError, ValueError):
+            raise ValueError(f"{value!r} is not a {what[:-1]} id.") from None
+    return out
+
+
+def _zoom(value: object) -> int:
+    try:
+        zoom = int(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{value!r} is not a zoom level.") from None
+    if not 1 <= zoom <= 20:
+        raise ValueError("Zoom is a whole number from 1 to 20.")
+    return zoom
+
+
+@db.transactional
 def create_event(conn: sqlite3.Connection, payload: dict,
                  organization_id: int | None = None) -> dict[str, Any]:
-    slug = (payload.get("slug") or "").strip().lower()
-    name = (payload.get("name") or "").strip()
+    slug = (_text(payload, "slug") or "").lower()
+    name = _text(payload, "name") or ""
     if not slug or not name:
         raise ValueError("An event needs a short name (slug) and a full name.")
     if not slug.replace("-", "").replace("_", "").isalnum():
@@ -87,13 +124,22 @@ def create_event(conn: sqlite3.Connection, payload: dict,
     if organization_id is None:
         raise ValueError("An event must belong to an organization.")
 
+    # The centre is served to every phone as the map's first view, so a
+    # string or an object here breaks `map.setView` for every volunteer with
+    # no server error - checked the same way a place's coordinates are.
+    center = {}
+    for axis, column in (("center_lat", "latitude"), ("center_lon", "longitude")):
+        value = payload.get(axis)
+        if value is not None and value != "":
+            center[axis] = _coordinate(value, column)
+
     event_id = db.create_event(
         conn, slug, name,
         organization_id=organization_id,
-        event_date=(payload.get("event_date") or "").strip() or None,
-        timezone=(payload.get("timezone") or "UTC").strip(),
-        center_lat=payload.get("center_lat"),
-        center_lon=payload.get("center_lon"),
+        event_date=_text(payload, "event_date"),
+        timezone=_text(payload, "timezone") or "UTC",
+        center_lat=center.get("center_lat"),
+        center_lon=center.get("center_lon"),
     )
     # Role links exist from the moment the event does, so there is never a state
     # where an event has been made but cannot be opened.
@@ -103,18 +149,38 @@ def create_event(conn: sqlite3.Connection, payload: dict,
 
 def update_event(conn: sqlite3.Connection, event_id: int, payload: dict) -> dict:
     fields, values = [], []
-    for name in ("name", "event_date", "timezone"):
-        if name in payload:
-            fields.append(f"{name} = ?")
-            values.append((payload.get(name) or "").strip() or None)
-    for name in ("center_lat", "center_lon", "zoom"):
-        if name in payload and payload[name] is not None:
-            fields.append(f"{name} = ?")
-            values.append(payload[name])
+    if "name" in payload:
+        # NOT NULL in the schema, and the form's `required` lets a single
+        # space through - which used to reach the column as NULL and 500.
+        name = _text(payload, "name")
+        if not name:
+            raise ValueError("An event needs a name.")
+        fields.append("name = ?")
+        values.append(name)
+    if "event_date" in payload:
+        fields.append("event_date = ?")
+        values.append(_text(payload, "event_date"))
+    if "timezone" in payload:
+        timezone = _text(payload, "timezone")
+        if not timezone:
+            raise ValueError("An event needs a time zone, such as America/Chicago.")
+        fields.append("timezone = ?")
+        values.append(timezone)
+    # Served to every phone as the map's first view: a string here breaks
+    # `map.setView` for every volunteer with no server error.
+    for axis, column in (("center_lat", "latitude"), ("center_lon", "longitude")):
+        if axis in payload and payload[axis] is not None:
+            fields.append(f"{axis} = ?")
+            values.append(_coordinate(payload[axis], column))
+    if "zoom" in payload and payload["zoom"] is not None:
+        fields.append("zoom = ?")
+        values.append(_zoom(payload["zoom"]))
     if not fields:
         raise ValueError("Nothing to change.")
     values.append(event_id)
-    conn.execute(f"UPDATE event SET {', '.join(fields)} WHERE id = ?", values)
+    cur = conn.execute(f"UPDATE event SET {', '.join(fields)} WHERE id = ?", values)
+    if cur.rowcount == 0:
+        raise ValueError("No such event.")
     return _row(conn.execute(
         "SELECT * FROM event WHERE id = ?", (event_id,)
     ).fetchone())
@@ -144,39 +210,40 @@ def staged_features(conn: sqlite3.Connection, event_id: int) -> list[dict]:
     return out
 
 
+@db.transactional
 def assign_features(conn: sqlite3.Connection, event_id: int, payload: dict) -> dict:
-    kind = (payload.get("kind") or "").strip()
-    ids = [int(i) for i in payload.get("ids", [])]
+    kind = _text(payload, "kind") or ""
+    ids = _ids(payload.get("ids", []), "features")
     if not ids:
         raise ValueError("Select at least one feature.")
 
     if kind == "course":
-        name = (payload.get("name") or "").strip()
+        name = _text(payload, "name")
         if not name:
             raise ValueError("A course needs a name.")
         course_id, distance_m, warnings = importer.assign_course(
             conn, event_id, ids, name,
-            color=payload.get("color") or None,
+            color=_text(payload, "color"),
             reverse=bool(payload.get("reverse")),
-            dash=payload.get("dash") or None,
+            dash=_text(payload, "dash"),
         )
         return {"course_id": course_id, "distance_m": distance_m,
                 "warnings": warnings}
 
     if kind == "poi":
-        poi_type = (payload.get("poi_type") or "aid_station").strip()
+        poi_type = _text(payload, "poi_type") or "aid_station"
         created = [
             importer.assign_poi(
                 conn, event_id, feature_id, poi_type,
-                name=(payload.get("name") or None) if len(ids) == 1 else None,
-                what3words=what3words.normalize(payload.get("what3words")),
+                name=_text(payload, "name") if len(ids) == 1 else None,
+                what3words=what3words.normalize(_text(payload, "what3words")),
             )
             for feature_id in ids
         ]
         return {"poi_ids": created}
 
     if kind == "discard":
-        return {"discarded": importer.discard(conn, ids)}
+        return {"discarded": importer.discard(conn, event_id, ids)}
 
     raise ValueError(f"Unknown assignment {kind!r}.")
 
@@ -187,25 +254,69 @@ def list_courses(conn: sqlite3.Connection, event_id: int) -> list[dict]:
     return [_row(row) for row in importer.courses_for_event(conn, event_id)]
 
 
+@db.transactional
 def update_course(conn: sqlite3.Connection, event_id: int, course_id: int,
                   payload: dict) -> dict:
     if "bib_color" in payload or "bib_color_name" in payload:
         leaders.set_bib_color(
             conn, event_id, course_id,
-            payload.get("bib_color"), payload.get("bib_color_name"),
+            _text(payload, "bib_color"), _text(payload, "bib_color_name"),
         )
-    style_fields = {k: payload[k] for k in ("color", "dash", "name", "sort_order")
-                    if k in payload}
+    style_fields: dict[str, Any] = {}
+    if "color" in payload:
+        style_fields["color"] = _text(payload, "color") or ""
+    if "dash" in payload:
+        # An empty dash means solid; it must still reach the update.
+        style_fields["dash"] = _text(payload, "dash") or "solid"
+    if "name" in payload:
+        style_fields["name"] = _text(payload, "name")
+        if not style_fields["name"]:
+            raise ValueError("A course needs a name.")
+    if "sort_order" in payload:
+        try:
+            style_fields["sort_order"] = int(payload["sort_order"])
+        except (TypeError, ValueError):
+            raise ValueError("The draw order is a whole number.") from None
     if style_fields:
         importer.set_course_style(conn, event_id, course_id, **style_fields)
-    return _row(conn.execute(
+    row = conn.execute(
         "SELECT * FROM course WHERE id = ? AND event_id = ?", (course_id, event_id)
-    ).fetchone())
+    ).fetchone()
+    if row is None:
+        raise ValueError(f"No course with id {course_id} in this event.")
+    return _row(row)
 
 
-def delete_course(conn: sqlite3.Connection, event_id: int, course_id: int) -> None:
+def _in_use(parts: list[tuple[int, str, str]]) -> str | None:
+    """"1 lead runner sighting and 2 posted stations", or None if nothing."""
+    phrases = [f"{n} {one if n == 1 else many}" for n, one, many in parts if n]
+    if not phrases:
+        return None
+    if len(phrases) == 1:
+        return phrases[0]
+    return ", ".join(phrases[:-1]) + " and " + phrases[-1]
+
+
+def delete_course(conn: sqlite3.Connection, event_id: int,
+                  course_id: int) -> str | None:
+    """Remove a course. Refuses while lead runner sightings reference it.
+
+    `lead_sighting.course_id` cascades, so a bare DELETE took every report
+    for the race with it - the same silent loss that deleting a sighted
+    leader refuses. Returns what blocks it, worded for the screen, or None
+    once deleted.
+    """
+    sightings = conn.execute(
+        "SELECT COUNT(*) AS c FROM lead_sighting"
+        " WHERE event_id = ? AND course_id = ?", (event_id, course_id),
+    ).fetchone()["c"]
+    blocked = _in_use([
+        (sightings, "lead runner sighting", "lead runner sightings")])
+    if blocked:
+        return blocked
     conn.execute("DELETE FROM course WHERE id = ? AND event_id = ?",
                  (course_id, event_id))
+    return None
 
 
 def list_pois(conn: sqlite3.Connection, event_id: int) -> list[dict]:
@@ -278,6 +389,7 @@ def _coordinate(value, axis: str) -> float:
     return number
 
 
+@db.transactional
 def create_poi(conn: sqlite3.Connection, event_id: int, payload: dict) -> dict:
     """Put a place on the map by hand.
 
@@ -294,11 +406,11 @@ def create_poi(conn: sqlite3.Connection, event_id: int, payload: dict) -> dict:
     of the running order where it is visible, rather than in the middle of a
     sequence the club arranged.
     """
-    name = (payload.get("name") or "").strip()
+    name = _text(payload, "name")
     if not name:
         raise ValueError("A place needs a name.")
 
-    key = (payload.get("poi_type") or "").strip()
+    key = _text(payload, "poi_type")
     if not key:
         raise ValueError("A place needs a layer.")
     categories.get_poi_category(conn, event_id, key)
@@ -323,11 +435,22 @@ def create_poi(conn: sqlite3.Connection, event_id: int, payload: dict) -> dict:
         "SELECT * FROM poi WHERE id = ?", (poi_id,)).fetchone())
 
 
+@db.transactional
 def update_poi(conn: sqlite3.Connection, event_id: int, poi_id: int,
                payload: dict) -> dict:
+    # Checked first, not left to the UPDATE's rowcount: a payload carrying
+    # only `course_ids` never reaches that UPDATE, and used to write
+    # poi_course rows for - and hand back the name and coordinates of - a
+    # place in another club's event.
+    current = conn.execute(
+        "SELECT * FROM poi WHERE id = ? AND event_id = ?", (poi_id, event_id)
+    ).fetchone()
+    if current is None:
+        raise ValueError(f"No aid station with id {poi_id} in this event.")
+
     fields, values = [], []
     if "name" in payload:
-        name = (payload.get("name") or "").strip()
+        name = _text(payload, "name")
         if not name:
             raise ValueError("An aid station needs a name.")
         fields.append("name = ?")
@@ -336,12 +459,12 @@ def update_poi(conn: sqlite3.Connection, event_id: int, poi_id: int,
         # Must be a layer that exists. An unknown key would leave the place
         # drawn in no layer until something re-seeded one for it, which is a
         # confusing way to lose a pin off the map.
-        key = (payload.get("poi_type") or "aid_station").strip()
+        key = _text(payload, "poi_type") or "aid_station"
         categories.get_poi_category(conn, event_id, key)
         fields.append("poi_type = ?")
         values.append(key)
     if "what3words" in payload:
-        words = payload.get("what3words")
+        words = _text(payload, "what3words")
         if words and not what3words.is_plausible(words):
             raise ValueError(
                 f"{words!r} does not look like a What3Words address "
@@ -353,20 +476,16 @@ def update_poi(conn: sqlite3.Connection, event_id: int, poi_id: int,
         # Stored only when it differs from what we would guess anyway. Keeping
         # an override that agrees with the guess would silently freeze the
         # label: rename "Aid 3" to "Aid 4" and the pin would still read 3.
-        override = labels.clean(payload.get("label"))
+        override = labels.clean(_text(payload, "label"))
         if override and override == labels.derive(
-            (payload.get("name") or "").strip()
-            or conn.execute(
-                "SELECT name FROM poi WHERE id = ? AND event_id = ?",
-                (poi_id, event_id),
-            ).fetchone()["name"]
+            _text(payload, "name") or current["name"]
         ):
             override = None
         fields.append("label = ?")
         values.append(override)
     if "notes" in payload:
         fields.append("notes = ?")
-        values.append((payload.get("notes") or "").strip() or None)
+        values.append(_text(payload, "notes", 2000))
     # Coordinates were import-only, and permanently so: a place dropped in the
     # wrong spot by a hand-drawn organizer file could be renamed, restyled and
     # moved between layers, but never actually moved. Everything downstream
@@ -451,28 +570,14 @@ def reorder_pois(conn: sqlite3.Connection, event_id: int,
 
     Only the ids passed are numbered. Anything omitted keeps its 0 and stays
     at the end - which is what should happen to a place the club has not
-    thought about yet.
+    thought about yet. `db.reorder` is the one implementation.
     """
-    ids = [int(i) for i in poi_ids or []]
-    if not ids:
-        raise ValueError("Nothing to reorder.")
-    known = {
-        row["id"] for row in conn.execute(
-            "SELECT id FROM poi WHERE event_id = ?", (event_id,)
-        ).fetchall()
-    }
-    unknown = [i for i in ids if i not in known]
-    if unknown:
-        # Refuse rather than silently ordering a subset: a half-applied order
-        # is worse than none, because it looks like it worked.
-        raise ValueError(f"No such place in this event: {unknown[0]}")
-
-    for position, poi_id in enumerate(ids, start=1):
-        conn.execute(
-            "UPDATE poi SET sort_order = ? WHERE id = ? AND event_id = ?",
-            (position * 10, poi_id, event_id),
-        )
-    return len(ids)
+    try:
+        return db.reorder(conn, "poi", "id", event_id,
+                          _ids(poi_ids or [], "places"), allow_subset=True)
+    except ValueError as exc:
+        raise ValueError(str(exc).replace(
+            "Not in this event", "No such place in this event")) from None
 
 
 def reorder_courses(conn: sqlite3.Connection, event_id: int,
@@ -485,20 +590,12 @@ def reorder_courses(conn: sqlite3.Connection, event_id: int,
     must be listed: a course left out would keep its old number and land
     somewhere in the stack nobody chose.
     """
-    ids = [int(i) for i in course_ids or []]
-    known = {
-        row["id"] for row in conn.execute(
-            "SELECT id FROM course WHERE event_id = ?", (event_id,)
-        ).fetchall()
-    }
-    if not ids or set(ids) != known or len(ids) != len(known):
-        raise ValueError("Every course in the event must be listed, once.")
-    for position, course_id in enumerate(reversed(ids), start=1):
-        conn.execute(
-            "UPDATE course SET sort_order = ? WHERE id = ? AND event_id = ?",
-            (position * 10, course_id, event_id),
-        )
-    return len(ids)
+    try:
+        return db.reorder(conn, "course", "id", event_id,
+                          _ids(course_ids or [], "courses"), top_first=True)
+    except ValueError:
+        raise ValueError(
+            "Every course in the event must be listed, once.") from None
 
 
 def move_pois(conn: sqlite3.Connection, event_id: int,
@@ -512,7 +609,7 @@ def move_pois(conn: sqlite3.Connection, event_id: int,
     lying about what is where.
     """
     categories.get_poi_category(conn, event_id, key)
-    ids = [int(i) for i in poi_ids or []]
+    ids = _ids(poi_ids or [], "places")
     if not ids:
         raise ValueError("Select at least one place to move.")
 
@@ -524,8 +621,38 @@ def move_pois(conn: sqlite3.Connection, event_id: int,
     return int(cur.rowcount)
 
 
-def delete_poi(conn: sqlite3.Connection, event_id: int, poi_id: int) -> None:
+def delete_poi(conn: sqlite3.Connection, event_id: int,
+               poi_id: int) -> str | None:
+    """Remove a place. Refuses while sightings or a posted operator reference it.
+
+    `lead_sighting.poi_id` cascades and `roster.poi_id` nulls, so a bare
+    DELETE took every lead runner report at the place with it - the leader's
+    position on the NCS panel jumped back a station - and un-posted whoever
+    was standing there, which for an operator who never beacons is the only
+    thing putting them on the map. Neither said why. Every other delete in
+    this family (a layer with places, a leader with sightings) refuses with
+    the count; this one does the same. Setup is used mid-event.
+
+    An incident reported "at" the place keeps its own coordinates and is
+    left alone. Returns what blocks the delete, worded for the screen, or
+    None once deleted.
+    """
+    sightings = conn.execute(
+        "SELECT COUNT(*) AS c FROM lead_sighting WHERE event_id = ? AND poi_id = ?",
+        (event_id, poi_id),
+    ).fetchone()["c"]
+    posted = conn.execute(
+        "SELECT COUNT(*) AS c FROM roster WHERE event_id = ? AND poi_id = ?",
+        (event_id, poi_id),
+    ).fetchone()["c"]
+    blocked = _in_use([
+        (sightings, "lead runner sighting", "lead runner sightings"),
+        (posted, "posted station", "posted stations"),
+    ])
+    if blocked:
+        return blocked
     conn.execute("DELETE FROM poi WHERE id = ? AND event_id = ?", (poi_id, event_id))
+    return None
 
 
 # --- roster -----------------------------------------------------------------
@@ -542,9 +669,10 @@ def list_roster(conn: sqlite3.Connection, event_id: int) -> list[dict]:
     return out
 
 
+@db.transactional
 def save_roster_entry(conn: sqlite3.Connection, event_id: int, payload: dict) -> dict:
-    station_key = (payload.get("station_key") or "").strip().upper()
-    label = (payload.get("display_label") or "").strip()
+    station_key = (_text(payload, "station_key") or "").upper()
+    label = _text(payload, "display_label", 80) or ""
     if not station_key or not label:
         raise ValueError("A roster entry needs a callsign and a label.")
     if not _CALLSIGN.match(station_key):
@@ -559,19 +687,30 @@ def save_roster_entry(conn: sqlite3.Connection, event_id: int, payload: dict) ->
     # already, so a bare entry is tracked from the first packet that looks like
     # a person - see db.bind_heard_ssid.
 
-    original = (payload.get("original_station_key") or "").strip().upper()
+    # Editing the callsign here is a RENAME: the human is correcting what
+    # they typed. Binding - "the station heard as X is really this person" -
+    # is NCS's tool on the live map and goes through change_station_key,
+    # which leaves the typed key alone. Sending the edit through the bind
+    # logic left two rows for one person: the original, bound to the new key,
+    # and a fresh one upserted under it below.
+    original = (_text(payload, "original_station_key") or "").upper()
     if original and original != station_key:
-        db.change_station_key(conn, event_id, original, station_key)
+        db.rename_station_key(conn, event_id, original, station_key)
 
     db.upsert_roster_entry(
         conn, event_id, station_key, label,
-        category=(payload.get("category") or "rover").strip(),
+        category=_text(payload, "category") or "rover",
         expects_aprs=bool(payload.get("expects_aprs", True)),
-        operator_name=(payload.get("operator_name") or "").strip() or None,
+        operator_name=_text(payload, "operator_name", 80),
     )
     if "poi_id" in payload:
-        db.assign_station_to_poi(conn, event_id, station_key,
-                                 payload.get("poi_id") or None)
+        poi_id = payload.get("poi_id") or None
+        if poi_id is not None:
+            try:
+                poi_id = int(poi_id)
+            except (TypeError, ValueError):
+                raise ValueError(f"{poi_id!r} is not a place id.") from None
+        db.assign_station_to_poi(conn, event_id, station_key, poi_id)
     return _row(conn.execute(
         "SELECT * FROM roster WHERE event_id = ? AND station_key = ?",
         (event_id, station_key),
@@ -579,9 +718,12 @@ def save_roster_entry(conn: sqlite3.Connection, event_id: int, payload: dict) ->
 
 
 def delete_roster_entry(conn: sqlite3.Connection, event_id: int,
-                        station_key: str) -> None:
+                        station_key: object) -> None:
+    key = (db.clean_text(station_key) or "").upper()
+    if not key:
+        raise ValueError("Which station?")
     conn.execute("DELETE FROM roster WHERE event_id = ? AND station_key = ?",
-                 (event_id, station_key.strip().upper()))
+                 (event_id, key))
 
 
 # --- access links -----------------------------------------------------------

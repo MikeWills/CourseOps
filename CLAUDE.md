@@ -122,6 +122,7 @@ src/courseops/
   web.py          FastAPI: map page, state snapshot, WebSocket
   static/         Leaflet client, no build step, plus the icon set
   static/icons.js shared glyph set, inline SVG, used by map and setup
+  static/util.js  shared helpers (escapeHtml), loaded before app.js and setup.js
   discovery.py    pre-event check-in: which SSIDs are actually on the air
   symbols.py      APRS symbols: is this a person or a digipeater?
   admin.py        setup API: events, import, roster, links
@@ -158,6 +159,16 @@ usability, not style preferences.
   connections. Refuse to enable without a usable callsign rather than starting
   a task that dies: a switch reading "on" with nothing behind it is worse than
   no switch.
+- **Nothing inside the ingest task may raise `SystemExit`, and the supervisor
+  catches `BaseException`.** asyncio re-raises `SystemExit` and
+  `KeyboardInterrupt` out of a task and out of the loop, so a feed that
+  refused an empty event with `SystemExit` took every role page down and the
+  persisted switch restarted it into the same crash under systemd. `ingest.py`
+  raises `IngestError`, `config.require_callsign` raises `ConfigError`, and
+  `cli.py` is the only place either becomes an exit code. The switch persists
+  `ingest_enabled` only AFTER `start_ingest` reports the feed got as far as
+  connecting: the flag is what the next boot acts on, so it must describe a
+  feed that actually started.
 - **Nothing tags a release automatically.** The deploy workflow REACTS to a
   tag; it never creates one. Bump `pyproject.toml` and `__init__.py`, commit,
   then tag - the release workflow refuses a tag that disagrees with the
@@ -343,6 +354,33 @@ usability, not style preferences.
   order and toggling a line back on re-adds it on top, so `restackCourses()`
   runs after every draw and every toggle - forgetting it puts a course on
   top with no error.
+- **A heavy read runs in a worker thread; nothing else on the loop
+  moves while a route does its own SQLite work.** `build_state`, the
+  report and a course import go through `asyncio.to_thread`. That works
+  because `db.connect` sets `check_same_thread=False` - a request may hand
+  its connection to a thread, but a connection is one request's and is
+  never shared between two, and a write is never started in a thread while
+  the request goes on using the connection on the loop. `PRAGMA
+  journal_mode = WAL` lives in `init_schema`, not `connect`: it is stored in
+  the file, and asking for it per connect was most of the connect cost.
+- **A read must be a read.** The layer and leader lists used to repair
+  orphaned keys with `INSERT OR IGNORE` on every call, and an INSERT that
+  ignores still takes the writer lock - every phone's snapshot was a writer
+  competing with the feed. `adopt_orphan_poi_types`/`adopt_orphan_divisions`
+  run at startup only - every write now validates the key first - and
+  anything new that "fixes up" data on the way out goes the same way.
+- **A write that touches more than one row goes inside `db.transaction`,
+  and nothing calls `conn.commit()`.** The connection is autocommit, so
+  each statement used to be its own transaction and `create_poi` INSERTed
+  the place before validating its What3Words address - a 400 left the
+  place behind it, and the corrected resubmit made two pins. `@db.transactional`
+  on the domain function (not the route) gives the CLI the same guarantee;
+  it nests, so a function that wraps itself can be called from one that
+  already has. `conn.commit()` is a no-op on a bare connection and an EARLY
+  commit inside a transaction block, which is why there is a test that no
+  source file contains it. Parse a file BEFORE opening the transaction:
+  `BEGIN IMMEDIATE` holds the write lock, and the ingest task is writing
+  positions on its own connection meanwhile.
 - **Adding a schema column requires a migration entry.** `CREATE TABLE IF NOT
   EXISTS` skips existing tables, so a new column never reaches an existing
   database. Add it to `_ADDED_COLUMNS` in `db.py` as well as `schema.sql`.
@@ -439,6 +477,15 @@ usability, not style preferences.
   sends only the origin: identified, no path, no token. This is Apache
   config that `deploy.sh` never touches, so an installed server has to be
   edited by hand.
+- **A setup WRITE must come from our own origin; a setup GET must not
+  write.** `refuse_cross_site_setup_writes` compares `Origin`/`Referer`
+  against the `Host` header for every non-GET under `/api/setup/`, because
+  SameSite=Lax is a same-SITE rule and the VPS hosts other apps under the
+  same domain. Two consequences: `ProxyPreserveHost On` in the vhost is
+  load-bearing (without it every save answers 403), and a GET that creates
+  something is the one kind of setup route a cross-site navigation can still
+  drive - `/links` used to. The field API is exempt on purpose: its
+  credential is in the path.
 - **Apache needs `mod_proxy_wstunnel` and /ws/ rules BEFORE the catch-all.**
   Otherwise the map loads and then never moves, with no visible error.
 - **NEVER modify `.env`.** It is the user's file and holds their callsign. To
@@ -467,6 +514,16 @@ usability, not style preferences.
   exists. Tokens are also scoped to their event: valid elsewhere means nothing.
 - **Never interpolate marker movement in the client** (same rule as the plan).
   `setLatLng`, not an animated transition.
+- **The socket opens FIRST; the snapshot follows on `open`, and `loadState`
+  never throws.** The reconnect loop runs from a timer, and a phone still
+  out of coverage when it fires is the normal case: one unhandled rejection
+  there ended reconnection for good, with the badge reading "Connecting..."
+  until a manual reload. Subscribing before fetching also closes the gap in
+  which a status published between "snapshot served" and "subscribed" was
+  never seen. Frames arriving during the fetch are held and replayed after
+  it. Only 403/404 means the LINK is dead (`state.linkDead`, stop retrying);
+  everything else is the server and keeps retrying, because "Access denied"
+  during a deploy restart sends a volunteer to ask for a new link.
 - **A station row's "where" is its own marker OR its posted place.** Most
   aid station operators never beacon (the rule above), so `state.markers`
   has nothing for them and a tap on their row was silently dead - nine of
@@ -566,7 +623,15 @@ usability, not style preferences.
 - **`Subscription` needs `eq=False`.** Subscriptions live in a set, and two
   browsers on one event are distinct subscribers with identical fields.
 - **Client escaping goes through `escapeHtml`,** which escapes quotes too - the
-  textContent/innerHTML trick does not, and values land in attributes.
+  textContent/innerHTML trick does not, and values land in attributes. It
+  lives in `static/util.js`, loaded before `app.js` and `setup.js` (`esc`
+  there is an alias); the frontend has no build step, so "shared" means a
+  global from a script tag both pages carry.
+- **Every write from the field app goes through `post()` in `app.js`.** It
+  throws the server's `detail`, which is where "Staff is read-only." is
+  written; nine hand-rolled fetches with three failure conventions had been
+  throwing that text away, and two (leader Undo and Clear) never checked
+  the response at all, so a refusal looked like success.
 - **Geolocation needs a secure context.** Browsers block it over plain http://
   except on localhost. This constrains deployment (Phase 8): a club serving over
   a LAN without TLS loses the "where am I" dot. The client names the real cause.
@@ -639,6 +704,16 @@ usability, not style preferences.
   person with the radio is often not the person whose callsign is on the
   roster. `change_station_key` binds across callsigns via `bound_key` and
   never renames; `unbind_station` is the undo, and NCS has an Unmatch button.
+- **A setup-screen edit of a callsign is a RENAME; a match on the live map
+  is a BIND.** They answer opposite questions. Binding says which HEARD
+  station is this person and leaves the typed key alone so it stays
+  undoable; the Roster tab's edit says what the typed key should have been,
+  so `db.rename_station_key` moves the row - label, place, status log and
+  any binding NCS made go with it. Routing the setup edit through the bind
+  logic left TWO rows for one person (the original bound to the new key,
+  plus a fresh upsert under it), both attributing the same packets, on the
+  morning someone corrected a typo. Never send a setup edit through
+  `change_station_key`, and never let the NCS match route rename.
 - **Membership is re-read while the feed runs.** `ingest.Membership` refreshes
   who the roster knows when an unknown packet arrives (at most every 5 s),
   because NCS matches stations mid-event and from then on their packets must
@@ -755,7 +830,14 @@ usability, not style preferences.
   `POST /api/setup/events/{id}/...`, never per-endpoint - a renamed station has
   to reach the field, and the failure is silent because NCS sees their own
   screen update. Resync reloads data, not the page: view and layer choices are
-  restored only on first load, so they survive.
+  restored only on first load, so they survive. A burst of saves is ONE
+  resync: save-all posts a request per row, and each used to be a snapshot
+  fetch and a map rebuild on every phone. `request_resync` waits
+  `RESYNC_DELAY_SECONDS` for the burst to end (capped by
+  `RESYNC_MAX_WAIT_SECONDS`), and the client's `requestState()` debounces
+  the other side and never runs two fetches at once - two snapshots landing
+  out of order would leave the older one on screen. `/tracking` and
+  `/links` are excluded: neither changes anything a phone draws.
 - **Verify setup instructions by cold-starting a clean clone into an empty
   virtualenv.** A missing dependency (`python-multipart`) that this machine
   happened to have made the app fail to boot for everyone else, and no test
@@ -869,6 +951,25 @@ usability, not style preferences.
   `--font-data` in `app.css` are the only places a face is named; anything
   that is a VALUE read off the screen (callsign, bib, age, mile) takes
   `--font-data`, the word beside it does not.
+- **Leaflet is shipped too: `static/leaflet/`, byte for byte the pinned
+  upstream build.** Same reason as the fonts, plus a CDN outage on race
+  morning was no map at all. `tests/test_web.py` checks the files against
+  the SRI hashes the pages used to carry; upgrading means replacing the
+  files, the hashes in that test and the LICENSE note together. Leaflet
+  finds its marker images from the stylesheet's own URL, so the css and
+  `images/` stay side by side.
+- **No inline `<script>` anywhere, and the CSP is what enforces it.**
+  `security_headers()` in `web.py` sends `script-src 'self'` on every
+  response, so both clients - which build markup from server data all day -
+  turn an escaping slip into a blocked request rather than a stolen token.
+  Inline STYLE is allowed because Leaflet positions markers with style
+  attributes. A value the server must hand a page travels as a `data-`
+  attribute (the first-run flag on `<body>`, the tile URL on the report)
+  and a small file reads it; `onclick=` in a template string, `eval`, or a
+  `javascript:` href are all silently dead under this policy, with the
+  failure in the browser console and nowhere else. The tile server is the
+  one named third party, and it is `TILE_ORIGIN` - change it with the
+  tile URL (#3) or the map goes grey.
 - **The guides ship WITH the app and are rendered by OUR converter.** They
   are Markdown in `src/courseops/guides/` (inside the package, or the wheel
   and the .exe lose them), served at `/help/<page>`, and `guides.render`

@@ -372,6 +372,13 @@ UI for moving a marker yet. Today the fix is for NCS or SAG to delete it.
   role link covers it; operator initials (Phase 6) handle shift handover.
 - *Overlapping courses?* - Solved by adjustable draw order, not forced dashes.
 - *Mobile?* - Mobile-first. The field roles are the primary case.
+- *Editing a roster callsign in setup: rename or bind?* (2026-09-14 audit) -
+  Rename. The Roster tab's edit is the human correcting what they typed, so
+  the row moves and keeps its label, place, status history and any match
+  NCS made. Binding is the opposite question - which heard station is this
+  person - and stays NCS's tool on the live map, where it leaves the typed
+  key alone so it is undoable. Sending the setup edit through the bind
+  logic had been leaving two rows for one person.
 
 ## Naming
 
@@ -447,9 +454,13 @@ the one phase that produced nothing on race day, and once the report page
 existed the after-event questions the club actually has - how many pickups,
 when, where, what went wrong at which corner - were answered without it.
 
-Nothing was removed to drop it: `position`, `raw_packet`, `incident_log`,
-`lead_sighting` and `roster_status_log` keep full history, so an event is still
-reconstructable by hand from the database if a question ever needs it.
+Nothing was removed to drop it: `position` (with each packet's raw line),
+`incident_log`, `lead_sighting` and `roster_status_log` keep full history, so
+an event is still reconstructable by hand from the database if a question
+ever needs it. `raw_packet` was retired on 2026-09-14 (audit task A4): nothing
+read it, and it logged position-less lines from the public before the roster
+check, which the area filter was accepted on the promise of never doing. The
+table stays defined so existing databases are untouched; nothing writes it.
 
 ## Setup application and tenancy
 

@@ -8,10 +8,32 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 
 from . import aprsis, db, symbols
-from .config import Settings
+from .config import ConfigError, Settings
 from .parser import PositionReport, Rejected, parse_packet
 
 log = logging.getLogger(__name__)
+
+
+class IngestError(RuntimeError):
+    """The feed cannot start or cannot go on, and this is why.
+
+    A RuntimeError and never SystemExit. `run_ingest` runs inside a task on
+    the server's event loop, and asyncio re-raises SystemExit out of a task
+    and out of the loop itself: one event that could not start - no roster,
+    no course, a callsign lost between deploys - took the whole site down,
+    every role page with it, and the persisted switch restarted it into the
+    same crash under systemd. The CLI is the only place this becomes an exit
+    code, and it does the translation itself.
+    """
+
+
+# What the tracking switch and the feed both say about an event with nothing
+# to listen for. One string, because the switch refuses the case up front and
+# the feed refuses it again if reached some other way, and the two must agree.
+NOTHING_TO_LISTEN_FOR = (
+    "This event has no stations expected to beacon, no course and no extra "
+    "filter. Add stations or import a course before turning tracking on."
+)
 
 # Called for each stored position. Phase 3 hangs the WebSocket broadcast here.
 PositionHandler = Callable[[int, PositionReport], Awaitable[None]]
@@ -52,7 +74,6 @@ def handle_line(
     roster_keys: set[str],
     line: str,
     stats: IngestStats,
-    log_all_raw: bool = True,
     base_callsigns: set[str] | None = None,
     excluded: set[str] | None = None,
     nearby: list[PositionReport] | None = None,
@@ -63,6 +84,13 @@ def handle_line(
     logged - not even raw. The area filter delivers the public, and the deal
     is that they are seen, in memory, by NCS, and written down only once NCS
     says who they are. It goes into `nearby` for the caller to hand on.
+
+    Nothing is written for a line that fails to parse or carries no
+    position, whoever sent it. There used to be a raw log of every such
+    line, taken BEFORE the roster check - which, with the area filter on,
+    was every status, message and telemetry packet from every ham near the
+    course, verbatim, in a database that is backed up nightly. Nothing ever
+    read it. A stored position keeps its own raw line in `position.raw`.
     """
     try:
         report = parse_packet(line)
@@ -72,16 +100,13 @@ def handle_line(
             log.debug("Parse error: %s | %s", rejection.detail, line)
         else:
             stats.no_position += 1
-        if log_all_raw:
-            db.log_raw_packet(
-                conn, event_id, _now(), line, rejection.reason, rejection.detail
-            )
         return None
 
     # A station NCS has ignored. Dropped here, at the door, and not written
     # anywhere - not even raw. Ignoring is meant to be the end of it until
-    # somebody unignores, and the membership refresh picks that up within
-    # seconds without a reconnect.
+    # somebody unignores; the loop re-reads membership before every packet
+    # (rate-limited), so it holds within MEMBERSHIP_REFRESH_S and needs no
+    # reconnect.
     if excluded and report.station_key in excluded:
         stats.excluded += 1
         return None
@@ -109,22 +134,19 @@ def handle_line(
     # Infrastructure is skipped deliberately: the wildcard filter drags in the
     # operator's own digipeater or igate, and binding an aid station to their
     # home igate would park that person on the map at their house all day -
-    # confidently, and wrongly.
-    if not symbols.is_infrastructure(report.symbol_table, report.symbol_code):
+    # confidently, and wrongly. A key the roster names outright (or has
+    # already bound) is skipped too: it can never bind, and the lookup is
+    # two SELECTs per packet on the loop the feed blocks on.
+    if (report.station_key not in roster_keys
+            and not symbols.is_infrastructure(
+                report.symbol_table, report.symbol_code)):
         bound = db.bind_heard_ssid(conn, event_id, report.station_key)
         if bound is not None:
             stats.bound[report.station_key] = bound["display_label"]
 
-    if log_all_raw:
-        db.log_raw_packet(conn, event_id, report.received_at, line, "stored")
     stats.stored += 1
     stats.by_station[report.station_key] = stats.by_station.get(report.station_key, 0) + 1
     return report
-
-
-def _now() -> str:
-    from datetime import datetime, timezone
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 # How far beyond the course's own extent the area filter reaches. A mile is
@@ -134,8 +156,9 @@ AREA_MARGIN_M = 1609.344
 
 # How often the ingest loop re-reads who is on the roster. NCS binds a station
 # heard nearby to a roster entry mid-event, and from then on its packets have
-# to be STORED rather than held in memory - so membership cannot be a snapshot
-# taken when the feed started. Re-read on an unknown packet, at most this often.
+# to be STORED rather than held in memory; NCS ignores a digipeater and from
+# then on its packets must be dropped - so membership cannot be a snapshot
+# taken when the feed started. Re-read before each packet, at most this often.
 MEMBERSHIP_REFRESH_S = 5.0
 
 
@@ -176,13 +199,17 @@ async def run_ingest(
 
     `max_packets` bounds the run for smoke-testing; None runs until cancelled.
     """
-    settings.require_callsign()
+    try:
+        settings.require_callsign()
+    except ConfigError as exc:
+        raise IngestError(str(exc)) from exc
     conn = db.connect(settings.db_path)
     db.init_schema(conn)
 
     event = db.get_event(conn, event_slug)
     if event is None:
-        raise SystemExit(f"No event with slug {event_slug!r}. Create it first.")
+        conn.close()
+        raise IngestError(f"No event with slug {event_slug!r}. Create it first.")
 
     # The filter asks only for stations we expect to beacon; the membership
     # check accepts anyone on the roster, since an area filter can legitimately
@@ -192,10 +219,8 @@ async def run_ingest(
     from . import progress
     area = progress.CourseIndex.for_event(conn, event["id"]).area(AREA_MARGIN_M)
     if not filter_keys and not event["aprs_filter_extra"] and area is None:
-        raise SystemExit(
-            f"Event {event_slug!r} has no APRS-expecting roster entries, no "
-            "course and no extra filter. Add stations or a course before ingesting."
-        )
+        conn.close()
+        raise IngestError(NOTHING_TO_LISTEN_FOR)
 
     aprs_filter = aprsis.build_filter(
         filter_keys, event["aprs_filter_extra"],
@@ -214,18 +239,25 @@ async def run_ingest(
             settings.host, settings.port, settings.callsign,
             settings.passcode, aprs_filter,
         ):
+            # Re-read who the roster knows BEFORE the packet is judged, not
+            # after. This used to happen only once an unknown station was
+            # heard, which is the wrong trigger twice over: an ignored SSID
+            # under a rostered callsign is never unknown, so Ignore did not
+            # reach the door until some stranger beaconed - on a quiet band,
+            # not for a long time, and the igate NCS had just dismissed kept
+            # coming back on every screen. And the packet that revealed a
+            # match had already been thrown away by the time the re-read
+            # showed it was wanted. Rate-limited inside refresh(), so this
+            # costs nothing per packet most of the time.
+            membership.refresh()
             nearby: list[PositionReport] = []
             report = handle_line(
                 conn, event["id"], membership.roster_keys, line, stats,
                 base_callsigns=membership.base_callsigns,
                 excluded=membership.excluded, nearby=nearby,
             )
-            if nearby:
-                # Unknown to the roster as of the last read. NCS may have
-                # assigned it since, so re-read before deciding it is news.
-                membership.refresh()
-                if nearby[0].station_key not in membership.roster_keys                         and on_nearby is not None:
-                    await on_nearby(event["id"], nearby[0])
+            if nearby and on_nearby is not None:
+                await on_nearby(event["id"], nearby[0])
             if report is not None:
                 log.info(
                     "%s  %.5f,%.5f  %s",

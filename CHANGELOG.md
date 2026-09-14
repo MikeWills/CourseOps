@@ -122,6 +122,497 @@ month, PATCH counting releases in that month from 0. Before that they were
   `tests/test_setup_client.py` holds the reader and the cell to the same
   attribute names.
 
+
+### Changed
+- **One `post()` in the field app, and the server's reason on screen.**
+  Nine hand-rolled POSTs carried three different ideas of what a failure
+  looked like, and all but one threw away the `detail` the server writes -
+  so "Staff is read-only." and "Unknown status" reached nobody, and the
+  status message said "check the connection" for a refusal that had nothing
+  to do with the connection. Every write goes through `post(path, body)`
+  now, which throws the server's wording, and every status line shows it.
+  `escapeHtml` moved to a shared `static/util.js` (setup's `esc` is an
+  alias): the two copies were character-for-character identical, and two
+  copies of an escaper are two places to get it wrong.
+
+### Fixed
+- **Small field-app fixes.** The operator name was cut to 12 characters on
+  a station status change and 24 on a pickup or sighting, so one shift's
+  log entries did not match each other on a handover read; it is one cap
+  (24) everywhere now. The sheet's drag grip was announced as a button but
+  ignored Enter and Space; it answers them like the fold headings. And
+  every SSID match or ignore fetched the snapshot twice - once from the
+  client, once from the resync the server publishes for the same action -
+  on the busiest panel NCS uses; the client-side fetch is gone. (Audit F8.)
+- **The "This is..." list on an SSID alert snapped shut under NCS's
+  thumb.** Every packet from an unknown station rebuilt the whole SSID
+  panel, select included - and with an area filter around a course in a
+  town, unknown stations beacon continuously. NCS scrolling thirty names to
+  match a borrowed rig to the person holding it had the dropdown close
+  every few seconds. The rebuild now waits while a select in that panel
+  has focus and runs when it lets go; nothing is lost, only delayed a few
+  seconds. The select carries `data-edit-key` like every other editable
+  field in a socket-rendered list. (Audit F7.)
+- **Leader Undo and Clear could fail silently.** Neither checked the
+  response, so NCS confirmed "Clear every First male sighting for Half?
+  This cannot be undone", the server refused (a stale division key after a
+  setup edit is the realistic case), and the list sat there reading as "the
+  button did nothing". Both go through `post()` and say why. (Audit F6.)
+- **Dropping a pin no longer puts the cursor in the bib box - it had not
+  since #93.** "Create first, fill the bib in after" is the documented
+  flow, and the step that put the cursor where the bib goes selected the
+  field by attributes that #93 renamed to `data-edit-key`. Nothing matched,
+  nothing errored, and a SAG driver dropped a pin and then had to find the
+  row and tap the box in a glove. The selector matches the rows again, and
+  the new row is put up from the server's response immediately rather than
+  waiting for the broadcast to come back round, so on a slow link the
+  field exists when the focus fires. (Audit F5.)
+- **The layer and role switches did not follow a resync.** Every setup
+  change pushes a resync so the field sees it, and the pins did redraw with
+  a layer's new name and colour - but the "Places" switch list was built
+  once, on first load. A layer added on race morning had no switch, so it
+  could not be turned on or off from a phone already holding the page; a
+  renamed layer or station role kept its old name beside pins showing the
+  new one; a deleted layer kept a dead switch. The switches are rebuilt on
+  every load now; the viewer's own on/off choices survive because they are
+  read from the browser's prefs. (Audit F4.)
+- **A dropped-off pickup drew on the map as an invisible pin.** Only
+  `closed` was removed from the map, so a delivered runner kept a marker at
+  the place they were picked up - and that status had no colour rule, so
+  the marker was white text inside a white border with no fill: on light
+  tiles, a pin that exists and cannot be seen, while the row sat in the
+  list. The map now removes a pickup when the queue count stops counting
+  it (delivered or closed - one `incidentDone()` for both, because they
+  are read as the same claim and had drifted), and every status has a
+  colour rule so this shape of bug cannot come back silently. (Audit F3.)
+- **A phone coming back from a dead zone could stop reconnecting for
+  good.** The reconnect timer fetched the snapshot before opening the
+  socket, with nothing catching a failed fetch - and a phone still out of
+  coverage when the 1-2 s retry fired is the normal case. The rejection
+  went unhandled, the socket was never opened, and nothing scheduled
+  another attempt: the badge read "Connecting..." until someone reloaded
+  the page by hand, on the exact day and the exact phones the loop exists
+  for. `loadState` never throws now, every path out of a failed attempt
+  schedules the next one, and the socket is opened FIRST with the snapshot
+  fetched on open - which also closes the gap in which a status change or
+  a pickup published between "snapshot served" and "subscribed" was never
+  seen by that browser. Frames arriving during the fetch are held and
+  replayed after it. And only a 403/404 reads "Access denied" now; a 502
+  from Apache during a deploy restart says "Server unavailable - retrying"
+  instead of sending a volunteer to ask for a new link. (Audit F2.)
+- **A status change on a matched station reached only the screen that made
+  it.** The `station_status` socket message carried the roster's own key,
+  but the client keys its roster by the SSID it hears - the bound key for a
+  bare-callsign entry, which is a supported, documented path. Every other
+  browser looked that key up, missed, and dropped the message: the NCS
+  operator who pressed the button saw "Rolling" (optimistic update), the
+  second NCS screen and Logistics - who wait on the sweep's status to say a
+  road is clear - kept the old one until an unrelated resync happened by.
+  The message now carries `tracking_key` from the same helper the snapshot
+  uses, and the client looks that up. (Audit F1.)
+
+
+### Fixed
+- **The SSID alerts go only to a role that can act on them.** They were in
+  every role's snapshot and rendered by none but NCS: which rostered
+  callsign owns which digipeater, handed to the forwarded Staff link for
+  nothing. Now sent with the nearby and ignored lists, to a role holding
+  the SSID capability, and left out for the rest.
+- **A phone that fell behind is told to resync instead of being left with
+  what it missed.** Each browser's queue is bounded so a stalled phone
+  cannot back up the feed, and on overflow messages were simply dropped.
+  Dropping a position is harmless - the next one supersedes it - but the
+  same queue carries a pickup's deletion, a station rename and resyncs
+  themselves, and nothing later repeats those: a phone that was throttled
+  in the background and then recovered kept a deleted pickup on its map
+  indefinitely, with the badge reading "Live". The first overflow now
+  empties the queue and leaves a single `resync` in it, and the count of
+  overflows resets once that resync has gone out.
+- **A dead socket is noticed.** A phone that slept, or a NAT that forgot
+  the connection, never fires `close`, so the badge said "Live" over a
+  socket carrying nothing. The server now sends a heartbeat frame after a
+  minute of quiet (uvicorn's protocol pings, which it also runs, are
+  invisible to the page), the client closes a socket that has carried
+  nothing for three minutes so the ordinary reconnect takes over, and
+  coming back to the foreground after more than a minute away fetches a
+  fresh snapshot. `courseops serve` states the protocol ping interval
+  explicitly rather than relying on the backend's default.
+
+### Changed
+- **Two small writes-on-read are gone.** A link's `last_used` was stamped
+  on every request - each phone poll a writer competing with the feed for
+  the one lock - and it is read by a human on the Links tab, where a
+  minute's resolution is plenty; it is refreshed only when a minute old.
+  The guides at `/help/` were globbed, read and rendered on every request
+  (the one unauthenticated endpoint anyone can hammer, and on the event
+  loop); they are read once per server run, since they ship in the
+  package and cannot change while it runs.
+- **A burst of setup saves reaches the field as one resync.** Save-all
+  posts one request per changed row, and each published its own resync -
+  which every phone answers with a full snapshot fetch and a map rebuild.
+  Twelve renames were twelve rebuilds per phone, on the one day setup
+  edits happen live. The server now waits a moment for the burst to end
+  (never more than a second and a half) and publishes once; the client
+  fetches at most one snapshot per half second and never two at once,
+  since two landing out of order would leave the older on screen. Flipping
+  the tracking switch and editing links no longer resync anyone: neither
+  changes anything a phone draws.
+- **The snapshot, the report and a course import are built off the event
+  loop.** Every route ran its SQLite work on the loop, and the snapshot is
+  the heavy one: while one phone's was being built nothing else moved - no
+  WebSocket send, no ingest, no other phone - and a setup save resyncs
+  every phone at once, so twelve phones were twelve builds in a row with
+  positions frozen for the sum of them. Those three now run in a worker
+  thread (`asyncio.to_thread`); the rest of the routes are quick and stay
+  where they are. Two smaller things on the same path: `/state` opened
+  three connections and now opens one, and `PRAGMA journal_mode = WAL` -
+  5 ms of a 6 ms connect, per request - is set once in `init_schema`, since
+  the mode lives in the file. On the demo event a request issued during a
+  snapshot build waited 195 ms and now waits 79 ms (the geometry still
+  holds the GIL, so the loop gets turns rather than the whole wait);
+  twelve simultaneous snapshots took 2.2 s and take under 1 s.
+- **Reading the layer or leader list no longer writes.** Both readers ran
+  an `INSERT OR IGNORE` per place type and per sighted division on every
+  call - the repair that gives an orphaned key a row so the place or the
+  report does not vanish - and an `INSERT OR IGNORE` that ignores still
+  takes the writer lock. Every phone's snapshot reads both lists, so every
+  snapshot was a writer competing with the ingest loop and with each other,
+  and with the 5 s busy timeout one could stall the event loop waiting for
+  a lock it had no use for. The repair now runs once at startup, for
+  databases written before the layer and leader keys were validated on the
+  way in; the readers only SELECT. Seeding the
+  defaults into an event that has none is unchanged. A demo snapshot went
+  from 43 statements with 9 writes to 31 with none.
+- **The snapshot build is half the work it was.** `CourseIndex.locate`
+  walks every vertex of every course in pure Python, and one snapshot asked
+  it about each place four times over - in the course-order sort key, for
+  the place's own mile figure, and twice again in the leader progression.
+  That was 88 % of `build_state`, and it grew as places times vertices:
+  the organizer's real file has 48 mile markers on a 1258-point course.
+  The index now remembers each answer for the life of the request, misses
+  included. On the demo event `build_state` went from 178 ms to 89 ms
+  median. Why it matters: the snapshot is built on the event loop, and
+  while it is, no phone's position moves.
+
+
+### Changed
+- **Leaflet is shipped with the app instead of loaded from unpkg.com.** The
+  same reason the fonts are: every field phone was reporting to a third
+  party to draw the map, and a CDN outage on race morning would have been
+  no map at all. `static/leaflet/` is byte for byte the 1.9.4 build the
+  pages used to pin with subresource integrity, and a test checks it
+  against those same hashes.
+- **Every response carries a Content-Security-Policy, set by the app.**
+  `script-src 'self'` - no inline script, no CDN - with the tile server the
+  one named exception for images and the page's own host for the WebSocket.
+  Both clients build markup from server data all day, and the policy turns
+  a future escaping slip into a blocked request rather than a stolen
+  token. The three inline scripts (the setup page's first-run flag and the
+  report's clock and mini-maps) moved to files, with the values they need
+  on `data-` attributes. The app also sends `Referrer-Policy`,
+  `X-Content-Type-Options` and `X-Frame-Options` itself, and the map,
+  setup and report pages state the referrer policy in a `<meta>`, so the
+  Windows build and a LAN install get what only the Apache template gave
+  before.
+
+### Fixed
+- Files in a subdirectory of `static/` got `?v=0` forever: the cache
+  marker looked the file up by basename. It looks it up by path now, or an
+  updated Leaflet would have been served from cache against new markup.
+- Expired admin sessions were never removed: a stale row went only when its
+  own token was presented again, which a browser that has dropped the
+  cookie never does, so the table grew by a row per sign-in forever. Every
+  sign-in now sweeps the expired rows out first.
+- **The deploy workflow spliced the tag and the secrets into shell lines,
+  and learned the server's host key fresh on every run.** A `${{ }}`
+  expression is substituted into the script text before the shell sees it,
+  so a tag named `v1$(...)` - or a crafted "Run workflow" input - ran on the
+  runner with the deploy key in reach. Everything now arrives through
+  `env:` and is quoted, the ref is checked against the same pattern the
+  server's forced command applies, and an `SSH_KNOWN_HOSTS` secret pins
+  the host key; without the secret the run still deploys but says, as a
+  warning, that it trusted whatever answered.
+- **Role links were written to the Apache access log on every request and
+  to the journal on every restart.** The token is in the URL path, and the
+  stock `combined` log format records the path - and the Referer, which is
+  the map page's URL for every request it makes - so `courseops-access.log`
+  and its rotated copies held every volunteer's credential, readable by
+  anyone in `adm`, and revoking a link did nothing about the old lines.
+  Separately `courseops serve <event>` printed the five links on every
+  start, which under systemd is every deploy, into `journalctl`. The
+  vhosts now log `/e/<slug>/-token-` and no Referer, and `serve` prints
+  links only when stdout is a terminal. Both are operator changes on an
+  installed server: the Apache lines go in by hand, and the old log files
+  and journal should be cleared - `docs/DEPLOYMENT.md` says how.
+- **No request body had a size limit.** The login route needs no credential,
+  so a multi-hundred-megabyte POST from anyone was buffered whole in RAM
+  before a byte of it was looked at - enough to take down a small VPS, and
+  the Windows build has no proxy in front of it at all. The import read a
+  whole upload into memory before the parser's own 64 MB cap applied. A
+  declared `Content-Length` over the limit is refused with 413 before the
+  body is read (64 KB for JSON, the parser's cap for a course file); a body
+  that omits it is counted as it streams and cut off at the same point; the
+  upload streams to disk in chunks. Both Apache vhosts set
+  `LimitRequestBody` too - an existing install adds that line by hand, see
+  `docs/DEPLOYMENT.md`.
+- The import left one empty temp directory behind per upload for the life
+  of the service, and a truncated KMZ that passed the zip header check
+  answered a 500 with a traceback in the journal rather than a sentence on
+  the screen. The directory is removed with the file; the bad archive is a
+  400 like any other unreadable file.
+- **Cross-site protection on the setup API was SameSite=Lax alone.** Lax is
+  a same-SITE rule: anything else hosted under the same registrable domain -
+  the VPS hosts more than one app - could POST to the tracking switch,
+  delete an event or revoke every link with the officer's cookie attached,
+  and a browser that does not enforce SameSite failed open. Every setup
+  write is now refused with 403 unless its `Origin` (or `Referer`) names
+  the host the request was addressed to; the field API is untouched, its
+  credential being in the path. Over HTTPS the session cookie carries the
+  browser-enforced `__Host-` prefix, so no sibling site can shadow it.
+- **Two setup GETs wrote.** Listing links created any role's missing link
+  on the way past, and Lax cookies ARE sent on a cross-site top-level
+  navigation - so a GET with a side effect was the one kind of setup route a
+  page elsewhere could drive. The fill-in happens on the links POST now
+  (revoking the only NCS link is still a rotation, never a net with no Net
+  Control), and the GET only reports. The categories GET's decorative
+  `commit()` is gone; the seeding inside it is a separate task.
+- **Signing in ran scrypt on the event loop, unthrottled.** A password hash
+  costs about a third of a second (the comment said "tens of milliseconds";
+  it was measured at 0.25-0.36 s), and it ran inline in the login route -
+  so for that third of a second nothing else was served: no WebSocket
+  fan-out, no snapshot, no incident post. Two wrong passwords a second from
+  anyone on the internet, with no credential, took the map offline for every
+  volunteer, and on the phones it looked exactly like a bad signal. Login,
+  first-user and password change now hash in a worker thread on a connection
+  opened there, and an in-memory limiter refuses the sixth failure in a
+  minute from one username or one address with a 429 - checked before the
+  hash, so a flood costs nothing. Behind `--behind-proxy` the address is the
+  one uvicorn already resolved from the proxy, never a header a client can
+  set. Per application instance, so the test suite's hundreds of sign-ins
+  never throttle each other.
+- **An unknown username took twice as long to refuse as a wrong password.**
+  The "dummy hash for timing" was computed fresh on every miss and then
+  verified against - two scrypts to the real path's one - so the gap the
+  comment promised to close was in fact doubled, and a stopwatch could list
+  which officers have accounts. The dummy is computed once and both paths
+  run exactly one hash; there is a test counting them.
+
+
+### Fixed
+- **A refused setup change could leave half of itself behind.** The
+  connection is autocommit, so every statement was its own transaction and
+  the eighteen `conn.commit()` calls in the routes were no-ops that read as
+  if the statements before them were one unit. `create_poi` INSERTed the
+  place and THEN validated its What3Words address, so a 400 left a place
+  behind it and the officer who corrected the address and submitted again
+  had two "Water Stop C" pins; a roster edit's rename survived a bad
+  posting; a course assignment or a reorder could stop half way and look
+  as if it had worked. `db.transaction` (`BEGIN IMMEDIATE` / `COMMIT` /
+  `ROLLBACK`) now wraps every write that touches more than one row -
+  creating an event with its seeds and links, staging a file, assigning
+  features, creating and editing a place, saving a roster entry, renaming a
+  station with its status log, setting a status with its log row, every
+  reorder, creating an administrator with their events - so a 4xx means
+  nothing landed. The decorative commits are gone and a test keeps them
+  gone: inside a real transaction they would have committed early. A file
+  is parsed before its transaction opens, so the write lock is never held
+  while a large organizer file is read. (Audit 2026-09-14, B6.)
+
+### Changed
+- **One reorder routine.** Places, courses, layers and leaders each had a
+  textually identical loop - four places to fix the next ordering bug.
+  `db.reorder` is the one implementation, with the two real differences as
+  arguments: places may be ordered a few at a time, and courses read as a
+  stack so the first id given draws on top. Every key is still checked
+  before anything is written.
+- **One GROUP BY per count.** The events list ran four COUNTs per event,
+  the organizations list two per club, and the setup taxonomy screen and
+  `courseops layers` each counted every layer, role and leader one at a
+  time - the CLI with its own copy of the web's query. `categories.place_counts`,
+  `role_counts` and `sighting_counts` feed both.
+- Refusing to delete a layer, a role or a leader that is still in use is a
+  409 in all three cases; roles and leaders said 400. The client treats them
+  alike, but the next taxonomy copies whichever one it reads first.
+
+### Fixed
+- Deleting a station role that did not exist reported success. A stale row
+  on the Roles tab "deleted" and the list reloaded unchanged; it is refused
+  like an unknown layer or leader. (Audit 2026-09-14, B10.)
+- **A layer's colour and icon were accepted unchecked by the server.**
+  Course colours went through `styling.is_valid_color`; layer colours and
+  icon names were stored as sent, and the map was safe only because the
+  client re-validated both before interpolating them into a style
+  attribute and a glyph lookup. The server is the boundary between an admin
+  and the field phones, and a future client trusting the stored colour
+  would have carried a CSS injection. A layer colour is now a hex colour or
+  nothing, and an icon is a name from the palette in `icons.js` - read from
+  that file, so the list cannot drift from what the client can draw.
+  (Audit 2026-09-14, B9.)
+- **A lead runner sighting could be recorded for a leader the event does
+  not track.** `record_sighting` checked only that the division was
+  non-empty, so a client holding a stale leader list - one deleted in setup
+  since the page loaded - got a 201 for a report that was stored and then
+  shown on no panel at all. It is checked against the event's own leaders
+  now. Also: undo compared the division raw while record and clear
+  lower-cased it, so a report sent as "Male" landed under `male` and then
+  would not undo; the three normalise the same way. (Audit 2026-09-14, B8.)
+- **A wrong-typed or half-filled setup request was a 500, not a message.**
+  The shipped client sends the right types, so these needed a hand-made
+  request - but the cost was "Internal Server Error" on the setup screen
+  and a traceback in the journal that hides the real cause, and one of them
+  poisoned the map: a string in `center_lat` was stored and then served to
+  every phone as the map's first view. Now: an event's name and time zone
+  cannot be blanked (a single space passed the form's `required` and hit a
+  NOT NULL column); the centre and zoom are range-checked like a place's
+  coordinates; a number or object where text was expected is either read as
+  text (a bib of `5`) or refused (`["x"]` as a station label); id lists are
+  lists; an administrator's event assignments are checked to exist and to
+  be in their club BEFORE the account is created, so a bad one no longer
+  leaves a half-made account; a foreign key or NOT NULL failure is a 400
+  with the message; an unknown administrator id is a 404; and a system
+  administrator opening a deleted event's setup page gets a 404 rather than
+  a traceback. One helper, `db.clean_text`, is now how free text leaves a
+  JSON body. (Audit 2026-09-14, B7.)
+- **Deleting a place silently deleted every lead runner sighting at it and
+  un-posted the operator standing there.** `lead_sighting.poi_id` cascades
+  and `roster.poi_id` nulls, and `delete_poi` was a bare DELETE - so the
+  leader's position on the NCS panel jumped back a station, and an operator
+  who never beacons (for whom the posting is the only thing putting them on
+  the map) vanished, with nothing on screen to say why. Every other delete in
+  the family - a layer with places, a leader with sightings - refuses with
+  the count; this one now does too, naming both counts, and so does deleting
+  a course with sightings recorded on it, which cascaded the same way.
+  Setup is used mid-event, which is why this matters. The Places tab's
+  delete button does not yet show the refusal (its handler has no error
+  path - audit task G7). (Audit 2026-09-14, B5.)
+- **Renaming a station left its status history under the old callsign.**
+  `roster_status_log` is keyed by callsign text with no foreign key, so a
+  same-callsign SSID correction (`N0CALL-1` to `N0CALL-7`, which really
+  renames) left every status change filed under the old key: the rows were
+  still there, and the event-wide handover log still showed them, but the
+  per-station log NCS opens on that station came back empty, as if it had
+  never changed status. A rename now moves the history with the row - it is
+  a rename, not a rebinding, so the history belongs on the new key. (Audit
+  2026-09-14, B4.)
+- **Correcting a callsign on the Roster tab created a second roster row.**
+  The setup form sent the edit through the same code NCS's "this is really
+  Aid 3" uses, which deliberately BINDS rather than renames - so for a bare
+  callsign gaining its SSID, or a wrong callsign replaced with the right one,
+  the original row stayed and was bound to the new key, and the save then
+  upserted a fresh row under the new key. Two "Aid 1" rows, both attributing
+  the same packets, status set on one not showing on the other, an extra
+  entry in the filter, and no error - discovered the morning someone fixed a
+  typo. A setup edit is now a rename (`db.rename_station_key`): the row
+  moves, keeping its label, place and any match NCS made, and is refused if
+  the new callsign is another entry's or the radio another entry is matched
+  to. Binding stays NCS's tool on the live map. (Audit 2026-09-14, B3.)
+- **A link could be revoked or relabelled through another event's setup
+  page.** The links route authorised the event in the URL and then acted
+  on whatever `token_id` was in the body, and token ids are small sequential
+  integers - so an admin of one club, or a leaked admin session, could
+  revoke every NCS, SAG and Liaison link of another club's race on race
+  morning, which on that club's phones is a 404 with no error anywhere on
+  their side. `access.revoke` and `access.set_label` take the event and
+  match on it; a link outside the event is a 404 and nothing is written.
+  `courseops revoke-link` checks the same way. A missing or non-numeric id
+  is a 400 rather than a traceback. (Audit 2026-09-14, B2.)
+- **A staged import feature could be assigned, or discarded, from another
+  event.** `import_feature.id` is one global sequence and the assign route
+  looked features up by id alone, so an admin of one club naming another
+  club's id got that club's course geometry copied into their own event and
+  the original review row flipped to `assigned` or `discarded` - which to
+  the other club looks like a failed import the week before their race. The
+  organizer's course file is exactly the third-party data this repo's
+  history was purged for. Every staged-feature read and write now carries
+  the event, a foreign id is a 400, and `discard` checks the whole list
+  before writing any of it. (Audit 2026-09-14, B1.)
+- **Assigning a staged point into a layer that does not exist was accepted.**
+  "Assign all suggestions" posts whatever key the hint produced, and a club
+  that had deleted that default layer got a place in the table that drew
+  nowhere, with no error - the rule "a suggestion must name a layer that
+  exists" was enforced for hand-added and edited places but not on the
+  review screen. `assign_poi` checks the layer first, so the CLI and the
+  setup screen both refuse.
+- `update_poi` with only `course_ids` in the payload never reached the
+  event-scoped UPDATE, so it wrote race assignments for - and returned the
+  name and coordinates of - a place in any event. It checks the place is in
+  the event before doing anything.
+- **A feed that could not start took the whole server down, and the
+  persisted switch restarted it into the same crash.** `run_ingest` signalled
+  "no callsign", "no such event" and "nothing to listen for" with
+  `SystemExit`, which asyncio re-raises out of a task and out of the event
+  loop itself; the supervisor caught only `Exception`. An officer who flipped
+  Tracking on before importing the course - or a deploy whose `.env` had
+  lost its callsign while an event was flagged on - ended every role page
+  at once, and systemd restarted the service into the identical exit until
+  someone edited the database by hand. The feed now raises an ordinary
+  `IngestError` (`require_callsign` a `ConfigError`); only `cli.py` turns
+  either into an exit code. The supervisor records any `BaseException` but
+  its own cancellation. The tracking switch refuses an event with no station
+  expected to beacon, no course and no extra filter the same way it already
+  refused a missing callsign, and persists the flag only AFTER the feed got
+  as far as connecting - a feed that dies on its first step leaves the
+  switch off with the reason on the tab. An event flagged on that cannot
+  start at boot now comes up as "Tracking on - but not connected" with the
+  reason, and the site stays up. (Audit 2026-09-14, A1.)
+- **Ignore did not reach the feed until a stranger happened to beacon, and
+  the first packet after a match was thrown away.** The ingest loop re-read
+  who the roster knows only after a packet from an UNKNOWN station. An
+  ignored SSID under a rostered callsign - the operator's own digipeater,
+  the usual case - is never unknown, so its beacons kept being stored and
+  pushed to every screen until some unrelated station was heard; on a quiet
+  band that could be most of a morning, and an igate that reappears at the
+  operator's house after every Ignore teaches NCS the button does not work.
+  The same ordering meant the packet that revealed a station had been
+  matched was dropped before the re-read showed it was wanted, one beacon
+  interval late. Membership is now re-read (rate-limited as before) before
+  each packet is judged, so both take effect on the next packet. (Audit
+  2026-09-14, A2.)
+- **Two events could both be switched on, and deleting an event left its
+  feed running.** Turning tracking on for one event stopped any other feed
+  but left the other event's persisted switch at "on": its tab read
+  "Tracking on - but not connected" with an empty reason, and the next boot
+  found two flagged events, started the lower id and then cancelled it for
+  the higher - so after a deploy the live event's feed could be the one
+  that lost. Deleting an event never stopped its feed at all: the wildcard
+  filter on its volunteers' callsigns ran on until the next restart, and
+  re-creating the slug found a feed "already running" bound to the dead
+  event id. Displacing a feed now turns its switch off and leaves the
+  reason on its tab ("Tracking was turned on for <event>"); a boot with
+  several flagged starts one - the slug on the command line, else the
+  newest - and switches the rest off the same way; deleting an event or an
+  organization stops the feeds it owned and drops their nearby lists.
+  (Audit 2026-09-14, A3.)
+- **The feed wrote the public's packets to disk after all.** Every line
+  that failed to parse or carried no position - a status, a message,
+  telemetry - was logged raw to `raw_packet` BEFORE the roster check. With
+  the area filter on, that was every ham near the course, verbatim, in a
+  database that is backed up nightly and can be handed to an organizer,
+  against the rule the area filter was accepted under: seen in memory,
+  never stored. The table was also write-only and unbounded, and every
+  stored position was written to it a second time beside `position.raw`.
+  Nothing writes it now; the definition stays in `schema.sql`, marked
+  retired, so an existing database is untouched. (Audit 2026-09-14, A4.)
+- **The "Needs attention" list could describe a symbol no packet sent.**
+  `unexpected_ssids` took `MAX(symbol_table)` and `MAX(symbol_code)` as two
+  separate aggregates, so a station that beaconed `/#` and then `\&` was
+  reported as `\#` - a table from one packet with a code from another. The
+  table character changes what the code means, and that description is
+  what tells NCS whether an SSID is a person to adopt or an igate to
+  dismiss. Both now come from the station's newest packet. (Audit
+  2026-09-14, A6.)
+
+### Changed
+- Two per-packet costs on the ingest loop are gone. `bind_heard_ssid` ran
+  its two lookups for every stored packet, including ones whose key the
+  roster names outright and which can therefore never bind; it is skipped
+  for those. And `position` socket messages carried `label` and `category`
+  from a roster read once when the feed started - nothing on the client read
+  them (it joins by key, from the snapshot), and had anything started to it
+  would have shown the roster as it was hours before. `position_message`
+  and `make_position_handler` lose the roster argument. (Audit 2026-09-14,
+  A5.)
+
 ## [2026.9.4] - 2026-09-14
 
 ### Added

@@ -243,3 +243,121 @@ def test_the_workflow_does_not_guess_the_install_path():
     text = WORKFLOW.read_text(encoding="utf-8")
     assert "'/opt/courseops'" not in text
     assert "DEPLOY_PATH secret is not set" in text
+
+
+# --- the Apache vhosts ------------------------------------------------------
+
+VHOSTS = ("apache-courseops.conf", "apache-courseops-ssl.conf")
+
+
+@pytest.mark.parametrize("name", VHOSTS)
+def test_the_vhost_caps_request_bodies(name):
+    """Apache's default is no limit. Without this line a request of any
+    size reaches uvicorn and the app's own check is the only one, on the
+    one route that needs no credential."""
+    text = (DEPLOY_DIR / name).read_text(encoding="utf-8")
+    match = re.search(r"^\s*LimitRequestBody\s+(\d+)", text, re.M)
+    assert match, f"{name} has no LimitRequestBody"
+    # Room for the 64 MB course file, and not much more.
+    assert 64 * 1024 * 1024 < int(match.group(1)) < 100 * 1024 * 1024
+
+
+@pytest.mark.parametrize("name", VHOSTS)
+def test_the_vhost_passes_the_browsers_host_through(name):
+    """The app compares Origin against Host to refuse cross-site setup
+    writes; without ProxyPreserveHost every save on the setup screen is
+    refused as cross-site."""
+    text = (DEPLOY_DIR / name).read_text(encoding="utf-8")
+    assert re.search(r"^\s*ProxyPreserveHost On", text, re.M), name
+
+
+
+@pytest.mark.parametrize("name", VHOSTS)
+def test_the_vhost_does_not_log_the_role_token(name):
+    """The token is in the URL path, so the stock "combined" format wrote
+    every volunteer's credential to the access log on every request, and
+    again in the Referer of every request the page then made."""
+    text = (DEPLOY_DIR / name).read_text(encoding="utf-8")
+    for line in text.splitlines():
+        line = line.split("#", 1)[0]
+        if "CustomLog" in line:
+            assert "combined" not in line, name
+            assert line.rstrip().endswith("courseops"), name
+    fmt = re.search(r'^\s*LogFormat\s+"(.*)"\s+courseops\s*$', text, re.M)
+    assert fmt, f"{name} defines no courseops LogFormat"
+    for directive in ("%r", "%U", "Referer"):
+        assert directive not in fmt.group(1), (name, directive)
+    assert "%{LOGPATH}e" in fmt.group(1)
+    assert "E=LOGPATH:" in text
+
+
+def test_the_redaction_pattern_replaces_the_token_and_nothing_else():
+    """The RewriteCond regex, checked here with Python's engine - the same
+    PCRE dialect for what it uses. The setup API has no token in its path
+    and must stay readable in the log."""
+    text = (DEPLOY_DIR / "apache-courseops-ssl.conf").read_text(encoding="utf-8")
+    cond = re.search(r"RewriteCond %\{REQUEST_URI\} (\^/\(e\|api\|ws\)\S+)\n"
+                     r"\s*RewriteRule \^ - \[E=LOGPATH:(\S+)\]", text)
+    assert cond, "the redaction rule pair is missing"
+    pattern = re.compile(cond.group(1))
+    template = cond.group(2).replace("%1", r"\1").replace("%2", r"\2").replace("%3", r"\3")
+
+    def logged(uri):
+        m = pattern.match(uri)
+        return m.expand(template) if m else uri
+
+    assert logged("/e/m2026/AbC123") == "/e/m2026/-token-"
+    assert logged("/api/m2026/AbC123/state") == "/api/m2026/-token-/state"
+    assert logged("/ws/m2026/AbC123") == "/ws/m2026/-token-"
+    assert logged("/api/m2026/AbC123/incidents/4/status") \
+        == "/api/m2026/-token-/incidents/4/status"
+    assert logged("/api/setup/events/3/links") == "/api/setup/events/3/links"
+    assert logged("/static/app.js") == "/static/app.js"
+    assert logged("/help/sag") == "/help/sag"
+
+
+
+# --- the deploy workflow ----------------------------------------------------
+
+def _run_blocks(text: str) -> list[str]:
+    """The `run: |` scripts of the workflow, as the shell sees them."""
+    blocks, current, indent = [], None, None
+    for line in text.splitlines():
+        if current is not None:
+            if line.strip() and (len(line) - len(line.lstrip())) <= indent:
+                blocks.append("\n".join(current))
+                current = None
+            else:
+                current.append(line)
+                continue
+        if line.strip().startswith("run: |"):
+            current, indent = [], len(line) - len(line.lstrip())
+    if current:
+        blocks.append("\n".join(current))
+    return blocks
+
+
+def test_no_expression_is_spliced_into_a_shell_line():
+    """`${{ }}` is substituted into the script TEXT before the shell runs
+    it, so a tag named v1$(cat ~/.ssh/id_deploy) would execute on the runner
+    with the deploy key in reach. Everything goes through env: and quoting."""
+    text = WORKFLOW.read_text(encoding="utf-8")
+    for block in _run_blocks(text):
+        assert "${{" not in block, block
+
+
+def test_the_workflow_checks_the_ref_like_the_forced_command_does():
+    text = WORKFLOW.read_text(encoding="utf-8")
+    forced = (DEPLOY_DIR / "ssh-deploy-command.sh").read_text(encoding="utf-8")
+    pattern = "^[A-Za-z0-9][A-Za-z0-9._/-]{0,60}$"
+    assert pattern in forced
+    assert pattern in text
+
+
+def test_the_host_key_can_be_pinned():
+    """ssh-keyscan at deploy time trusts whatever answers - on every run.
+    A recorded key in a secret is what pinning means."""
+    text = WORKFLOW.read_text(encoding="utf-8")
+    assert "SSH_KNOWN_HOSTS" in text
+    assert "StrictHostKeyChecking=yes" in text
+    assert "StrictHostKeyChecking=no" not in text

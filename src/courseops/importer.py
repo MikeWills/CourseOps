@@ -22,7 +22,7 @@ import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import geo, kml, styling
+from . import categories, db, geo, kml, styling
 from .geo import LonLat
 
 
@@ -112,6 +112,9 @@ def stage_file(
 ) -> ImportSummary:
     """Parse a KML/KMZ/GPX and stage its features for review. Raises kml.KmlError."""
     file_path = Path(path)
+    # Parsed before the transaction opens: the write lock must not be held
+    # for however long a large organizer file takes to read, because the
+    # ingest task is writing positions on its own connection meanwhile.
     features = kml.load(file_path)
     if zipfile.is_zipfile(file_path):
         source_kind = "kmz"
@@ -120,6 +123,15 @@ def stage_file(
     else:
         source_kind = "kml"
 
+    with db.transaction(conn):
+        return _stage_features(conn, event_id, file_path, source_kind, features)
+
+
+def _stage_features(
+    conn: sqlite3.Connection, event_id: int, file_path: Path,
+    source_kind: str, features: list,
+) -> ImportSummary:
+    """The batch, its layers and its features, as one unit."""
     cur = conn.execute(
         "INSERT INTO import_batch (event_id, filename, source_kind) VALUES (?, ?, ?)",
         (event_id, file_path.name, source_kind),
@@ -170,9 +182,21 @@ def pending_features(
     return conn.execute(query + " ORDER BY id", (event_id,)).fetchall()
 
 
-def get_feature(conn: sqlite3.Connection, feature_id: int) -> sqlite3.Row | None:
+def get_feature(
+    conn: sqlite3.Connection, event_id: int, feature_id: int
+) -> sqlite3.Row | None:
+    """One staged feature, and only if it was staged for THIS event.
+
+    Feature ids are one global sequence, so another club's staged course is a
+    small integer away. Every read and write of a staged feature carries the
+    event, or an org admin of one club can lift the other club's organizer
+    file into their own event - the exact data the repo's history was purged
+    for - and mark the original discarded, which to the other club looks
+    like a failed import the week before their race.
+    """
     return conn.execute(
-        "SELECT * FROM import_feature WHERE id = ?", (feature_id,)
+        "SELECT * FROM import_feature WHERE id = ? AND event_id = ?",
+        (feature_id, event_id),
     ).fetchone()
 
 
@@ -251,6 +275,7 @@ def set_course_style(
     return conn.execute("SELECT * FROM course WHERE id = ?", (course_id,)).fetchone()
 
 
+@db.transactional
 def assign_course(
     conn: sqlite3.Connection,
     event_id: int,
@@ -265,10 +290,10 @@ def assign_course(
     Several features are stitched end-to-end, since a course routinely arrives
     split across segments. Returns (course_id, distance_m, warnings).
     """
-    rows = [get_feature(conn, fid) for fid in feature_ids]
+    rows = [get_feature(conn, event_id, fid) for fid in feature_ids]
     missing = [fid for fid, row in zip(feature_ids, rows) if row is None]
     if missing:
-        raise ValueError(f"No staged feature with id {missing}")
+        raise ValueError(f"No staged feature with id {missing} in this event.")
 
     wrong_type = [r["id"] for r in rows if r["geom_type"] == "point"]
     if wrong_type:
@@ -324,12 +349,14 @@ def assign_course(
     course_id = int(cur.lastrowid)
 
     conn.executemany(
-        "UPDATE import_feature SET status = 'assigned', course_id = ? WHERE id = ?",
-        [(course_id, fid) for fid in feature_ids],
+        "UPDATE import_feature SET status = 'assigned', course_id = ?"
+        " WHERE id = ? AND event_id = ?",
+        [(course_id, fid, event_id) for fid in feature_ids],
     )
     return course_id, distance_m, warnings
 
 
+@db.transactional
 def assign_poi(
     conn: sqlite3.Connection,
     event_id: int,
@@ -339,9 +366,16 @@ def assign_poi(
     what3words: str | None = None,
 ) -> int:
     """Turn one staged point feature into a POI."""
-    row = get_feature(conn, feature_id)
+    row = get_feature(conn, event_id, feature_id)
     if row is None:
-        raise ValueError(f"No staged feature with id {feature_id}")
+        raise ValueError(f"No staged feature with id {feature_id} in this event.")
+
+    # The layer has to exist, as it must for a place added or edited by hand.
+    # "Assign all suggestions" posts whatever key the hint produced, and a
+    # club that deleted that default layer would otherwise get a place in the
+    # table that draws nowhere, with no error. CategoryError is a ValueError,
+    # so the CLI and the setup route both report it as a refusal.
+    categories.get_poi_category(conn, event_id, poi_type)
 
     coords = _coords_of(row)
     if not coords:
@@ -367,16 +401,29 @@ def assign_poi(
     )
     poi_id = int(cur.lastrowid)
     conn.execute(
-        "UPDATE import_feature SET status = 'assigned', poi_id = ? WHERE id = ?",
-        (poi_id, feature_id),
+        "UPDATE import_feature SET status = 'assigned', poi_id = ?"
+        " WHERE id = ? AND event_id = ?",
+        (poi_id, feature_id, event_id),
     )
     return poi_id
 
 
-def discard(conn: sqlite3.Connection, feature_ids: list[int]) -> int:
+@db.transactional
+def discard(conn: sqlite3.Connection, event_id: int, feature_ids: list[int]) -> int:
+    """Take staged features out of review. Refuses any id not in this event.
+
+    Checked before anything is written, so a list mixing one foreign id with
+    real ones discards nothing rather than part of it: a half-applied discard
+    looks like it worked.
+    """
+    missing = [fid for fid in feature_ids
+               if get_feature(conn, event_id, fid) is None]
+    if missing:
+        raise ValueError(f"No staged feature with id {missing} in this event.")
     cur = conn.executemany(
-        "UPDATE import_feature SET status = 'discarded' WHERE id = ?",
-        [(fid,) for fid in feature_ids],
+        "UPDATE import_feature SET status = 'discarded'"
+        " WHERE id = ? AND event_id = ?",
+        [(fid, event_id) for fid in feature_ids],
     )
     return cur.rowcount
 
