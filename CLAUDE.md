@@ -79,13 +79,18 @@ courseops set-w3w marathon2026 4 index.home.raft
 
 courseops links marathon2026           # the role URLs to send out
 courseops links marathon2026 --new ncs # a second link for one role
-courseops serve marathon2026           # web server + live APRS-IS ingest
-courseops serve marathon2026 --no-ingest   # map only, no APRS-IS connection
+courseops serve marathon2026 --port 8020   # web server + live APRS-IS ingest
+courseops serve --no-ingest --port 8020    # map only, no APRS-IS connection
 courseops list-links marathon2026 / courseops revoke-link marathon2026 <id>
 ```
 
 Tests never touch the network. Run `ingest` only when you actually want a live
 APRS-IS connection.
+
+**Local dev port is 8020** (claimed in `~/.claude/servers.md`; 8000 belongs to
+another project's dev server on this machine, and a bind failure there shows
+up as a Django 404 that looks like ours). The default of 8000 stays because
+that is what the VPS binds behind Apache.
 
 ## Layout
 
