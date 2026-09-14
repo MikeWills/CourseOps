@@ -2119,30 +2119,29 @@ function renderPlaceMap() {
   (S.pois || []).forEach((p) => {
     if (p.lat == null || p.lon == null) return;
     const layer = layers.get(p.poi_type);
-    const marker = L.circleMarker([p.lat, p.lon], {
-      radius: 7, weight: 2, color: '#0B2545',
-      fillColor: (layer && layer.color) || '#35507a', fillOpacity: 1,
+    /* An L.marker with Leaflet's own `draggable`, not a circleMarker with a
+       drag done by hand. The hand-rolled version listened for the map's
+       mousemove, which a touch drag never sends - a finger on a pin sends
+       touchmove, and the map's own drag handler cancels it - so on the
+       tablet these tables are sorted on race morning the pin would not
+       move at all. Leaflet's marker drag (L.Draggable, 1.9) starts on
+       touchstart as well as mousedown. The divIcon keeps the same circle in
+       the layer's colour the rest of the map uses; a path cannot be made
+       draggable. */
+    const marker = L.marker([p.lat, p.lon], {
+      draggable: true,
+      icon: L.divIcon({
+        className: 'place-pin-icon',
+        html: `<span class="place-pin" style="background:${
+          esc((layer && layer.color) || '#35507a')}"></span>`,
+        iconSize: [18, 18],
+        iconAnchor: [9, 9],
+        tooltipAnchor: [9, 0],
+      }),
     });
     marker.bindTooltip(`${p.name} - drag to move`);
     marker.addTo(map);
-
-    /* Leaflet's circleMarker is not draggable, so the drag is done by hand:
-       press on the pin, move, release. Doing it this way keeps the same shape
-       and colour the rest of the map uses rather than switching to an L.marker
-       with a different icon just to get dragging. */
-    marker.on('mousedown', (down) => {
-      down.originalEvent.preventDefault();
-      map.dragging.disable();
-      const move = (ev) => marker.setLatLng(ev.latlng);
-      const up = (ev) => {
-        map.off('mousemove', move);
-        map.off('mouseup', up);
-        map.dragging.enable();
-        writeRowCoordinates(p.id, ev.latlng);
-      };
-      map.on('mousemove', move);
-      map.on('mouseup', up);
-    });
+    marker.on('dragend', () => writeRowCoordinates(p.id, marker.getLatLng()));
 
     S.placeMarkers.set(p.id, marker);
     bounds.extend(marker.getLatLng());

@@ -35,6 +35,16 @@ month, PATCH counting releases in that month from 0. Before that they were
   setting. `setup-courses.png` shows the old per-row button.
 
 ### Fixed
+- **A pin on the Places map could not be dragged on a touch screen.** The
+  drag was built on the map's `mousedown`/`mousemove`/`mouseup`, and a
+  finger sends none of those: a touch drag is `touchmove`, which the map's
+  own drag handler cancels, so on the tablet these tables are sorted on
+  race morning the pin sat still with no error. The pins are Leaflet
+  markers with Leaflet's own `draggable` now, which starts on `touchstart`
+  as well as `mousedown`; a `divIcon` draws the same navy-ringed circle in
+  the layer's colour, so nothing looks different. Not tested on a device -
+  read from Leaflet 1.9's `Draggable` - so try it on the tablet before the
+  event.
 - Four small setup fixes. Picking a point in the Import review forced the
   layer to a hardcoded `aid_station` - a club that had deleted that layer
   got a blank select and a refusal naming a layer they removed on purpose;

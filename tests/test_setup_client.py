@@ -183,6 +183,19 @@ def test_the_event_form_carries_the_map_centre():
     assert "loadEvents()" in imports
 
 
+def test_the_picker_pins_drag_through_leaflet_not_mouse_events():
+    """The hand-rolled drag listened for the map's mousemove, which a touch
+    drag never sends, so on a tablet a pin could not be moved. Leaflet's
+    own marker drag starts on touchstart as well as mousedown; a path
+    (circleMarker) cannot be made draggable, hence the divIcon."""
+    picker = _block("function renderPlaceMap(", "function writeRowCoordinates(")
+    assert "draggable: true" in picker
+    assert "marker.on('dragend'" in picker
+    assert "map.on('mousemove'" not in picker and "marker.on('mousedown'" not in picker
+    css = (web.STATIC_DIR / "setup.css").read_text(encoding="utf-8")
+    assert ".place-pin {" in css
+
+
 def test_the_upload_parses_the_body_before_trusting_it_is_json():
     """A 413 from Apache or a 502 from the proxy is an HTML page, and
     parsing it before checking the status showed "Unexpected token '<'"

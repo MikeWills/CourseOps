@@ -298,6 +298,13 @@ usability, not style preferences.
   goes through `bindSaveAll` with every other edit. Giving the map a save of
   its own would be a second save scope on one screen, which is the exact shape
   of the bug that cost a real user twelve renames.
+- **A drag on a Leaflet map goes through `L.Marker` `draggable`, never
+  hand-rolled `mousedown`/`mousemove`.** A finger sends `touchmove`, not
+  `mousemove`, and the map's own drag handler cancels it, so a drag built
+  on mouse events works at a desk and does nothing on the tablet the
+  Places table is sorted on - with no error. A path (`circleMarker`) cannot
+  be made draggable; the picker's pins are `L.marker` with a `divIcon`
+  drawing the same circle for that reason.
 - **The picker cannot assume a course or a place exists.** A parade or a
   vehicle race has neither, and that is the case #108 was opened for.
   `placeMapView` falls back to the event's own centre, then to the country

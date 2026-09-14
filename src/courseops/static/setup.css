@@ -376,6 +376,20 @@ table.grid button:not(.icon-btn) {
 /* Leaflet paints its own cursor on the container; over a picker the pointer
    should say "you may put something here". */
 #place-map .leaflet-container { cursor: crosshair; }
+/* A place's pin on the picker: the same navy-ringed dot the circleMarkers
+   draw, as a div so Leaflet can drag it (see renderPlaceMap). 18px is the
+   marker; the touch target Leaflet gives it is the same box, which is why
+   it is not smaller. */
+.place-pin-icon { background: none; border: none; }
+.place-pin {
+  display: block;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid #0B2545;
+  box-sizing: border-box;
+  cursor: grab;
+}
 
 .feature {
   display: flex;
