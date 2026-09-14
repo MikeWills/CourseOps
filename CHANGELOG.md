@@ -12,6 +12,23 @@ month, PATCH counting releases in that month from 0. Before that they were
 ## [Unreleased]
 
 ### Fixed
+- **A wrong-typed or half-filled setup request was a 500, not a message.**
+  The shipped client sends the right types, so these needed a hand-made
+  request - but the cost was "Internal Server Error" on the setup screen
+  and a traceback in the journal that hides the real cause, and one of them
+  poisoned the map: a string in `center_lat` was stored and then served to
+  every phone as the map's first view. Now: an event's name and time zone
+  cannot be blanked (a single space passed the form's `required` and hit a
+  NOT NULL column); the centre and zoom are range-checked like a place's
+  coordinates; a number or object where text was expected is either read as
+  text (a bib of `5`) or refused (`["x"]` as a station label); id lists are
+  lists; an administrator's event assignments are checked to exist and to
+  be in their club BEFORE the account is created, so a bad one no longer
+  leaves a half-made account; a foreign key or NOT NULL failure is a 400
+  with the message; an unknown administrator id is a 404; and a system
+  administrator opening a deleted event's setup page gets a 404 rather than
+  a traceback. One helper, `db.clean_text`, is now how free text leaves a
+  JSON body. (Audit 2026-09-14, B7.)
 - **Deleting a place silently deleted every lead runner sighting at it and
   un-posted the operator standing there.** `lead_sighting.poi_id` cascades
   and `roster.poi_id` nulls, and `delete_poi` was a bare DELETE - so the

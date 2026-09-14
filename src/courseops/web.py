@@ -520,6 +520,15 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         every endpoint.
         """
         conn, user = require_user(request)
+        # Existence first: may_access_event says yes to a system admin before
+        # looking the event up, and a stale bookmark to a deleted event's
+        # setup page was then a traceback from whichever route dereferenced
+        # the missing row. For anyone else the answer is 403 either way, so
+        # nothing is confirmed that was not already.
+        if conn.execute("SELECT 1 FROM event WHERE id = ?",
+                        (event_id,)).fetchone() is None:
+            conn.close()
+            raise HTTPException(status_code=404, detail="No such event.")
         if not users.may_access_event(conn, user, event_id):
             conn.close()
             raise HTTPException(status_code=403, detail="Not your event.")
@@ -730,11 +739,23 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     # --- setup: events -----------------------------------------------------
 
     def _guard(fn, *args):
-        """Turn a domain error into a 400 with its message, closing the conn."""
+        """Turn a domain error into a 400 with its message.
+
+        The caller's try/finally closes the connection. TypeError is here
+        because `int(None)` from a missing body field is one, and
+        IntegrityError because a foreign key that does not exist (an
+        organization id, an event id) or a NOT NULL column is the database
+        saying the same thing a ValueError would - the person on the setup
+        screen needs the message, not "Internal Server Error".
+        """
         try:
             return fn(*args)
-        except (ValueError, users.AuthError) as exc:
+        except (ValueError, TypeError, users.AuthError) as exc:
             raise HTTPException(status_code=400, detail=str(exc))
+        except sqlite3.IntegrityError as exc:
+            raise HTTPException(
+                status_code=400,
+                detail=f"That does not fit the data already here: {exc}.")
 
     @app.get("/api/setup/events")
     async def setup_events(request: Request) -> JSONResponse:
@@ -771,10 +792,21 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
                     )
             else:
                 organization_id = user.organization_id
-            event = _guard(admin.create_event, conn, body, int(organization_id))
+            event = _guard(_create_event, conn, body, organization_id)
         finally:
             conn.close()
         return JSONResponse(event, status_code=201)
+
+    def _create_event(conn, body: dict, organization_id) -> dict:
+        # Inside the guard, so a non-numeric or unknown organization id is a
+        # message rather than a traceback.
+        return admin.create_event(conn, body, _int(organization_id, "organization"))
+
+    def _int(value, what: str) -> int:
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            raise ValueError(f"{value!r} is not a {what} id.") from None
 
     @app.post("/api/setup/events/{event_id}")
     async def setup_update_event(event_id: int, request: Request) -> JSONResponse:
@@ -1341,7 +1373,8 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         conn, user = require_event_admin(request, event_id)
         body = await _json_body(request, conn)
         try:
-            admin.delete_roster_entry(conn, event_id, body.get("station_key", ""))
+            _guard(admin.delete_roster_entry, conn, event_id,
+                   body.get("station_key", ""))
         finally:
             conn.close()
         return JSONResponse({"ok": True})
@@ -1512,23 +1545,48 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
                         status_code=403,
                         detail="Only a system administrator can create one.",
                     )
-            created = _guard(
-                users.create_user, conn, body.get("username", ""),
-                body.get("password", ""), role, body.get("display_name"),
-                int(organization_id) if organization_id else None,
-            )
-            users.set_events(conn, created.id,
-                             [int(i) for i in body.get("event_ids", [])])
+            created = _guard(_create_user, conn, body, role, organization_id)
         finally:
             conn.close()
         return JSONResponse(created.as_dict(), status_code=201)
+
+    def _create_user(conn, body: dict, role, organization_id) -> users.User:
+        # Everything checked before the INSERT: the connection is autocommit,
+        # so validating event_ids after create_user left a half-made account
+        # behind the error.
+        org = _int(organization_id, "organization") if organization_id else None
+        event_ids = _event_ids(conn, body.get("event_ids", []), org)
+        created = users.create_user(
+            conn, body.get("username", ""), body.get("password", ""), role,
+            body.get("display_name"), org,
+        )
+        users.set_events(conn, created.id, event_ids)
+        return created
+
+    def _event_ids(conn, values, organization_id) -> list[int]:
+        """Event ids for an administrator's assignment, all real, all theirs.
+
+        `may_access_event` checks the organization before the assignment, so
+        a cross-club row granted nothing - but it was a junk row, and an id
+        that did not exist was a foreign-key traceback after the account had
+        already been created.
+        """
+        if isinstance(values, (str, bytes)) or not isinstance(values, (list, tuple)):
+            raise ValueError("event_ids must be a list.")
+        ids = [_int(v, "event") for v in values]
+        allowed = {e["id"] for e in admin.list_events(conn, organization_id)}
+        unknown = [i for i in ids if i not in allowed]
+        if unknown:
+            raise ValueError(
+                f"No event with id {unknown[0]} in this organization.")
+        return ids
 
     @app.post("/api/setup/users/{user_id}")
     async def setup_update_user(user_id: int, request: Request) -> JSONResponse:
         conn, actor = require_user_manager(request)
         body = await _json_body(request, conn)
         try:
-            target = users.get_user(conn, user_id)
+            target = _get_user(conn, user_id)
             if not users.may_manage_user(conn, actor, target):
                 raise HTTPException(status_code=403, detail="Not your administrator.")
             if "password" in body:
@@ -1544,18 +1602,26 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
                     )
                 users.set_active(conn, user_id, active)
             if "event_ids" in body:
-                users.set_events(conn, user_id,
-                                 [int(i) for i in body["event_ids"]])
+                users.set_events(conn, user_id, _guard(
+                    _event_ids, conn, body["event_ids"], target.organization_id))
             result = users.get_user(conn, user_id).as_dict()
         finally:
             conn.close()
         return JSONResponse(result)
 
+    def _get_user(conn, user_id: int) -> users.User:
+        # Two admins editing the same list - one deletes, the other saves -
+        # is a 404 with a message, not a blank error.
+        try:
+            return users.get_user(conn, user_id)
+        except users.AuthError:
+            raise HTTPException(status_code=404, detail="No such administrator.")
+
     @app.post("/api/setup/users/{user_id}/delete")
     async def setup_delete_user(user_id: int, request: Request) -> JSONResponse:
         conn, actor = require_user_manager(request)
         try:
-            target = users.get_user(conn, user_id)
+            target = _get_user(conn, user_id)
             if not users.may_manage_user(conn, actor, target):
                 raise HTTPException(status_code=403, detail="Not your administrator.")
             if user_id == actor.id:
@@ -1730,18 +1796,14 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         event_slug: str, token: str, station_key: str, request: Request
     ) -> JSONResponse:
         conn, granted = require_capability(event_slug, token, access.CAP_STATIONS)
-        try:
-            body = await request.json()
-        except Exception:
-            conn.close()
-            raise HTTPException(status_code=400, detail="Expected a JSON body.")
-
-        op_status = str(body.get("op_status", "")).strip().lower()
-        # Free-text initials typed once per shift. A log annotation for handover,
-        # never authentication - do not start trusting it as identity.
-        changed_by = (body.get("changed_by") or "").strip()[:12] or None
+        body = await _json_body(request, conn)
 
         try:
+            op_status = (db.clean_text(body.get("op_status")) or "").lower()
+            # Free-text initials typed once per shift. A log annotation for
+            # handover, never authentication - do not start trusting it as
+            # identity.
+            changed_by = db.clean_text(body.get("changed_by"), 12)
             row = db.set_op_status(
                 conn, granted.event_id, station_key, op_status, changed_by
             )
@@ -1917,8 +1979,12 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         if not station_key:
             conn.close()
             raise HTTPException(status_code=400, detail="A station_key is required.")
-        db.exclude_station(conn, granted.event_id, station_key,
-                           body.get("reason") or "dismissed from the map")
+        try:
+            db.exclude_station(conn, granted.event_id, station_key,
+                               body.get("reason") or "dismissed from the map")
+        except ValueError as exc:
+            conn.close()
+            raise HTTPException(status_code=400, detail=str(exc))
         conn.close()
         app.state.nearby.get(granted.event_id, {}).pop(station_key.upper(), None)
         await _publish_state_hint(granted.event_id)
@@ -2006,7 +2072,7 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
             leaders.record_sighting(
                 conn, granted.event_id,
                 course_id=int(body.get("course_id")),
-                division=str(body.get("division", "")),
+                division=body.get("division"),
                 poi_id=int(body.get("poi_id")),
                 bib=body.get("bib"),
                 by=body.get("changed_by"),

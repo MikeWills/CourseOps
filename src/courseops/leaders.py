@@ -20,6 +20,8 @@ import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
+from . import db
+
 # Which leaders an event tracks is the club's, not the code's: `lead_division`,
 # one row per kind of racer, seeded with the two below and edited in setup. This
 # was a two-item constant here, which meant a race with a wheelchair field could
@@ -151,7 +153,7 @@ def set_bib_color(
 
     conn.execute(
         "UPDATE course SET bib_color = ?, bib_color_name = ? WHERE id = ?",
-        (styling.normalize_color(resolved), (name or "").strip() or None, course_id),
+        (styling.normalize_color(resolved), db.clean_text(name, 40), course_id),
     )
     return conn.execute("SELECT * FROM course WHERE id = ?", (course_id,)).fetchone()
 
@@ -166,7 +168,7 @@ def record_sighting(
     by: str | None = None,
 ) -> sqlite3.Row:
     """Log that the leader for a division passed an aid station."""
-    division = (division or "").strip().lower()
+    division = (db.clean_text(division) or "").lower()
     if not division:
         raise ValueError("A division is required.")
 
@@ -187,7 +189,7 @@ def record_sighting(
         VALUES (?, ?, ?, ?, ?, ?)
         """,
         (event_id, course_id, division, poi_id,
-         (bib or "").strip()[:16] or None, (by or "").strip()[:24] or None),
+         db.clean_text(bib, 16), db.clean_text(by, 24)),
     )
     return conn.execute(
         "SELECT * FROM lead_sighting WHERE id = ?", (int(cur.lastrowid),)

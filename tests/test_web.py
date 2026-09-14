@@ -1904,3 +1904,120 @@ def test_the_help_link_opens_in_a_new_tab():
         assert 'target="_blank"' in anchor, page
         # Without noopener the opened page can navigate this one.
         assert "noopener" in anchor, page
+
+
+# --- a client mistake is a message, never a traceback (audit B7) ------------
+#
+# The shipped client sends the right types, so every one of these needs a
+# hand-made request - but a 500 is logged as a server fault and hides the real
+# cause, and the officer on the setup screen sees "Internal Server Error"
+# instead of what to fix. Each entry is a body that used to reach a
+# `.strip()`, an `int()`, or a NOT NULL / foreign-key column unguarded.
+
+def _setup_payloads(event_id, course_id, poi_id, user_id):
+    e = f"/api/setup/events/{event_id}"
+    return [
+        (f"{e}", {"name": "   "}),                       # NOT NULL via .strip()
+        (f"{e}", {"timezone": " "}),
+        (f"{e}", {"center_lat": "abc"}),                 # served to every phone
+        (f"{e}", {"center_lat": {"a": 1}}),
+        (f"{e}", {"center_lon": 200}),
+        (f"{e}", {"zoom": {"a": 1}}),
+        (f"{e}", {"zoom": 99}),
+        ("/api/setup/events", {"slug": "x", "name": "X",
+                               "organization_id": "abc"}),
+        ("/api/setup/events", {"slug": "x", "name": "X",
+                               "organization_id": 999999}),   # FK
+        (f"{e}/roster", {"station_key": 5, "display_label": "x"}),
+        (f"{e}/roster", {"station_key": "N0CALL", "display_label": ["x"]}),
+        (f"{e}/roster/delete", {"station_key": [5]}),
+        (f"{e}/courses/{course_id}", {"bib_color": 5}),
+        (f"{e}/courses/{course_id}", {"bib_color_name": {"x": 1}}),
+        (f"{e}/courses/{course_id}", {"name": ["x"]}),
+        (f"{e}/pois/{poi_id}", {"name": {"x": 1}}),
+        (f"{e}/pois/{poi_id}", {"notes": ["x"]}),
+        (f"{e}/pois/{poi_id}", {"what3words": 5}),
+        (f"{e}/assign", {"kind": "poi", "ids": "12"}),
+        (f"{e}/assign", {"kind": "poi", "ids": [None]}),
+        (f"{e}/links", {"action": "label", "token_id": "x"}),
+        ("/api/setup/users", {"username": 5, "password": 5, "role": "org_admin"}),
+        ("/api/setup/users", {"username": "u", "password": "a-long-enough-one",
+                              "role": "org_admin", "organization_id": "x"}),
+        ("/api/setup/users", {"username": "u", "password": "a-long-enough-one",
+                              "role": "org_admin", "organization_id": 999999}),
+        ("/api/setup/users", {"username": "u", "password": "a-long-enough-one",
+                              "role": "event_admin", "organization_id": 1,
+                              "event_ids": "12"}),
+        ("/api/setup/users", {"username": "u", "password": "a-long-enough-one",
+                              "role": "event_admin", "organization_id": 1,
+                              "event_ids": [999999]}),             # FK
+        (f"/api/setup/users/{user_id}", {"event_ids": "12"}),
+        (f"/api/setup/users/{user_id}", {"password": 5}),
+        ("/api/setup/users/999999", {"is_active": False}),
+        ("/api/setup/users/999999/delete", {}),
+        ("/api/setup/organizations", {"slug": ["x"], "name": "x"}),
+        ("/api/setup/organizations/1", {"name": ["x"]}),
+    ]
+
+
+def test_wrong_type_setup_payloads_are_400_not_500(setup):
+    app, _, db_path, event_id = setup
+    user = _make_admin(db_path)
+    conn = db.connect(db_path)
+    course_id = conn.execute("SELECT id FROM course").fetchone()["id"]
+    poi_id = conn.execute("SELECT id FROM poi").fetchone()["id"]
+    conn.close()
+
+    with TestClient(app) as client:
+        _login(client)
+        for path, body in _setup_payloads(event_id, course_id, poi_id, user.id):
+            response = client.post(path, json=body)
+            assert 400 <= response.status_code < 500, (path, body, response.text)
+            assert response.json().get("detail"), (path, body, response.text)
+            # An array where an object was expected, on the same route.
+            listed = client.post(path, json=[1, 2])
+            assert listed.status_code in (400, 404), (path, listed.text)
+
+
+def test_wrong_type_field_payloads_are_400_not_500(setup):
+    app, tokens, db_path, event_id = setup
+    conn = db.connect(db_path)
+    course_id = conn.execute("SELECT id FROM course").fetchone()["id"]
+    poi_id = conn.execute("SELECT id FROM poi").fetchone()["id"]
+    conn.close()
+    ncs = f"/api/m2026/{tokens['ncs']}"
+    cases = [
+        (f"{ncs}/station/N0CALL-7/status", {"op_status": "active",
+                                            "changed_by": {"x": 1}}),
+        (f"{ncs}/station/N0CALL-7/status", {"op_status": ["active"]}),
+        (f"{ncs}/leaders/sighting", {"course_id": course_id, "division": "male",
+                                     "poi_id": poi_id, "bib": {"x": 1}}),
+        (f"{ncs}/leaders/sighting", {"course_id": course_id, "division": "male",
+                                     "poi_id": poi_id, "changed_by": [5]}),
+        (f"{ncs}/leaders/sighting", {"course_id": course_id, "division": ["male"],
+                                     "poi_id": poi_id}),
+        (f"{ncs}/ssid/ignore", {"station_key": "K9XYZ-7", "reason": {"x": 1}}),
+    ]
+
+    with TestClient(app) as client:
+        for path, body in cases:
+            response = client.post(path, json=body)
+            assert response.status_code == 400, (path, body, response.text)
+            listed = client.post(path, json=[1, 2])
+            assert listed.status_code in (400, 404), (path, listed.text)
+
+
+def test_a_missing_event_is_a_404_for_a_system_admin_too(setup):
+    """`may_access_event` says yes to a system admin before looking the
+    event up, so a stale bookmark to a deleted event's setup page was a
+    traceback: `event["slug"]` on None, or an INSERT of tokens against a
+    row that is not there."""
+    app, _, db_path, _ = setup
+    _make_admin(db_path)
+
+    with TestClient(app) as client:
+        _login(client)
+        assert client.get("/api/setup/events/999999/links").status_code == 404
+        assert client.get("/api/setup/events/999999/courses").status_code == 404
+        assert client.post("/api/setup/events/999999",
+                           json={"name": "X"}).status_code == 404

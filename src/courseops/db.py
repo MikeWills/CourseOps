@@ -11,6 +11,27 @@ from .parser import PositionReport
 SCHEMA_PATH = resources.package_file("schema.sql")
 
 
+def clean_text(value: object, limit: int | None = None) -> str | None:
+    """Free text from a JSON body: stripped, capped, None when empty.
+
+    `str()` first. Every callee used to do `(value or "").strip()`, which is
+    an AttributeError - a 500 logged as a server fault - the moment a JSON
+    number or object arrives where a string was expected. The shipped client
+    sends strings; this is so a hand-made request gets a message instead of
+    a traceback, and so the next field added inherits the right behaviour.
+    """
+    if value is None:
+        return None
+    if isinstance(value, (list, dict)):
+        # A number reads fine as text ("5" is a plausible bib); a list or an
+        # object never does, and "['x']" as a station label helps nobody.
+        raise ValueError(f"{value!r} is not text.")
+    text = str(value).strip()
+    if limit is not None:
+        text = text[:limit]
+    return text or None
+
+
 def connect(db_path: str | Path) -> sqlite3.Connection:
     path = Path(db_path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -549,7 +570,7 @@ def exclude_station(
         "INSERT INTO station_exclusion (event_id, station_key, reason)"
         " VALUES (?, ?, ?)"
         " ON CONFLICT (event_id, station_key) DO UPDATE SET reason = excluded.reason",
-        (event_id, station_key.strip().upper(), (reason or "").strip() or None),
+        (event_id, station_key.strip().upper(), clean_text(reason, 200)),
     )
 
 
