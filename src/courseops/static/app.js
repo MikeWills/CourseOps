@@ -666,14 +666,8 @@ function stationPopup(stationKey) {
     '</dl>';
 }
 
-/* Escapes quotes as well as angle brackets. The textContent->innerHTML trick
-   does NOT escape " or ', which makes it unsafe the moment a value lands inside
-   an attribute. Everything interpolated into markup below goes through here. */
-function escapeHtml(text) {
-  return String(text ?? '').replace(/[&<>"']/g, (ch) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-  }[ch]));
-}
+/* escapeHtml lives in util.js, shared with the setup screen. Everything
+   interpolated into markup below goes through it. */
 
 function stationVisible(stationKey) {
   const layer = CATEGORY_TO_LAYER[categoryOf(stationKey)] || 'rover';
@@ -1147,22 +1141,15 @@ async function setStationStatus(stationKey, opStatus) {
   renderStations();
 
   try {
-    const response = await fetch(
-      `/api/${M.slug}/${M.token}/station/${encodeURIComponent(stationKey)}/status`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ op_status: opStatus, changed_by: state.operatorInitials }),
-      }
-    );
-    if (!response.ok) throw new Error(String(response.status));
+    await post(`station/${encodeURIComponent(stationKey)}/status`,
+      { op_status: opStatus, changed_by: state.operatorInitials });
   } catch (err) {
     // Roll back. Leaving NCS believing an aid station was marked torn down when
     // the server never got it is worse than showing the failure.
     entry.op_status = previous;
     entry.op_status_label = previousLabel;
     renderStations();
-    setLocateStatus('Could not save status - check the connection');
+    setLocateStatus(`Could not save status - ${err.message}`);
   }
 }
 
@@ -1299,15 +1286,7 @@ function renderStations() {
 
 async function resolveSsid(path, body) {
   try {
-    const response = await fetch(`/api/${M.slug}/${M.token}/ssid/${path}`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(body),
-    });
-    if (!response.ok) {
-      const detail = await response.json().catch(() => ({}));
-      throw new Error(detail.detail || String(response.status));
-    }
+    await post(`ssid/${path}`, body);
     await loadState();          // the roster changed; resync rather than patch
   } catch (err) {
     setLocateStatus(`Could not update: ${err.message}`);
@@ -1507,17 +1486,12 @@ function paceLabel(mps) {
 
 async function recordSighting(leader, poiId, bib) {
   try {
-    const response = await fetch(`/api/${M.slug}/${M.token}/leaders/sighting`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        course_id: leader.course_id, division: leader.division,
-        poi_id: poiId, bib: bib || null, changed_by: state.operatorInitials,
-      }),
+    await post('leaders/sighting', {
+      course_id: leader.course_id, division: leader.division,
+      poi_id: poiId, bib: bib || null, changed_by: state.operatorInitials,
     });
-    if (!response.ok) throw new Error(String(response.status));
   } catch (err) {
-    setLocateStatus('Could not record the sighting');
+    setLocateStatus(`Could not record the sighting - ${err.message}`);
   }
 }
 
@@ -1528,28 +1502,24 @@ async function resetLeader(leader) {
   if (!confirm(
       `Clear every ${leader.division_label} sighting for ${leader.course_name}?`
       + '\n\nThis cannot be undone.')) return;
+  // A refused clear used to look exactly like a successful one: nothing
+  // checked the response, so NCS confirmed the dialog and the list just sat
+  // there. post() throws on any 4xx, with the server's reason.
   try {
-    await fetch(`/api/${M.slug}/${M.token}/leaders/reset`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        course_id: leader.course_id, division: leader.division,
-      }),
+    await post('leaders/reset', {
+      course_id: leader.course_id, division: leader.division,
     });
   } catch (err) {
-    setLocateStatus('Could not clear');
+    setLocateStatus(`Could not clear - ${err.message}`);
   }
 }
 
 async function undoSighting(leader) {
   try {
-    await fetch(`/api/${M.slug}/${M.token}/leaders/undo`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({course_id: leader.course_id, division: leader.division}),
-    });
+    await post('leaders/undo',
+      {course_id: leader.course_id, division: leader.division});
   } catch (err) {
-    setLocateStatus('Could not undo');
+    setLocateStatus(`Could not undo - ${err.message}`);
   }
 }
 
@@ -1893,19 +1863,12 @@ async function setIncidentStatus(id, status) {
   renderIncidents();
 
   try {
-    const response = await fetch(
-      `/api/${M.slug}/${M.token}/incidents/${id}/status`,
-      {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({status, changed_by: state.operatorInitials}),
-      }
-    );
-    if (!response.ok) throw new Error(String(response.status));
+    await post(`incidents/${id}/status`,
+      {status, changed_by: state.operatorInitials});
   } catch (err) {
     Object.assign(incident, previous);   // never leave NCS believing a false save
     renderIncidents();
-    setLocateStatus('Could not save incident - check the connection');
+    setLocateStatus(`Could not save incident - ${err.message}`);
   }
 }
 
@@ -1915,17 +1878,11 @@ async function setIncidentStatus(id, status) {
    opened immediately and the bib field is filled in when it is known. */
 async function createIncident(latlng) {
   try {
-    const response = await fetch(`/api/${M.slug}/${M.token}/incidents`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        lat: latlng.lat, lon: latlng.lng,
-        kind: state.pinKind,
-        changed_by: state.operatorInitials,
-      }),
+    const created = await post('incidents', {
+      lat: latlng.lat, lon: latlng.lng,
+      kind: state.pinKind,
+      changed_by: state.operatorInitials,
     });
-    if (!response.ok) throw new Error(String(response.status));
-    const created = await response.json();
     // Put the row up NOW rather than wait for our own broadcast to come
     // back round: on a slow link the socket message can land after the
     // focus below fires, and the field would not exist yet. The server
@@ -1952,7 +1909,7 @@ async function createIncident(latlng) {
     }, 60);
     return created;
   } catch (err) {
-    setLocateStatus('Could not create the incident');
+    setLocateStatus(`Could not create the incident - ${err.message}`);
     return null;
   }
 }
@@ -2031,15 +1988,10 @@ async function dropPinHere() {
 
 async function editIncident(id, fields) {
   try {
-    const response = await fetch(`/api/${M.slug}/${M.token}/incidents/${id}`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({...fields, changed_by: state.operatorInitials}),
-    });
-    if (!response.ok) throw new Error(String(response.status));
+    await post(`incidents/${id}`, {...fields, changed_by: state.operatorInitials});
     return true;
   } catch (err) {
-    setLocateStatus('Could not save - check the connection');
+    setLocateStatus(`Could not save - ${err.message}`);
     return false;
   }
 }
@@ -2068,17 +2020,13 @@ async function deleteIncident(incident) {
     : `the pickup${incident.bib ? ` for bib ${incident.bib}` : ''}`;
   if (!confirm(`Delete ${what}?\n\nThis cannot be undone.`)) return;
   try {
-    const response = await fetch(
-      `/api/${M.slug}/${M.token}/incidents/${incident.id}/delete`,
-      { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}) });
-    if (!response.ok) throw new Error('refused');
+    await post(`incidents/${incident.id}/delete`, {});
     // Do not wait for the broadcast to come back round: on a flaky phone that
     // is the difference between the row going and the row appearing stuck.
     forgetIncident(incident.id);
     renderIncidents();
   } catch (err) {
-    setLocateStatus('Could not delete');
+    setLocateStatus(`Could not delete - ${err.message}`);
   }
 }
 
@@ -2400,6 +2348,37 @@ function setConnection(kind, text) {
   const el = document.getElementById('conn');
   el.className = `conn conn--${kind}`;
   document.getElementById('conn-text').textContent = text;
+}
+
+/* The one POST for the field app. `path` is relative to this event's API
+   root. Resolves to the parsed response body; throws an Error whose message
+   is fit to show - the server's `detail` when it sent one, because that is
+   where "Staff is read-only." and "Unknown status" are written, and they
+   were being thrown away in favour of a bare status number. Nine copies of
+   this fetch existed with three different ideas of what a failure looked
+   like; write a tenth and the next 403 is silent again. */
+async function post(path, body) {
+  let response;
+  try {
+    response = await fetch(`/api/${M.slug}/${M.token}/${path}`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body || {}),
+    });
+  } catch (err) {
+    throw new Error('no connection');
+  }
+  let data = null;
+  try {
+    data = await response.json();
+  } catch (err) {
+    // A proxy error page is HTML, not JSON. The status is what we have.
+  }
+  if (!response.ok) {
+    const detail = data && typeof data.detail === 'string' ? data.detail : '';
+    throw new Error(detail || `server error ${response.status}`);
+  }
+  return data;
 }
 
 /* Fetch and apply the snapshot. Returns true on success and NEVER throws:

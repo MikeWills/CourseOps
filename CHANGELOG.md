@@ -11,7 +11,24 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Changed
+- **One `post()` in the field app, and the server's reason on screen.**
+  Nine hand-rolled POSTs carried three different ideas of what a failure
+  looked like, and all but one threw away the `detail` the server writes -
+  so "Staff is read-only." and "Unknown status" reached nobody, and the
+  status message said "check the connection" for a refusal that had nothing
+  to do with the connection. Every write goes through `post(path, body)`
+  now, which throws the server's wording, and every status line shows it.
+  `escapeHtml` moved to a shared `static/util.js` (setup's `esc` is an
+  alias): the two copies were character-for-character identical, and two
+  copies of an escaper are two places to get it wrong.
+
 ### Fixed
+- **Leader Undo and Clear could fail silently.** Neither checked the
+  response, so NCS confirmed "Clear every First male sighting for Half?
+  This cannot be undone", the server refused (a stale division key after a
+  setup edit is the realistic case), and the list sat there reading as "the
+  button did nothing". Both go through `post()` and say why. (Audit F6.)
 - **Dropping a pin no longer puts the cursor in the bib box - it had not
   since #93.** "Create first, fill the bib in after" is the documented
   flow, and the step that put the cursor where the bib goes selected the

@@ -122,6 +122,7 @@ src/courseops/
   web.py          FastAPI: map page, state snapshot, WebSocket
   static/         Leaflet client, no build step, plus the icon set
   static/icons.js shared glyph set, inline SVG, used by map and setup
+  static/util.js  shared helpers (escapeHtml), loaded before app.js and setup.js
   discovery.py    pre-event check-in: which SSIDs are actually on the air
   symbols.py      APRS symbols: is this a person or a digipeater?
   admin.py        setup API: events, import, roster, links
@@ -569,7 +570,15 @@ usability, not style preferences.
 - **`Subscription` needs `eq=False`.** Subscriptions live in a set, and two
   browsers on one event are distinct subscribers with identical fields.
 - **Client escaping goes through `escapeHtml`,** which escapes quotes too - the
-  textContent/innerHTML trick does not, and values land in attributes.
+  textContent/innerHTML trick does not, and values land in attributes. It
+  lives in `static/util.js`, loaded before `app.js` and `setup.js` (`esc`
+  there is an alias); the frontend has no build step, so "shared" means a
+  global from a script tag both pages carry.
+- **Every write from the field app goes through `post()` in `app.js`.** It
+  throws the server's `detail`, which is where "Staff is read-only." is
+  written; nine hand-rolled fetches with three failure conventions had been
+  throwing that text away, and two (leader Undo and Clear) never checked
+  the response at all, so a refusal looked like success.
 - **Geolocation needs a secure context.** Browsers block it over plain http://
   except on localhost. This constrains deployment (Phase 8): a club serving over
   a LAN without TLS loses the "where am I" dot. The client names the real cause.

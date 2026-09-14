@@ -191,10 +191,16 @@ def test_websocket_subscription_is_released_on_disconnect(setup):
 # --- static assets ----------------------------------------------------------
 
 def test_client_assets_are_served(setup):
-    app, _, _, _ = setup
+    app, tokens, _, _ = setup
     with TestClient(app) as client:
         assert client.get("/static/app.js").status_code == 200
         assert client.get("/static/app.css").status_code == 200
+        # Shared by the map and setup; both pages must load it BEFORE their
+        # own script or every escapeHtml call is a ReferenceError.
+        assert client.get("/static/util.js").status_code == 200
+        for page in ("/e/m2026/" + tokens["ncs"], "/setup"):
+            html = client.get(page).text
+            assert html.index("/static/util.js") < html.index("/static/icons.js")
 
 
 # --- roles ------------------------------------------------------------------
