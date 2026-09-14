@@ -586,7 +586,11 @@ async function loadEvents() {
       + `history. It cannot be undone.`)) return;
     try {
       await post(`/api/setup/events/${event.id}/delete`);
-      if (S.eventId === event.id) S.eventId = null;
+      if (S.eventId === event.id) {
+        S.eventId = null;
+        S.poiCategories = null;     // its layers went with it
+        S.poiFilterLayer = '';
+      }
       banner(`Deleted ${event.name}.`);
       loadEvents();
     } catch (err) { banner(err.message, true); }
@@ -612,6 +616,14 @@ function selectEvent(id) {
      case. */
   clearProvisionalPlace();
   S.eventId = id;
+  /* The layer list is fetched lazily and belongs to ONE event. Kept across
+     a switch, event A's layers built event B's Import type list, per-row
+     Layer dropdowns, bulk Move target and Add-place list - invisibly when
+     both hold the default seven, and refused by the server ("No such
+     layer") the moment a club has added one. The Places filter holds a
+     layer key from the same list, so it goes too. */
+  S.poiCategories = null;
+  S.poiFilterLayer = '';
   showEventContext();
   document.querySelectorAll('.panel[data-needs-event]').forEach(
     (p) => gateOnEvent(p.dataset.panel));

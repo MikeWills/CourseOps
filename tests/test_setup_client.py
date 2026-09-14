@@ -59,3 +59,15 @@ def test_the_version_record_is_upgraded_once_a_build_is_known():
     assert poll.index("noteVersion(data)") < poll.index("checkVersion(data)")
     login = _block("const data = await post(LOGIN_PATH, body);", "await start();")
     assert "noteSignedInVersion()" in login
+
+
+def test_the_layer_cache_is_dropped_when_the_event_changes():
+    """S.poiCategories is fetched lazily and was only ever invalidated by a
+    layer reorder, so a host with two events kept event A's layers while
+    working on B: every layer dropdown on Import and Places offered A's
+    list, and adding a place in a layer B does not have was refused."""
+    select = _block("function selectEvent(", "const TIME_ZONES")
+    assert "S.poiCategories = null;" in select
+    delete = _block("await post(`/api/setup/events/${event.id}/delete`);",
+                    "banner(`Deleted ${event.name}.`);")
+    assert "S.poiCategories = null;" in delete

@@ -12,6 +12,16 @@ month, PATCH counting releases in that month from 0. Before that they were
 ## [Unreleased]
 
 ### Fixed
+- **Switching events kept the previous event's layers.** The layer list is
+  fetched once and was only ever dropped by a layer reorder, so a host
+  working on a second event built its Import type list, the per-row Layer
+  dropdowns, the bulk Move target and the Add-place list from the first
+  event's layers. With the default seven on both nothing showed; with a
+  club-added layer on one of them, adding a place offered a layer the other
+  event does not have and the server refused it, and a place in the second
+  event's own layer rendered with the wrong option selected. "Work on this"
+  and deleting the current event both drop the cache now, along with the
+  Places filter that holds one of its keys.
 - **"New version - reload" appeared after signing in on a page that was
   the current code.** The notice compares the build the page loaded with
   against what the server reports, and the build is kept behind the login -
