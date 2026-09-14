@@ -689,6 +689,14 @@ def test_staff_are_never_sent_pickups_or_notes(setup):
         data = client.get(f"/api/m2026/{tokens['staff']}/state").json()
         assert "incidents" not in data and "pickups_waiting" not in data
         assert "roster" in data and "positions" in data and "pois" in data
+        # Roster-adjacent, and only a role that can match or dismiss a
+        # station renders it. Left out, like everything else role-gated.
+        assert "ssid_alerts" not in data
+        for role in ("liaison", "logistics", "sag"):
+            assert "ssid_alerts" not in client.get(
+                f"/api/m2026/{tokens[role]}/state").json(), role
+        assert "ssid_alerts" in client.get(
+            f"/api/m2026/{tokens['ncs']}/state").json()
 
         with client.websocket_connect(f"/ws/m2026/{tokens['staff']}") as ws:
             client.post(f"{incidents_url(tokens['ncs'])}/{created['id']}/status",
@@ -1016,7 +1024,12 @@ def test_adopting_across_callsigns_binds_rather_than_renames(setup):
     assert entry["tracking_key"] == "N0CALL-5"
 
 
-def test_read_only_roles_see_alerts_but_cannot_resolve_them(setup):
+def test_read_only_roles_are_neither_sent_alerts_nor_allowed_to_resolve_them(setup):
+    """The alerts are for whoever can act on them - match a station to a
+    roster entry or dismiss it - and that is NCS. They used to go to every
+    role and be rendered by none but NCS: roster-adjacent data (which
+    rostered callsign owns which digipeater) handed to the forwarded link
+    for nothing. Left out, not sent empty, like everything role-gated."""
     app, tokens, db_path, event_id = setup
     conn = db.connect(db_path)
     db.upsert_roster_entry(conn, event_id, "WX0MIK-1", "Aid 3", "aid_station")
@@ -1027,9 +1040,11 @@ def test_read_only_roles_see_alerts_but_cannot_resolve_them(setup):
         data = client.get(f"/api/m2026/{tokens['liaison']}/state").json()
         blocked = client.post(f"/api/m2026/{tokens['liaison']}/ssid/ignore",
                               json={"station_key": "WX0MIK-5"})
+        ncs = client.get(f"/api/m2026/{tokens['ncs']}/state").json()
 
-    assert len(data["ssid_alerts"]) == 1
+    assert "ssid_alerts" not in data
     assert blocked.status_code == 403
+    assert len(ncs["ssid_alerts"]) == 1
 
 
 def test_a_correctly_rostered_station_raises_no_alert(setup):

@@ -12,6 +12,11 @@ month, PATCH counting releases in that month from 0. Before that they were
 ## [Unreleased]
 
 ### Fixed
+- **The SSID alerts go only to a role that can act on them.** They were in
+  every role's snapshot and rendered by none but NCS: which rostered
+  callsign owns which digipeater, handed to the forwarded Staff link for
+  nothing. Now sent with the nearby and ignored lists, to a role holding
+  the SSID capability, and left out for the rest.
 - **A phone that fell behind is told to resync instead of being left with
   what it missed.** Each browser's queue is bounded so a stalled phone
   cannot back up the feed, and on overflow messages were simply dropped.

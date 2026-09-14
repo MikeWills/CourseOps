@@ -365,10 +365,9 @@ def build_state(conn: sqlite3.Connection, event_id: int) -> dict[str, Any]:
         "pois": pois,
         "roster": roster,
         "positions": positions,
-        # Surfaced in the UI rather than left to a command someone has to
-        # remember: the failure this catches is silent, and a check that must be
-        # remembered will be forgotten.
-        "ssid_alerts": _ssid_alerts(conn, event_id),
+        # ssid_alerts is NOT here: it is roster-adjacent and only a role
+        # holding CAP_SSID can act on it, so `state()` adds it for those
+        # roles alone - left out for the rest, like everything role-gated.
         "leaders": [entry.as_dict() for entry in
                     leaders.for_event(conn, event_id, index)],
         # The leaders this event tracks, in the club's order. Per event, not a
@@ -1695,6 +1694,13 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
             # driving past. Same connection: opening one is not free, and
             # this route used to open three.
             if granted.can(access.CAP_SSID):
+                # Callsigns on an SSID the roster does not name. Surfaced
+                # in the UI rather than left to a command someone has to
+                # remember: the failure it catches is silent, and a check
+                # that must be remembered will be forgotten. Only NCS
+                # renders it, and the field links do not need a list of
+                # which roster callsigns own which digipeaters.
+                payload["ssid_alerts"] = _ssid_alerts(conn, granted.event_id)
                 payload["nearby"] = _nearby_for(conn, granted.event_id)
                 # What has been ignored, so a mis-tap on Ignore can be
                 # undone. An ignored station is silent in every other list,
