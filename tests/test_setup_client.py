@@ -32,3 +32,13 @@ def test_export_csv_reads_the_coordinate_boxes():
     # The cell those selectors are aimed at still renders both boxes.
     row = _block("<td class=\"coords\">", "</td>")
     assert 'data-plat="${p.id}"' in row and 'data-plon="${p.id}"' in row
+
+
+def test_a_wrong_password_gets_the_servers_message_not_sign_in_again():
+    """api() treats a 401 as an expired session and replaces the body with
+    "Sign in again." - which is what every mistyped password was told, and
+    showGate() wiped the first-run "Account created" notice on the way. The
+    sign-in call is the one 401 that is an answer, and it has to pass."""
+    api = _block("async function api(", "const post =")
+    assert "path !== LOGIN_PATH" in api
+    assert "const data = await post(LOGIN_PATH, body);" in SETUP_JS

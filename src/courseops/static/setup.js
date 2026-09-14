@@ -44,11 +44,22 @@ function banner(message, isError) {
   if (message && !isError) setTimeout(() => { el.hidden = true; }, 4000);
 }
 
+const LOGIN_PATH = '/api/setup/login';
+
 async function api(path, options) {
   const response = await fetch(path, Object.assign({
     headers: {'Content-Type': 'application/json'},
   }, options || {}));
-  if (response.status === 401) { showGate(false); throw new Error('Sign in again.'); }
+  /* A 401 anywhere else means the session has gone - put the gate up and
+     say so. The sign-in call itself is the exception: a 401 there IS the
+     answer, and the server's own words ("Incorrect username or password.")
+     have to reach the form. Intercepting it told every mistyped password
+     "Sign in again." as if the session had expired, and showGate() wiped
+     the "Account created" notice the first-run flow had just put up. */
+  if (response.status === 401 && path !== LOGIN_PATH) {
+    showGate(false);
+    throw new Error('Sign in again.');
+  }
   // Already signed in but still looking at the sign-in form: recover rather
   // than leaving the header and the form contradicting each other.
   if (response.status === 409 && S.user === null) {
@@ -117,7 +128,7 @@ $('gate-form').addEventListener('submit', async (ev) => {
       $('gate-password').value = '';
       $('gate-password').focus();
     } else {
-      const data = await post('/api/setup/login', body);
+      const data = await post(LOGIN_PATH, body);
       S.user = data.user;
       await start();
     }

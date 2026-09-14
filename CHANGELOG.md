@@ -12,6 +12,15 @@ month, PATCH counting releases in that month from 0. Before that they were
 ## [Unreleased]
 
 ### Fixed
+- **A mistyped password said "Sign in again."** The setup client treats a
+  401 from any call as an expired session, puts the sign-in form up and
+  replaces the server's message with its own - and the sign-in call answers
+  401 too, so its "Incorrect username or password." never reached the form.
+  Every wrong password read like a session problem, a disabled account was
+  told to sign in again indefinitely, and the first-run "Account created -
+  sign in with it" notice vanished on the first typo. The sign-in call is
+  the one 401 that is an answer rather than a symptom, and it passes
+  through now.
 - **Export CSV shipped every place with an empty Coordinates column.** The
   export read a text `<span>` in the coordinates cell that the map picker
   (#108) had replaced with two input boxes, so the selector matched nothing
