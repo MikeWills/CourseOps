@@ -74,7 +74,6 @@ def handle_line(
     roster_keys: set[str],
     line: str,
     stats: IngestStats,
-    log_all_raw: bool = True,
     base_callsigns: set[str] | None = None,
     excluded: set[str] | None = None,
     nearby: list[PositionReport] | None = None,
@@ -85,6 +84,13 @@ def handle_line(
     logged - not even raw. The area filter delivers the public, and the deal
     is that they are seen, in memory, by NCS, and written down only once NCS
     says who they are. It goes into `nearby` for the caller to hand on.
+
+    Nothing is written for a line that fails to parse or carries no
+    position, whoever sent it. There used to be a raw log of every such
+    line, taken BEFORE the roster check - which, with the area filter on,
+    was every status, message and telemetry packet from every ham near the
+    course, verbatim, in a database that is backed up nightly. Nothing ever
+    read it. A stored position keeps its own raw line in `position.raw`.
     """
     try:
         report = parse_packet(line)
@@ -94,10 +100,6 @@ def handle_line(
             log.debug("Parse error: %s | %s", rejection.detail, line)
         else:
             stats.no_position += 1
-        if log_all_raw:
-            db.log_raw_packet(
-                conn, event_id, _now(), line, rejection.reason, rejection.detail
-            )
         return None
 
     # A station NCS has ignored. Dropped here, at the door, and not written
@@ -138,16 +140,9 @@ def handle_line(
         if bound is not None:
             stats.bound[report.station_key] = bound["display_label"]
 
-    if log_all_raw:
-        db.log_raw_packet(conn, event_id, report.received_at, line, "stored")
     stats.stored += 1
     stats.by_station[report.station_key] = stats.by_station.get(report.station_key, 0) + 1
     return report
-
-
-def _now() -> str:
-    from datetime import datetime, timezone
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 # How far beyond the course's own extent the area filter reaches. A mile is

@@ -91,6 +91,35 @@ def test_a_stranger_is_seen_but_never_stored(event):
     assert conn.execute("SELECT COUNT(*) FROM raw_packet").fetchone()[0] == 0
 
 
+def test_a_strangers_status_packet_is_not_written_down_either(event):
+    """A packet with no position - a status, a message, telemetry - used to
+    be logged raw BEFORE anyone asked whether the sender was rostered. With
+    the area filter on, that was every ham near the course, verbatim, in a
+    database that is backed up nightly. Nothing reads that table; nothing
+    writes it now."""
+    conn, event_id = event
+    nearby = []
+    report, stats = _feed(
+        conn, event_id,
+        "K9XYZ-7>APRS,TCPIP*,qAC,X:>Out for a walk", nearby=nearby)
+    assert report is None and nearby == []
+    assert stats.no_position == 1
+    assert conn.execute("SELECT COUNT(*) FROM raw_packet").fetchone()[0] == 0
+    # and neither does a line that does not parse at all
+    _feed(conn, event_id, "garbage", nearby=nearby)
+    assert conn.execute("SELECT COUNT(*) FROM raw_packet").fetchone()[0] == 0
+
+
+def test_a_stored_position_is_not_written_twice(event):
+    """`position.raw` already keeps the packet; a second copy in raw_packet
+    doubled the writes per packet on the loop the feed blocks on."""
+    conn, event_id = event
+    report, _ = _feed(conn, event_id, _packet("K0JZP-9"))
+    assert report is not None
+    assert conn.execute("SELECT COUNT(*) FROM raw_packet").fetchone()[0] == 0
+    assert conn.execute("SELECT raw FROM position").fetchone()[0] == _packet("K0JZP-9")
+
+
 def test_a_rostered_station_is_stored_as_before(event):
     conn, event_id = event
     nearby = []

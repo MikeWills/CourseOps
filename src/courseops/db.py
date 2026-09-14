@@ -362,21 +362,6 @@ def insert_position(conn: sqlite3.Connection, event_id: int, report: PositionRep
     return int(cur.lastrowid)
 
 
-def log_raw_packet(
-    conn: sqlite3.Connection,
-    event_id: int | None,
-    received_at: str,
-    raw: str,
-    status: str,
-    error: str | None = None,
-) -> None:
-    conn.execute(
-        "INSERT INTO raw_packet (event_id, received_at, raw, status, error)"
-        " VALUES (?, ?, ?, ?, ?)",
-        (event_id, received_at, raw, status, error),
-    )
-
-
 def recent_positions(
     conn: sqlite3.Connection, event_id: int, limit: int = 20
 ) -> list[sqlite3.Row]:

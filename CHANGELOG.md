@@ -58,6 +58,16 @@ month, PATCH counting releases in that month from 0. Before that they were
   newest - and switches the rest off the same way; deleting an event or an
   organization stops the feeds it owned and drops their nearby lists.
   (Audit 2026-09-14, A3.)
+- **The feed wrote the public's packets to disk after all.** Every line
+  that failed to parse or carried no position - a status, a message,
+  telemetry - was logged raw to `raw_packet` BEFORE the roster check. With
+  the area filter on, that was every ham near the course, verbatim, in a
+  database that is backed up nightly and can be handed to an organizer,
+  against the rule the area filter was accepted under: seen in memory,
+  never stored. The table was also write-only and unbounded, and every
+  stored position was written to it a second time beside `position.raw`.
+  Nothing writes it now; the definition stays in `schema.sql`, marked
+  retired, so an existing database is untouched. (Audit 2026-09-14, A4.)
 
 ## [2026.9.4] - 2026-09-14
 
