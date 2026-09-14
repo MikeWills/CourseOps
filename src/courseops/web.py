@@ -9,17 +9,19 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import hmac
 import json
 import importlib.metadata as _metadata
 import logging
 import re
+import secrets
 import sqlite3
 import tempfile
 import zipfile
 from pathlib import Path
 from typing import Any
 
-from fastapi import (FastAPI, File, Form, HTTPException, Request, UploadFile,
+from fastapi import (FastAPI, File, HTTPException, Request, UploadFile,
                      WebSocket, WebSocketDisconnect)
 from fastapi.responses import (HTMLResponse, JSONResponse, PlainTextResponse,
                                RedirectResponse)
@@ -231,10 +233,6 @@ def _link_label(value: object) -> str | None:
     return text or None
 
 
-def _row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
-    return {key: row[key] for key in row.keys()}
-
-
 def _seed_event_center(conn: sqlite3.Connection, event_id: int) -> None:
     """After an import, give an event with no centre one.
 
@@ -404,7 +402,7 @@ def build_state(conn: sqlite3.Connection, event_id: int) -> dict[str, Any]:
     ).fetchall()
     pois = []
     for row in index.order_along_course(poi_rows):
-        entry = _row_to_dict(row)
+        entry = dict(row)
         entry["course_position"] = _course_position(index, row["lat"], row["lon"])
         # One or two characters for the pin itself. Derived unless the club
         # typed an override; the client never has to guess.
@@ -416,7 +414,7 @@ def build_state(conn: sqlite3.Connection, event_id: int) -> dict[str, Any]:
         "SELECT * FROM roster WHERE event_id = ? ORDER BY category, display_label",
         (event_id,),
     ).fetchall():
-        entry = _row_to_dict(row)
+        entry = dict(row)
         # Wording differs by category: an aid station is "Torn down", a sweep is
         # "Finished". The client should not have to know that mapping.
         entry["op_status_label"] = db.op_status_label(row["category"], row["op_status"])
@@ -430,7 +428,6 @@ def build_state(conn: sqlite3.Connection, event_id: int) -> dict[str, Any]:
             poi = next((p for p in pois if p["id"] == row["poi_id"]), None)
             if poi is not None:
                 entry["course_position"] = poi["course_position"]
-                entry["poi_name"] = poi["name"]
         roster.append(entry)
 
     # Ignoring an SSID has to hide what was already stored, not merely stop
@@ -502,24 +499,18 @@ def build_state(conn: sqlite3.Connection, event_id: int) -> dict[str, Any]:
         # roles alone - left out for the rest, like everything role-gated.
         "leaders": [entry.as_dict() for entry in
                     leaders.for_event(conn, event_id, index)],
-        # The leaders this event tracks, in the club's order. Per event, not a
-        # constant: a race with a wheelchair field used to need a code change.
-        "divisions": [
-            {"value": row["key"], "label": row["name"]}
-            for row in categories.lead_divisions(conn, event_id)
-        ],
+        # Which leaders the event tracks is not sent as its own list: each
+        # `leaders` entry carries its `division` and `division_label`, which
+        # is the only form the panel reads (a row per race per leader).
         "incidents": incident_rows,
         "incident_statuses": [
             {"value": value, "label": incidents.STATUS_LABELS[value]}
             for value in incidents.STATUSES
         ],
-        "incident_kinds": [
-            {"value": value, "label": incidents.KIND_LABELS[value]}
-            for value in incidents.KINDS
-        ],
-        # The number that means "still waiting". Notes are excluded by
-        # construction - see incidents.waiting_count.
-        "pickups_waiting": incidents.waiting_count(conn, event_id),
+        # No count of waiting pickups: the client derives it from the list
+        # (`incidentDone` in app.js) and has to, because the list changes
+        # under it on every socket message and a count sent once would be
+        # stale by the second one.
         "op_statuses": list(db.OP_STATUSES),
         "thresholds": {
             "stale_after_s": STALE_AFTER_SECONDS,
@@ -593,6 +584,15 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     # rather than module-level so every test gets a clean one - the suite
     # signs in hundreds of times and must never throttle itself.
     app.state.login_limiter = users.LoginLimiter()
+    # What the first-user form has to be shown before it creates the system
+    # administrator. Until that account exists the form is open to whoever
+    # reaches /setup first - on a VPS that is the whole internet from the
+    # moment TLS is up until the officer gets there, and a deploy that
+    # recreated the database (a restore gone wrong, a wrong DB_PATH) would
+    # reopen it silently. The code is printed where the server started,
+    # so holding it means being at the console. New on every start: a code
+    # that survived a restart would be a second password for the box.
+    app.state.setup_code = secrets.token_hex(4).upper()
 
     # A setup change during an event has to reach the field, not wait for
     # someone to pull to refresh.
@@ -960,6 +960,19 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         body = await _json_body(request)
         username = str(body.get("username", "") or "")
         keys = _refuse_if_throttled(request, username)
+
+        # The code is read off a screen and typed on a phone, so case and
+        # surrounding space are forgiven; nothing else is. Checked before
+        # the hash, and a miss counts like a wrong password, because eight
+        # hex characters is a small space if guessing is free.
+        offered = str(body.get("setup_code", "") or "").strip().upper()
+        if not hmac.compare_digest(offered, app.state.setup_code):
+            app.state.login_limiter.failed(*keys)
+            raise HTTPException(
+                status_code=403,
+                detail="The setup code is wrong. It is printed where the "
+                       "server was started (or in its log).",
+            )
 
         def create() -> users.User:
             # Its own connection, opened in the worker thread: a sqlite
@@ -2111,7 +2124,7 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
                 # which is the point of ignoring it and also what makes the
                 # mistake invisible.
                 payload["ignored"] = [
-                    _row_to_dict(row) for row in db.exclusions(conn, granted.event_id)
+                    dict(row) for row in db.exclusions(conn, granted.event_id)
                 ]
         finally:
             conn.close()
@@ -2127,8 +2140,7 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         # the club's business during the race, not theirs. The report page
         # is where the organizer gets the counts afterwards.
         if not granted.can(access.CAP_INCIDENT_REPORT):
-            for key in ("incidents", "pickups_waiting"):
-                payload.pop(key, None)
+            payload.pop("incidents", None)
         return JSONResponse(payload)
 
     def _nearby_for(conn: sqlite3.Connection, event_id: int) -> list[dict[str, Any]]:
@@ -2425,11 +2437,17 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
 
         Readable by every role: the incoming operator needs it regardless of
         whether they can write.
+
+        API-only: no screen in the live app fetches this yet (the panel shows
+        the current status and its age). It is the read side of
+        `roster_status_log`, which is append-only precisely so that a history
+        view can be added later without rebuilding anything; the tests reach
+        it here. Deleting it would leave that log write-only.
         """
         conn, granted = require_access(event_slug, token)
         try:
             entries = [
-                {key: row[key] for key in row.keys()}
+                dict(row)
                 for row in db.op_status_log(conn, granted.event_id, station_key)
             ]
         finally:
@@ -2441,13 +2459,15 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         event_slug: str, token: str, incident_id: int
     ) -> JSONResponse:
         # Readable by every role that sees the queue: the log is what a
-        # shift handover reads.
+        # shift handover reads. API-only for now, like station-log above:
+        # the queue shows the current status and its age, and the history
+        # behind it is reachable here and from the tests.
         conn, granted = require_capability(
             event_slug, token, access.CAP_INCIDENT_REPORT)
         try:
             incidents.get(conn, granted.event_id, incident_id)
             entries = [
-                {key: row[key] for key in row.keys()}
+                dict(row)
                 for row in incidents.log_for(conn, incident_id)
             ]
         except incidents.IncidentError as exc:
@@ -2534,29 +2554,6 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         if removed:
             await _publish_leaders(granted.event_id)
         return JSONResponse({"removed": removed})
-
-    @app.post("/api/{event_slug}/{token}/course/{course_id}/bib-color")
-    async def set_bib_color(
-        event_slug: str, token: str, course_id: int, request: Request
-    ) -> JSONResponse:
-        conn, granted = require_capability(event_slug, token, access.CAP_COURSE)
-        body = await _json_body(request, conn)
-        try:
-            row = leaders.set_bib_color(
-                conn, granted.event_id, course_id,
-                body.get("bib_color"), body.get("bib_color_name"),
-            )
-        except ValueError as exc:
-            conn.close()
-            raise HTTPException(status_code=400, detail=str(exc))
-        payload = {
-            "course_id": row["id"],
-            "bib_color": row["bib_color"],
-            "bib_color_name": row["bib_color_name"],
-        }
-        conn.close()
-        await _publish_leaders(granted.event_id)
-        return JSONResponse(payload)
 
     # --- live feed ---------------------------------------------------------
 

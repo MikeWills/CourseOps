@@ -190,7 +190,8 @@ CREATE TABLE IF NOT EXISTS roster (
     bound_key     TEXT,
     operator_name TEXT,
     display_label TEXT    NOT NULL,
-    -- net_control | aid_station | sweep | sag | shadow | rover | start_finish
+    -- A `roster_role.key` for this event. An open set: the club adds and
+    -- deletes roles in setup, so no list here could stay true.
     category      TEXT    NOT NULL DEFAULT 'rover',
     -- Only stations with expects_aprs=1 are subject to staleness alerting.
     -- Without this the "who has gone quiet" panel fills with operators who
@@ -206,6 +207,9 @@ CREATE TABLE IF NOT EXISTS roster (
     -- for shift handover, not authentication.
     op_status_at  TEXT,
     op_status_by  TEXT,
+    -- Unused. Never written by anything and read by nothing; per-station
+    -- colour never made it past the schema. Left in place because dropping a
+    -- column is a migration, and it is harmless in a row dump.
     color         TEXT,
     UNIQUE (event_id, station_key)
 );
@@ -279,7 +283,10 @@ CREATE TABLE IF NOT EXISTS import_feature (
     style_id    TEXT,
     warnings    TEXT,
     suggestion  TEXT,               -- advisory guess; never applied on its own
-    -- pending | assigned | discarded
+    -- pending | assigned | discarded. Deleting the course or place an
+    -- assigned feature became puts it back to `pending` (admin.delete_course,
+    -- admin.delete_poi): SET NULL alone would leave it assigned to nothing,
+    -- off the review screen and impossible to discard.
     status      TEXT    NOT NULL DEFAULT 'pending',
     course_id   INTEGER REFERENCES course(id) ON DELETE SET NULL,
     poi_id      INTEGER REFERENCES poi(id) ON DELETE SET NULL
@@ -296,7 +303,7 @@ CREATE TABLE IF NOT EXISTS access_token (
     id         INTEGER PRIMARY KEY,
     event_id   INTEGER NOT NULL REFERENCES event(id) ON DELETE CASCADE,
     token      TEXT    NOT NULL UNIQUE,
-    role       TEXT    NOT NULL,   -- ncs | liaison
+    role       TEXT    NOT NULL,   -- one of access.ROLES: ncs | sag | liaison | logistics | staff
     label      TEXT,
     revoked    INTEGER NOT NULL DEFAULT 0,
     created_at TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
@@ -461,23 +468,13 @@ CREATE TABLE IF NOT EXISTS station_exclusion (
     UNIQUE (event_id, station_key)
 );
 
--- Server-wide setup access.
---
--- Separate from access_token, which is scoped to one event: creating the FIRST
--- event needs a token that cannot belong to an event yet. Printed when the
--- server starts.
---
--- This is the most powerful credential the app has - it can read and change
--- every event - so it is deliberately not something a club circulates. One
--- person sets up; everyone else gets a role link.
-CREATE TABLE IF NOT EXISTS admin_token (
-    id         INTEGER PRIMARY KEY,
-    token      TEXT    NOT NULL UNIQUE,
-    label      TEXT,
-    revoked    INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
-    last_used  TEXT
-);
+-- There is no server-wide setup token any more. Setup is behind the
+-- administrator accounts below (user + session); the `admin_token` table that
+-- once held a printed setup link is no longer created. A database from before
+-- 2026-09 may still carry an empty or stale `admin_token` table: nothing reads
+-- it, and it is left in place rather than dropped by a migration because a
+-- DROP in a startup migration is the one kind of statement that cannot be
+-- undone by restoring the previous version.
 
 -- Administrator accounts.
 --
@@ -493,7 +490,7 @@ CREATE TABLE IF NOT EXISTS user (
     -- travel with each hash so they can be raised without invalidating
     -- existing passwords.
     password_hash TEXT    NOT NULL,
-    -- system_admin | event_admin
+    -- one of users.ROLES: system_admin | org_admin | event_admin
     role          TEXT    NOT NULL,
     -- The club this administrator belongs to. NULL for a system administrator,
     -- who is not part of any one club.

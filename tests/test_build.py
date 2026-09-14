@@ -35,7 +35,6 @@ def test_a_missing_git_is_not_an_error(monkeypatch):
     monkeypatch.setattr(build.subprocess, "run",
                         lambda *a, **k: (_ for _ in ()).throw(FileNotFoundError))
     assert build.build_id() == ""
-    assert build.version_string() == build.__version__
 
 
 def test_a_hung_git_does_not_hold_up_the_server(monkeypatch):
@@ -60,11 +59,6 @@ def test_a_directory_that_is_not_a_checkout_reports_nothing(monkeypatch):
     assert build.build_id() == ""
 
 
-def test_the_version_string_carries_the_build_when_there_is_one(monkeypatch):
-    monkeypatch.setenv("COURSEOPS_BUILD", "abc1234")
-    assert build.version_string() == f"{build.__version__} (abc1234)"
-
-
 def test_an_absurd_build_string_is_truncated(monkeypatch):
     """It goes in a header. Nothing here should be able to make that unusable."""
     monkeypatch.setenv("COURSEOPS_BUILD", "x" * 500)
@@ -84,4 +78,5 @@ def test_the_declared_version_matches_the_package_metadata():
     pyproject = (pathlib.Path(__file__).resolve().parents[1] / "pyproject.toml")
     declared = re.search(r'(?m)^version = "([^"]+)"',
                          pyproject.read_text(encoding="utf-8")).group(1)
-    assert declared == build.__version__
+    import courseops
+    assert declared == courseops.__version__

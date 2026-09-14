@@ -50,6 +50,11 @@
     title="This page was loaded before the current version. Reload to pick it up.">
     New version &mdash; reload</button>
   <span id="whoami" hidden></span>
+  <!-- The signed-in person's OWN password. The Users tab's per-row "Set a
+       password" is a manager setting someone else's, and the manager then
+       knows it; without this, the only way to change your own was to ask. -->
+  <button id="change-pw" type="button" hidden
+    title="Change my password" aria-label="Change my password">Password</button>
   <button id="logout" type="button" hidden>Sign out</button>
 </header>
 
@@ -72,6 +77,16 @@
     <label class="field" id="gate-display-field" hidden>
       <span>Your name</span>
       <input id="gate-display" type="text" autocomplete="name">
+    </label>
+
+    <!-- First run only. Printed where the server was started, so that
+         holding it means being at the console: until this account exists
+         the form is otherwise open to whoever reaches /setup first. -->
+    <label class="field" id="gate-code-field" hidden>
+      <span>Setup code</span>
+      <input id="gate-code" type="text" autocomplete="one-time-code"
+        autocapitalize="characters" spellcheck="false" placeholder="from the server's console">
+      <small>Printed beside "Setup:" where <code>courseops serve</code> was started (on the server, in its log).</small>
     </label>
 
     <label class="field">
@@ -101,6 +116,26 @@
     <button class="tab" data-tab="links" type="button">Links</button>
     <button class="tab" data-tab="users" type="button" hidden>Users</button>
   </nav>
+
+  <!-- Opened by the Password button in the bar. The server re-checks the
+       current password (a borrowed unlocked laptop must not be enough to
+       lock the owner out) and signs every session out on success, this one
+       included, so a successful change ends on the sign-in page. -->
+  <form id="pw-form" class="card" hidden>
+    <h3>Change my password</h3>
+    <div class="row">
+      <label class="field"><span>Current password</span>
+        <input id="pw-current" type="password" autocomplete="current-password" required></label>
+      <label class="field"><span>New password</span>
+        <input id="pw-new" type="password" autocomplete="new-password" required>
+        <small>At least 10 characters. You will be signed out everywhere and asked to sign in with it.</small></label>
+    </div>
+    <p id="pw-error" class="error" hidden></p>
+    <div class="row">
+      <button class="primary" type="submit">Change password</button>
+      <button id="pw-cancel" type="button">Cancel</button>
+    </div>
+  </form>
 
   <p id="event-context" class="muted" hidden></p>
   <p id="banner" class="banner" hidden></p>

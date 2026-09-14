@@ -203,3 +203,52 @@ def test_the_upload_parses_the_body_before_trusting_it_is_json():
     upload = _block("async function uploadCourseFile(", "async function fillAssignTypes")
     assert "response.json().catch(() => ({}))" in upload
     assert upload.index(".catch(() => ({}))") < upload.index("if (!response.ok)")
+
+
+SETUP_HTML = (web.STATIC_DIR / "setup.html").read_text(encoding="utf-8")
+
+
+def test_the_own_password_form_reaches_its_route_and_ends_at_the_gate():
+    """`POST /api/setup/password` was implemented and tested on the server
+    with nothing in the client calling it (audit D2): an administrator could
+    not change their own password without asking a manager, who then knew
+    it. The form has to send both fields, and because the server signs every
+    session out on success, it has to end on the sign-in page rather than
+    on a screen whose next request will 401."""
+    handler = _block("$('pw-form').addEventListener('submit'", "/* ---------- tabs")
+    assert "post('/api/setup/password'" in handler
+    assert "current_password: $('pw-current').value" in handler
+    assert "new_password: $('pw-new').value" in handler
+    assert "showGate(false," in handler
+    assert 'id="change-pw"' in SETUP_HTML and 'id="pw-form"' in SETUP_HTML
+    # The button appears with Sign out and goes with it.
+    start = _block("async function start()", "(async () => {")
+    assert "$('change-pw').hidden = false;" in start
+    gate = _block("function showGate(", "$('gate-form').addEventListener")
+    assert "$('change-pw').hidden = true;" in gate
+
+
+def test_an_event_admins_events_are_editable_in_the_users_table():
+    """The `event_ids` branch of the user update route had no control; the
+    list was only offered on the create form, so changing an assignment
+    meant delete and recreate. Each box posts the row's whole checked set."""
+    cell = _block("function userEventsCell(", "function renderUserEvents(")
+    assert 'data-uev="${u.id}"' in cell
+    assert "e.organization_id === u.organization_id" in cell
+    handler = _block("querySelectorAll('[data-uev]')", "querySelectorAll('[data-toggle]')")
+    assert "{event_ids: ids}" in handler
+    assert "post(`/api/setup/users/${box.dataset.uev}`" in handler
+    assert "loadUsers()" in handler
+
+
+def test_the_first_run_form_sends_the_setup_code():
+    """The server refuses the first account without the code printed at
+    its console (audit C7); a gate form that did not send it would make
+    first run impossible from the browser, which is the only place it is
+    meant to happen."""
+    gate = _block("function showGate(", "$('gate-form').addEventListener")
+    assert "$('gate-code-field').hidden = !firstRun;" in gate
+    assert "$('gate-code').required = firstRun;" in gate
+    submit = _block("$('gate-form').addEventListener('submit'", "$('version-notice')")
+    assert "body.setup_code = $('gate-code').value;" in submit
+    assert 'id="gate-code"' in SETUP_HTML

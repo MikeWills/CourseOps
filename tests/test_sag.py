@@ -44,7 +44,7 @@ def test_only_ncs_and_sag_work_the_queue():
 
 
 @pytest.mark.parametrize("capability", [
-    access.CAP_STATIONS, access.CAP_SSID, access.CAP_LEADERS, access.CAP_COURSE,
+    access.CAP_STATIONS, access.CAP_SSID, access.CAP_LEADERS,
 ])
 def test_sag_may_do_nothing_else(capability):
     """A bearer link in a moving vehicle. The blast radius of a lost phone
@@ -110,33 +110,6 @@ def test_an_unknown_kind_is_refused(event):
     conn, event_id = event
     with pytest.raises(incidents.IncidentError):
         _pickup(conn, event_id, kind="emergency")
-
-
-def test_a_note_never_counts_as_someone_waiting(event):
-    """The waiting count is read as "who is still out there". A note in it
-    would make that number mean nothing."""
-    conn, event_id = event
-    _pickup(conn, event_id)
-    _pickup(conn, event_id, kind="note", note="Cones short at mile 4")
-
-    assert incidents.waiting_count(conn, event_id) == 1
-
-
-def test_a_delivered_runner_is_no_longer_waiting(event):
-    conn, event_id = event
-    row = _pickup(conn, event_id)
-    incidents.set_status(conn, event_id, row["id"], "dropped_off", by="MW")
-
-    assert incidents.waiting_count(conn, event_id) == 0
-
-
-def test_a_picked_up_runner_is_still_waiting_on_us(event):
-    """In the vehicle is not delivered: they are still SAG's responsibility."""
-    conn, event_id = event
-    row = _pickup(conn, event_id)
-    incidents.set_status(conn, event_id, row["id"], "picked_up", by="MW")
-
-    assert incidents.waiting_count(conn, event_id) == 1
 
 
 def test_notes_sort_below_every_pickup(event):

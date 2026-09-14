@@ -277,12 +277,6 @@ def get_event(conn: sqlite3.Connection, slug: str) -> sqlite3.Row | None:
     return conn.execute("SELECT * FROM event WHERE slug = ?", (slug,)).fetchone()
 
 
-def active_events(conn: sqlite3.Connection) -> list[sqlite3.Row]:
-    return conn.execute(
-        "SELECT * FROM event WHERE is_active = 1 ORDER BY id"
-    ).fetchall()
-
-
 # --- ordering ---------------------------------------------------------------
 
 def reorder(

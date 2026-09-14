@@ -78,7 +78,7 @@ class Incident:
     row: sqlite3.Row
 
     def as_dict(self) -> dict:
-        data = {key: self.row[key] for key in self.row.keys()}
+        data = dict(self.row)
         data["status_label"] = STATUS_LABELS.get(data["status"], data["status"])
         kind = data.get("kind") or KIND_PICKUP
         data["kind"] = kind
@@ -278,22 +278,6 @@ def for_event(
         STATUS_RANK.get(r["status"], 9),
         r["status_at"],
     ))
-
-
-def waiting_count(conn: sqlite3.Connection, event_id: int) -> int:
-    """Pickups nobody has finished with - the number that means "still out".
-
-    Notes are excluded by construction: counting them here would turn the one
-    number NCS glances at into a number that does not mean anything.
-    """
-    row = conn.execute(
-        """
-        SELECT COUNT(*) AS c FROM incident
-         WHERE event_id = ? AND kind = ? AND status NOT IN ('dropped_off', 'closed')
-        """,
-        (event_id, KIND_PICKUP),
-    ).fetchone()
-    return int(row["c"])
 
 
 def log_for(conn: sqlite3.Connection, incident_id: int) -> list[sqlite3.Row]:

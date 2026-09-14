@@ -11,6 +11,92 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Removed
+- **Code nothing ran.** The 2026-09-14 audit listed every top-level name in
+  `src/courseops` that no production code referenced, and the scan was
+  re-run after the other workstreams merged. Gone: `access.WRITE_ROLES`;
+  the server-wide setup token (`ensure_admin_token`, `resolve_admin`,
+  `rotate_admin_token`, and the `admin_token` DDL - setup has been behind
+  administrator accounts since the browser setup shipped, and a table that
+  reads like a second credential path is the kind of thing an auditor
+  spends an hour on; an existing database keeps its table, unread, rather
+  than get a `DROP` in a startup migration); `db.active_events`;
+  `discovery.roster_keys_for_event`; `leaders.DIVISIONS` (the pair lives in
+  `categories.DEFAULT_LEAD_DIVISIONS`); `units.miles_to_meters` and
+  `units.format_mile`; `build.version_string` and
+  `categories.lead_division_keys`, which only tests called; the `geo`,
+  `styling`, `Form` and (after the deletion above) `sqlite3` imports in
+  `admin.py`, `web.py` and `discovery.py`; the unused `.swatch-dot` rule
+  in `setup.css`. `incidents.waiting_count` went with them: the client has
+  derived the queue count from the list since the count and the map
+  drifted, and a count sent once in the snapshot was stale by the next
+  socket message anyway. The snapshot no longer carries `pickups_waiting`,
+  `divisions` (each `leaders` entry carries its `division_label`, the only
+  form the panel reads), `incident_kinds` (the pin-kind buttons are static)
+  or `roster[].poi_name`; `app.js` drops the two state fields that only
+  ever received them. `roster.color` stays in the schema, marked unused:
+  dropping a column is a migration. Already handled by earlier merges and
+  not repeated here: `purge_expired_sessions` (now called from
+  `start_session`), `suggest_event_center` (now wired to import), the
+  duplicate `payload["role"]` assignment. (Audit D1.)
+
+### Added
+- **The first account needs the setup code from the console.** Until one
+  user existed, `POST /api/setup/first-user` made a system administrator
+  for anyone - on a VPS that is the whole internet from the moment TLS is
+  up until the officer signs up, and a deploy that recreated the database
+  (a restore gone wrong, a wrong `DB_PATH`) reopened it silently. The
+  server now mints an eight-character code on every start, prints it beside
+  the setup address when no users exist (to the journal too, unlike the
+  role links: it is worthless once the account exists and under systemd
+  the journal is the only console), and the first-user form asks for it.
+  A wrong code counts like a wrong password for throttling. The Windows
+  build stays a console build for this reason. (Audit C7.)
+- **Change my password, and change an administrator's events.** Both routes
+  existed on the server with nothing in the setup client calling them
+  (audit D2). The only password control was a manager's *Set a password* on
+  someone's row - so changing your own meant asking a manager, who then knew
+  it. A **Password** button in the setup bar opens a form that asks for the
+  current password first and, because the server signs every session out
+  on success, ends on the sign-in page with the username filled in. An
+  event administrator's events were only ever chosen on the create form, so
+  reassigning someone meant delete and recreate, and a new password for
+  them; the Events column of the Users table is now that administrator's
+  checkboxes, each saving on its own. The setup guide gained an
+  *Administrators* section.
+
+### Removed
+- **The live app's bib-colour route.** `POST .../course/{id}/bib-color` was
+  an NCS write with no control behind it - bib colours are set in setup,
+  before the race, and a resync carries them to the field - and it kept a
+  `CAP_COURSE` capability alive that nothing else used, including a
+  fallback list in `app.js` naming a power no button offered. The route,
+  the capability and the fallback entry are gone; the two read-only history
+  routes (`station-log`, `incidents/{id}/log`) stay, marked API-only: they
+  are the read side of append-only logs that a handover view can be built
+  on, and deleting them would leave those logs write-only. (Audit D2.)
+
+### Fixed
+- **Deleting a course or a place sends what it was built from back to
+  review.** The staged import features behind it were left `assigned` with
+  their target NULLed by the foreign key: off the review list, impossible to
+  discard, and the only way to redo a course stitched wrong was to upload
+  the file again - which nothing on screen said. `admin.delete_course` and
+  `admin.delete_poi` set them back to `pending` first. (Audit D3.)
+
+### Changed
+- **One timestamp helper, one `dict(row)`.** `parser`, `users` and `access`
+  each formatted "now" for SQLite with their own copy of the format string
+  (and one had once drifted to a second format); `clock.utc_now_iso()` is
+  the single place that shape is written down, and it is a leaf module so
+  the parser can use it. Three hand-rolled `{key: row[key] ...}` helpers
+  became `dict(row)`, which `sqlite3.Row` has always supported. Four schema
+  comments named value sets the code outgrew - `access_token.role` listed
+  two of five roles, `user.role` two of three, `roster.category` a fixed
+  seven that is now the club's open `roster_role` list; they name the
+  Python constant now. `Subscription.dropped` was already reset by the
+  socket-performance work (E7) and needed nothing. (Audit D3.)
+
 ### Added
 - **An event's map centre can be set from the browser, and an import sets
   it for you.** The Places map opens on the event's centre when there is no

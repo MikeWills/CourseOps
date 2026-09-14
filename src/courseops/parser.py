@@ -12,9 +12,10 @@ degrees true.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
 
 import aprslib
+
+from .clock import utc_now_iso
 
 
 class Rejected(Exception):
@@ -41,10 +42,6 @@ class PositionReport:
     comment: str | None
     aprs_format: str | None
     raw: str
-
-
-def _utc_now_iso() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _clean(value: object) -> str | None:
@@ -94,7 +91,7 @@ def parse_packet(raw: str, received_at: str | None = None) -> PositionReport:
 
     return PositionReport(
         station_key=station_key.upper(),
-        received_at=received_at or _utc_now_iso(),
+        received_at=received_at or utc_now_iso(),
         lat=lat,
         lon=lon,
         course_deg=_number(packet.get("course")),

@@ -36,8 +36,12 @@ them like door keys. Send each to the right group and no other.
 > command in each case, because the command line is still there and is quicker
 > if you are repeating a setup you have done before.
 >
-> On the very first run, `/setup` asks you to create a system administrator.
-> After that: create an organization for your club, then an event inside it.
+> On the very first run, `/setup` asks you to create a system administrator,
+> and for the **setup code** that `courseops serve` printed beside the setup
+> address (under systemd: `journalctl -u courseops`). The code is new on every
+> start and worthless once the account exists; it is what stops a stranger
+> who finds the page first from becoming the administrator. After that:
+> create an organization for your club, then an event inside it.
 
 ### 1. Get the course files from the organizer
 

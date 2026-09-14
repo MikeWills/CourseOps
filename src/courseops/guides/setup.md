@@ -33,6 +33,13 @@ you are on, in a new tab.
 
 ## 1. Organizations, then an event
 
+**The very first visit** asks you to create a system administrator account,
+and for the **setup code** that the server printed where it was started -
+beside the setup address in the console window, or in the server's log. That
+code is what makes the person creating the account the person who started
+the server, rather than whoever reached the page first. It is new on every
+start and asked for exactly once; after that, sign in.
+
 An **organization** is your club. It owns its events and its administrators and
 cannot see another club's - so a second club on the same server is properly
 walled off, not just tidily separated.
@@ -91,7 +98,10 @@ Names and colours save together: edit as many rows as you like and one
 the order on its own.
 
 **Check the distance.** If a course reads 3 mi when it should read 13, segments
-are missing or one belongs to a different route.
+are missing or one belongs to a different route. **Stitched it wrong? Delete
+the course** and its segments go back to the Import tab's review list, ready
+to be assigned again - no need to upload the file a second time. Deleting a
+place does the same with the point it came from.
 
 Which **leaders** you follow round each of these races - first male, first
 female, a wheelchair leader - is on its own tab, and is covered in

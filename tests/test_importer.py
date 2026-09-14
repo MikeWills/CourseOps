@@ -246,3 +246,60 @@ def test_existing_html_notes_are_cleaned_on_startup(event_db):
     assert notes == {"Start": None,
                      "Aid 2": "Behind the church use the side gate",
                      "Aid 3": "Plain text"}
+
+
+# --- deleting what an import built returns it to review ----------------------
+#
+# The review screen invites "delete the course I stitched wrong and do it
+# again", and the staged features it was built from went to `assigned` with
+# their target set NULL by the foreign key - invisible to review, impossible
+# to discard, and the only way back was to upload the file again, which
+# nothing on screen said.
+
+def test_deleting_a_course_returns_its_segments_to_review(event_db):
+    from courseops import admin
+    conn, event_id = event_db
+    importer.stage_file(conn, event_id, FIXTURE)
+    part1 = staged(conn, event_id, "Half Marathon - Part 1")
+    part2 = staged(conn, event_id, "Half Marathon - Part 2")
+    course_id, _, _ = importer.assign_course(
+        conn, event_id, [part1["id"], part2["id"]], name="Half")
+    before = {r["id"] for r in importer.pending_features(conn, event_id)}
+    assert part1["id"] not in before and part2["id"] not in before
+
+    assert admin.delete_course(conn, event_id, course_id) is None
+
+    after = {r["id"] for r in importer.pending_features(conn, event_id)}
+    assert {part1["id"], part2["id"]} <= after
+    # And they can be assigned again, which is the whole point.
+    importer.assign_course(conn, event_id, [part1["id"], part2["id"]], name="Half")
+
+
+def test_deleting_a_place_returns_its_point_to_review(event_db):
+    from courseops import admin
+    conn, event_id = event_db
+    importer.stage_file(conn, event_id, FIXTURE)
+    water = staged(conn, event_id, "Water Stop 1")
+    poi_id = importer.assign_poi(conn, event_id, water["id"], "aid_station")
+    assert water["id"] not in {r["id"] for r in importer.pending_features(conn, event_id)}
+
+    assert admin.delete_poi(conn, event_id, poi_id) is None
+
+    assert water["id"] in {r["id"] for r in importer.pending_features(conn, event_id)}
+
+
+def test_a_discarded_feature_stays_discarded_when_its_neighbour_is_deleted(event_db):
+    """Only the features the deleted thing was built from come back."""
+    from courseops import admin
+    conn, event_id = event_db
+    importer.stage_file(conn, event_id, FIXTURE)
+    water = staged(conn, event_id, "Water Stop 1")
+    other = staged(conn, event_id, "Aid Station 2")
+    poi_id = importer.assign_poi(conn, event_id, water["id"], "aid_station")
+    importer.discard(conn, event_id, [other["id"]])
+
+    admin.delete_poi(conn, event_id, poi_id)
+
+    pending = {r["id"] for r in importer.pending_features(conn, event_id)}
+    assert water["id"] in pending
+    assert other["id"] not in pending

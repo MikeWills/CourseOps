@@ -603,10 +603,6 @@ def lead_divisions(conn: sqlite3.Connection, event_id: int) -> list[sqlite3.Row]
     ).fetchall()
 
 
-def lead_division_keys(conn: sqlite3.Connection, event_id: int) -> tuple[str, ...]:
-    return tuple(row["key"] for row in lead_divisions(conn, event_id))
-
-
 def lead_division_labels(conn: sqlite3.Connection, event_id: int) -> dict[str, str]:
     return {row["key"]: row["name"] for row in lead_divisions(conn, event_id)}
 

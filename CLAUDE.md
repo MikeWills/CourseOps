@@ -107,6 +107,7 @@ src/courseops/
   gpx.py          GPX tracks/routes/waypoints into the same features as KML
   importer.py     two-phase import: stage for review, then commit assignments
   units.py        metric storage -> US customary display
+  clock.py        the ONE stored-timestamp shape; Python must match SQLite's
   progress.py     snap a station onto a course: "mile 14.2 of Full"
   incidents.py    pickups by bib, status workflow, change log
   report.py       the after-event page for the race lead: counts, notes, no names
@@ -795,8 +796,11 @@ usability, not style preferences.
   Anything rendering an incident asks its KIND first; the list's round purple
   dot and the map's marker are the same decision and must not drift apart.
 - **"Picked up" is not "dropped off".** In the vehicle still counts as
-  outstanding; delivered does not. `incidents.waiting_count` is the number NCS
-  glances at, and it treats picked-up as still waiting on us.
+  outstanding; delivered does not. `incidentDone()` in `app.js` is the ONE
+  definition of "nobody is waiting on this" - the queue count and the map
+  marker both read it - and it treats picked-up as still waiting on us. The
+  count is derived in the browser from the list, never sent by the server: a
+  count sent once is stale by the next socket message.
 - **Proximity sort never overrides status.** Sorting purely by distance buries a
   pickup that has waited twenty minutes. Status leads; distance breaks ties
   within it. The distance is straight-line and labelled "away" - there is no
@@ -878,6 +882,13 @@ usability, not style preferences.
   error.
 - **A frozen build must not write beside itself.** It is run from a Downloads
   folder or a USB stick; the database goes to `%LOCALAPPDATA%`.
+- **The first account needs the setup code printed at the console, and
+  the Windows build stays `console=True` because of it.** `app.state
+  .setup_code` is new on every start and `cmd_serve` prints it beside the
+  setup address only while no user exists - to the journal too, unlike the
+  role links, because it is worthless once the account exists and under
+  systemd the journal is the only console. A windowed .exe would print it
+  to nowhere and no first account could ever be created.
 - **A callsign is required where it is USED, never at startup.** Everything
   except the live APRS-IS connection works without one, and refusing to boot
   over it turns the Windows download into a console window that flashes and

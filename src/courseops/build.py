@@ -17,7 +17,6 @@ import os
 import subprocess
 from functools import lru_cache
 
-from . import __version__
 
 # How long to wait for git before giving up. This runs once at import, and a
 # hung git - a network-backed working copy, a stale lock - must not hold up a
@@ -49,9 +48,3 @@ def build_id() -> str:
     if result.returncode != 0:
         return ""                      # not a checkout
     return result.stdout.strip()[:40]
-
-
-def version_string() -> str:
-    """What to show a human: the version, plus the build when we have one."""
-    build = build_id()
-    return f"{__version__} ({build})" if build else __version__

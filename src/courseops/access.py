@@ -16,7 +16,9 @@ from __future__ import annotations
 import secrets
 import sqlite3
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
+
+from .clock import utc_now_iso
 
 # 32 url-safe characters, ~192 bits. Long enough that guessing is hopeless,
 # short enough to survive being pasted into a text message.
@@ -71,11 +73,12 @@ CAP_INCIDENTS = "incidents"   # move a pickup along its workflow, delete one
 CAP_STATIONS = "stations"     # a roster entry's operational status
 CAP_SSID = "ssid"             # adopt or dismiss an unexpected SSID
 CAP_LEADERS = "leaders"       # lead runner sightings
-CAP_COURSE = "course"         # bib colours and course styling
+# There is no capability for bib colours or course styling: those are set in
+# setup, by an administrator, before the race, and a resync carries them to
+# the field. A live-app write for them existed with no control behind it.
 
 ALL_CAPABILITIES = frozenset(
-    {CAP_INCIDENT_REPORT, CAP_INCIDENTS, CAP_STATIONS, CAP_SSID, CAP_LEADERS,
-     CAP_COURSE}
+    {CAP_INCIDENT_REPORT, CAP_INCIDENTS, CAP_STATIONS, CAP_SSID, CAP_LEADERS}
 )
 
 ROLE_CAPABILITIES = {
@@ -99,12 +102,6 @@ ROLE_CAPABILITIES = {
     # that has to be tracked. It also never receives the nearby list.
     ROLE_STAFF: frozenset(),
 }
-
-# Kept for the roster filter and anything asking the old yes/no question.
-WRITE_ROLES = tuple(
-    role for role, caps in ROLE_CAPABILITIES.items() if caps
-)
-
 
 @dataclass(frozen=True)
 class Access:
@@ -136,52 +133,6 @@ class Access:
     @property
     def role_label(self) -> str:
         return ROLE_LABELS.get(self.role, self.role)
-
-
-# --- server-wide setup access ----------------------------------------------
-#
-# Creating the first event needs a credential that is not tied to an event, so
-# this cannot reuse the per-event tokens above.
-
-
-def ensure_admin_token(conn: sqlite3.Connection) -> str:
-    """The setup link, created once and reused across restarts.
-
-    Stable on purpose: a token that changed every start would either have to be
-    re-copied constantly or emailed around, and neither is better.
-    """
-    row = conn.execute(
-        "SELECT token FROM admin_token WHERE revoked = 0 ORDER BY id LIMIT 1"
-    ).fetchone()
-    if row is not None:
-        return row["token"]
-    token = generate_token()
-    conn.execute("INSERT INTO admin_token (token, label) VALUES (?, ?)",
-                 (token, "setup"))
-    return token
-
-
-def resolve_admin(conn: sqlite3.Connection, token: str) -> bool:
-    """True if this is a live setup token."""
-    if not token:
-        return False
-    row = conn.execute(
-        "SELECT id FROM admin_token WHERE token = ? AND revoked = 0", (token,)
-    ).fetchone()
-    if row is None:
-        return False
-    conn.execute(
-        "UPDATE admin_token SET last_used = strftime('%Y-%m-%dT%H:%M:%SZ','now')"
-        " WHERE id = ?",
-        (row["id"],),
-    )
-    return True
-
-
-def rotate_admin_token(conn: sqlite3.Connection) -> str:
-    """Revoke every setup token and issue a new one."""
-    conn.execute("UPDATE admin_token SET revoked = 1 WHERE revoked = 0")
-    return ensure_admin_token(conn)
 
 
 def generate_token() -> str:
@@ -261,10 +212,8 @@ LAST_USED_RESOLUTION = timedelta(minutes=1)
 
 
 def _stamp_cutoff() -> str:
-    """The same shape SQLite writes (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
-    so the two compare as strings."""
-    cutoff = datetime.now(timezone.utc) - LAST_USED_RESOLUTION
-    return cutoff.strftime("%Y-%m-%dT%H:%M:%SZ")
+    """The same shape SQLite writes, so the two compare as strings."""
+    return utc_now_iso(-LAST_USED_RESOLUTION)
 
 
 def resolve(

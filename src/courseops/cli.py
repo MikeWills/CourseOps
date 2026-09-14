@@ -591,7 +591,7 @@ def cmd_links(args: argparse.Namespace) -> int:
     event = _event_or_exit(conn, args.event)
 
     if args.new:
-        token = access.create_token(conn, event["id"], args.new)
+        access.create_token(conn, event["id"], args.new)
         print(f"New {access.ROLE_LABELS[args.new]} link created.\n")
 
     tokens = access.ensure_tokens(conn, event["id"])
@@ -717,11 +717,20 @@ def cmd_serve(args: argparse.Namespace) -> int:
     needs_first_user = not users.any_users(conn)
     conn.close()
 
+    app = create_app(settings, ingest_events=ingest_events)
+
     print()
     print("  Course Ops")
     print(f"  Setup: {base}/setup")
     if needs_first_user:
+        # The setup code IS printed to a log, unlike the role links: it is
+        # worthless once the first account exists, and under systemd the
+        # journal is the only console there is - without it a VPS could
+        # never complete its first run. The frozen Windows build opens a
+        # console window for exactly this line.
         print("         (first run - it will ask you to create an administrator)")
+        print(f"         Setup code: {app.state.setup_code}")
+        print("         The form asks for it. Nobody else can create that account.")
     print()
     for line in lines:
         print(line if not line else f"  {line}" if not line.startswith("  ") else line)
@@ -731,8 +740,6 @@ def cmd_serve(args: argparse.Namespace) -> int:
         print("  Only this machine can reach it. For a phone on the same wifi,")
         print("  add --host 0.0.0.0 (the location dot still needs HTTPS).")
     print()
-
-    app = create_app(settings, ingest_events=ingest_events)
 
     # Behind a reverse proxy the app is spoken to in plain HTTP on localhost.
     # Without this, X-Forwarded-Proto is ignored, request.url.scheme stays

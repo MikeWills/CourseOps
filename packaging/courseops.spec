@@ -68,6 +68,10 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=False,          # UPX compression is a reliable way to be flagged by AV
+    # A console, not a windowed build: the first run prints the setup code
+    # the first-user form asks for, and that console window is the only
+    # place it appears. Windowed, the code would be printed to nowhere and
+    # the first account could never be created.
     console=True,
     # Must be .ico on Windows. A .png only worked locally because Pillow
     # happened to be installed and silently converted it - CI has no Pillow and
