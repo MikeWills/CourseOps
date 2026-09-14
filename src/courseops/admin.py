@@ -565,9 +565,15 @@ def save_roster_entry(conn: sqlite3.Connection, event_id: int, payload: dict) ->
     # already, so a bare entry is tracked from the first packet that looks like
     # a person - see db.bind_heard_ssid.
 
+    # Editing the callsign here is a RENAME: the human is correcting what
+    # they typed. Binding - "the station heard as X is really this person" -
+    # is NCS's tool on the live map and goes through change_station_key,
+    # which leaves the typed key alone. Sending the edit through the bind
+    # logic left two rows for one person: the original, bound to the new key,
+    # and a fresh one upserted under it below.
     original = (payload.get("original_station_key") or "").strip().upper()
     if original and original != station_key:
-        db.change_station_key(conn, event_id, original, station_key)
+        db.rename_station_key(conn, event_id, original, station_key)
 
     db.upsert_roster_entry(
         conn, event_id, station_key, label,

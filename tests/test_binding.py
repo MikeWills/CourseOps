@@ -218,3 +218,86 @@ def test_repointing_an_explicit_entry_still_renames(tmp_path):
     row = db.change_station_key(conn, event_id, "K0JZP-1", "K0JZP-5")
 
     assert row["station_key"] == "K0JZP-5"
+
+
+# --- editing the callsign on the setup screen is a RENAME -------------------
+#
+# Binding is NCS's tool on the live map: it says which HEARD station is this
+# person, and leaves what was typed alone so it stays undoable. The setup form
+# is the other direction - the human is correcting what they typed - and
+# routing it through the bind logic left two roster rows for one person: the
+# original, bound to the new key, and a fresh one inserted under it.
+
+def _rows(conn, event_id):
+    return [(r["station_key"], r["bound_key"], r["display_label"], r["poi_id"])
+            for r in db.roster_for_event(conn, event_id)]
+
+
+def _edit(conn, event_id, original, new, **extra):
+    from courseops import admin
+    return admin.save_roster_entry(conn, event_id, {
+        "station_key": new, "original_station_key": original,
+        "display_label": "Aid 3", "category": "aid_station", **extra,
+    })
+
+
+@pytest.mark.parametrize("original,new", [
+    ("K0JZP-1", "K0JZP-7"),   # SSID typo
+    ("K0JZP", "K0JZP-9"),     # bare entry given its SSID
+    ("K0JZP-1", "N0CALL-1"),  # the wrong person's callsign entirely
+])
+def test_editing_a_callsign_in_setup_leaves_one_row(tmp_path, original, new):
+    conn, event_id = _event(tmp_path, station_key=original)
+    conn.execute("INSERT INTO poi (event_id, name, poi_type, lat, lon)"
+                 " VALUES (?, 'Aid 3', 'aid_station', 44.1, -93.9)", (event_id,))
+    poi_id = conn.execute("SELECT id FROM poi").fetchone()["id"]
+    db.assign_station_to_poi(conn, event_id, original, poi_id)
+
+    row = _edit(conn, event_id, original, new)
+
+    assert row["station_key"] == new
+    assert _rows(conn, event_id) == [(new, None, "Aid 3", poi_id)]
+
+
+def test_a_rename_keeps_a_binding_ncs_made(tmp_path):
+    """The binding says which radio was HEARD; the rename says what was
+    TYPED. Fixing a typo mid-event must not drop the person off the map."""
+    conn, event_id = _event(tmp_path, station_key="K0JZP-1")
+    db.change_station_key(conn, event_id, "K0JZP-1", "W1AW-5")   # borrowed rig
+    assert _roster_row(conn, event_id, "K0JZP-1")["bound_key"] == "W1AW-5"
+
+    _edit(conn, event_id, "K0JZP-1", "K0JZP-7")
+
+    assert _rows(conn, event_id)[0][:2] == ("K0JZP-7", "W1AW-5")
+
+
+def test_renaming_onto_the_bound_key_clears_the_binding(tmp_path):
+    """A bare entry learned -9 from the air and the human then types -9: one
+    key, not a row bound to itself."""
+    conn, event_id = _event(tmp_path)
+    _feed(conn, event_id, _packet("K0JZP-9"))
+
+    _edit(conn, event_id, "K0JZP", "K0JZP-9")
+
+    assert _rows(conn, event_id)[0][:2] == ("K0JZP-9", None)
+
+
+def test_renaming_onto_another_entry_is_refused(tmp_path):
+    """Two rows tracking one SSID is the bug this exists to prevent, so the
+    new key may be neither another row's callsign nor its binding."""
+    conn, event_id = _event(tmp_path, station_key="K0JZP-1")
+    db.upsert_roster_entry(conn, event_id, "W1AW", "Sweep", "sweep")
+    _feed(conn, event_id, _packet("W1AW-9"))
+
+    with pytest.raises(ValueError, match="W1AW"):
+        _edit(conn, event_id, "K0JZP-1", "W1AW")
+    with pytest.raises(ValueError, match="W1AW"):
+        _edit(conn, event_id, "K0JZP-1", "W1AW-9")
+    assert [r[0] for r in _rows(conn, event_id)] == ["K0JZP-1", "W1AW"]
+
+
+def test_editing_an_entry_that_does_not_exist_is_refused(tmp_path):
+    conn, event_id = _event(tmp_path)
+    with pytest.raises(ValueError, match="not on this event's roster"):
+        _edit(conn, event_id, "N0CALL-1", "N0CALL-2")
+    assert len(_rows(conn, event_id)) == 1

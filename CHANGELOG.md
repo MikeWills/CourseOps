@@ -12,6 +12,18 @@ month, PATCH counting releases in that month from 0. Before that they were
 ## [Unreleased]
 
 ### Fixed
+- **Correcting a callsign on the Roster tab created a second roster row.**
+  The setup form sent the edit through the same code NCS's "this is really
+  Aid 3" uses, which deliberately BINDS rather than renames - so for a bare
+  callsign gaining its SSID, or a wrong callsign replaced with the right one,
+  the original row stayed and was bound to the new key, and the save then
+  upserted a fresh row under the new key. Two "Aid 1" rows, both attributing
+  the same packets, status set on one not showing on the other, an extra
+  entry in the filter, and no error - discovered the morning someone fixed a
+  typo. A setup edit is now a rename (`db.rename_station_key`): the row
+  moves, keeping its label, place and any match NCS made, and is refused if
+  the new callsign is another entry's or the radio another entry is matched
+  to. Binding stays NCS's tool on the live map. (Audit 2026-09-14, B3.)
 - **A link could be revoked or relabelled through another event's setup
   page.** The links route authorised the event in the URL and then acted
   on whatever `token_id` was in the body, and token ids are small sequential

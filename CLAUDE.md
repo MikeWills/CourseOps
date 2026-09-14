@@ -632,6 +632,16 @@ usability, not style preferences.
   person with the radio is often not the person whose callsign is on the
   roster. `change_station_key` binds across callsigns via `bound_key` and
   never renames; `unbind_station` is the undo, and NCS has an Unmatch button.
+- **A setup-screen edit of a callsign is a RENAME; a match on the live map
+  is a BIND.** They answer opposite questions. Binding says which HEARD
+  station is this person and leaves the typed key alone so it stays
+  undoable; the Roster tab's edit says what the typed key should have been,
+  so `db.rename_station_key` moves the row - label, place, status log and
+  any binding NCS made go with it. Routing the setup edit through the bind
+  logic left TWO rows for one person (the original bound to the new key,
+  plus a fresh upsert under it), both attributing the same packets, on the
+  morning someone corrected a typo. Never send a setup edit through
+  `change_station_key`, and never let the NCS match route rename.
 - **Membership is re-read while the feed runs.** `ingest.Membership` refreshes
   who the roster knows when an unknown packet arrives (at most every 5 s),
   because NCS matches stations mid-event and from then on their packets must

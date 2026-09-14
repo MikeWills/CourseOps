@@ -689,19 +689,58 @@ def change_station_key(
             "SELECT * FROM roster WHERE event_id = ? AND station_key = ?",
             (event_id, old_key),
         ).fetchone()
-    existing = conn.execute(
-        "SELECT 1 FROM roster WHERE event_id = ? AND station_key = ?",
-        (event_id, new_key),
-    ).fetchone()
-    if existing is not None:
-        raise ValueError(f"{new_key} is already on the roster.")
+    # Same callsign, both with an SSID: -1 on the roster, -5 on the air. There
+    # is nothing to bind across here, so this one really is a rename.
+    return rename_station_key(conn, event_id, old_key, new_key)
 
-    cur = conn.execute(
-        "UPDATE roster SET station_key = ? WHERE event_id = ? AND station_key = ?",
-        (new_key, event_id, old_key),
-    )
-    if cur.rowcount == 0:
+
+def rename_station_key(
+    conn: sqlite3.Connection, event_id: int, old_key: str, new_key: str
+) -> sqlite3.Row:
+    """Correct what a human typed. The setup screen's edit, never NCS's match.
+
+    Binding (`change_station_key`) answers "which HEARD station is this
+    person?" and leaves the typed key alone so it stays undoable. This
+    answers the opposite question - "what should the typed key have been?" -
+    and so it moves the row. Routing the setup edit through the bind logic
+    left two roster rows for one person: the original, bound to the new key,
+    and a fresh one upserted under it, both attributing the same packets.
+
+    A binding NCS made survives the rename: it records which radio was
+    heard, which a typo in the callsign does not change, and dropping it
+    would take the person off the map mid-event. The one exception is a
+    rename onto the bound key itself - a bare entry that learned -9 from the
+    air and is now typed as -9 - which would leave a row bound to itself.
+    """
+    old_key, new_key = old_key.strip().upper(), new_key.strip().upper()
+    row = conn.execute(
+        "SELECT * FROM roster WHERE event_id = ? AND station_key = ?",
+        (event_id, old_key),
+    ).fetchone()
+    if row is None:
         raise ValueError(f"{old_key} is not on this event's roster.")
+    if new_key == old_key:
+        return row
+
+    # Two rows tracking one SSID is exactly the bug this exists to prevent,
+    # so the new key may be neither another row's callsign nor its binding.
+    taken = conn.execute(
+        "SELECT station_key FROM roster"
+        " WHERE event_id = ? AND station_key != ?"
+        " AND (station_key = ? OR bound_key = ?)",
+        (event_id, old_key, new_key, new_key),
+    ).fetchone()
+    if taken is not None:
+        if taken["station_key"] == new_key:
+            raise ValueError(f"{new_key} is already on the roster.")
+        raise ValueError(f"{new_key} already belongs to {taken['station_key']}.")
+
+    bound = None if row["bound_key"] == new_key else row["bound_key"]
+    conn.execute(
+        "UPDATE roster SET station_key = ?, bound_key = ?"
+        " WHERE event_id = ? AND station_key = ?",
+        (new_key, bound, event_id, old_key),
+    )
     return conn.execute(
         "SELECT * FROM roster WHERE event_id = ? AND station_key = ?",
         (event_id, new_key),
