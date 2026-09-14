@@ -1290,7 +1290,10 @@ function renderStations() {
 async function resolveSsid(path, body) {
   try {
     await post(`ssid/${path}`, body);
-    await loadState();          // the roster changed; resync rather than patch
+    // The roster changed, which is more than a patch can express - and the
+    // server publishes a `resync` for exactly that, to this browser as well
+    // as every other. Fetching the snapshot here too made every tap on the
+    // busiest panel NCS uses cost two full snapshots.
   } catch (err) {
     setLocateStatus(`Could not update: ${err.message}`);
   }
@@ -2876,7 +2879,13 @@ function setSheet(open) {
 }
 
 sheetToggle.addEventListener('click', () => setSheet(!sheet.classList.contains('open')));
-document.getElementById('sheet-grip').addEventListener('click', () => setSheet(false));
+// The grip is announced as a button (role, tabindex), so it has to answer
+// the keyboard the way the fold headings do, not only a tap.
+const sheetGrip = document.getElementById('sheet-grip');
+sheetGrip.addEventListener('click', () => setSheet(false));
+sheetGrip.addEventListener('keydown', (ev) => {
+  if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); setSheet(false); }
+});
 
 /* ---------- coming back ------------------------------------------------- */
 

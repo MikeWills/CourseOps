@@ -24,6 +24,14 @@ month, PATCH counting releases in that month from 0. Before that they were
   copies of an escaper are two places to get it wrong.
 
 ### Fixed
+- **Small field-app fixes.** The operator name was cut to 12 characters on
+  a station status change and 24 on a pickup or sighting, so one shift's
+  log entries did not match each other on a handover read; it is one cap
+  (24) everywhere now. The sheet's drag grip was announced as a button but
+  ignored Enter and Space; it answers them like the fold headings. And
+  every SSID match or ignore fetched the snapshot twice - once from the
+  client, once from the resync the server publishes for the same action -
+  on the busiest panel NCS uses; the client-side fetch is gone. (Audit F8.)
 - **The "This is..." list on an SSID alert snapped shut under NCS's
   thumb.** Every packet from an unknown station rebuilt the whole SSID
   panel, select included - and with an area filter around a course in a

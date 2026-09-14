@@ -365,13 +365,20 @@ def test_category_specific_wording(setup):
 
 
 def test_initials_are_truncated_not_trusted(setup):
-    """A log annotation for shift handover, never identity."""
+    """A log annotation for shift handover, never identity.
+
+    One cap for every log the operator field feeds: the same shift's
+    entries in roster_status_log and incident_log have to match each other
+    on a handover read, and they did not while this was 12 and the incident
+    log 24.
+    """
+    from courseops import incidents
     app, tokens, _, _ = setup
     with TestClient(app) as client:
         body = client.post(status_url(tokens["ncs"]),
                            json={"op_status": "active",
                                  "changed_by": "x" * 50}).json()
-    assert len(body["op_status_by"]) == 12
+    assert len(body["op_status_by"]) == incidents.MAX_WHO_LENGTH == 24
 
 
 # --- icons and home screen install ------------------------------------------

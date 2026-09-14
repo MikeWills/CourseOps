@@ -1713,8 +1713,13 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
 
         op_status = str(body.get("op_status", "")).strip().lower()
         # Free-text initials typed once per shift. A log annotation for handover,
-        # never authentication - do not start trusting it as identity.
-        changed_by = (body.get("changed_by") or "").strip()[:12] or None
+        # never authentication - do not start trusting it as identity. Same
+        # cap as the incident and sighting logs, so one shift's entries match
+        # each other on a handover read: this was 12 while the others were 24
+        # and "Christopher Wainwright" signed a pickup whole and a status
+        # change as "Christopher ".
+        changed_by = ((body.get("changed_by") or "").strip()
+                      [:incidents.MAX_WHO_LENGTH] or None)
 
         try:
             row = db.set_op_status(
