@@ -47,6 +47,46 @@ def test_a_club_can_add_layers_of_its_own(event):
             "spectator_zones", "timing_mats"} <= keys
 
 
+def test_a_layer_colour_and_icon_are_checked_on_the_server(event):
+    """The client re-validates both, and that was the only guard. The server
+    is the boundary between an admin and the field phones: a future client
+    trusting the stored colour would carry a CSS injection, and an unknown
+    icon name draws as the default pin with nothing to say why."""
+    conn, event_id = event
+    row = categories.add_poi_category(conn, event_id, "Water", icon="drop",
+                                      color="#0072B2")
+    assert (row["icon"], row["color"]) == ("drop", "#0072b2")
+
+    with pytest.raises(categories.CategoryError, match="colour"):
+        categories.add_poi_category(conn, event_id, "Bad",
+                                    color="red; background:url(x)")
+    with pytest.raises(categories.CategoryError, match="icon"):
+        categories.add_poi_category(conn, event_id, "Bad", icon="<script>")
+    with pytest.raises(categories.CategoryError, match="colour"):
+        categories.update_poi_category(conn, event_id, "water",
+                                       {"color": "blue"})
+    with pytest.raises(categories.CategoryError, match="icon"):
+        categories.update_poi_category(conn, event_id, "water",
+                                       {"icon": "nope"})
+    # Blank clears the colour; blank icon falls back to the pin.
+    row = categories.update_poi_category(conn, event_id, "water",
+                                         {"color": "", "icon": ""})
+    assert (row["icon"], row["color"]) == ("pin", None)
+
+
+def test_the_icon_list_is_the_one_the_client_draws_from():
+    """One source: the palette in static/icons.js. A name accepted here that
+    the client cannot draw would be a pin, and vice versa a refusal for a
+    glyph that exists."""
+    from courseops import resources
+    script = (resources.package_file("static") / "icons.js").read_text("utf-8")
+    block = script.split("const POI_GLYPHS = {", 1)[1].split("\n};", 1)[0]
+    declared = {line.split(":", 1)[0].strip() for line in block.splitlines()
+                if line.strip() and ":" in line and not line.strip().startswith("/")}
+    assert set(categories.icon_names()) == declared
+    assert "pin" in declared and len(declared) > 10
+
+
 def test_there_is_no_limit_on_how_many(event):
     """The point of the whole change: nothing caps this."""
     conn, event_id = event

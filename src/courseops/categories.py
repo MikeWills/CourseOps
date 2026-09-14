@@ -32,8 +32,11 @@ up - because a club tracking "Masters winner" has no first anything.
 
 from __future__ import annotations
 
+import functools
 import re
 import sqlite3
+
+from . import db, resources, styling
 
 # Seeded into every new event. Not a limit — a starting point a club edits.
 # `staffed` is off for medical by default: a medic tent is run by the race's own
@@ -80,6 +83,44 @@ DEFAULT_LEAD_DIVISIONS: list[tuple[str, str]] = [
 ]
 
 _KEY_OK = re.compile(r"^[a-z0-9][a-z0-9_]{0,39}$")
+
+_GLYPH_LINE = re.compile(r"^\s+([a-z_]+):\s+\[", re.M)
+
+
+@functools.lru_cache(maxsize=1)
+def icon_names() -> tuple[str, ...]:
+    """The icon palette, read from the one place it is defined: `icons.js`.
+
+    Mirroring the list in Python would drift the first time someone added a
+    glyph; parsing the shipped file cannot. It is read once per process.
+    """
+    script = (resources.package_file("static") / "icons.js").read_text("utf-8")
+    block = script.split("const POI_GLYPHS = {", 1)[1].split("\n};", 1)[0]
+    return tuple(_GLYPH_LINE.findall(block))
+
+
+def _icon(value: object) -> str:
+    """A glyph name the client can draw, defaulting to the pin.
+
+    Checked here and not only in the client: the server is the boundary
+    between an admin and the field phones, and an unknown name draws as the
+    default pin with nothing to say why.
+    """
+    name = db.clean_text(value) or "pin"
+    if name not in icon_names():
+        raise CategoryError(f"{name!r} is not an icon in the palette.")
+    return name
+
+
+def _color(value: object) -> str | None:
+    """A hex colour or nothing. The client interpolates this into a style
+    attribute; it is safe only because it never holds anything else."""
+    text = db.clean_text(value)
+    if text is None:
+        return None
+    if not styling.is_valid_color(text):
+        raise CategoryError(f"{text!r} is not a hex colour like #0072b2.")
+    return styling.normalize_color(text)
 
 
 class CategoryError(ValueError):
@@ -201,7 +242,7 @@ def add_poi_category(
              visible, show_labels)
         VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)
         """,
-        (event_id, key, name, int(staffed), icon or "pin", color, top + 10,
+        (event_id, key, name, int(staffed), _icon(icon), _color(color), top + 10,
          _labels_default(staffed)),
     )
     return get_poi_category(conn, event_id, key)
@@ -242,10 +283,10 @@ def update_poi_category(
             values.append(int(bool(payload[flag])))
     if "icon" in payload:
         fields.append("icon = ?")
-        values.append((payload.get("icon") or "pin").strip() or "pin")
+        values.append(_icon(payload.get("icon")))
     if "color" in payload:
         fields.append("color = ?")
-        values.append((payload.get("color") or "").strip() or None)
+        values.append(_color(payload.get("color")))
     if "sort_order" in payload and payload["sort_order"] is not None:
         fields.append("sort_order = ?")
         values.append(int(payload["sort_order"]))

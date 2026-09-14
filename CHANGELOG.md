@@ -12,6 +12,16 @@ month, PATCH counting releases in that month from 0. Before that they were
 ## [Unreleased]
 
 ### Fixed
+- **A layer's colour and icon were accepted unchecked by the server.**
+  Course colours went through `styling.is_valid_color`; layer colours and
+  icon names were stored as sent, and the map was safe only because the
+  client re-validated both before interpolating them into a style
+  attribute and a glyph lookup. The server is the boundary between an admin
+  and the field phones, and a future client trusting the stored colour
+  would have carried a CSS injection. A layer colour is now a hex colour or
+  nothing, and an icon is a name from the palette in `icons.js` - read from
+  that file, so the list cannot drift from what the client can draw.
+  (Audit 2026-09-14, B9.)
 - **A lead runner sighting could be recorded for a leader the event does
   not track.** `record_sighting` checked only that the division was
   non-empty, so a client holding a stale leader list - one deleted in setup
