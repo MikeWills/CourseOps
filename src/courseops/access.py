@@ -221,21 +221,37 @@ def ensure_tokens(conn: sqlite3.Connection, event_id: int) -> dict[str, str]:
     return existing
 
 
-def set_label(conn: sqlite3.Connection, token_id: int, label: str | None) -> bool:
+def set_label(
+    conn: sqlite3.Connection, event_id: int, token_id: int, label: str | None
+) -> bool:
     """Name a link, so the right one can be revoked later.
 
     A role may hold several links - one per operator - and they are otherwise
     told apart only by a random string. The label is a note for whoever hands
     them out; nothing authenticates on it.
+
+    Scoped to the event, like `revoke`: the id comes from the request body
+    and the route only authorised the event in the URL.
     """
     cur = conn.execute(
-        "UPDATE access_token SET label = ? WHERE id = ?", (label, token_id))
+        "UPDATE access_token SET label = ? WHERE id = ? AND event_id = ?",
+        (label, token_id, event_id))
     return cur.rowcount > 0
 
 
-def revoke(conn: sqlite3.Connection, token_id: int) -> bool:
+def revoke(conn: sqlite3.Connection, event_id: int, token_id: int) -> bool:
+    """Revoke one link. False if no link with that id is in this event.
+
+    Token ids are small sequential integers, and the route that calls this
+    authorises on the event in the URL while the id arrives in the body. An
+    id-only UPDATE let an admin of one club revoke another club's NCS link on
+    race morning - which on the other club's phones is a 404 with no error
+    anywhere on their side. `AND event_id` is what keeps `may_access_event`
+    the one place access is decided.
+    """
     cur = conn.execute(
-        "UPDATE access_token SET revoked = 1 WHERE id = ?", (token_id,)
+        "UPDATE access_token SET revoked = 1 WHERE id = ? AND event_id = ?",
+        (token_id, event_id),
     )
     return cur.rowcount > 0
 

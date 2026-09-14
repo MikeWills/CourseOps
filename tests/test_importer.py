@@ -127,10 +127,51 @@ def test_discard_removes_from_review(event_db):
     importer.stage_file(conn, event_id, FIXTURE)
     junk = staged(conn, event_id, "Porta-John")
 
-    importer.discard(conn, [junk["id"]])
+    importer.discard(conn, event_id, [junk["id"]])
 
     pending_ids = {r["id"] for r in importer.pending_features(conn, event_id)}
     assert junk["id"] not in pending_ids
+
+
+def test_a_feature_staged_in_another_event_is_out_of_reach(event_db):
+    """Feature ids are one global sequence, so another club's staged course is
+    a small integer away. Every assignment has to check the feature belongs
+    to the event being edited, or an org admin can lift the other club's
+    organizer file into their own event and mark the original discarded - the
+    exact data the repo's history was purged for."""
+    conn, event_a = event_db
+    event_b = db.create_event(conn, "other", "Other Club's Race")
+    importer.stage_file(conn, event_b, FIXTURE)
+    line = staged(conn, event_b, "Half Marathon - Part 1")
+    point = staged(conn, event_b, "Water Stop 1")
+
+    with pytest.raises(ValueError):
+        importer.assign_course(conn, event_a, [line["id"]], name="Stolen")
+    with pytest.raises(ValueError):
+        importer.assign_poi(conn, event_a, point["id"], "aid_station")
+    with pytest.raises(ValueError):
+        importer.discard(conn, event_a, [point["id"]])
+
+    # Nothing copied, nothing flipped: B's review queue is exactly as it was.
+    assert conn.execute("SELECT COUNT(*) FROM course").fetchone()[0] == 0
+    assert conn.execute("SELECT COUNT(*) FROM poi").fetchone()[0] == 0
+    statuses = {r["status"] for r in
+                importer.pending_features(conn, event_b, include_all=True)}
+    assert statuses == {"pending"}
+
+
+def test_a_staged_point_cannot_land_in_a_layer_that_does_not_exist(event_db):
+    """A pin whose layer no row describes is drawn nowhere: present in the
+    table, invisible on the map, no error. The hand-added and edited paths
+    already refuse this; the review screen has to as well."""
+    conn, event_id = event_db
+    importer.stage_file(conn, event_id, FIXTURE)
+    water = staged(conn, event_id, "Water Stop 1")
+
+    with pytest.raises(ValueError, match="No layer"):
+        importer.assign_poi(conn, event_id, water["id"], "no_such_layer")
+    assert conn.execute("SELECT COUNT(*) FROM poi").fetchone()[0] == 0
+    assert staged(conn, event_id, "Water Stop 1")["status"] == "pending"
 
 
 def test_suggest_event_center_ignores_discarded(event_db):

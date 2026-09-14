@@ -232,14 +232,20 @@ CREATE INDEX IF NOT EXISTS idx_position_station
 CREATE INDEX IF NOT EXISTS idx_position_time
     ON position (event_id, received_at DESC);
 
--- Every line the feed delivers, parsed or not. Cheap at this traffic volume,
--- and the source of both post-event replay and new parser test fixtures.
+-- RETIRED (2026-09-14). Nothing writes this table and nothing ever read it.
+-- It was meant for post-event replay (Phase 7, dropped) and for harvesting
+-- parser fixtures (captured traffic is gitignored and pasted by hand). Worse,
+-- it logged every unparseable or position-less line BEFORE the roster check,
+-- so with the area filter on it held the status and message traffic of every
+-- ham near the course - against the rule that the public is seen and never
+-- stored. A stored position keeps its own line in `position.raw`. The
+-- definition stays so an existing database is untouched: a migration never
+-- drops a table. Nothing may write to it again.
 CREATE TABLE IF NOT EXISTS raw_packet (
     id          INTEGER PRIMARY KEY,
     event_id    INTEGER REFERENCES event(id) ON DELETE CASCADE,
     received_at TEXT    NOT NULL,
     raw         TEXT    NOT NULL,
-    -- stored | no_position | not_rostered | parse_error
     status      TEXT    NOT NULL,
     error       TEXT
 );

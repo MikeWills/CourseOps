@@ -14,7 +14,8 @@ import importlib.metadata as _metadata
 import logging
 import re
 import sqlite3
-import pathlib
+import tempfile
+import zipfile
 from pathlib import Path
 from typing import Any
 
@@ -58,6 +59,63 @@ except Exception:            # pragma: no cover - the package always ships this
         __version__ = "0.0.0+source"
 
 SESSION_COOKIE = "courseops_session"
+# The same cookie over HTTPS. The `__Host-` prefix is enforced by the browser:
+# it will only store the cookie if it is Secure, has no Domain and its path is
+# `/`, and no other host - not a sibling app under the same registrable
+# domain - can set a cookie of that name for us. Over plain HTTP (local
+# development, the Windows build on a LAN) the prefix would make the browser
+# drop the cookie, so the plain name stays for that case.
+SECURE_SESSION_COOKIE = "__Host-" + SESSION_COOKIE
+
+# The most any JSON request may carry. The biggest real body is a reorder of
+# a few hundred ids, well under a kilobyte; the cap is generous so a large
+# roster cannot hit it and small enough that a flood of them costs nothing.
+# The course file upload is the one exception and has its own cap in kml.py.
+MAX_JSON_BYTES = 64 * 1024
+
+# Where the one large upload arrives. Everything else is held to
+# MAX_JSON_BYTES before a byte of it is read.
+_IMPORT_PATH = re.compile(r"^/api/setup/events/\d+/import$")
+
+# Methods that change something. Everything else on the setup API is a read,
+# and stays one (see refuse_cross_site_setup_writes).
+_WRITE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+
+
+def _header_host(value: str) -> str | None:
+    """The host[:port] named by an Origin or Referer header, or None if the
+    header names nothing a page of ours could have sent."""
+    value = (value or "").strip()
+    if not value or value.lower() == "null":
+        return None
+    from urllib.parse import urlsplit
+    try:
+        return urlsplit(value).netloc.lower() or None
+    except ValueError:
+        return None
+
+
+def request_is_same_origin(request: Request) -> bool:
+    """Whether a state-changing request came from a page we served.
+
+    Browsers name the page a request was made from in `Origin` (every
+    cross-origin request, and every POST in current browsers) or `Referer`;
+    a page on another host cannot forge either. The comparison is against the
+    Host the request was addressed to, which behind Apache is the public name
+    because the vhost sets ProxyPreserveHost.
+
+    A request carrying neither header did not come from a browser page - a
+    script, a test, the CLI - and passes: the cookie it would need is not in
+    its hands unless it is ours. `Origin: null` is a sandboxed frame or a
+    redirect chain, and is refused.
+    """
+    origin = request.headers.get("origin")
+    if origin is not None:
+        return _header_host(origin) == request.headers.get("host", "").lower()
+    referer = request.headers.get("referer")
+    if referer:
+        return _header_host(referer) == request.headers.get("host", "").lower()
+    return True
 
 # Appended to local script and stylesheet URLs so a changed file is fetched
 # rather than served from cache. Without it a browser runs yesterday's
@@ -72,10 +130,59 @@ _ASSET_URL = re.compile(r'((?:src|href)=")(/static/[^"?]+\.(?:js|css))"')
 
 
 def _asset_version(name: str) -> str:
+    # `name` is the URL path, so the file is looked up under static/ by the
+    # part after /static/ - a bare basename lost the leaflet/ directory and
+    # stamped the vendored files "0" forever.
     try:
-        return str(int((STATIC_DIR / Path(name).name).stat().st_mtime))
+        relative = name.removeprefix("/static/")
+        return str(int((STATIC_DIR / relative).stat().st_mtime))
     except OSError:
         return "0"
+
+
+# Where the map tiles come from. Named in the Content-Security-Policy, so a
+# change of tile provider (#3) is a change here too.
+TILE_ORIGIN = "https://tile.openstreetmap.org"
+
+
+def security_headers(host: str) -> dict[str, str]:
+    """The headers every response carries, set by the app so the Windows build
+    and a LAN install get them, not only a server behind the shipped Apache
+    config.
+
+    The policy is 'self' for everything, with two named exceptions: the tile
+    server for images, and the page's own host for the WebSocket - spelled
+    out as ws:/wss: because older WebKit does not read 'self' as covering
+    them. Inline STYLE is allowed because Leaflet positions every marker with
+    a style attribute; inline SCRIPT is not, and that is the point: the two
+    clients build markup from server data all day, and with no inline script
+    permitted an escaping slip becomes a blocked request instead of a stolen
+    token.
+    """
+    sockets = f" ws://{host} wss://{host}" if host else ""
+    csp = "; ".join([
+        "default-src 'self'",
+        "script-src 'self'",
+        "style-src 'self' 'unsafe-inline'",
+        f"img-src 'self' data: blob: {TILE_ORIGIN}",
+        f"connect-src 'self'{sockets}",
+        "font-src 'self'",
+        "manifest-src 'self'",
+        "object-src 'none'",
+        "base-uri 'self'",
+        "form-action 'self'",
+        "frame-ancestors 'self'",
+    ])
+    return {
+        "Content-Security-Policy": csp,
+        "X-Content-Type-Options": "nosniff",
+        # NOT same-origin: the token is in the path and must never reach a
+        # third party, but same-origin sends NO Referer to the tile server,
+        # and OSM serves an "Access blocked" tile to traffic it cannot
+        # attribute to a site. This sends the origin alone cross-site.
+        "Referrer-Policy": "strict-origin-when-cross-origin",
+        "X-Frame-Options": "SAMEORIGIN",
+    }
 
 
 def _page(html: str) -> HTMLResponse:
@@ -133,7 +240,7 @@ def _course_position(index: "progress.CourseIndex", lat: float, lon: float):
     return located.as_dict() if located else None
 
 
-def make_position_handler(hub, roster_by_key: dict, known_keys: set[str], index):
+def make_position_handler(hub, known_keys: set[str], index):
     """The ingest callback: fan a position out, and announce a new station.
 
     The SSID alerts ("Needs attention") are computed from stored positions
@@ -153,10 +260,7 @@ def make_position_handler(hub, roster_by_key: dict, known_keys: set[str], index)
         await hub.publish(
             event_id,
             hub_module.position_message(
-                report,
-                roster_by_key.get(report.station_key),
-                _course_position(index, report.lat, report.lon),
-            ),
+                report, _course_position(index, report.lat, report.lon)),
         )
         key = report.station_key
         if key not in known_keys and key not in announced:
@@ -417,8 +521,20 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         finally:
             conn.close()
 
-        for slug in wanted:
-            await _start_ingest(slug)
+        # One connection for the whole server, so at most one feed starts.
+        # The switch turns the displaced event's flag off as it goes, so two
+        # flagged events means a database from before it did - or a slug on
+        # the command line beside a stale flag. The command line is explicit
+        # and wins; otherwise the newest event, which is the likelier live
+        # one against an old rehearsal. Starting them all in id order used
+        # to start the first and cancel it for the second, silently.
+        if wanted:
+            named = [slug for slug in (ingest_events or []) if slug in wanted]
+            chosen = named[-1] if named else wanted[-1]
+            for slug in wanted:
+                if slug != chosen:
+                    await _displace_ingest(slug, by=chosen)
+            await _start_ingest(chosen)
         try:
             yield
         finally:
@@ -445,6 +561,10 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     # the kind of failure nobody notices until the net is quiet for the wrong
     # reason, so it is kept and shown rather than only logged.
     app.state.ingest_errors = {}
+    # Recent sign-in failures, by username and by address. Per application
+    # rather than module-level so every test gets a clean one - the suite
+    # signs in hundreds of times and must never throttle itself.
+    app.state.login_limiter = users.LoginLimiter()
 
     # A setup change during an event has to reach the field, not wait for
     # someone to pull to refresh.
@@ -515,6 +635,58 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
             request_resync(int(match.group(1)))
         return response
 
+    # The setup API is cookie-authenticated, and SameSite=Lax is a same-SITE
+    # rule, not a same-origin one: anything else hosted under the same
+    # registrable domain - this VPS hosts more than one app - could POST to
+    # the tracking switch, delete an event or revoke every link with the
+    # officer's cookie attached, and any browser that does not enforce
+    # SameSite fails open. Refused here, in one place, for every method that
+    # writes: a new setup route gets it for free and none can forget it. The
+    # field API is left alone - its credential is in the path, so a page that
+    # can make the request already holds the token.
+    @app.middleware("http")
+    async def add_security_headers(request: Request, call_next):
+        response = await call_next(request)
+        for name, value in security_headers(request.headers.get("host", "")).items():
+            response.headers.setdefault(name, value)
+        return response
+
+    @app.middleware("http")
+    async def refuse_cross_site_setup_writes(request: Request, call_next):
+        if (request.method in _WRITE_METHODS
+                and request.url.path.startswith("/api/setup/")
+                and not request_is_same_origin(request)):
+            return JSONResponse(
+                {"detail": "Cross-site request refused."}, status_code=403)
+        return await call_next(request)
+
+    # Nothing capped request bodies: the login route, which needs no
+    # credential, would buffer a multi-hundred-megabyte POST in RAM before
+    # looking at it, and the import read a whole upload into memory before
+    # the parser's own limit applied. The Windows build has no proxy in
+    # front of it at all. Refused here on Content-Length, before the body is
+    # read; a body that lies about its length, or sends none, is stopped by
+    # the readers below, which count as they go.
+    def body_limit(path: str) -> int:
+        if _IMPORT_PATH.match(path):
+            # The parser's cap plus room for the multipart framing.
+            return kml.MAX_KML_BYTES + 64 * 1024
+        return MAX_JSON_BYTES
+
+    @app.middleware("http")
+    async def refuse_oversized_bodies(request: Request, call_next):
+        declared = request.headers.get("content-length")
+        if declared is not None:
+            try:
+                length = int(declared)
+            except ValueError:
+                return JSONResponse({"detail": "Bad Content-Length."},
+                                    status_code=400)
+            if length > body_limit(request.url.path):
+                return JSONResponse({"detail": "Request body too large."},
+                                    status_code=413)
+        return await call_next(request)
+
     def get_conn() -> sqlite3.Connection:
         # SQLite connections are not shareable across threads; one per request
         # is cheap for this workload and avoids the whole question.
@@ -532,8 +704,14 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
 
     # --- administrator sessions --------------------------------------------
 
+    def session_token(request: Request) -> str:
+        # Either name: a browser that reached us over HTTPS holds the
+        # prefixed cookie, one on plain HTTP the bare one.
+        return (request.cookies.get(SECURE_SESSION_COOKIE)
+                or request.cookies.get(SESSION_COOKIE, ""))
+
     def current_user(request: Request, conn) -> users.User | None:
-        return users.resolve_session(conn, request.cookies.get(SESSION_COOKIE, ""))
+        return users.resolve_session(conn, session_token(request))
 
     def require_user(request: Request) -> tuple[Any, users.User]:
         conn = get_conn()
@@ -580,6 +758,15 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         every endpoint.
         """
         conn, user = require_user(request)
+        # Existence first: may_access_event says yes to a system admin before
+        # looking the event up, and a stale bookmark to a deleted event's
+        # setup page was then a traceback from whichever route dereferenced
+        # the missing row. For anyone else the answer is 403 either way, so
+        # nothing is confirmed that was not already.
+        if conn.execute("SELECT 1 FROM event WHERE id = ?",
+                        (event_id,)).fetchone() is None:
+            conn.close()
+            raise HTTPException(status_code=404, detail="No such event.")
         if not users.may_access_event(conn, user, event_id):
             conn.close()
             raise HTTPException(status_code=403, detail="Not your event.")
@@ -601,15 +788,51 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         """
         return request.url.scheme == "https"
 
+    def client_host(request: Request) -> str:
+        """The address a request came from, for the sign-in limiter.
+
+        Behind Apache every request arrives from 127.0.0.1; with
+        `--behind-proxy` uvicorn has already replaced the peer with the
+        X-Forwarded-For address, and only for a peer it was told to trust -
+        so this is the real client there and the loopback address otherwise,
+        and never a header any client could set.
+        """
+        return request.client.host if request.client else ""
+
+    def _refuse_if_throttled(request: Request, username: str) -> tuple[str, ...]:
+        """The limiter keys for this attempt, or a 429 if it is over the line.
+
+        Checked BEFORE the body is hashed: the whole point is that a flood of
+        wrong passwords costs the server nothing, because every hash it does
+        run takes a third of a second during which no phone in the field
+        receives a position.
+        """
+        keys = ("user:" + users.normalize_username(username),
+                "addr:" + client_host(request))
+        wait = app.state.login_limiter.retry_after(*keys)
+        if wait is not None:
+            raise HTTPException(
+                status_code=429,
+                detail=f"Too many attempts. Try again in {wait} seconds.",
+                headers={"Retry-After": str(wait)},
+            )
+        return keys
+
     def _set_session_cookie(response, token: str, secure: bool) -> None:
         response.set_cookie(
-            SESSION_COOKIE, token,
+            SECURE_SESSION_COOKIE if secure else SESSION_COOKIE, token,
             httponly=True,          # unreadable from JavaScript
             samesite="lax",         # not sent on cross-site POSTs
             secure=secure,          # HTTPS only, when we are on HTTPS
             max_age=users.SESSION_DAYS * 24 * 3600,
             path="/",
         )
+
+    def _clear_session_cookie(response) -> None:
+        # Both names: which one the browser holds depends on how it reached
+        # us, and a sign-out that leaves the other behind is not a sign-out.
+        response.delete_cookie(SESSION_COOKIE, path="/")
+        response.delete_cookie(SECURE_SESSION_COOKIE, path="/", secure=True)
 
     @app.get("/robots.txt")
     async def robots() -> PlainTextResponse:
@@ -706,24 +929,35 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         Does NOT start a session: the account is created and the person then
         signs in with it.
         """
-        conn = get_conn()
-        body = await _json_body(request, conn)
-        try:
-            if users.any_users(conn):
-                raise HTTPException(
-                    status_code=409,
-                    detail="Setup is already complete. Sign in instead.",
+        body = await _json_body(request)
+        username = str(body.get("username", "") or "")
+        keys = _refuse_if_throttled(request, username)
+
+        def create() -> users.User:
+            # Its own connection, opened in the worker thread: a sqlite
+            # connection refuses to be used from any thread but the one
+            # that opened it, and the hash has to run off the loop.
+            conn = get_conn()
+            try:
+                if users.any_users(conn):
+                    raise HTTPException(
+                        status_code=409,
+                        detail="Setup is already complete. Sign in instead.",
+                    )
+                return users.create_user(
+                    conn, username, body.get("password", ""),
+                    users.ROLE_SYSTEM_ADMIN, body.get("display_name"),
                 )
-            user = users.create_user(
-                conn, body.get("username", ""), body.get("password", ""),
-                users.ROLE_SYSTEM_ADMIN, body.get("display_name"),
-            )
+            finally:
+                conn.close()
+
+        try:
+            user = await asyncio.to_thread(create)
         except users.AuthError as exc:
             # Two submits can race: both see no users, both try to create, and
             # the loser hits the unique constraint. From the person's point of
             # view their account WAS created, so say that rather than the
             # confusing "already exists".
-            conn.close()
             check = get_conn()
             try:
                 exists = users.any_users(check)
@@ -734,10 +968,10 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
                     status_code=409,
                     detail="Setup is already complete. Sign in instead.",
                 )
+            # A rejected password is a failure worth counting: this route is
+            # open to the whole internet until the first account exists.
+            app.state.login_limiter.failed(*keys)
             raise HTTPException(status_code=400, detail=str(exc))
-        finally:
-            if conn:
-                conn.close()
         # Deliberately no session: they sign in with the account straight away,
         # which proves the password works while they still remember typing it.
         # This is a credential they may not use again until the next event.
@@ -746,17 +980,33 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
 
     @app.post("/api/setup/login")
     async def login(request: Request) -> JSONResponse:
-        conn = get_conn()
-        body = await _json_body(request, conn)
+        """Sign an administrator in.
+
+        The hash runs in a worker thread, on a connection opened there. It
+        ran on the event loop once: a third of a second per attempt during
+        which the WebSocket fan-out, the snapshots and the incident posts all
+        waited - so two wrong passwords a second from anyone at all, with no
+        credential, froze the map for every volunteer, and on the phones it
+        looked exactly like a bad signal.
+        """
+        body = await _json_body(request)
+        username = str(body.get("username", "") or "")
+        keys = _refuse_if_throttled(request, username)
+
+        def sign_in() -> tuple[users.User, str]:
+            conn = get_conn()
+            try:
+                user = users.authenticate(conn, username, body.get("password", ""))
+                return user, users.start_session(conn, user.id)
+            finally:
+                conn.close()
+
         try:
-            user = users.authenticate(
-                conn, body.get("username", ""), body.get("password", "")
-            )
-            token = users.start_session(conn, user.id)
+            user, token = await asyncio.to_thread(sign_in)
         except users.AuthError as exc:
-            conn.close()
+            app.state.login_limiter.failed(*keys)
             raise HTTPException(status_code=401, detail=str(exc))
-        conn.close()
+        app.state.login_limiter.succeeded(*keys)
         response = JSONResponse({"user": user.as_dict()})
         _set_session_cookie(response, token, request_is_secure(request))
         return response
@@ -765,38 +1015,61 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     async def logout(request: Request) -> JSONResponse:
         conn = get_conn()
         try:
-            users.end_session(conn, request.cookies.get(SESSION_COOKIE, ""))
+            users.end_session(conn, session_token(request))
         finally:
             conn.close()
         response = JSONResponse({"ok": True})
-        response.delete_cookie(SESSION_COOKIE, path="/")
+        _clear_session_cookie(response)
         return response
 
     @app.post("/api/setup/password")
     async def change_own_password(request: Request) -> JSONResponse:
         conn, user = require_user(request)
-        body = await _json_body(request, conn)
-        try:
-            # Re-authenticate first: a borrowed unlocked laptop must not be
-            # enough to lock the real owner out.
-            users.authenticate(conn, user.username, body.get("current_password", ""))
-            users.set_password(conn, user.id, body.get("new_password", ""))
-        except users.AuthError as exc:
-            conn.close()
-            raise HTTPException(status_code=400, detail=str(exc))
         conn.close()
+        body = await _json_body(request)
+        keys = _refuse_if_throttled(request, user.username)
+
+        def change() -> None:
+            conn = get_conn()
+            try:
+                # Re-authenticate first: a borrowed unlocked laptop must not
+                # be enough to lock the real owner out.
+                users.authenticate(conn, user.username,
+                                   body.get("current_password", ""))
+                users.set_password(conn, user.id, body.get("new_password", ""))
+            finally:
+                conn.close()
+
+        try:
+            await asyncio.to_thread(change)
+        except users.AuthError as exc:
+            app.state.login_limiter.failed(*keys)
+            raise HTTPException(status_code=400, detail=str(exc))
+        app.state.login_limiter.succeeded(*keys)
         response = JSONResponse({"ok": True})
-        response.delete_cookie(SESSION_COOKIE, path="/")   # sessions were cleared
+        _clear_session_cookie(response)   # sessions were cleared
         return response
 
     # --- setup: events -----------------------------------------------------
 
     def _guard(fn, *args):
-        """Turn a domain error into a 400 with its message, closing the conn."""
+        """Turn a domain error into a 400 with its message.
+
+        The caller's try/finally closes the connection. TypeError is here
+        because `int(None)` from a missing body field is one, and
+        IntegrityError because a foreign key that does not exist (an
+        organization id, an event id) or a NOT NULL column is the database
+        saying the same thing a ValueError would - the person on the setup
+        screen needs the message, not "Internal Server Error".
+        """
         try:
             return fn(*args)
-        except (ValueError, users.AuthError) as exc:
+        except (ValueError, TypeError, users.AuthError) as exc:
             raise HTTPException(status_code=400, detail=str(exc))
+        except sqlite3.IntegrityError as exc:
+            raise HTTPException(
+                status_code=400,
+                detail=f"That does not fit the data already here: {exc}.")
 
     @app.get("/api/setup/events")
     async def setup_events(request: Request) -> JSONResponse:
@@ -833,10 +1106,21 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
                     )
             else:
                 organization_id = user.organization_id
-            event = _guard(admin.create_event, conn, body, int(organization_id))
+            event = _guard(_create_event, conn, body, organization_id)
         finally:
             conn.close()
         return JSONResponse(event, status_code=201)
+
+    def _create_event(conn, body: dict, organization_id) -> dict:
+        # Inside the guard, so a non-numeric or unknown organization id is a
+        # message rather than a traceback.
+        return admin.create_event(conn, body, _int(organization_id, "organization"))
+
+    def _int(value, what: str) -> int:
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            raise ValueError(f"{value!r} is not a {what} id.") from None
 
     @app.post("/api/setup/events/{event_id}")
     async def setup_update_event(event_id: int, request: Request) -> JSONResponse:
@@ -861,9 +1145,14 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
                 detail="Only an organization or system administrator can delete an event.",
             )
         try:
+            row = conn.execute(
+                "SELECT slug FROM event WHERE id = ?", (event_id,)).fetchone()
             admin.delete_event(conn, event_id)
         finally:
             conn.close()
+        # The feed must not outlive the event - see _forget_ingest.
+        if row is not None:
+            await app.state.forget_ingest(row["slug"], event_id)
         return JSONResponse({"deleted": event_id})
 
     # --- setup: course import ----------------------------------------------
@@ -873,32 +1162,50 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         event_id: int, request: Request, file: UploadFile = File(...)
     ) -> JSONResponse:
         conn, user = require_event_admin(request, event_id)
-        payload = await file.read()
         # Written to a temp file because the parser takes a path: it has to
         # detect KMZ by reading the zip header, not by trusting the extension.
-        import tempfile
+        # Streamed there in chunks rather than read into memory first - a
+        # 64 MB file is within the parser's limit and does not need to be
+        # held in RAM as well as on disk - and counted on the way, because
+        # the Content-Length check above is only as honest as the client.
+        # TemporaryDirectory removes the directory too; mkdtemp left one
+        # empty directory behind per upload for the life of the service.
         lowered = (file.filename or "").lower()
         suffix = next((ext for ext in (".kmz", ".gpx") if lowered.endswith(ext)), ".kml")
-        tmp = pathlib.Path(tempfile.mkdtemp()) / f"upload{suffix}"
-        tmp.write_bytes(payload)
         try:
-            # Off the loop: parsing a 1200-point KMZ and measuring every
-            # segment takes long enough that positions would visibly stall
-            # for everyone if the course were re-imported during the event.
-            summary = await asyncio.to_thread(importer.stage_file, conn, event_id, tmp)
-        except kml.KmlError as exc:
-            conn.close()
-            raise HTTPException(status_code=400, detail=str(exc))
+            with tempfile.TemporaryDirectory() as workdir:
+                tmp = Path(workdir) / f"upload{suffix}"
+                written = 0
+                with tmp.open("wb") as out:
+                    while chunk := await file.read(1024 * 1024):
+                        written += len(chunk)
+                        if written > kml.MAX_KML_BYTES:
+                            raise HTTPException(
+                                status_code=413,
+                                detail=f"File is larger than the "
+                                       f"{kml.MAX_KML_BYTES / 1e6:.0f} MB limit.")
+                        out.write(chunk)
+                try:
+                    # Off the loop: parsing a 1200-point KMZ and measuring
+                    # every segment takes long enough that positions would
+                    # visibly stall for everyone if the course were
+                    # re-imported during the event.
+                    summary = await asyncio.to_thread(
+                        importer.stage_file, conn, event_id, tmp)
+                except (kml.KmlError, zipfile.BadZipFile) as exc:
+                    # BadZipFile: a truncated KMZ passes is_zipfile and fails
+                    # inside the reader, which was a 500 with a traceback in
+                    # the journal rather than a sentence on the screen.
+                    raise HTTPException(status_code=400, detail=str(exc))
+            result = {
+                "filename": file.filename,
+                "total": summary.total,
+                "by_type": summary.by_type,
+                "warnings": summary.warnings,
+                "features": admin.staged_features(conn, event_id),
+            }
         finally:
-            tmp.unlink(missing_ok=True)
-        result = {
-            "filename": file.filename,
-            "total": summary.total,
-            "by_type": summary.by_type,
-            "warnings": summary.warnings,
-            "features": admin.staged_features(conn, event_id),
-        }
-        conn.close()
+            conn.close()
         return JSONResponse(result, status_code=201)
 
     @app.get("/api/setup/events/{event_id}/staged")
@@ -940,7 +1247,6 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         try:
             count = _guard(
                 admin.reorder_courses, conn, event_id, body.get("course_ids") or [])
-            conn.commit()
         finally:
             conn.close()
         return JSONResponse({"ordered": count})
@@ -964,9 +1270,15 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     ) -> JSONResponse:
         conn, user = require_event_admin(request, event_id)
         try:
-            admin.delete_course(conn, event_id, course_id)
+            blocked = admin.delete_course(conn, event_id, course_id)
         finally:
             conn.close()
+        if blocked:
+            # The reports would cascade away with nothing to say where they
+            # went - the same refusal as deleting a sighted leader.
+            raise HTTPException(
+                status_code=409,
+                detail=f"{blocked} recorded on this course. Clear them first.")
         return JSONResponse({"deleted": course_id})
 
     # Declared before /pois/{poi_id}: FastAPI matches in declaration order,
@@ -982,7 +1294,6 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         body = await _json_body(request, conn)
         try:
             row = _guard(admin.create_poi, conn, event_id, body)
-            conn.commit()
         finally:
             conn.close()
         return JSONResponse(row, status_code=201)
@@ -994,7 +1305,6 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         try:
             count = _guard(
                 admin.reorder_pois, conn, event_id, body.get("poi_ids") or [])
-            conn.commit()
         finally:
             conn.close()
         return JSONResponse({"ordered": count})
@@ -1008,7 +1318,6 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
                 admin.move_pois, conn, event_id,
                 body.get("poi_ids") or [], (body.get("poi_type") or "").strip(),
             )
-            conn.commit()
         finally:
             conn.close()
         return JSONResponse({"moved": moved})
@@ -1032,9 +1341,16 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     ) -> JSONResponse:
         conn, user = require_event_admin(request, event_id)
         try:
-            admin.delete_poi(conn, event_id, poi_id)
+            blocked = admin.delete_poi(conn, event_id, poi_id)
         finally:
             conn.close()
+        if blocked:
+            # Sightings would cascade away and the posted operator would fall
+            # off the map, neither with anything on screen to say why.
+            raise HTTPException(
+                status_code=409,
+                detail=f"{blocked} at this place. Clear the sightings and "
+                       "move the stations first.")
         return JSONResponse({"deleted": poi_id})
 
     # --- setup: roster ------------------------------------------------------
@@ -1130,27 +1446,48 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         wanted = bool(body.get("enabled"))
         try:
             state = _guard(_tracking_state, conn, event_id)
-            slug = conn.execute(
-                "SELECT slug FROM event WHERE id = ?", (event_id,)
-            ).fetchone()["slug"]
+            event = conn.execute(
+                "SELECT slug, aprs_filter_extra FROM event WHERE id = ?",
+                (event_id,),
+            ).fetchone()
+            slug = event["slug"]
 
+            # Refuse rather than start a task that dies immediately: the
+            # switch would sit at "on" with nothing behind it. Both refusals
+            # mirror the feed's own, so the switch never asks for something
+            # the feed will turn down. The messages say what to do about it.
             if wanted and not state["has_callsign"]:
-                # Refuse rather than start a task that dies immediately: the
-                # switch would sit at "on" with nothing behind it. The message
-                # is the one from settings, which says what to do about it.
                 raise HTTPException(
                     status_code=400,
                     detail=" ".join(
                         state["callsign_problem"].split()))
-            db.set_ingest_enabled(conn, slug, wanted)
-            conn.commit()
+            if (wanted and state["tracked"] == 0 and state["area_mi"] is None
+                    and not event["aprs_filter_extra"]):
+                raise HTTPException(
+                    status_code=400, detail=ingest_module.NOTHING_TO_LISTEN_FOR)
+            if not wanted:
+                db.set_ingest_enabled(conn, slug, False)
         finally:
             conn.close()
 
-        if wanted:
-            await app.state.start_ingest(slug)
-        else:
+        if not wanted:
             await app.state.stop_ingest(slug)
+        else:
+            # Start first, persist second. The flag is what the next boot
+            # acts on, so it must describe a feed that actually started: a
+            # flag written before the attempt turned one refused press into
+            # a service that restarted into the same failure under systemd.
+            started = await app.state.start_ingest(slug)
+            if not started:
+                raise HTTPException(
+                    status_code=400,
+                    detail=app.state.ingest_errors.get(slug)
+                    or "The feed stopped before it connected.")
+            conn = get_conn()
+            try:
+                db.set_ingest_enabled(conn, slug, True)
+            finally:
+                conn.close()
 
         conn = get_conn()
         try:
@@ -1162,41 +1499,26 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     async def setup_categories(event_id: int, request: Request) -> JSONResponse:
         conn, user = require_event_admin(request, event_id)
         try:
+            # The counts are what make "delete" honest: a layer with places,
+            # a role someone holds, a leader with sightings cannot go, and
+            # the number says how many are in the way.
+            places = categories.place_counts(conn, event_id)
+            roles = categories.role_counts(conn, event_id)
+            sightings = categories.sighting_counts(conn, event_id)
             payload = {
                 "poi_categories": [
-                    # The count is what makes "delete" honest: a layer with
-                    # places in it cannot go, and the number says how many.
-                    dict(row) | {"place_count": conn.execute(
-                        "SELECT COUNT(*) AS c FROM poi"
-                        " WHERE event_id = ? AND poi_type = ?",
-                        (event_id, row["key"]),
-                    ).fetchone()["c"]}
+                    dict(row) | {"place_count": places.get(row["key"], 0)}
                     for row in categories.poi_categories(conn, event_id)
                 ],
                 "roster_roles": [
-                    # The count is what makes "delete" honest: a role someone
-                    # on the roster holds cannot go, and the number says how
-                    # many would have to move first.
-                    dict(row) | {"in_use": conn.execute(
-                        "SELECT COUNT(*) AS c FROM roster"
-                        " WHERE event_id = ? AND category = ?",
-                        (event_id, row["key"]),
-                    ).fetchone()["c"]}
+                    dict(row) | {"in_use": roles.get(row["key"], 0)}
                     for row in categories.roster_roles(conn, event_id)
                 ],
                 "lead_divisions": [
-                    # The count is what makes "delete" honest: a leader with
-                    # sightings against it cannot go, and the number says how
-                    # many reports would disappear with it.
-                    dict(row) | {"in_use": conn.execute(
-                        "SELECT COUNT(*) AS c FROM lead_sighting"
-                        " WHERE event_id = ? AND division = ?",
-                        (event_id, row["key"]),
-                    ).fetchone()["c"]}
+                    dict(row) | {"in_use": sightings.get(row["key"], 0)}
                     for row in categories.lead_divisions(conn, event_id)
                 ],
             }
-            conn.commit()
         finally:
             conn.close()
         return JSONResponse(payload)
@@ -1211,7 +1533,6 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
                 body.get("name", ""), bool(body.get("staffed")),
                 body.get("icon") or "pin", body.get("color"),
             )
-            conn.commit()
         finally:
             conn.close()
         return JSONResponse(dict(row), status_code=201)
@@ -1227,7 +1548,6 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
             count = _guard(
                 categories.reorder_poi_categories, conn, event_id,
                 body.get("keys") or [])
-            conn.commit()
         finally:
             conn.close()
         return JSONResponse({"ordered": count})
@@ -1242,7 +1562,6 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
             row = _guard(
                 categories.update_poi_category, conn, event_id, key, body
             )
-            conn.commit()
         finally:
             conn.close()
         return JSONResponse(dict(row))
@@ -1254,7 +1573,6 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         conn, user = require_event_admin(request, event_id)
         try:
             in_use = _guard(categories.delete_poi_category, conn, event_id, key)
-            conn.commit()
         finally:
             conn.close()
         if in_use:
@@ -1274,7 +1592,6 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         try:
             row = _guard(categories.add_roster_role, conn, event_id,
                          body.get("name") or "")
-            conn.commit()
         finally:
             conn.close()
         return JSONResponse(dict(row), status_code=201)
@@ -1287,12 +1604,13 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         conn, user = require_event_admin(request, event_id)
         try:
             in_use = _guard(categories.delete_roster_role, conn, event_id, key)
-            conn.commit()
         finally:
             conn.close()
         if in_use:
+            # 409 like the other in-use refusals: the request was well
+            # formed, it is the data that is in the way.
             raise HTTPException(
-                status_code=400,
+                status_code=409,
                 detail=f"{in_use} roster entr{'y' if in_use == 1 else 'ies'} "
                        "still use this role. Move them first.")
         return JSONResponse({"deleted": key})
@@ -1308,7 +1626,6 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
                 categories.rename_roster_role, conn, event_id, key,
                 body.get("name", ""),
             )
-            conn.commit()
         finally:
             conn.close()
         return JSONResponse(dict(row))
@@ -1323,7 +1640,6 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         try:
             row = _guard(categories.add_lead_division, conn, event_id,
                          body.get("name") or "")
-            conn.commit()
         finally:
             conn.close()
         return JSONResponse(dict(row), status_code=201)
@@ -1339,7 +1655,6 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         try:
             count = _guard(categories.reorder_lead_divisions, conn, event_id,
                            body.get("keys") or [])
-            conn.commit()
         finally:
             conn.close()
         return JSONResponse({"ordered": count})
@@ -1351,14 +1666,13 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         conn, user = require_event_admin(request, event_id)
         try:
             in_use = _guard(categories.delete_lead_division, conn, event_id, key)
-            conn.commit()
         finally:
             conn.close()
         if in_use:
             # The sightings would stay in the database and vanish from the
             # panel, with nothing on screen to say where they went.
             raise HTTPException(
-                status_code=400,
+                status_code=409,
                 detail=f"{in_use} sighting{'' if in_use == 1 else 's'} "
                        "recorded against this leader. Clear them first.")
         return JSONResponse({"deleted": key})
@@ -1372,7 +1686,6 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         try:
             row = _guard(categories.rename_lead_division, conn, event_id, key,
                          body.get("name", ""))
-            conn.commit()
         finally:
             conn.close()
         return JSONResponse(dict(row))
@@ -1393,7 +1706,8 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         conn, user = require_event_admin(request, event_id)
         body = await _json_body(request, conn)
         try:
-            admin.delete_roster_entry(conn, event_id, body.get("station_key", ""))
+            _guard(admin.delete_roster_entry, conn, event_id,
+                   body.get("station_key", ""))
         finally:
             conn.close()
         return JSONResponse({"ok": True})
@@ -1404,7 +1718,11 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     async def setup_links(event_id: int, request: Request) -> JSONResponse:
         conn, user = require_event_admin(request, event_id)
         try:
-            access.ensure_tokens(conn, event_id)
+            # A read, and only a read. This used to create any role's
+            # missing link on the way past, which is benign in itself - but
+            # Lax cookies ARE sent on a cross-site top-level navigation, so
+            # a GET with a side effect is the one kind of setup route a page
+            # elsewhere can drive. The fill-in lives on the POST below.
             event = conn.execute(
                 "SELECT slug FROM event WHERE id = ?", (event_id,)
             ).fetchone()
@@ -1420,9 +1738,20 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         conn, user = require_event_admin(request, event_id)
         body = await _json_body(request, conn)
         action = (body.get("action") or "").strip()
+
+        def token_id() -> int:
+            try:
+                return int(body.get("token_id"))
+            except (TypeError, ValueError):
+                raise HTTPException(status_code=400, detail="Which link?")
+
         try:
             if action == "revoke":
-                access.revoke(conn, int(body.get("token_id")))
+                # 404, not 400: the id is either not a link at all or is a
+                # link in some other event, and the difference must not be
+                # reported - it would confirm the other event's link exists.
+                if not access.revoke(conn, event_id, token_id()):
+                    raise HTTPException(status_code=404, detail="No such link.")
             elif action == "add":
                 # A second, third, fourth link for one role. Three Net Control
                 # operators can share one link - the token allows any number of
@@ -1438,8 +1767,9 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
             elif action == "label":
                 # Whose link this is. Free text and never trusted for anything:
                 # it exists so the row to revoke can be found under pressure.
-                access.set_label(conn, int(body.get("token_id")),
-                                 _link_label(body.get("label")))
+                if not access.set_label(conn, event_id, token_id(),
+                                        _link_label(body.get("label"))):
+                    raise HTTPException(status_code=404, detail="No such link.")
             elif action == "reissue":
                 role = str(body.get("role", ""))
                 if role not in access.ROLES:
@@ -1451,10 +1781,14 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
                 # the per-link action above.
                 for row in access.tokens_for_event(conn, event_id):
                     if row["role"] == role and not row["revoked"]:
-                        access.revoke(conn, row["id"])
+                        access.revoke(conn, event_id, row["id"])
                 access.create_token(conn, event_id, role)
             else:
                 raise HTTPException(status_code=400, detail="Unknown action.")
+            # Every role keeps at least one live link: revoking the only NCS
+            # link is a rotation, not a net with no Net Control. Fills in a
+            # missing role and never collapses extras.
+            access.ensure_tokens(conn, event_id)
             links = admin.list_links(conn, event_id)
         finally:
             conn.close()
@@ -1508,9 +1842,16 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     ) -> JSONResponse:
         conn, user = require_system_admin(request)
         try:
+            # Cascades through the organization's events, so their feeds go
+            # the same way an event's own delete takes its feed with it.
+            gone = conn.execute(
+                "SELECT id, slug FROM event WHERE organization_id = ?",
+                (organization_id,)).fetchall()
             conn.execute("DELETE FROM organization WHERE id = ?", (organization_id,))
         finally:
             conn.close()
+        for event in gone:
+            await app.state.forget_ingest(event["slug"], event["id"])
         return JSONResponse({"deleted": organization_id})
 
     # --- setup: users -------------------------------------------------------
@@ -1552,23 +1893,49 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
                         status_code=403,
                         detail="Only a system administrator can create one.",
                     )
-            created = _guard(
-                users.create_user, conn, body.get("username", ""),
-                body.get("password", ""), role, body.get("display_name"),
-                int(organization_id) if organization_id else None,
-            )
-            users.set_events(conn, created.id,
-                             [int(i) for i in body.get("event_ids", [])])
+            created = _guard(_create_user, conn, body, role, organization_id)
         finally:
             conn.close()
         return JSONResponse(created.as_dict(), status_code=201)
+
+    def _create_user(conn, body: dict, role, organization_id) -> users.User:
+        # Everything checked before the INSERT: the connection is autocommit,
+        # so validating event_ids after create_user left a half-made account
+        # behind the error.
+        org = _int(organization_id, "organization") if organization_id else None
+        event_ids = _event_ids(conn, body.get("event_ids", []), org)
+        with db.transaction(conn):
+            created = users.create_user(
+                conn, body.get("username", ""), body.get("password", ""), role,
+                body.get("display_name"), org,
+            )
+            users.set_events(conn, created.id, event_ids)
+        return created
+
+    def _event_ids(conn, values, organization_id) -> list[int]:
+        """Event ids for an administrator's assignment, all real, all theirs.
+
+        `may_access_event` checks the organization before the assignment, so
+        a cross-club row granted nothing - but it was a junk row, and an id
+        that did not exist was a foreign-key traceback after the account had
+        already been created.
+        """
+        if isinstance(values, (str, bytes)) or not isinstance(values, (list, tuple)):
+            raise ValueError("event_ids must be a list.")
+        ids = [_int(v, "event") for v in values]
+        allowed = {e["id"] for e in admin.list_events(conn, organization_id)}
+        unknown = [i for i in ids if i not in allowed]
+        if unknown:
+            raise ValueError(
+                f"No event with id {unknown[0]} in this organization.")
+        return ids
 
     @app.post("/api/setup/users/{user_id}")
     async def setup_update_user(user_id: int, request: Request) -> JSONResponse:
         conn, actor = require_user_manager(request)
         body = await _json_body(request, conn)
         try:
-            target = users.get_user(conn, user_id)
+            target = _get_user(conn, user_id)
             if not users.may_manage_user(conn, actor, target):
                 raise HTTPException(status_code=403, detail="Not your administrator.")
             if "password" in body:
@@ -1584,18 +1951,26 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
                     )
                 users.set_active(conn, user_id, active)
             if "event_ids" in body:
-                users.set_events(conn, user_id,
-                                 [int(i) for i in body["event_ids"]])
+                users.set_events(conn, user_id, _guard(
+                    _event_ids, conn, body["event_ids"], target.organization_id))
             result = users.get_user(conn, user_id).as_dict()
         finally:
             conn.close()
         return JSONResponse(result)
 
+    def _get_user(conn, user_id: int) -> users.User:
+        # Two admins editing the same list - one deletes, the other saves -
+        # is a 404 with a message, not a blank error.
+        try:
+            return users.get_user(conn, user_id)
+        except users.AuthError:
+            raise HTTPException(status_code=404, detail="No such administrator.")
+
     @app.post("/api/setup/users/{user_id}/delete")
     async def setup_delete_user(user_id: int, request: Request) -> JSONResponse:
         conn, actor = require_user_manager(request)
         try:
-            target = users.get_user(conn, user_id)
+            target = _get_user(conn, user_id)
             if not users.may_manage_user(conn, actor, target):
                 raise HTTPException(status_code=403, detail="Not your administrator.")
             if user_id == actor.id:
@@ -1747,14 +2122,31 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     # rewrite of each endpoint. It used to be a single yes/no; SAG needs to work
     # its pickup queue without being able to revoke a link or edit the roster.
 
-    async def _json_body(request: Request, conn) -> dict:
+    async def _json_body(request: Request, conn=None) -> dict:
+        # Read in chunks and counted, so a chunked body with no
+        # Content-Length - which the middleware cannot size - is still cut
+        # off at the cap rather than buffered whole.
+        chunks: list[bytes] = []
+        size = 0
         try:
-            body = await request.json()
+            async for chunk in request.stream():
+                size += len(chunk)
+                if size > MAX_JSON_BYTES:
+                    raise HTTPException(status_code=413,
+                                        detail="Request body too large.")
+                chunks.append(chunk)
+            body = json.loads(b"".join(chunks))
+        except HTTPException:
+            if conn is not None:
+                conn.close()
+            raise
         except Exception:
-            conn.close()
+            if conn is not None:
+                conn.close()
             raise HTTPException(status_code=400, detail="Expected a JSON body.")
         if not isinstance(body, dict):
-            conn.close()
+            if conn is not None:
+                conn.close()
             raise HTTPException(status_code=400, detail="Expected a JSON object.")
         return body
 
@@ -1777,18 +2169,14 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         event_slug: str, token: str, station_key: str, request: Request
     ) -> JSONResponse:
         conn, granted = require_capability(event_slug, token, access.CAP_STATIONS)
-        try:
-            body = await request.json()
-        except Exception:
-            conn.close()
-            raise HTTPException(status_code=400, detail="Expected a JSON body.")
-
-        op_status = str(body.get("op_status", "")).strip().lower()
-        # Free-text initials typed once per shift. A log annotation for handover,
-        # never authentication - do not start trusting it as identity.
-        changed_by = (body.get("changed_by") or "").strip()[:12] or None
+        body = await _json_body(request, conn)
 
         try:
+            op_status = (db.clean_text(body.get("op_status")) or "").lower()
+            # Free-text initials typed once per shift. A log annotation for
+            # handover, never authentication - do not start trusting it as
+            # identity.
+            changed_by = db.clean_text(body.get("changed_by"), 12)
             row = db.set_op_status(
                 conn, granted.event_id, station_key, op_status, changed_by
             )
@@ -1964,8 +2352,12 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         if not station_key:
             conn.close()
             raise HTTPException(status_code=400, detail="A station_key is required.")
-        db.exclude_station(conn, granted.event_id, station_key,
-                           body.get("reason") or "dismissed from the map")
+        try:
+            db.exclude_station(conn, granted.event_id, station_key,
+                               body.get("reason") or "dismissed from the map")
+        except ValueError as exc:
+            conn.close()
+            raise HTTPException(status_code=400, detail=str(exc))
         conn.close()
         app.state.nearby.get(granted.event_id, {}).pop(station_key.upper(), None)
         await _publish_state_hint(granted.event_id)
@@ -2053,7 +2445,7 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
             leaders.record_sighting(
                 conn, granted.event_id,
                 course_id=int(body.get("course_id")),
-                division=str(body.get("division", "")),
+                division=body.get("division"),
                 poi_id=int(body.get("poi_id")),
                 bib=body.get("bib"),
                 by=body.get("changed_by"),
@@ -2200,11 +2592,10 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         event = db.get_event(conn, slug)
         if event is None:
             conn.close()
-            log.error("Cannot ingest unknown event %r", slug)
-            return
-        roster_by_key = {
-            row["station_key"]: row for row in db.roster_for_event(conn, event["id"])
-        }
+            # Raised rather than logged and returned, so the supervisor
+            # records it and the tracking panel can say so.
+            raise ingest_module.IngestError(
+                f"No event with slug {slug!r}. Create it first.")
         known_keys = set(db.all_station_keys(conn, event["id"]))
         known_keys |= db.bound_station_keys(conn, event["id"])
         # Course geometry is loaded once for the life of the ingest task rather
@@ -2213,8 +2604,7 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         index = progress.CourseIndex.for_event(conn, event["id"])
         conn.close()
 
-        on_position = make_position_handler(
-            app.state.hub, roster_by_key, known_keys, index)
+        on_position = make_position_handler(app.state.hub, known_keys, index)
         on_nearby = make_nearby_handler(app.state.hub, app.state.nearby, index)
         await run_ingest(settings, slug, on_position=on_position,
                          on_nearby=on_nearby)
@@ -2225,30 +2615,46 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
             await _ingest_for(slug)
         except asyncio.CancelledError:
             raise
-        except Exception as exc:                       # noqa: BLE001
+        except BaseException as exc:                   # noqa: BLE001
             # A missing callsign lands here, and so does anything APRS-IS does
             # that the client cannot recover from. Losing it to the log alone
             # means the switch says "on" and nothing arrives.
+            #
+            # BaseException, not Exception, and the difference is the whole
+            # server: asyncio re-raises SystemExit and KeyboardInterrupt out
+            # of a task and out of the loop, so a feed that once signalled
+            # "nothing to listen for" with SystemExit took every role page
+            # down with it, and the persisted switch restarted it into the
+            # same crash. Nothing that happens inside one feed is allowed to
+            # decide that the site stops.
             app.state.ingest_errors[slug] = str(exc) or exc.__class__.__name__
             log.error("Ingest for %r stopped: %s", slug, exc)
         finally:
             app.state.ingest_tasks.pop(slug, None)
 
-    async def _start_ingest(slug: str) -> None:
-        """Start one feed, replacing any other.
+    async def _start_ingest(slug: str) -> bool:
+        """Start one feed, replacing any other. True if it is running.
 
         APRS-IS bans clients that open many connections, so there is exactly
         one for the whole server - which means turning a feed on turns any
         other one off, rather than quietly running two.
+
+        The feed does its refusals - no callsign, no event, nothing to listen
+        for - before its first real await, so one turn of the loop is enough
+        to know whether it got as far as connecting. The caller persists the
+        switch only on True: a flag written for a feed that never started is
+        what turned one bad press into a restart loop.
         """
         if slug in app.state.ingest_tasks:
-            return
+            return True
         for running in list(app.state.ingest_tasks):
             if running != slug:
-                await _stop_ingest(running)
+                await _displace_ingest(running, by=slug)
         app.state.ingest_errors.pop(slug, None)
         app.state.ingest_tasks[slug] = asyncio.create_task(
             _supervise_ingest(slug), name=f"ingest:{slug}")
+        await asyncio.sleep(0)
+        return slug in app.state.ingest_tasks
 
     async def _stop_ingest(slug: str) -> None:
         task = app.state.ingest_tasks.pop(slug, None)
@@ -2258,7 +2664,47 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         with contextlib.suppress(asyncio.CancelledError):
             await task
 
+    def _event_name(slug: str) -> str:
+        conn = db.connect(settings.db_path)
+        try:
+            event = db.get_event(conn, slug)
+            return event["name"] if event else slug
+        finally:
+            conn.close()
+
+    async def _displace_ingest(slug: str, by: str) -> None:
+        """Turn one event's feed off because another's is going on.
+
+        The persisted switch is what the next boot acts on, so the displaced
+        event's flag has to come off with the feed: left on, the boot found
+        two flagged, started the first and cancelled it for the second, and
+        the displaced tab read "on - but not connected" with nothing to say
+        why. The reason goes where the tab already looks for one.
+        """
+        await _stop_ingest(slug)
+        conn = db.connect(settings.db_path)
+        try:
+            db.set_ingest_enabled(conn, slug, False)
+        finally:
+            conn.close()
+        app.state.ingest_errors[slug] = (
+            f"Tracking was turned on for {_event_name(by)}, and there is "
+            "one APRS-IS connection for the whole server.")
+
+    async def _forget_ingest(slug: str, event_id: int) -> None:
+        """The event is gone; nothing about its feed may outlive it.
+
+        Otherwise the connection keeps a wildcard filter on the deleted
+        event's volunteers until the next restart, and re-creating the slug
+        finds a feed "already running" that is bound to the dead event id.
+        The nearby list is keyed by event id, the rest by slug.
+        """
+        await _stop_ingest(slug)
+        app.state.ingest_errors.pop(slug, None)
+        app.state.nearby.pop(event_id, None)
+
     app.state.start_ingest = _start_ingest
     app.state.stop_ingest = _stop_ingest
+    app.state.forget_ingest = _forget_ingest
 
     return app

@@ -1,2 +1,5 @@
 * text=auto eol=lf
 *.sql text eol=lf
+# Vendored byte for byte and checked against upstream hashes by a test;
+# leaflet.css has CRLF endings upstream and must keep them.
+src/courseops/static/leaflet/** -text

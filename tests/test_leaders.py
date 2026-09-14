@@ -159,6 +159,34 @@ def test_undo_with_nothing_recorded_is_harmless(race):
     assert leaders.undo_last_sighting(conn, event_id, course_id, "male") is False
 
 
+def test_a_sighting_for_a_leader_the_event_does_not_track_is_refused(race):
+    """A client holding a stale leader list - one deleted in setup since the
+    page loaded - would otherwise get a 201 for a report that is inserted
+    and then displayed on no panel at all."""
+    conn, event_id, course_id, index = race
+    with pytest.raises(ValueError, match="wheelchair"):
+        leaders.record_sighting(conn, event_id, course_id, "wheelchair",
+                                poi_id(conn, "Alpha"))
+    assert conn.execute("SELECT COUNT(*) FROM lead_sighting").fetchone()[0] == 0
+
+    # And once the club adds it, the same report is accepted.
+    categories.add_lead_division(conn, event_id, "Wheelchair")
+    leaders.record_sighting(conn, event_id, course_id, "wheelchair",
+                            poi_id(conn, "Alpha"))
+    assert leader(conn, event_id, index, "wheelchair").last_poi_name == "Alpha"
+
+
+def test_undo_normalises_the_division_like_record_and_clear(race):
+    """The three siblings used to disagree: record and clear lower-cased,
+    undo compared raw, so "Male" recorded under `male` and then silently
+    failed to undo."""
+    conn, event_id, course_id, index = race
+    leaders.record_sighting(conn, event_id, course_id, " Male ",
+                            poi_id(conn, "Alpha"))
+    assert leaders.undo_last_sighting(conn, event_id, course_id, " Male ") is True
+    assert conn.execute("SELECT COUNT(*) FROM lead_sighting").fetchone()[0] == 0
+
+
 # --- pace and estimate ------------------------------------------------------
 
 def test_pace_needs_two_sightings(race):
@@ -628,13 +656,3 @@ def test_a_leader_needs_a_name(race):
     with pytest.raises(categories.CategoryError):
         categories.add_lead_division(conn, event_id, "   ")
 
-
-def test_a_sighting_for_an_unlisted_leader_creates_the_row(race):
-    """Recording is the write that can orphan a division, so the repair
-    follows it rather than waiting for a restart - the report would otherwise
-    show as nothing and the leader look stuck at the previous station."""
-    conn, event_id, course_id, index = race
-    leaders.record_sighting(conn, event_id, course_id, "wheelchair",
-                            poi_id(conn, "Charlie"))
-    assert "wheelchair" in categories.lead_division_keys(conn, event_id)
-    assert leader(conn, event_id, index, "wheelchair").last_poi_name == "Charlie"

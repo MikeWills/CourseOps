@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import contextlib
+import functools
 import sqlite3
 from pathlib import Path
+from typing import Iterator
 
 from . import resources
 from .parser import PositionReport
@@ -11,9 +14,34 @@ from .parser import PositionReport
 SCHEMA_PATH = resources.package_file("schema.sql")
 
 
+def clean_text(value: object, limit: int | None = None) -> str | None:
+    """Free text from a JSON body: stripped, capped, None when empty.
+
+    `str()` first. Every callee used to do `(value or "").strip()`, which is
+    an AttributeError - a 500 logged as a server fault - the moment a JSON
+    number or object arrives where a string was expected. The shipped client
+    sends strings; this is so a hand-made request gets a message instead of
+    a traceback, and so the next field added inherits the right behaviour.
+    """
+    if value is None:
+        return None
+    if isinstance(value, (list, dict)):
+        # A number reads fine as text ("5" is a plausible bib); a list or an
+        # object never does, and "['x']" as a station label helps nobody.
+        raise ValueError(f"{value!r} is not text.")
+    text = str(value).strip()
+    if limit is not None:
+        text = text[:limit]
+    return text or None
+
+
 def connect(db_path: str | Path) -> sqlite3.Connection:
     path = Path(db_path)
     path.parent.mkdir(parents=True, exist_ok=True)
+    # Autocommit: each statement is its own transaction unless wrapped in
+    # `transaction()` below. This means a commit() call is a no-op on a bare
+    # connection and an EARLY commit inside a `transaction()` block - so
+    # nothing calls it; there is a test asserting that.
     # check_same_thread=False so a request can hand its connection to a worker
     # thread (asyncio.to_thread) for the heavy reads - the snapshot, the
     # report, the import - instead of building them on the event loop, where
@@ -28,6 +56,48 @@ def connect(db_path: str | Path) -> sqlite3.Connection:
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute("PRAGMA busy_timeout = 5000")
     return conn
+
+
+@contextlib.contextmanager
+def transaction(conn: sqlite3.Connection) -> Iterator[None]:
+    """Make a multi-statement mutation one unit: all of it, or none of it.
+
+    A place used to be INSERTed and then have its What3Words address
+    validated, so a 400 left the place behind it and the officer who fixed
+    the address and submitted again had two "Water Stop C" pins. Every
+    write that touches more than one row goes inside this, and a 4xx then
+    means nothing landed.
+
+    BEGIN IMMEDIATE takes the write lock at the start rather than on the
+    first write, so two writers - the ingest task and a request, during an
+    event - queue on `busy_timeout` instead of one of them failing half way
+    with SQLITE_BUSY. Nestable: an inner block joins the outer one rather
+    than committing early, which lets `assign_features` wrap several
+    `assign_poi` calls that each wrap themselves for the CLI's sake.
+    """
+    if conn.in_transaction:
+        yield
+        return
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        yield
+    except BaseException:
+        conn.execute("ROLLBACK")
+        raise
+    else:
+        conn.execute("COMMIT")
+
+
+def transactional(fn):
+    """`transaction()` as a decorator, for a function whose first argument
+    is the connection. Every domain function that writes more than one row
+    carries this, so the CLI and the setup routes get the same guarantee
+    without each route wrapping the call."""
+    @functools.wraps(fn)
+    def wrapper(conn: sqlite3.Connection, *args, **kwargs):
+        with transaction(conn):
+            return fn(conn, *args, **kwargs)
+    return wrapper
 
 
 # Columns added after a database may already exist in the wild. `CREATE TABLE
@@ -185,19 +255,21 @@ def _adopt_orphan_events(conn: sqlite3.Connection) -> None:
 def create_event(conn: sqlite3.Connection, slug: str, name: str, **fields) -> int:
     columns = ["slug", "name", *fields]
     placeholders = ", ".join("?" for _ in columns)
-    cur = conn.execute(
-        f"INSERT INTO event ({', '.join(columns)}) VALUES ({placeholders})",
-        [slug, name, *fields.values()],
-    )
-    event_id = int(cur.lastrowid)
+    with transaction(conn):
+        cur = conn.execute(
+            f"INSERT INTO event ({', '.join(columns)}) VALUES ({placeholders})",
+            [slug, name, *fields.values()],
+        )
+        event_id = int(cur.lastrowid)
 
-    # A new event starts with the usual layers and role names, which the club
-    # then edits. Seeded here rather than lazily because everything that joins
-    # a place to its layer assumes the layer exists.
-    from . import categories
+        # A new event starts with the usual layers and role names, which the
+        # club then edits. Seeded here rather than lazily because everything
+        # that joins a place to its layer assumes the layer exists - and in
+        # the same transaction, so an event never exists without them.
+        from . import categories
 
-    categories.seed_poi_categories(conn, event_id)
-    categories.seed_roster_roles(conn, event_id)
+        categories.seed_poi_categories(conn, event_id)
+        categories.seed_roster_roles(conn, event_id)
     return event_id
 
 
@@ -209,6 +281,65 @@ def active_events(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     return conn.execute(
         "SELECT * FROM event WHERE is_active = 1 ORDER BY id"
     ).fetchall()
+
+
+# --- ordering ---------------------------------------------------------------
+
+def reorder(
+    conn: sqlite3.Connection,
+    table: str,
+    key_column: str,
+    event_id: int,
+    keys: list,
+    *,
+    allow_subset: bool = False,
+    top_first: bool = False,
+) -> int:
+    """Renumber `sort_order` for one event's rows in the order given.
+
+    The one implementation behind places, courses, layers and leaders, which
+    were four textually identical loops. Numbered in tens from 1 so a later
+    insertion has somewhere to go and nothing lands on 0, which for places
+    means "never placed by hand".
+
+    `allow_subset`: places may be ordered a few at a time - anything omitted
+    keeps its 0 and stays at the end, which is right for a place the club
+    has not thought about yet. Everything else must be listed once, or a
+    row would keep an old number and land in a slot nobody chose.
+
+    `top_first`: courses read as a stack, so the first id given draws on
+    top and therefore gets the HIGHEST number.
+
+    Every key is checked before anything is written. A half-applied order
+    is worse than none, because it looks like it worked.
+    """
+    assert table in {"poi", "course", "poi_category", "lead_division"}
+    assert key_column in {"id", "key"}
+    wanted = list(keys or [])
+    if not wanted:
+        raise ValueError("Nothing to reorder.")
+    known = {
+        row[0] for row in conn.execute(
+            f"SELECT {key_column} FROM {table} WHERE event_id = ?", (event_id,)
+        ).fetchall()
+    }
+    if len(set(wanted)) != len(wanted):
+        raise ValueError("Each entry may be listed only once.")
+    unknown = [k for k in wanted if k not in known]
+    if unknown:
+        raise ValueError(f"Not in this event: {unknown[0]!r}")
+    if not allow_subset and set(wanted) != known:
+        raise ValueError("Every entry in the event must be listed, once.")
+
+    ordered = list(reversed(wanted)) if top_first else wanted
+    with transaction(conn):
+        conn.executemany(
+            f"UPDATE {table} SET sort_order = ?"
+            f" WHERE {key_column} = ? AND event_id = ?",
+            [(position * 10, key, event_id)
+             for position, key in enumerate(ordered, start=1)],
+        )
+    return len(wanted)
 
 
 # --- roster ---------------------------------------------------------------
@@ -379,21 +510,6 @@ def insert_position(conn: sqlite3.Connection, event_id: int, report: PositionRep
     return int(cur.lastrowid)
 
 
-def log_raw_packet(
-    conn: sqlite3.Connection,
-    event_id: int | None,
-    received_at: str,
-    raw: str,
-    status: str,
-    error: str | None = None,
-) -> None:
-    conn.execute(
-        "INSERT INTO raw_packet (event_id, received_at, raw, status, error)"
-        " VALUES (?, ?, ?, ?, ?)",
-        (event_id, received_at, raw, status, error),
-    )
-
-
 def recent_positions(
     conn: sqlite3.Connection, event_id: int, limit: int = 20
 ) -> list[sqlite3.Row]:
@@ -487,33 +603,38 @@ def set_op_status(
 
     # Read the outgoing value first: the roster row is about to be overwritten,
     # and the transition is the useful part at handover.
-    previous = conn.execute(
-        "SELECT op_status FROM roster WHERE event_id = ? AND station_key = ?",
-        (event_id, station_key.upper()),
-    ).fetchone()
+    # One unit: the read of the previous status, the overwrite and the log
+    # row. Two NCS screens setting the same station at once must not both
+    # log the same "from" status, and a crash between the UPDATE and the
+    # INSERT must not lose the history that cannot be rebuilt later.
+    with transaction(conn):
+        previous = conn.execute(
+            "SELECT op_status FROM roster WHERE event_id = ? AND station_key = ?",
+            (event_id, station_key.upper()),
+        ).fetchone()
 
-    cur = conn.execute(
-        """
-        UPDATE roster
-           SET op_status = ?,
-               op_status_at = strftime('%Y-%m-%dT%H:%M:%SZ','now'),
-               op_status_by = ?
-         WHERE event_id = ? AND station_key = ?
-        """,
-        (op_status, changed_by, event_id, station_key.upper()),
-    )
-    if cur.rowcount == 0:
-        raise ValueError(f"{station_key} is not on this event's roster.")
+        cur = conn.execute(
+            """
+            UPDATE roster
+               SET op_status = ?,
+                   op_status_at = strftime('%Y-%m-%dT%H:%M:%SZ','now'),
+                   op_status_by = ?
+             WHERE event_id = ? AND station_key = ?
+            """,
+            (op_status, changed_by, event_id, station_key.upper()),
+        )
+        if cur.rowcount == 0:
+            raise ValueError(f"{station_key} is not on this event's roster.")
 
-    # Appended, never overwritten. This history cannot be reconstructed later,
-    # so it has to be captured as it happens.
-    conn.execute(
-        "INSERT INTO roster_status_log"
-        " (event_id, station_key, by, from_status, to_status)"
-        " VALUES (?, ?, ?, ?, ?)",
-        (event_id, station_key.upper(), changed_by,
-         previous["op_status"] if previous else None, op_status),
-    )
+        # Appended, never overwritten. This history cannot be reconstructed
+        # later, so it has to be captured as it happens.
+        conn.execute(
+            "INSERT INTO roster_status_log"
+            " (event_id, station_key, by, from_status, to_status)"
+            " VALUES (?, ?, ?, ?, ?)",
+            (event_id, station_key.upper(), changed_by,
+             previous["op_status"] if previous else None, op_status),
+        )
     return conn.execute(
         "SELECT * FROM roster WHERE event_id = ? AND station_key = ?",
         (event_id, station_key.upper()),
@@ -566,7 +687,7 @@ def exclude_station(
         "INSERT INTO station_exclusion (event_id, station_key, reason)"
         " VALUES (?, ?, ?)"
         " ON CONFLICT (event_id, station_key) DO UPDATE SET reason = excluded.reason",
-        (event_id, station_key.strip().upper(), (reason or "").strip() or None),
+        (event_id, station_key.strip().upper(), clean_text(reason, 200)),
     )
 
 
@@ -620,17 +741,24 @@ def unexpected_ssids(conn: sqlite3.Connection, event_id: int) -> list[sqlite3.Ro
     if not bases:
         return []
 
+    # The symbol pair comes from ONE packet - the newest - never from two
+    # aggregates. MAX(symbol_table) with MAX(symbol_code) once paired the
+    # table of one packet with the code of another and described a symbol
+    # nothing had sent, and that description is what tells NCS whether
+    # this is a person to adopt or an igate to dismiss.
     rows = conn.execute(
         """
         SELECT p.station_key,
-               COUNT(*)                AS packets,
-               MAX(p.received_at)      AS last_at,
-               MAX(p.symbol_table)     AS symbol_table,
-               MAX(p.symbol_code)      AS symbol_code
+               counts.packets          AS packets,
+               p.received_at           AS last_at,
+               p.symbol_table          AS symbol_table,
+               p.symbol_code           AS symbol_code
           FROM position p
-         WHERE p.event_id = ?
-      GROUP BY p.station_key
-      ORDER BY packets DESC
+          JOIN (
+                SELECT station_key, COUNT(*) AS packets, MAX(id) AS max_id
+                  FROM position WHERE event_id = ? GROUP BY station_key
+               ) counts ON counts.max_id = p.id
+      ORDER BY counts.packets DESC
         """,
         (event_id,),
     ).fetchall()
@@ -706,19 +834,71 @@ def change_station_key(
             "SELECT * FROM roster WHERE event_id = ? AND station_key = ?",
             (event_id, old_key),
         ).fetchone()
-    existing = conn.execute(
-        "SELECT 1 FROM roster WHERE event_id = ? AND station_key = ?",
-        (event_id, new_key),
-    ).fetchone()
-    if existing is not None:
-        raise ValueError(f"{new_key} is already on the roster.")
+    # Same callsign, both with an SSID: -1 on the roster, -5 on the air. There
+    # is nothing to bind across here, so this one really is a rename.
+    return rename_station_key(conn, event_id, old_key, new_key)
 
-    cur = conn.execute(
-        "UPDATE roster SET station_key = ? WHERE event_id = ? AND station_key = ?",
-        (new_key, event_id, old_key),
-    )
-    if cur.rowcount == 0:
+
+def rename_station_key(
+    conn: sqlite3.Connection, event_id: int, old_key: str, new_key: str
+) -> sqlite3.Row:
+    """Correct what a human typed. The setup screen's edit, never NCS's match.
+
+    Binding (`change_station_key`) answers "which HEARD station is this
+    person?" and leaves the typed key alone so it stays undoable. This
+    answers the opposite question - "what should the typed key have been?" -
+    and so it moves the row. Routing the setup edit through the bind logic
+    left two roster rows for one person: the original, bound to the new key,
+    and a fresh one upserted under it, both attributing the same packets.
+
+    A binding NCS made survives the rename: it records which radio was
+    heard, which a typo in the callsign does not change, and dropping it
+    would take the person off the map mid-event. The one exception is a
+    rename onto the bound key itself - a bare entry that learned -9 from the
+    air and is now typed as -9 - which would leave a row bound to itself.
+    """
+    old_key, new_key = old_key.strip().upper(), new_key.strip().upper()
+    row = conn.execute(
+        "SELECT * FROM roster WHERE event_id = ? AND station_key = ?",
+        (event_id, old_key),
+    ).fetchone()
+    if row is None:
         raise ValueError(f"{old_key} is not on this event's roster.")
+    if new_key == old_key:
+        return row
+
+    # Two rows tracking one SSID is exactly the bug this exists to prevent,
+    # so the new key may be neither another row's callsign nor its binding.
+    taken = conn.execute(
+        "SELECT station_key FROM roster"
+        " WHERE event_id = ? AND station_key != ?"
+        " AND (station_key = ? OR bound_key = ?)",
+        (event_id, old_key, new_key, new_key),
+    ).fetchone()
+    if taken is not None:
+        if taken["station_key"] == new_key:
+            raise ValueError(f"{new_key} is already on the roster.")
+        raise ValueError(f"{new_key} already belongs to {taken['station_key']}.")
+
+    bound = None if row["bound_key"] == new_key else row["bound_key"]
+    with transaction(conn):
+        conn.execute(
+            "UPDATE roster SET station_key = ?, bound_key = ?"
+            " WHERE event_id = ? AND station_key = ?",
+            (new_key, bound, event_id, old_key),
+        )
+        # The history is keyed by station_key text with no foreign key, so
+        # it does not follow on its own. Left behind, the per-station log
+        # that a shift handover reads came back empty for a station
+        # corrected mid-event - the rows were there, under a key nothing
+        # asked for. This is a rename, not a rebinding, so moving the
+        # history is right - and in the same transaction, or a crash between
+        # the two leaves the log orphaned.
+        conn.execute(
+            "UPDATE roster_status_log SET station_key = ?"
+            " WHERE event_id = ? AND station_key = ?",
+            (new_key, event_id, old_key),
+        )
     return conn.execute(
         "SELECT * FROM roster WHERE event_id = ? AND station_key = ?",
         (event_id, new_key),

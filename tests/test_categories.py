@@ -47,6 +47,46 @@ def test_a_club_can_add_layers_of_its_own(event):
             "spectator_zones", "timing_mats"} <= keys
 
 
+def test_a_layer_colour_and_icon_are_checked_on_the_server(event):
+    """The client re-validates both, and that was the only guard. The server
+    is the boundary between an admin and the field phones: a future client
+    trusting the stored colour would carry a CSS injection, and an unknown
+    icon name draws as the default pin with nothing to say why."""
+    conn, event_id = event
+    row = categories.add_poi_category(conn, event_id, "Water", icon="drop",
+                                      color="#0072B2")
+    assert (row["icon"], row["color"]) == ("drop", "#0072b2")
+
+    with pytest.raises(categories.CategoryError, match="colour"):
+        categories.add_poi_category(conn, event_id, "Bad",
+                                    color="red; background:url(x)")
+    with pytest.raises(categories.CategoryError, match="icon"):
+        categories.add_poi_category(conn, event_id, "Bad", icon="<script>")
+    with pytest.raises(categories.CategoryError, match="colour"):
+        categories.update_poi_category(conn, event_id, "water",
+                                       {"color": "blue"})
+    with pytest.raises(categories.CategoryError, match="icon"):
+        categories.update_poi_category(conn, event_id, "water",
+                                       {"icon": "nope"})
+    # Blank clears the colour; blank icon falls back to the pin.
+    row = categories.update_poi_category(conn, event_id, "water",
+                                         {"color": "", "icon": ""})
+    assert (row["icon"], row["color"]) == ("pin", None)
+
+
+def test_the_icon_list_is_the_one_the_client_draws_from():
+    """One source: the palette in static/icons.js. A name accepted here that
+    the client cannot draw would be a pin, and vice versa a refusal for a
+    glyph that exists."""
+    from courseops import resources
+    script = (resources.package_file("static") / "icons.js").read_text("utf-8")
+    block = script.split("const POI_GLYPHS = {", 1)[1].split("\n};", 1)[0]
+    declared = {line.split(":", 1)[0].strip() for line in block.splitlines()
+                if line.strip() and ":" in line and not line.strip().startswith("/")}
+    assert set(categories.icon_names()) == declared
+    assert "pin" in declared and len(declared) > 10
+
+
 def test_there_is_no_limit_on_how_many(event):
     """The point of the whole change: nothing caps this."""
     conn, event_id = event
@@ -459,6 +499,32 @@ def test_a_role_in_use_cannot_be_deleted(event):
     assert "sweep" in keys
 
 
+def test_deleting_a_role_that_does_not_exist_is_refused(event):
+    """Layers and leaders already did; roles reported success for nothing,
+    so a stale client row "deleted" and the list reloaded unchanged."""
+    conn, event_id = event
+    with pytest.raises(categories.CategoryError, match="Unknown role"):
+        categories.delete_roster_role(conn, event_id, "nope")
+
+
+def test_the_in_use_counts_match_a_count_per_row(event):
+    """One GROUP BY per taxonomy feeds the setup screen and the CLI; it has
+    to agree with counting each key on its own, and omit nothing."""
+    conn, event_id = event
+    _poi(conn, event_id, "A", "aid_station")
+    _poi(conn, event_id, "B", "aid_station")
+    _poi(conn, event_id, "P", "parking")
+    categories.roster_roles(conn, event_id)
+    conn.execute(
+        "INSERT INTO roster (event_id, station_key, display_label, category)"
+        " VALUES (?, 'N0CALL-7', 'Sweep 1', 'sweep')", (event_id,))
+
+    assert categories.place_counts(conn, event_id) == {"aid_station": 2,
+                                                       "parking": 1}
+    assert categories.role_counts(conn, event_id) == {"sweep": 1}
+    assert categories.sighting_counts(conn, event_id) == {}
+
+
 def test_duplicate_role_names_are_refused(event):
     conn, event_id = event
     categories.roster_roles(conn, event_id)
@@ -520,22 +586,3 @@ def test_an_event_with_no_layers_at_all_is_still_seeded_on_read(event):
     keys = {c["key"] for c in categories.poi_categories(conn, event_id)}
     assert "aid_station" in keys
 
-
-def test_a_place_assigned_into_an_unknown_layer_creates_it():
-    """Import is the write that can orphan a key, so the repair follows it -
-    otherwise the place is in the database and off the map until a restart."""
-    from pathlib import Path
-    from courseops import importer
-
-    conn = db.connect(":memory:")
-    db.init_schema(conn)
-    event_id = db.create_event(conn, "e", "Event")
-    importer.stage_file(
-        conn, event_id, Path(__file__).parent / "fixtures" / "messy_course.kml")
-    point = next(r["id"] for r in importer.pending_features(conn, event_id)
-                 if r["geom_type"] == "point")
-
-    importer.assign_poi(conn, event_id, point, "porta_potty")
-
-    keys = {c["key"] for c in categories.poi_categories(conn, event_id)}
-    assert "porta_potty" in keys

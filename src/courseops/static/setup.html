@@ -5,16 +5,21 @@
 <meta name="robots" content="noindex, nofollow">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="light">
+<meta name="referrer" content="strict-origin-when-cross-origin">
 <title>Course Ops — Setup</title>
 <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
 <link rel="shortcut icon" href="/static/favicon.ico">
 <meta name="theme-color" content="#0B2545">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<!-- Shipped, not fetched - see index.html. -->
+<link rel="stylesheet" href="/static/leaflet/leaflet.css">
 <link rel="stylesheet" href="/static/app.css">
 <link rel="stylesheet" href="/static/setup.css">
 </head>
-<body class="setup">
+<!-- The first-run flag rides an attribute and setup-boot.js reads it: the
+     Content-Security-Policy allows no inline script. The placeholder is
+     the braced form on purpose: a plain __FIRST_RUN__ was once replaced on
+     BOTH sides of the assignment it lived in, silently losing the flag. -->
+<body class="setup" data-first-run="{{FIRST_RUN}}">
 
 <header id="setup-bar">
   <div id="brand">
@@ -542,12 +547,8 @@
   </section>
 </main>
 
-<!-- The token must not collide with the property name: a plain
-     __FIRST_RUN__ placeholder was replaced on BOTH sides, producing
-     `window.false = false` and silently losing the flag. -->
-<script>window.__FIRST_RUN__ = {{FIRST_RUN}};</script>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="/static/setup-boot.js"></script>
+<script src="/static/leaflet/leaflet.js"></script>
 <script src="/static/icons.js"></script>
   <script src="/static/setup.js"></script>
 </body>

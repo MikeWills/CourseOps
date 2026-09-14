@@ -20,7 +20,7 @@ import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from . import categories
+from . import categories, db
 
 # Which leaders an event tracks is the club's, not the code's: `lead_division`,
 # one row per kind of racer, seeded with the two below and edited in setup. This
@@ -153,9 +153,19 @@ def set_bib_color(
 
     conn.execute(
         "UPDATE course SET bib_color = ?, bib_color_name = ? WHERE id = ?",
-        (styling.normalize_color(resolved), (name or "").strip() or None, course_id),
+        (styling.normalize_color(resolved), db.clean_text(name, 40), course_id),
     )
     return conn.execute("SELECT * FROM course WHERE id = ?", (course_id,)).fetchone()
+
+
+def _division(value: object) -> str:
+    """The key as stored: stripped and lower-cased, the same in record, undo
+    and clear. They disagreed once - undo compared the raw string - so a
+    report recorded as "Male" landed under `male` and then would not undo."""
+    key = (db.clean_text(value) or "").lower()
+    if not key:
+        raise ValueError("A division is required.")
+    return key
 
 
 def record_sighting(
@@ -168,9 +178,15 @@ def record_sighting(
     by: str | None = None,
 ) -> sqlite3.Row:
     """Log that the leader for a division passed an aid station."""
-    division = (division or "").strip().lower()
-    if not division:
-        raise ValueError("A division is required.")
+    division = _division(division)
+    # Against the event's own list, not just non-empty: a client holding a
+    # stale leader list (one deleted in setup since the page loaded) would
+    # otherwise get a 201 for a report that is stored and then shown on no
+    # panel at all - the same "stored and displayed as nothing" shape the
+    # per-course station picker once had.
+    from . import categories
+    if division not in categories.lead_division_labels(conn, event_id):
+        raise ValueError(f"This event does not track a {division!r} leader.")
 
     course = conn.execute(
         "SELECT 1 FROM course WHERE id = ? AND event_id = ?", (course_id, event_id)
@@ -189,12 +205,8 @@ def record_sighting(
         VALUES (?, ?, ?, ?, ?, ?)
         """,
         (event_id, course_id, division, poi_id,
-         (bib or "").strip()[:16] or None, (by or "").strip()[:24] or None),
+         db.clean_text(bib, 16), db.clean_text(by, 24)),
     )
-    # A report for a leader the list does not name would show as nothing at
-    # all. This is the write that can do that, so the repair follows it rather
-    # than running on every read of the list.
-    categories.adopt_orphan_divisions(conn, event_id)
     return conn.execute(
         "SELECT * FROM lead_sighting WHERE id = ?", (int(cur.lastrowid),)
     ).fetchone()
@@ -207,7 +219,7 @@ def undo_last_sighting(
     row = conn.execute(
         "SELECT id FROM lead_sighting WHERE event_id = ? AND course_id = ?"
         " AND division = ? ORDER BY at DESC, id DESC LIMIT 1",
-        (event_id, course_id, division),
+        (event_id, course_id, _division(division)),
     ).fetchone()
     if row is None:
         return False
@@ -232,7 +244,7 @@ def clear_sightings(
     cur = conn.execute(
         "DELETE FROM lead_sighting WHERE event_id = ? AND course_id = ?"
         " AND division = ?",
-        (event_id, course_id, (division or "").strip().lower()),
+        (event_id, course_id, _division(division)),
     )
     return int(cur.rowcount)
 

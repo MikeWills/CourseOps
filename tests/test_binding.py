@@ -98,6 +98,27 @@ def test_binding_happens_once_and_does_not_flip(tmp_path):
     assert _roster_row(conn, event_id, "K0JZP")["bound_key"] == "K0JZP-9"
 
 
+def test_an_exact_roster_match_does_not_go_looking_for_a_bind(tmp_path, monkeypatch):
+    """A key the roster names outright can never bind - the lookup is two
+    SELECTs per packet on the loop the feed blocks on, for nothing."""
+    conn, event_id = _event(tmp_path, "K0JZP-9")
+    calls = []
+    real = db.bind_heard_ssid
+
+    def counted(*args, **kwargs):
+        calls.append(args[2])
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(db, "bind_heard_ssid", counted)
+    _feed(conn, event_id, _packet("K0JZP-9"))
+    assert calls == []
+    # ...while an SSID of a bare entry still gets the chance to bind.
+    db.upsert_roster_entry(conn, event_id, "N0PBA", "Aid 4", "aid_station")
+    _feed(conn, event_id, _packet("N0PBA-7"))
+    assert calls == ["N0PBA-7"]
+    assert _roster_row(conn, event_id, "N0PBA")["bound_key"] == "N0PBA-7"
+
+
 def test_an_ssid_already_on_the_roster_is_not_stolen(tmp_path):
     """Two entries under one callsign: a bare one, and an explicit -5 that
     belongs to someone else's assignment. -5 must stay where it was put."""
@@ -176,6 +197,28 @@ def test_an_unbound_extra_ssid_is_still_reported(tmp_path):
     assert heard == {"K0JZP-5"}
 
 
+def test_an_unexpected_ssid_reports_the_symbol_pair_from_its_newest_packet(tmp_path):
+    """Symbol table and code travel as a pair: the table character changes
+    what the code means. Aggregating the two columns separately (MAX of
+    each) once paired a table from one packet with a code from another and
+    described a symbol no packet carried - and that description is what
+    tells NCS whether to adopt or dismiss the station."""
+    conn, event_id = _event(tmp_path, "K0JZP-9")
+    # Same station, two symbols: first '\\#' (alternate table), then '/&'
+    # (primary table, '&' = igate). MAX() of each column separately gives
+    # table '\\' with code '&', which no packet sent.
+    _feed(conn, event_id,
+          _packet("K0JZP-5", "!4408.55N\\09359.20W#first"),
+          _packet("K0JZP-5", "!4408.55N/09359.20W&second"))
+
+    rows = db.unexpected_ssids(conn, event_id)
+    assert [r["station_key"] for r in rows] == ["K0JZP-5"]
+    assert (rows[0]["symbol_table"], rows[0]["symbol_code"]) == ("/", "&")
+    assert rows[0]["packets"] == 2
+    assert rows[0]["last_at"] == conn.execute(
+        "SELECT MAX(received_at) FROM position").fetchone()[0]
+
+
 def test_a_bare_callsign_is_accepted_by_setup(tmp_path):
     from courseops import admin
 
@@ -218,3 +261,104 @@ def test_repointing_an_explicit_entry_still_renames(tmp_path):
     row = db.change_station_key(conn, event_id, "K0JZP-1", "K0JZP-5")
 
     assert row["station_key"] == "K0JZP-5"
+
+
+# --- editing the callsign on the setup screen is a RENAME -------------------
+#
+# Binding is NCS's tool on the live map: it says which HEARD station is this
+# person, and leaves what was typed alone so it stays undoable. The setup form
+# is the other direction - the human is correcting what they typed - and
+# routing it through the bind logic left two roster rows for one person: the
+# original, bound to the new key, and a fresh one inserted under it.
+
+def _rows(conn, event_id):
+    return [(r["station_key"], r["bound_key"], r["display_label"], r["poi_id"])
+            for r in db.roster_for_event(conn, event_id)]
+
+
+def _edit(conn, event_id, original, new, **extra):
+    from courseops import admin
+    return admin.save_roster_entry(conn, event_id, {
+        "station_key": new, "original_station_key": original,
+        "display_label": "Aid 3", "category": "aid_station", **extra,
+    })
+
+
+@pytest.mark.parametrize("original,new", [
+    ("K0JZP-1", "K0JZP-7"),   # SSID typo
+    ("K0JZP", "K0JZP-9"),     # bare entry given its SSID
+    ("K0JZP-1", "N0CALL-1"),  # the wrong person's callsign entirely
+])
+def test_editing_a_callsign_in_setup_leaves_one_row(tmp_path, original, new):
+    conn, event_id = _event(tmp_path, station_key=original)
+    conn.execute("INSERT INTO poi (event_id, name, poi_type, lat, lon)"
+                 " VALUES (?, 'Aid 3', 'aid_station', 44.1, -93.9)", (event_id,))
+    poi_id = conn.execute("SELECT id FROM poi").fetchone()["id"]
+    db.assign_station_to_poi(conn, event_id, original, poi_id)
+
+    row = _edit(conn, event_id, original, new)
+
+    assert row["station_key"] == new
+    assert _rows(conn, event_id) == [(new, None, "Aid 3", poi_id)]
+
+
+def test_a_rename_keeps_a_binding_ncs_made(tmp_path):
+    """The binding says which radio was HEARD; the rename says what was
+    TYPED. Fixing a typo mid-event must not drop the person off the map."""
+    conn, event_id = _event(tmp_path, station_key="K0JZP-1")
+    db.change_station_key(conn, event_id, "K0JZP-1", "W1AW-5")   # borrowed rig
+    assert _roster_row(conn, event_id, "K0JZP-1")["bound_key"] == "W1AW-5"
+
+    _edit(conn, event_id, "K0JZP-1", "K0JZP-7")
+
+    assert _rows(conn, event_id)[0][:2] == ("K0JZP-7", "W1AW-5")
+
+
+def test_renaming_onto_the_bound_key_clears_the_binding(tmp_path):
+    """A bare entry learned -9 from the air and the human then types -9: one
+    key, not a row bound to itself."""
+    conn, event_id = _event(tmp_path)
+    _feed(conn, event_id, _packet("K0JZP-9"))
+
+    _edit(conn, event_id, "K0JZP", "K0JZP-9")
+
+    assert _rows(conn, event_id)[0][:2] == ("K0JZP-9", None)
+
+
+def test_renaming_onto_another_entry_is_refused(tmp_path):
+    """Two rows tracking one SSID is the bug this exists to prevent, so the
+    new key may be neither another row's callsign nor its binding."""
+    conn, event_id = _event(tmp_path, station_key="K0JZP-1")
+    db.upsert_roster_entry(conn, event_id, "W1AW", "Sweep", "sweep")
+    _feed(conn, event_id, _packet("W1AW-9"))
+
+    with pytest.raises(ValueError, match="W1AW"):
+        _edit(conn, event_id, "K0JZP-1", "W1AW")
+    with pytest.raises(ValueError, match="W1AW"):
+        _edit(conn, event_id, "K0JZP-1", "W1AW-9")
+    assert [r[0] for r in _rows(conn, event_id)] == ["K0JZP-1", "W1AW"]
+
+
+@pytest.mark.parametrize("via", ["setup", "ncs"])
+def test_the_status_log_follows_a_rename(tmp_path, via):
+    """Shift handover reads the station's log. A station corrected mid-event
+    used to look as if it had never changed status: the rows were still
+    there, under a key nothing asked for any more."""
+    conn, event_id = _event(tmp_path, station_key="K0JZP-1")
+    db.set_op_status(conn, event_id, "K0JZP-1", "active", "MW")
+
+    if via == "setup":
+        _edit(conn, event_id, "K0JZP-1", "K0JZP-7")
+    else:
+        db.change_station_key(conn, event_id, "K0JZP-1", "K0JZP-7")
+
+    assert [r["to_status"] for r in db.op_status_log(conn, event_id, "K0JZP-7")] \
+        == ["active"]
+    assert db.op_status_log(conn, event_id, "K0JZP-1") == []
+
+
+def test_editing_an_entry_that_does_not_exist_is_refused(tmp_path):
+    conn, event_id = _event(tmp_path)
+    with pytest.raises(ValueError, match="not on this event's roster"):
+        _edit(conn, event_id, "N0CALL-1", "N0CALL-2")
+    assert len(_rows(conn, event_id)) == 1

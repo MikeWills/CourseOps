@@ -126,8 +126,14 @@ def test_each_note_gets_a_small_map_with_the_course_under_it(event):
     assert [c["name"] for c in data.courses] == ["Half"]
     html = report.render(data)
     assert 'class="mini" data-lat="44.170500" data-lon="-93.990000"' in html
-    assert "leaflet@1.9.4" in html
+    assert '/static/leaflet/leaflet.js' in html
+    assert "unpkg.com" not in html
     assert "tile.openstreetmap.org" in html
+    # No inline script: the CSP forbids it, and this is the page that puts
+    # club-typed text nearest a <script> block. The JSON block is data.
+    import re
+    for tag in re.findall(r"<script\b[^>]*>", html):
+        assert 'src="' in tag or 'type="application/json"' in tag, tag
 
 
 def test_a_course_name_cannot_break_out_of_the_courses_block(event):

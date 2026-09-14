@@ -53,18 +53,22 @@ _HEX_COLOR = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
 _DASH = re.compile(r"^\d{1,3}(?:\s*,\s*\d{1,3})*$")
 
 
-def is_valid_color(value: str | None) -> bool:
-    return bool(value and _HEX_COLOR.match(value.strip()))
+def is_valid_color(value: object) -> bool:
+    # Anything that is not a string is not a colour, rather than an
+    # AttributeError: these arrive from JSON bodies.
+    return isinstance(value, str) and bool(_HEX_COLOR.match(value.strip()))
 
 
-def normalize_color(value: str | None) -> str | None:
+def normalize_color(value: object) -> str | None:
     return value.strip().lower() if is_valid_color(value) else None
 
 
-def is_valid_dash(value: str | None) -> bool:
+def is_valid_dash(value: object) -> bool:
     """Accept a preset name, an SVG dasharray, or 'solid'/'none'."""
     if value is None:
         return True
+    if not isinstance(value, str):
+        return False
     text = value.strip().lower()
     return (
         text in DASH_PRESETS

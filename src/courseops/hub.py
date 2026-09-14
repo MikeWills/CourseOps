@@ -106,11 +106,16 @@ class Hub:
                     )
 
 
-def position_message(report, roster_row=None, course_position=None) -> dict[str, Any]:
+def position_message(report, course_position=None) -> dict[str, Any]:
     """Wire format for one live position.
 
     Speed stays metric on the wire; the browser converts for display, keeping
     the storage/presentation split intact all the way out to the client.
+
+    No roster fields. The client joins a position to the roster by station
+    key, from the snapshot, and anything about the roster put here would be
+    a copy taken at feed start - the exact shape of thing that goes stale
+    the moment NCS renames a station mid-event.
     """
     message = {
         "type": "position",
@@ -125,9 +130,6 @@ def position_message(report, roster_row=None, course_position=None) -> dict[str,
         "symbol_code": report.symbol_code,
         "comment": report.comment,
     }
-    if roster_row is not None:
-        message["label"] = roster_row["display_label"]
-        message["category"] = roster_row["category"]
     # None means "not near any course" - the client shows nothing rather than a
     # plausible wrong mile figure.
     message["course_position"] = course_position
