@@ -899,9 +899,15 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     ) -> JSONResponse:
         conn, user = require_event_admin(request, event_id)
         try:
-            admin.delete_course(conn, event_id, course_id)
+            blocked = admin.delete_course(conn, event_id, course_id)
         finally:
             conn.close()
+        if blocked:
+            # The reports would cascade away with nothing to say where they
+            # went - the same refusal as deleting a sighted leader.
+            raise HTTPException(
+                status_code=409,
+                detail=f"{blocked} recorded on this course. Clear them first.")
         return JSONResponse({"deleted": course_id})
 
     # Declared before /pois/{poi_id}: FastAPI matches in declaration order,
@@ -967,9 +973,16 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     ) -> JSONResponse:
         conn, user = require_event_admin(request, event_id)
         try:
-            admin.delete_poi(conn, event_id, poi_id)
+            blocked = admin.delete_poi(conn, event_id, poi_id)
         finally:
             conn.close()
+        if blocked:
+            # Sightings would cascade away and the posted operator would fall
+            # off the map, neither with anything on screen to say why.
+            raise HTTPException(
+                status_code=409,
+                detail=f"{blocked} at this place. Clear the sightings and "
+                       "move the stations first.")
         return JSONResponse({"deleted": poi_id})
 
     # --- setup: roster ------------------------------------------------------

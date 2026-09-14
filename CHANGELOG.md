@@ -12,6 +12,18 @@ month, PATCH counting releases in that month from 0. Before that they were
 ## [Unreleased]
 
 ### Fixed
+- **Deleting a place silently deleted every lead runner sighting at it and
+  un-posted the operator standing there.** `lead_sighting.poi_id` cascades
+  and `roster.poi_id` nulls, and `delete_poi` was a bare DELETE - so the
+  leader's position on the NCS panel jumped back a station, and an operator
+  who never beacons (for whom the posting is the only thing putting them on
+  the map) vanished, with nothing on screen to say why. Every other delete in
+  the family - a layer with places, a leader with sightings - refuses with
+  the count; this one now does too, naming both counts, and so does deleting
+  a course with sightings recorded on it, which cascaded the same way.
+  Setup is used mid-event, which is why this matters. The Places tab's
+  delete button does not yet show the refusal (its handler has no error
+  path - audit task G7). (Audit 2026-09-14, B5.)
 - **Renaming a station left its status history under the old callsign.**
   `roster_status_log` is keyed by callsign text with no foreign key, so a
   same-callsign SSID correction (`N0CALL-1` to `N0CALL-7`, which really

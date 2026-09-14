@@ -203,9 +203,36 @@ def update_course(conn: sqlite3.Connection, event_id: int, course_id: int,
     ).fetchone())
 
 
-def delete_course(conn: sqlite3.Connection, event_id: int, course_id: int) -> None:
+def _in_use(parts: list[tuple[int, str, str]]) -> str | None:
+    """"1 lead runner sighting and 2 posted stations", or None if nothing."""
+    phrases = [f"{n} {one if n == 1 else many}" for n, one, many in parts if n]
+    if not phrases:
+        return None
+    if len(phrases) == 1:
+        return phrases[0]
+    return ", ".join(phrases[:-1]) + " and " + phrases[-1]
+
+
+def delete_course(conn: sqlite3.Connection, event_id: int,
+                  course_id: int) -> str | None:
+    """Remove a course. Refuses while lead runner sightings reference it.
+
+    `lead_sighting.course_id` cascades, so a bare DELETE took every report
+    for the race with it - the same silent loss that deleting a sighted
+    leader refuses. Returns what blocks it, worded for the screen, or None
+    once deleted.
+    """
+    sightings = conn.execute(
+        "SELECT COUNT(*) AS c FROM lead_sighting"
+        " WHERE event_id = ? AND course_id = ?", (event_id, course_id),
+    ).fetchone()["c"]
+    blocked = _in_use([
+        (sightings, "lead runner sighting", "lead runner sightings")])
+    if blocked:
+        return blocked
     conn.execute("DELETE FROM course WHERE id = ? AND event_id = ?",
                  (course_id, event_id))
+    return None
 
 
 def list_pois(conn: sqlite3.Connection, event_id: int) -> list[dict]:
@@ -530,8 +557,38 @@ def move_pois(conn: sqlite3.Connection, event_id: int,
     return int(cur.rowcount)
 
 
-def delete_poi(conn: sqlite3.Connection, event_id: int, poi_id: int) -> None:
+def delete_poi(conn: sqlite3.Connection, event_id: int,
+               poi_id: int) -> str | None:
+    """Remove a place. Refuses while sightings or a posted operator reference it.
+
+    `lead_sighting.poi_id` cascades and `roster.poi_id` nulls, so a bare
+    DELETE took every lead runner report at the place with it - the leader's
+    position on the NCS panel jumped back a station - and un-posted whoever
+    was standing there, which for an operator who never beacons is the only
+    thing putting them on the map. Neither said why. Every other delete in
+    this family (a layer with places, a leader with sightings) refuses with
+    the count; this one does the same. Setup is used mid-event.
+
+    An incident reported "at" the place keeps its own coordinates and is
+    left alone. Returns what blocks the delete, worded for the screen, or
+    None once deleted.
+    """
+    sightings = conn.execute(
+        "SELECT COUNT(*) AS c FROM lead_sighting WHERE event_id = ? AND poi_id = ?",
+        (event_id, poi_id),
+    ).fetchone()["c"]
+    posted = conn.execute(
+        "SELECT COUNT(*) AS c FROM roster WHERE event_id = ? AND poi_id = ?",
+        (event_id, poi_id),
+    ).fetchone()["c"]
+    blocked = _in_use([
+        (sightings, "lead runner sighting", "lead runner sightings"),
+        (posted, "posted station", "posted stations"),
+    ])
+    if blocked:
+        return blocked
     conn.execute("DELETE FROM poi WHERE id = ? AND event_id = ?", (poi_id, event_id))
+    return None
 
 
 # --- roster -----------------------------------------------------------------

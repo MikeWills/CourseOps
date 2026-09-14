@@ -1243,6 +1243,70 @@ def test_deleting_a_sighted_leader_is_refused_with_the_count(setup, tmp_path):
     assert "1 sighting" in refused.json()["detail"]
 
 
+def test_deleting_a_place_with_sightings_or_a_posted_station_is_refused(
+        setup, tmp_path):
+    """`lead_sighting.poi_id` cascades and `roster.poi_id` nulls, so a bare
+    DELETE took every report at the place with it and un-posted the operator
+    standing there - the leader's position jumped back a station and a
+    non-beaconing operator fell off the map, with nothing to say why. Same
+    rule as a layer with places in it or a leader with sightings."""
+    app, tokens, db_path, event_id = setup
+    _make_admin(db_path)
+
+    conn = db.connect(db_path)
+    course_id = conn.execute(
+        "SELECT id FROM course WHERE event_id = ?", (event_id,)).fetchone()["id"]
+    poi = conn.execute(
+        "SELECT id FROM poi WHERE event_id = ?", (event_id,)).fetchone()["id"]
+    db.assign_station_to_poi(conn, event_id, "KI4HMD-1", poi)
+    conn.close()
+
+    with TestClient(app) as client:
+        _login(client)
+        client.post(
+            f"/api/m2026/{tokens['ncs']}/leaders/sighting",
+            json={"course_id": course_id, "division": "male", "poi_id": poi},
+        )
+        refused = client.post(f"/api/setup/events/{event_id}/pois/{poi}/delete")
+        state = client.get(f"/api/m2026/{tokens['ncs']}/state").json()
+
+    assert refused.status_code == 409
+    detail = refused.json()["detail"]
+    assert "1 lead runner sighting" in detail
+    assert "1 posted station" in detail
+    assert [p["id"] for p in state["pois"]] == [poi]
+    assert next(r for r in state["roster"]
+                if r["station_key"] == "KI4HMD-1")["poi_id"] == poi
+
+
+def test_deleting_a_course_with_sightings_is_refused(setup, tmp_path):
+    """`lead_sighting.course_id` cascades the same way."""
+    app, tokens, db_path, event_id = setup
+    _make_admin(db_path)
+
+    conn = db.connect(db_path)
+    course_id = conn.execute(
+        "SELECT id FROM course WHERE event_id = ?", (event_id,)).fetchone()["id"]
+    poi = conn.execute(
+        "SELECT id FROM poi WHERE event_id = ?", (event_id,)).fetchone()["id"]
+    conn.close()
+
+    with TestClient(app) as client:
+        _login(client)
+        client.post(
+            f"/api/m2026/{tokens['ncs']}/leaders/sighting",
+            json={"course_id": course_id, "division": "male", "poi_id": poi},
+        )
+        refused = client.post(
+            f"/api/setup/events/{event_id}/courses/{course_id}/delete")
+        courses = client.get(
+            f"/api/setup/events/{event_id}/courses").json()["courses"]
+
+    assert refused.status_code == 409
+    assert "1 lead runner sighting" in refused.json()["detail"]
+    assert [c["id"] for c in courses] == [course_id]
+
+
 # --- places added and moved by hand (#108) ----------------------------------
 
 def _login(client):
