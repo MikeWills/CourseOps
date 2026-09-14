@@ -126,6 +126,43 @@ def test_container_listeners_are_bound_once_per_table():
     assert "if (!live.bound) {" in save_all
 
 
+def test_a_picked_point_defaults_to_a_layer_the_event_has():
+    """The taxonomy is the club's. Picking a point in review forced the
+    select to 'aid_station'; a club that deleted that layer got a blank
+    select and a refusal naming a layer they removed on purpose."""
+    pick = _block("function togglePick(", "$('assign-go')")
+    assert "'aid_station'" not in pick
+    assert "defaultPlaceLayer()" in pick
+    helper = _block("function defaultPlaceLayer(", "async function fillAssignTypes")
+    assert "c.staffed" in helper
+
+
+def test_cancel_puts_the_event_form_back_to_what_this_user_may_do():
+    """Edit un-hides the form for anyone who may edit; Cancel retitled it
+    "New event" and left it up, so an event admin was looking at a create
+    form whose submit answers 403."""
+    reset = _block("function resetEventForm(", "$('event-cancel').addEventListener")
+    assert "$('event-form').hidden = !S.user.may_create_events;" in reset
+
+
+def test_the_delete_event_button_matches_the_servers_rule():
+    """The route lets anyone who may create events delete one - a club must
+    be able to remove its own rehearsal event - and the client offered the
+    button to the host only."""
+    row = _block("host.innerHTML = '<table class=\"grid\">", "host.querySelectorAll('[data-pick]')")
+    assert "S.user.may_create_events\n            ? iconBtn('remove', {'data-del'" in row
+    assert "is_system_admin" not in row
+
+
+def test_a_links_last_use_is_shown_in_the_events_zone():
+    """Everywhere else a stored time is formatted by the browser in the
+    event's zone; this one printed 2026-09-14T13:02:11Z for the officer
+    deciding which of three links to revoke."""
+    assert "'Last used ' + esc(eventClock(l.last_used))" in SETUP_JS
+    clock = _block("function eventClock(", "async function loadLinks")
+    assert "timeZone: zone" in clock and "hour12: false" in clock
+
+
 def test_the_upload_parses_the_body_before_trusting_it_is_json():
     """A 413 from Apache or a 502 from the proxy is an HTML page, and
     parsing it before checking the status showed "Unexpected token '<'"

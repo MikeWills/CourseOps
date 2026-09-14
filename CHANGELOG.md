@@ -23,6 +23,18 @@ month, PATCH counting releases in that month from 0. Before that they were
   setting. `setup-courses.png` shows the old per-row button.
 
 ### Fixed
+- Four small setup fixes. Picking a point in the Import review forced the
+  layer to a hardcoded `aid_station` - a club that had deleted that layer
+  got a blank select and a refusal naming a layer they removed on purpose;
+  it defaults to the first staffed layer now, or the first there is. Cancel
+  on an edited event left an event admin looking at a "New event" form
+  whose submit answers 403; it goes back to hidden for anyone who may not
+  create events. The Delete button on an event showed for the host only
+  while the server lets any organization admin delete their own - a club
+  could not remove its own rehearsal event without asking; the button
+  follows the server's rule. A link's "Last used" printed the raw UTC
+  timestamp; it is the date and 24-hour time in the event's zone, the way
+  every other stored time is shown.
 - **Every re-render of a setup table stacked another set of listeners on
   it.** The drag-to-reorder and save-all handlers listen on the table's
   container, whose contents are replaced on every load while the element

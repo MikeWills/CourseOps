@@ -555,7 +555,7 @@ async function loadEvents() {
   const host = $('event-list');
   if (!S.events.length) {
     host.innerHTML = '<p class="muted">No events yet.'
-      + (S.user.is_system_admin ? ' Create one below.' : '') + '</p>';
+      + (S.user.may_create_events ? ' Create one below.' : '') + '</p>';
     return;
   }
   host.innerHTML = '<table class="grid"><thead><tr><th>Event</th><th>Date</th>'
@@ -577,7 +577,7 @@ async function loadEvents() {
              rel="noopener" title="Pickups, notes and maps to hand the race lead afterwards"
              >After-event report</a>
           ${iconBtn('edit', {'data-edite': e.id}, `Edit ${e.name}`)}
-          ${S.user.is_system_admin
+          ${S.user.may_create_events
             ? iconBtn('remove', {'data-del': e.id}, `Delete ${e.name}`) : ''}
         </td></tr>`).join('') + '</tbody></table>';
 
@@ -715,6 +715,10 @@ function resetEventForm() {
   $('event-cancel').hidden = true;
   $('event-error').hidden = true;
   $('ev-org-field').hidden = !S.user.is_system_admin;
+  // Back to what this person may do. Edit un-hides the form for anyone who
+  // may edit; Cancel used to leave it up retitled "New event", and an event
+  // admin's submit came back 403 "You cannot create events."
+  $('event-form').hidden = !S.user.may_create_events;
   fillTimeZones();
 }
 
@@ -844,6 +848,15 @@ async function uploadCourseFile(file) {
   // line rather than being reduced to a count.
   (data.warnings || []).forEach((w) => banner(w, true));
   return data;
+}
+
+/* The layer a picked point is offered first: staffed, because a place a
+   person is going to stand at is the common case, or the first layer there
+   is. Never a hardcoded key - see the note at the pick. */
+function defaultPlaceLayer() {
+  const layers = S.poiCategories || [];
+  const staffed = layers.find((c) => c.staffed) || layers[0];
+  return staffed ? staffed.key : '';
 }
 
 /* The review screen offers whatever layers this event has, so importing a
@@ -1020,7 +1033,11 @@ function togglePick(id) {
 
   const picked = S.staged.filter((f) => S.picked.has(f.id));
   const allLines = picked.length > 0 && picked.every((f) => f.geom_type !== 'point');
-  $('assign-type').value = allLines ? 'course' : 'aid_station';
+  // A point defaults to the first STAFFED layer - the taxonomy is the
+  // club's, and a club that deleted "Aid stations" left the old hardcoded
+  // key pointing at nothing: the select went blank and Assign was refused
+  // for a layer they had removed on purpose.
+  $('assign-type').value = allLines ? 'course' : defaultPlaceLayer();
   if (picked.length === 1 && !$('assign-name').value) {
     $('assign-name').value = picked[0].name.replace(/\s*\[\d+\]$/, '');
   }
@@ -2352,6 +2369,27 @@ $('roster-form').addEventListener('submit', async (ev) => {
 
 /* ---------- links -------------------------------------------------------- */
 
+/* A stored time, shown in the EVENT's zone with the date, 24-hour - the same
+   shape the report page and the live app use, for the same reason: a Windows
+   Python has no zone database, and the browser always does. Raw
+   "2026-09-14T13:02:11Z" was what the officer choosing which of three NCS
+   links to revoke had to convert in their head. */
+function eventClock(iso) {
+  if (!iso) return '';
+  const when = new Date(iso.endsWith('Z') ? iso : iso + 'Z');
+  if (Number.isNaN(when.getTime())) return iso;
+  const event = (S.events || []).find((e) => e.id === S.eventId);
+  const zone = (event && event.timezone) || '';
+  const opts = { month: 'short', day: 'numeric',
+                 hour: '2-digit', minute: '2-digit', hour12: false };
+  try {
+    return new Intl.DateTimeFormat(undefined,
+      zone ? Object.assign({ timeZone: zone }, opts) : opts).format(when);
+  } catch (err) {
+    return new Intl.DateTimeFormat(undefined, opts).format(when);
+  }
+}
+
 async function loadLinks() {
   const data = await api(`/api/setup/events/${S.eventId}/links`);
   const live = data.links.filter((l) => !l.revoked);
@@ -2394,7 +2432,7 @@ async function loadLinks() {
               `Revoke this ${group.role_label} link${who ? ' (' + who + ')' : ''}`)
           : ''}
       </div>
-      <p class="muted">${l.last_used ? 'Last used ' + esc(l.last_used)
+      <p class="muted">${l.last_used ? 'Last used ' + esc(eventClock(l.last_used))
                                      : 'Never used'}</p>`;
     }).join('');
 
