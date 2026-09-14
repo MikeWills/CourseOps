@@ -320,11 +320,12 @@ def page_html(page: Page, names: list[str], root: Path = GUIDES_DIR) -> str:
     every guide, and the page. Self-contained apart from the shared fonts and
     logo, which the app has already cached."""
     e = escape
-    nav = "".join(
-        f'<li><a href="/help/{"" if n == INDEX else n}"'
-        f'{" aria-current=\"page\"" if n == page.name else ""}>{e(nav_title(n, root))}</a></li>'
-        for n in names
-    )
+    items = []
+    for n in names:
+        href = "/help/" if n == INDEX else f"/help/{n}"
+        current = ' aria-current="page"' if n == page.name else ""
+        items.append(f'<li><a href="{href}"{current}>{e(nav_title(n, root))}</a></li>')
+    nav = "".join(items)
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
