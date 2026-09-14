@@ -206,6 +206,9 @@ CREATE TABLE IF NOT EXISTS roster (
     -- for shift handover, not authentication.
     op_status_at  TEXT,
     op_status_by  TEXT,
+    -- Unused. Never written by anything and read by nothing; per-station
+    -- colour never made it past the schema. Left in place because dropping a
+    -- column is a migration, and it is harmless in a row dump.
     color         TEXT,
     UNIQUE (event_id, station_key)
 );
@@ -461,23 +464,13 @@ CREATE TABLE IF NOT EXISTS station_exclusion (
     UNIQUE (event_id, station_key)
 );
 
--- Server-wide setup access.
---
--- Separate from access_token, which is scoped to one event: creating the FIRST
--- event needs a token that cannot belong to an event yet. Printed when the
--- server starts.
---
--- This is the most powerful credential the app has - it can read and change
--- every event - so it is deliberately not something a club circulates. One
--- person sets up; everyone else gets a role link.
-CREATE TABLE IF NOT EXISTS admin_token (
-    id         INTEGER PRIMARY KEY,
-    token      TEXT    NOT NULL UNIQUE,
-    label      TEXT,
-    revoked    INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
-    last_used  TEXT
-);
+-- There is no server-wide setup token any more. Setup is behind the
+-- administrator accounts below (user + session); the `admin_token` table that
+-- once held a printed setup link is no longer created. A database from before
+-- 2026-09 may still carry an empty or stale `admin_token` table: nothing reads
+-- it, and it is left in place rather than dropped by a migration because a
+-- DROP in a startup migration is the one kind of statement that cannot be
+-- undone by restoring the previous version.
 
 -- Administrator accounts.
 --

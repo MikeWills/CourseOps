@@ -19,7 +19,7 @@ import zipfile
 from pathlib import Path
 from typing import Any
 
-from fastapi import (FastAPI, File, Form, HTTPException, Request, UploadFile,
+from fastapi import (FastAPI, File, HTTPException, Request, UploadFile,
                      WebSocket, WebSocketDisconnect)
 from fastapi.responses import (HTMLResponse, JSONResponse, PlainTextResponse,
                                RedirectResponse)
@@ -430,7 +430,6 @@ def build_state(conn: sqlite3.Connection, event_id: int) -> dict[str, Any]:
             poi = next((p for p in pois if p["id"] == row["poi_id"]), None)
             if poi is not None:
                 entry["course_position"] = poi["course_position"]
-                entry["poi_name"] = poi["name"]
         roster.append(entry)
 
     # Ignoring an SSID has to hide what was already stored, not merely stop
@@ -502,24 +501,18 @@ def build_state(conn: sqlite3.Connection, event_id: int) -> dict[str, Any]:
         # roles alone - left out for the rest, like everything role-gated.
         "leaders": [entry.as_dict() for entry in
                     leaders.for_event(conn, event_id, index)],
-        # The leaders this event tracks, in the club's order. Per event, not a
-        # constant: a race with a wheelchair field used to need a code change.
-        "divisions": [
-            {"value": row["key"], "label": row["name"]}
-            for row in categories.lead_divisions(conn, event_id)
-        ],
+        # Which leaders the event tracks is not sent as its own list: each
+        # `leaders` entry carries its `division` and `division_label`, which
+        # is the only form the panel reads (a row per race per leader).
         "incidents": incident_rows,
         "incident_statuses": [
             {"value": value, "label": incidents.STATUS_LABELS[value]}
             for value in incidents.STATUSES
         ],
-        "incident_kinds": [
-            {"value": value, "label": incidents.KIND_LABELS[value]}
-            for value in incidents.KINDS
-        ],
-        # The number that means "still waiting". Notes are excluded by
-        # construction - see incidents.waiting_count.
-        "pickups_waiting": incidents.waiting_count(conn, event_id),
+        # No count of waiting pickups: the client derives it from the list
+        # (`incidentDone` in app.js) and has to, because the list changes
+        # under it on every socket message and a count sent once would be
+        # stale by the second one.
         "op_statuses": list(db.OP_STATUSES),
         "thresholds": {
             "stale_after_s": STALE_AFTER_SECONDS,
@@ -2127,8 +2120,7 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         # the club's business during the race, not theirs. The report page
         # is where the organizer gets the counts afterwards.
         if not granted.can(access.CAP_INCIDENT_REPORT):
-            for key in ("incidents", "pickups_waiting"):
-                payload.pop(key, None)
+            payload.pop("incidents", None)
         return JSONResponse(payload)
 
     def _nearby_for(conn: sqlite3.Connection, event_id: int) -> list[dict[str, Any]]:

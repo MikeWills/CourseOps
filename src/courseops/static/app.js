@@ -28,10 +28,6 @@ const state = {
   // What this role may actually change, from the server. A button the server
   // would refuse is worse than no button at all.
   can: new Set(),
-  incidentKinds: [
-    {value: 'pickup', label: 'Pickup'},
-    {value: 'note', label: 'Course note'},
-  ],
   // Which kind the next dropped pin becomes.
   pinKind: 'pickup',
   // Where we are, for ordering the pickup queue by proximity. Local only.
@@ -83,12 +79,11 @@ const state = {
   ssidAlerts: [],
   ignored: [],                // station_exclusion rows (NCS only)
   nearby: new Map(),          // station_key -> what was heard near the course (NCS only)
-  leaders: [],
   // Which leaders this event tracks - "First male", "First wheelchair" - is
-  // the club's, set in setup and sent in the snapshot. Empty until it
-  // arrives: a hardcoded pair here would render two rows the event may not
-  // have, and they would be replaced a moment later by a different list.
-  divisions: [],
+  // the club's, set in setup, and arrives inside each `leaders` entry as its
+  // `division_label`. There is no separate list: a hardcoded pair here would
+  // render two rows the event may not have.
+  leaders: [],
   aidStations: [],
   operatorInitials: '',
   following: false,
@@ -2497,8 +2492,6 @@ function applyState(data) {
   state.thresholds = data.thresholds;
   if (Array.isArray(data.op_statuses)) state.opStatuses = data.op_statuses;
   if (Array.isArray(data.incident_statuses)) state.incidentStatuses = data.incident_statuses;
-  if (Array.isArray(data.incident_kinds)) state.incidentKinds = data.incident_kinds;
-  if (Array.isArray(data.divisions)) state.divisions = data.divisions;
   state.leaders = data.leaders || [];
   state.ssidAlerts = data.ssid_alerts || [];
   state.ignored = data.ignored || [];

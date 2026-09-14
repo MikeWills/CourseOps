@@ -100,12 +100,6 @@ ROLE_CAPABILITIES = {
     ROLE_STAFF: frozenset(),
 }
 
-# Kept for the roster filter and anything asking the old yes/no question.
-WRITE_ROLES = tuple(
-    role for role, caps in ROLE_CAPABILITIES.items() if caps
-)
-
-
 @dataclass(frozen=True)
 class Access:
     event_id: int
@@ -136,52 +130,6 @@ class Access:
     @property
     def role_label(self) -> str:
         return ROLE_LABELS.get(self.role, self.role)
-
-
-# --- server-wide setup access ----------------------------------------------
-#
-# Creating the first event needs a credential that is not tied to an event, so
-# this cannot reuse the per-event tokens above.
-
-
-def ensure_admin_token(conn: sqlite3.Connection) -> str:
-    """The setup link, created once and reused across restarts.
-
-    Stable on purpose: a token that changed every start would either have to be
-    re-copied constantly or emailed around, and neither is better.
-    """
-    row = conn.execute(
-        "SELECT token FROM admin_token WHERE revoked = 0 ORDER BY id LIMIT 1"
-    ).fetchone()
-    if row is not None:
-        return row["token"]
-    token = generate_token()
-    conn.execute("INSERT INTO admin_token (token, label) VALUES (?, ?)",
-                 (token, "setup"))
-    return token
-
-
-def resolve_admin(conn: sqlite3.Connection, token: str) -> bool:
-    """True if this is a live setup token."""
-    if not token:
-        return False
-    row = conn.execute(
-        "SELECT id FROM admin_token WHERE token = ? AND revoked = 0", (token,)
-    ).fetchone()
-    if row is None:
-        return False
-    conn.execute(
-        "UPDATE admin_token SET last_used = strftime('%Y-%m-%dT%H:%M:%SZ','now')"
-        " WHERE id = ?",
-        (row["id"],),
-    )
-    return True
-
-
-def rotate_admin_token(conn: sqlite3.Connection) -> str:
-    """Revoke every setup token and issue a new one."""
-    conn.execute("UPDATE admin_token SET revoked = 1 WHERE revoked = 0")
-    return ensure_admin_token(conn)
 
 
 def generate_token() -> str:

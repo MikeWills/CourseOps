@@ -591,7 +591,7 @@ def cmd_links(args: argparse.Namespace) -> int:
     event = _event_or_exit(conn, args.event)
 
     if args.new:
-        token = access.create_token(conn, event["id"], args.new)
+        access.create_token(conn, event["id"], args.new)
         print(f"New {access.ROLE_LABELS[args.new]} link created.\n")
 
     tokens = access.ensure_tokens(conn, event["id"])

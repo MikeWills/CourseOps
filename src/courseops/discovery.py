@@ -142,8 +142,3 @@ class CheckIn:
             h for h in self.heard.values()
             if h.station_key not in self.roster and h.base in self.expected_bases
         ]
-
-
-def roster_keys_for_event(conn: sqlite3.Connection, event_id: int) -> list[str]:
-    from . import db
-    return db.all_station_keys(conn, event_id)

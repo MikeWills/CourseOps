@@ -762,7 +762,7 @@ def test_staff_are_never_sent_pickups_or_notes(setup):
                     json={"lat": 34.733, "lon": -86.576, "kind": "note",
                           "note": "cones down at 5th"})
         data = client.get(f"/api/m2026/{tokens['staff']}/state").json()
-        assert "incidents" not in data and "pickups_waiting" not in data
+        assert "incidents" not in data
         assert "roster" in data and "positions" in data and "pois" in data
         # Roster-adjacent, and only a role that can match or dismiss a
         # station renders it. Left out, like everything else role-gated.
@@ -843,7 +843,8 @@ def test_leaders_appear_in_state_per_course_and_division(setup):
         data = client.get(f"/api/m2026/{tokens['ncs']}/state").json()
 
     assert {e["division"] for e in data["leaders"]} == {"male", "female"}
-    assert [d["label"] for d in data["divisions"]] == ["First male", "First female"]
+    assert {e["division_label"] for e in data["leaders"]} == \
+        {"First male", "First female"}
 
 
 def test_recording_a_sighting_broadcasts_to_read_only_roles(setup):
@@ -1611,10 +1612,10 @@ def test_the_state_endpoint_publishes_the_event_own_leaders(setup, tmp_path):
 
         state = client.get(f"/api/m2026/{tokens['ncs']}/state").json()
 
-    labels = [d["label"] for d in state["divisions"]]
-    assert labels == ["First male", "First female", "First wheelchair"]
-    # And every race gained a row on the panel, which is the cost of adding one.
-    assert "First wheelchair" in {e["division_label"] for e in state["leaders"]}
+    # Every race gained a row on the panel, which is the cost of adding one;
+    # the leaders list is the only form of the division list the client reads.
+    labels = {e["division_label"] for e in state["leaders"]}
+    assert labels == {"First male", "First female", "First wheelchair"}
 
 
 def test_adding_a_leader_reaches_a_connected_map(setup, tmp_path):

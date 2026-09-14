@@ -541,9 +541,13 @@ def test_stops_snapping_to_another_route_are_skipped_until_stated(tmp_path):
 # Open, like the place layers and the station roles. A two-item constant here
 # meant a race with a wheelchair field needed a code change (#99).
 
+def division_keys(conn, event_id):
+    return tuple(row["key"] for row in categories.lead_divisions(conn, event_id))
+
+
 def test_a_new_event_tracks_the_usual_two(race):
     conn, event_id, course_id, index = race
-    assert categories.lead_division_keys(conn, event_id) == ("male", "female")
+    assert division_keys(conn, event_id) == ("male", "female")
     assert categories.lead_division_labels(conn, event_id)["female"] == \
         "First female"
 
@@ -587,7 +591,7 @@ def test_a_deleted_leader_is_not_seeded_back(race):
     the screen. Same rule as the place layers."""
     conn, event_id, course_id, index = race
     assert categories.delete_lead_division(conn, event_id, "female") == 0
-    assert categories.lead_division_keys(conn, event_id) == ("male",)
+    assert division_keys(conn, event_id) == ("male",)
     assert {e.division for e in leaders.for_event(conn, event_id, index)} == \
         {"male"}
 
@@ -601,7 +605,7 @@ def test_deleting_a_leader_with_sightings_is_refused_with_the_count(race):
     leaders.record_sighting(conn, event_id, course_id, "male",
                             poi_id(conn, "Bravo"))
     assert categories.delete_lead_division(conn, event_id, "male") == 2
-    assert "male" in categories.lead_division_keys(conn, event_id)
+    assert "male" in division_keys(conn, event_id)
 
     # Clearing them first is the existing, deliberate act.
     leaders.clear_sightings(conn, event_id, course_id, "male")
@@ -636,7 +640,7 @@ def test_a_sighting_whose_leader_is_missing_puts_it_back(race):
     # The repair is a startup step, not a read: every phone's snapshot reads
     # this list, and a read that writes competes for the lock with the feed.
     db.init_schema(conn)
-    keys = categories.lead_division_keys(conn, event_id)
+    keys = division_keys(conn, event_id)
     assert "wheelchair" in keys
     entry = leader(conn, event_id, index, "wheelchair")
     assert entry.last_poi_name == "Charlie"

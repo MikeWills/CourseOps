@@ -19,7 +19,7 @@ import re
 import sqlite3
 from typing import Any
 
-from . import (access, categories, db, geo, importer, labels, leaders,
+from . import (access, categories, db, importer, labels, leaders,
                progress, styling, what3words)
 
 

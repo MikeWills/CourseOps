@@ -233,15 +233,6 @@ def test_deleting_removes_the_incident_and_its_log(event):
     assert incidents.log_for(conn, row["id"]) == []
 
 
-def test_deleting_a_pickup_drops_the_waiting_count(event):
-    conn, event_id = event
-    first = incidents.create(conn, event_id, lat=44.1, lon=-93.9)
-    incidents.create(conn, event_id, lat=44.2, lon=-93.8)
-    assert incidents.waiting_count(conn, event_id) == 2
-    incidents.delete(conn, event_id, first["id"])
-    assert incidents.waiting_count(conn, event_id) == 1
-
-
 def test_deleting_a_course_note_leaves_pickups_alone(event):
     conn, event_id = event
     note = incidents.create(conn, event_id, lat=44.1, lon=-93.9, kind="note",

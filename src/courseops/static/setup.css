@@ -319,11 +319,6 @@ table.grid button:not(.icon-btn) {
   color: var(--navy-700);
 }
 .pill.is-off { background: #fbe4e2; color: var(--silent); }
-.swatch-dot {
-  display: inline-block; width: 14px; height: 14px;
-  border-radius: 3px; border: 1px solid rgba(0,0,0,.25);
-  vertical-align: -2px; margin-right: 6px;
-}
 
 /* --- course review ------------------------------------------------------- */
 

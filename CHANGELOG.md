@@ -11,6 +11,34 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Removed
+- **Code nothing ran.** The 2026-09-14 audit listed every top-level name in
+  `src/courseops` that no production code referenced, and the scan was
+  re-run after the other workstreams merged. Gone: `access.WRITE_ROLES`;
+  the server-wide setup token (`ensure_admin_token`, `resolve_admin`,
+  `rotate_admin_token`, and the `admin_token` DDL - setup has been behind
+  administrator accounts since the browser setup shipped, and a table that
+  reads like a second credential path is the kind of thing an auditor
+  spends an hour on; an existing database keeps its table, unread, rather
+  than get a `DROP` in a startup migration); `db.active_events`;
+  `discovery.roster_keys_for_event`; `leaders.DIVISIONS` (the pair lives in
+  `categories.DEFAULT_LEAD_DIVISIONS`); `units.miles_to_meters` and
+  `units.format_mile`; `build.version_string` and
+  `categories.lead_division_keys`, which only tests called; the `geo` and
+  `Form` imports in `admin.py` and `web.py`; the unused `.swatch-dot` rule
+  in `setup.css`. `incidents.waiting_count` went with them: the client has
+  derived the queue count from the list since the count and the map
+  drifted, and a count sent once in the snapshot was stale by the next
+  socket message anyway. The snapshot no longer carries `pickups_waiting`,
+  `divisions` (each `leaders` entry carries its `division_label`, the only
+  form the panel reads), `incident_kinds` (the pin-kind buttons are static)
+  or `roster[].poi_name`; `app.js` drops the two state fields that only
+  ever received them. `roster.color` stays in the schema, marked unused:
+  dropping a column is a migration. Already handled by earlier merges and
+  not repeated here: `purge_expired_sessions` (now called from
+  `start_session`), `suggest_event_center` (now wired to import), the
+  duplicate `payload["role"]` assignment. (Audit D1.)
+
 ### Added
 - **An event's map centre can be set from the browser, and an import sets
   it for you.** The Places map opens on the event's centre when there is no

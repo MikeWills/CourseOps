@@ -795,8 +795,11 @@ usability, not style preferences.
   Anything rendering an incident asks its KIND first; the list's round purple
   dot and the map's marker are the same decision and must not drift apart.
 - **"Picked up" is not "dropped off".** In the vehicle still counts as
-  outstanding; delivered does not. `incidents.waiting_count` is the number NCS
-  glances at, and it treats picked-up as still waiting on us.
+  outstanding; delivered does not. `incidentDone()` in `app.js` is the ONE
+  definition of "nobody is waiting on this" - the queue count and the map
+  marker both read it - and it treats picked-up as still waiting on us. The
+  count is derived in the browser from the list, never sent by the server: a
+  count sent once is stale by the next socket message.
 - **Proximity sort never overrides status.** Sorting purely by distance buries a
   pickup that has waited twenty minutes. Status leads; distance breaks ties
   within it. The distance is straight-line and labelled "away" - there is no

@@ -29,10 +29,8 @@ from . import categories, db
 #
 # It is called a "leader" everywhere a human looks, and a `division` in the code
 # and in `lead_sighting.division`. The key is what a sighting stores, so it is
-# the half that cannot move.
-#
-# These two remain only as the fallback for a caller with no database handy.
-DIVISIONS = ("male", "female")
+# the half that cannot move. The seed pair lives in
+# `categories.DEFAULT_LEAD_DIVISIONS`; there is no constant here.
 
 # A leader who has not been reported for this long is probably between aid
 # stations rather than missing - the gap between stations is often several
