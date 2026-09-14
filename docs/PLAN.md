@@ -130,7 +130,12 @@ Two things the map has to get right, both discovered by trying it:
 
 - **It cannot assume a course or a place exists.** The parade case has
   neither, so `placeMapView` falls back to the event's own centre and then to
-  a country view - never an empty `fitBounds`, which throws.
+  a country view - never an empty `fitBounds`, which throws. The centre was
+  unreachable from the browser until the 2026-09-14 audit: only the CLI's
+  `--lat/--lon` set it, so for exactly the event the picker exists for the
+  map opened on the whole country. Two ways in now: an optional *Map centre*
+  on the event form, and an import seeds it from the staged file's middle
+  when the event has none - once, never overwriting a centre someone set.
 - **Dragging a pin writes into the table rather than saving.** The row goes
   dirty and the table's own Save button picks it up, because a second save
   scope on one screen is the shape of the bug that once cost a real user

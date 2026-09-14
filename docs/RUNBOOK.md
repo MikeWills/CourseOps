@@ -66,8 +66,11 @@ courseops add-event mankato2026 "2026 Mankato Marathon" \
 ```
 </details>
 
-`--lat/--lon` set the default map centre. Roughly right is fine; the map fits to
-the course once one is imported.
+`--lat/--lon` (or *Map centre* on the form) set the default map centre. It is
+optional and roughly right is fine: importing a file fills it in when it is
+blank, and the map fits to the course once one is imported. Set it when there
+is nothing to import - a parade, a 5K with no file - or the Places map opens
+on the whole country.
 
 ### 3. Import and review the course
 

@@ -63,6 +63,9 @@ gone home. Label each one with whose it is - that label is what you will look
 for when you need to revoke in a hurry, because the links themselves are
 random strings and two of them side by side are indistinguishable.
 
+- Under each link, **Last used** is when a phone last opened it, in the
+  event's time zone - the clue to which of three links is the one left in the
+  parking lot.
 - The red **x** revokes one link. Every other link for that role keeps working.
 - **Replace all** revokes every link for the role at once - for when the role is
   compromised, not one phone.

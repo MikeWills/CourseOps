@@ -1,0 +1,205 @@
+"""The setup client, checked as text.
+
+The frontend has no build step and no test runner, so what can be checked
+here is the shape of the code: that a reader and the markup it reads agree,
+and that a fix that was silent when it broke cannot quietly be undone. Each
+test names the failure it guards against; none of them exercises a browser.
+"""
+
+from __future__ import annotations
+
+import re
+from pathlib import Path
+
+from courseops import web
+
+SETUP_JS = (web.STATIC_DIR / "setup.js").read_text(encoding="utf-8")
+
+
+def _block(start: str, end: str) -> str:
+    """The text between two anchors, so an assertion is about one handler."""
+    begin = SETUP_JS.index(start)
+    return SETUP_JS[begin:SETUP_JS.index(end, begin)]
+
+
+def test_export_csv_reads_the_coordinate_boxes():
+    """The Coordinates column shipped empty: the export read a <span> the
+    map picker (#108) had replaced with two inputs, and the banner still
+    reported success. The reader and the cell must name the same thing."""
+    export = _block("$('poi-export').addEventListener", "$('layer-form')")
+    assert ".coords span" not in export
+    assert "[data-plat]" in export and "[data-plon]" in export
+    # The cell those selectors are aimed at still renders both boxes.
+    row = _block("<td class=\"coords\">", "</td>")
+    assert 'data-plat="${p.id}"' in row and 'data-plon="${p.id}"' in row
+
+
+def test_a_wrong_password_gets_the_servers_message_not_sign_in_again():
+    """api() treats a 401 as an expired session and replaces the body with
+    "Sign in again." - which is what every mistyped password was told, and
+    showGate() wiped the first-run "Account created" notice on the way. The
+    sign-in call is the one 401 that is an answer, and it has to pass."""
+    api = _block("async function api(", "const post =")
+    assert "path !== LOGIN_PATH" in api
+    assert "const data = await post(LOGIN_PATH, body);" in SETUP_JS
+
+
+def test_the_version_record_is_upgraded_once_a_build_is_known():
+    """Signed out, the session carries no build (the commit stays behind the
+    login), so a page that loaded on the sign-in form recorded the bare
+    version. After sign-in the poll saw a build, the keys differed, and
+    "New version - reload" fired on the page that IS the current code - on
+    every fresh sign-in on the deployed server. The record taken without a
+    build has to give way to the first taken with one, and the poll has to
+    offer it before comparing."""
+    note = _block("function noteVersion(", "async function noteSignedInVersion")
+    assert "hasBuild && !S.loadedVersionHasBuild" in note
+    poll = _block("async function pollVersion(",
+                  "document.addEventListener('visibilitychange'")
+    assert poll.index("noteVersion(data)") < poll.index("checkVersion(data)")
+    login = _block("const data = await post(LOGIN_PATH, body);", "await start();")
+    assert "noteSignedInVersion()" in login
+
+
+def test_the_layer_cache_is_dropped_when_the_event_changes():
+    """S.poiCategories is fetched lazily and was only ever invalidated by a
+    layer reorder, so a host with two events kept event A's layers while
+    working on B: every layer dropdown on Import and Places offered A's
+    list, and adding a place in a layer B does not have was refused."""
+    select = _block("function selectEvent(", "const TIME_ZONES")
+    assert "S.poiCategories = null;" in select
+    delete = _block("await post(`/api/setup/events/${event.id}/delete`);",
+                    "banner(`Deleted ${event.name}.`);")
+    assert "S.poiCategories = null;" in delete
+
+
+def test_every_mutating_handler_reports_a_refusal():
+    """api() throws on any non-2xx. A handler that awaits it with no catch
+    turns a 400 or 403 into an unhandled rejection: no banner, no reload,
+    the row exactly as it was. Revoke on a leaked link, delete on a course,
+    remove on a roster entry NCS has rebound - the person could not tell
+    "already done" from "refused"."""
+    calls = [
+        "/courses/${b.dataset.delc}/delete",
+        "/pois/${b.dataset.delp}/delete",
+        "/roster/delete`",
+        "{action: 'add', role: b.dataset.add}",
+        "{action: 'label', token_id",
+        "{action: 'revoke', token_id",
+        "{action: 'reissue', role",
+    ]
+    for call in calls:
+        at = SETUP_JS.index(call)
+        # The nearest enclosing async handler must open a try before the call.
+        handler = SETUP_JS.rfind("async () =>", 0, at)
+        assert "try {" in SETUP_JS[handler:at], call
+
+
+def test_the_courses_table_saves_as_a_unit():
+    """The last editable table with a save button per row, and each press
+    reloaded the courses AND the places table under it - the pattern that
+    cost a real user twelve renames. bindSaveAll is the one implementation;
+    the two bib fields are one setting on the server, so a change to either
+    has to carry the other."""
+    assert "data-savec" not in SETUP_JS
+    courses = _block("bindSaveAll({\n    table: 'course-table'", "noun: 'course(s)'")
+    assert "payload.bib_color = " in courses and "payload.bib_color_name = " in courses
+    html = (web.STATIC_DIR / "setup.html").read_text(encoding="utf-8")
+    assert 'id="course-save-all"' in html and 'id="course-dirty"' in html
+
+
+def test_container_listeners_are_bound_once_per_table():
+    """bindReorder and bindSaveAll listen on the table CONTAINER, whose
+    innerHTML is replaced on every load while the element itself persists.
+    Nothing removed the previous listeners, so after twenty saves on Places
+    one drag posted the order twenty times and broadcast twenty resyncs to
+    every phone in the field, and every keystroke ran twenty full-table
+    diffs. Invisible until the tab has been used for a while - race week."""
+    reorder = _block("function bindReorder(", "/* ---------- organizations")
+    assert "if (live.bound) return;" in reorder
+    # Every container-level listener sits after the guard.
+    guard = reorder.index("if (live.bound) return;")
+    assert "tableEl.addEventListener" not in reorder[:guard]
+    assert reorder.count("tableEl.addEventListener") == 3
+    save_all = _block("function bindSaveAll(", "/* Layers and roles share")
+    assert "root.addEventListener('input', () => live.refresh());" in save_all
+    assert "if (!live.bound) {" in save_all
+
+
+def test_a_picked_point_defaults_to_a_layer_the_event_has():
+    """The taxonomy is the club's. Picking a point in review forced the
+    select to 'aid_station'; a club that deleted that layer got a blank
+    select and a refusal naming a layer they removed on purpose."""
+    pick = _block("function togglePick(", "$('assign-go')")
+    assert "'aid_station'" not in pick
+    assert "defaultPlaceLayer()" in pick
+    helper = _block("function defaultPlaceLayer(", "async function fillAssignTypes")
+    assert "c.staffed" in helper
+
+
+def test_cancel_puts_the_event_form_back_to_what_this_user_may_do():
+    """Edit un-hides the form for anyone who may edit; Cancel retitled it
+    "New event" and left it up, so an event admin was looking at a create
+    form whose submit answers 403."""
+    reset = _block("function resetEventForm(", "$('event-cancel').addEventListener")
+    assert "$('event-form').hidden = !S.user.may_create_events;" in reset
+
+
+def test_the_delete_event_button_matches_the_servers_rule():
+    """The route lets anyone who may create events delete one - a club must
+    be able to remove its own rehearsal event - and the client offered the
+    button to the host only."""
+    row = _block("host.innerHTML = '<table class=\"grid\">", "host.querySelectorAll('[data-pick]')")
+    assert "S.user.may_create_events\n            ? iconBtn('remove', {'data-del'" in row
+    assert "is_system_admin" not in row
+
+
+def test_a_links_last_use_is_shown_in_the_events_zone():
+    """Everywhere else a stored time is formatted by the browser in the
+    event's zone; this one printed 2026-09-14T13:02:11Z for the officer
+    deciding which of three links to revoke."""
+    assert "'Last used ' + esc(eventClock(l.last_used))" in SETUP_JS
+    clock = _block("function eventClock(", "async function loadLinks")
+    assert "timeZone: zone" in clock and "hour12: false" in clock
+
+
+def test_the_event_form_carries_the_map_centre():
+    """The routes accepted center_lat/center_lon from the start and the
+    form never sent them, so for the event the Places picker exists for -
+    nothing to import - the map opened on the whole country. The fields
+    are filled on edit and sent on both create and update, only when
+    typed: a blank box on the edit form means "leave it", not "forget it"."""
+    html = (web.STATIC_DIR / "setup.html").read_text(encoding="utf-8")
+    assert 'id="ev-lat"' in html and 'id="ev-lon"' in html
+    edit = _block("function editEvent(", "function resetEventForm(")
+    assert "$('ev-lat').value = event.center_lat" in edit
+    submit = _block("$('event-form').addEventListener('submit'", "/* ---------- course import")
+    assert submit.count("...eventCentre()") == 2
+    helper = _block("function eventCentre(", "$('ev-lat').addEventListener")
+    assert "if (!lat && !lon) return {};" in helper
+    # An import seeds the centre server-side; the picker reads it from
+    # S.events, so the list is refreshed after one.
+    imports = _block("async function importFiles(", "$('course-file').addEventListener")
+    assert "loadEvents()" in imports
+
+
+def test_the_picker_pins_drag_through_leaflet_not_mouse_events():
+    """The hand-rolled drag listened for the map's mousemove, which a touch
+    drag never sends, so on a tablet a pin could not be moved. Leaflet's
+    own marker drag starts on touchstart as well as mousedown; a path
+    (circleMarker) cannot be made draggable, hence the divIcon."""
+    picker = _block("function renderPlaceMap(", "function writeRowCoordinates(")
+    assert "draggable: true" in picker
+    assert "marker.on('dragend'" in picker
+    assert "map.on('mousemove'" not in picker and "marker.on('mousedown'" not in picker
+    css = (web.STATIC_DIR / "setup.css").read_text(encoding="utf-8")
+    assert ".place-pin {" in css
+
+
+def test_the_upload_parses_the_body_before_trusting_it_is_json():
+    """A 413 from Apache or a 502 from the proxy is an HTML page, and
+    parsing it before checking the status showed "Unexpected token '<'"
+    instead of "file too large" - on the KMZ the organizer sent."""
+    upload = _block("async function uploadCourseFile(", "async function fillAssignTypes")
+    assert "response.json().catch(() => ({}))" in upload
+    assert upload.index(".catch(() => ({}))") < upload.index("if (!response.ok)")

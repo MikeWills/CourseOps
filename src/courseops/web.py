@@ -235,6 +235,34 @@ def _row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
     return {key: row[key] for key in row.keys()}
 
 
+def _seed_event_center(conn: sqlite3.Connection, event_id: int) -> None:
+    """After an import, give an event with no centre one.
+
+    The centre is where the maps open before there is a course or a place
+    to fit - and until the setup form grew a field for it, nothing but the
+    CLI ever set it, so the Places map opened on the whole country and the
+    first click landed in Kansas. The staged file says where the event is;
+    take its middle, ONCE. A centre the club typed, or one an earlier import
+    already set, is never overwritten - the club may have picked the finish
+    line on purpose, and a second file (a shuttle route, a parking map) is
+    not the event.
+    """
+    row = conn.execute(
+        "SELECT center_lat, center_lon FROM event WHERE id = ?", (event_id,)
+    ).fetchone()
+    if row is None or (row["center_lat"] is not None
+                       and row["center_lon"] is not None):
+        return
+    center = importer.suggest_event_center(conn, event_id)
+    if center is None:
+        return
+    lon, lat = center      # geo speaks (lon, lat); the table stores lat, lon
+    conn.execute(
+        "UPDATE event SET center_lat = ?, center_lon = ? WHERE id = ?",
+        (lat, lon, event_id),
+    )
+
+
 def _course_position(index: "progress.CourseIndex", lat: float, lon: float):
     located = index.locate(lat, lon)
     return located.as_dict() if located else None
@@ -1197,6 +1225,7 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
                     # inside the reader, which was a 500 with a traceback in
                     # the journal rather than a sentence on the screen.
                     raise HTTPException(status_code=400, detail=str(exc))
+            _seed_event_center(conn, event_id)
             result = {
                 "filename": file.filename,
                 "total": summary.total,

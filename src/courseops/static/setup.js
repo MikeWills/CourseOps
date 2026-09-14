@@ -42,17 +42,32 @@ function banner(message, isError) {
   if (message && !isError) setTimeout(() => { el.hidden = true; }, 4000);
 }
 
+const LOGIN_PATH = '/api/setup/login';
+
 async function api(path, options) {
   const response = await fetch(path, Object.assign({
     headers: {'Content-Type': 'application/json'},
   }, options || {}));
-  if (response.status === 401) { showGate(false); throw new Error('Sign in again.'); }
+  /* A 401 anywhere else means the session has gone - put the gate up and
+     say so. The sign-in call itself is the exception: a 401 there IS the
+     answer, and the server's own words ("Incorrect username or password.")
+     have to reach the form. Intercepting it told every mistyped password
+     "Sign in again." as if the session had expired, and showGate() wiped
+     the "Account created" notice the first-run flow had just put up. */
+  if (response.status === 401 && path !== LOGIN_PATH) {
+    showGate(false);
+    throw new Error('Sign in again.');
+  }
   // Already signed in but still looking at the sign-in form: recover rather
   // than leaving the header and the form contradicting each other.
   if (response.status === 409 && S.user === null) {
     const check = await fetch('/api/setup/session').then((r) => r.json())
       .catch(() => ({}));
-    if (check.user) { S.user = check.user; await start(); }
+    if (check.user) {
+      S.user = check.user;
+      noteVersion(check); showVersion(check);
+      await start();
+    }
   }
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.detail || `Error ${response.status}`);
@@ -115,8 +130,9 @@ $('gate-form').addEventListener('submit', async (ev) => {
       $('gate-password').value = '';
       $('gate-password').focus();
     } else {
-      const data = await post('/api/setup/login', body);
+      const data = await post(LOGIN_PATH, body);
       S.user = data.user;
+      await noteSignedInVersion();
       await start();
     }
   } catch (err) {
@@ -145,7 +161,9 @@ $('version-notice').addEventListener('click', () => {
 });
 
 $('logout').addEventListener('click', async () => {
-  await post('/api/setup/logout');
+  try {
+    await post('/api/setup/logout');
+  } catch (err) { /* the session is gone either way; the reload shows the gate */ }
   location.reload();
 });
 
@@ -359,8 +377,17 @@ function bindReorder(tableEl, persist) {
   // layers. The caller knows which.
   const order = () => [...tableEl.querySelectorAll('tbody tr[data-row]')]
     .map((tr) => tr.dataset.row);
-  const save = () => { const ids = order(); if (ids.length) persist(ids); };
-  let dragRow = null;
+
+  /* The container outlives every render - its innerHTML is replaced, the
+     element is not - so listeners put on it accumulate: after twenty saves
+     on the Places tab one drag ran twenty dragend handlers, each posting the
+     order and each broadcasting a resync to every phone in the field. The
+     container-level listeners are registered once and read the CURRENT
+     render's `persist` from here; only the per-row grip handlers are fresh
+     each time, because the rows are. */
+  const live = tableEl._reorder || (tableEl._reorder = { dragRow: null, bound: false });
+  live.persist = persist;
+  const save = () => { const ids = order(); if (ids.length) live.persist(ids); };
 
   tableEl.querySelectorAll('[data-grip]').forEach((grip) => {
     const row = grip.closest('tr');
@@ -383,24 +410,26 @@ function bindReorder(tableEl, persist) {
     });
   });
 
+  if (live.bound) return;
+  live.bound = true;
   tableEl.addEventListener('dragstart', (ev) => {
-    dragRow = ev.target.closest('tr[data-row]');
-    if (dragRow) dragRow.classList.add('is-dragging');
+    live.dragRow = ev.target.closest('tr[data-row]');
+    if (live.dragRow) live.dragRow.classList.add('is-dragging');
   });
   tableEl.addEventListener('dragover', (ev) => {
-    if (!dragRow) return;
+    if (!live.dragRow) return;
     ev.preventDefault();
     const over = ev.target.closest('tr[data-row]');
-    if (!over || over === dragRow) return;
+    if (!over || over === live.dragRow) return;
     const box = over.getBoundingClientRect();
     const after = (ev.clientY - box.top) > box.height / 2;
-    over.parentNode.insertBefore(dragRow, after ? over.nextSibling : over);
+    over.parentNode.insertBefore(live.dragRow, after ? over.nextSibling : over);
   });
   tableEl.addEventListener('dragend', () => {
-    if (!dragRow) return;
-    dragRow.classList.remove('is-dragging');
-    dragRow.draggable = false;
-    dragRow = null;
+    if (!live.dragRow) return;
+    live.dragRow.classList.remove('is-dragging');
+    live.dragRow.draggable = false;
+    live.dragRow = null;
     save();
   });
 }
@@ -524,7 +553,7 @@ async function loadEvents() {
   const host = $('event-list');
   if (!S.events.length) {
     host.innerHTML = '<p class="muted">No events yet.'
-      + (S.user.is_system_admin ? ' Create one below.' : '') + '</p>';
+      + (S.user.may_create_events ? ' Create one below.' : '') + '</p>';
     return;
   }
   host.innerHTML = '<table class="grid"><thead><tr><th>Event</th><th>Date</th>'
@@ -546,7 +575,7 @@ async function loadEvents() {
              rel="noopener" title="Pickups, notes and maps to hand the race lead afterwards"
              >After-event report</a>
           ${iconBtn('edit', {'data-edite': e.id}, `Edit ${e.name}`)}
-          ${S.user.is_system_admin
+          ${S.user.may_create_events
             ? iconBtn('remove', {'data-del': e.id}, `Delete ${e.name}`) : ''}
         </td></tr>`).join('') + '</tbody></table>';
 
@@ -568,7 +597,11 @@ async function loadEvents() {
       + `history. It cannot be undone.`)) return;
     try {
       await post(`/api/setup/events/${event.id}/delete`);
-      if (S.eventId === event.id) S.eventId = null;
+      if (S.eventId === event.id) {
+        S.eventId = null;
+        S.poiCategories = null;     // its layers went with it
+        S.poiFilterLayer = '';
+      }
       banner(`Deleted ${event.name}.`);
       loadEvents();
     } catch (err) { banner(err.message, true); }
@@ -594,6 +627,14 @@ function selectEvent(id) {
      case. */
   clearProvisionalPlace();
   S.eventId = id;
+  /* The layer list is fetched lazily and belongs to ONE event. Kept across
+     a switch, event A's layers built event B's Import type list, per-row
+     Layer dropdowns, bulk Move target and Add-place list - invisibly when
+     both hold the default seven, and refused by the server ("No such
+     layer") the moment a club has added one. The Places filter holds a
+     layer key from the same list, so it goes too. */
+  S.poiCategories = null;
+  S.poiFilterLayer = '';
   showEventContext();
   document.querySelectorAll('.panel[data-needs-event]').forEach(
     (p) => gateOnEvent(p.dataset.panel));
@@ -656,6 +697,8 @@ function editEvent(event) {
   $('ev-name').value = event.name;
   $('ev-date').value = event.event_date || '';
   if (event.timezone) $('ev-tz').value = event.timezone;
+  $('ev-lat').value = event.center_lat != null ? String(event.center_lat) : '';
+  $('ev-lon').value = event.center_lon != null ? String(event.center_lon) : '';
   $('ev-org-field').hidden = true;
   $('event-submit').textContent = 'Save changes';
   $('event-cancel').hidden = false;
@@ -672,20 +715,42 @@ function resetEventForm() {
   $('event-cancel').hidden = true;
   $('event-error').hidden = true;
   $('ev-org-field').hidden = !S.user.is_system_admin;
+  // Back to what this person may do. Edit un-hides the form for anyone who
+  // may edit; Cancel used to leave it up retitled "New event", and an event
+  // admin's submit came back 403 "You cannot create events."
+  $('event-form').hidden = !S.user.may_create_events;
   fillTimeZones();
 }
 
 $('event-cancel').addEventListener('click', () => resetEventForm());
 
+/* The centre goes in the payload only when both boxes hold something.
+   Left blank it is left alone on the server: an import may already have
+   set it, and a blank box on the edit form means "not changing this",
+   not "forget it". Sent as typed - the server decides what a coordinate
+   is, and says so. */
+function eventCentre() {
+  const lat = $('ev-lat').value.trim();
+  const lon = $('ev-lon').value.trim();
+  if (!lat && !lon) return {};
+  return { center_lat: lat, center_lon: lon };
+}
+
+$('ev-lat').addEventListener('change', () => splitPair($('ev-lat'), $('ev-lon')));
+$('ev-lat').addEventListener('paste',
+  () => setTimeout(() => splitPair($('ev-lat'), $('ev-lon')), 0));
+
 $('event-form').addEventListener('submit', async (ev) => {
   ev.preventDefault();
   $('event-error').hidden = true;
   try {
+    splitPair($('ev-lat'), $('ev-lon'));
     if (S.editingEvent) {
       const saved = await post(`/api/setup/events/${S.editingEvent}`, {
         name: $('ev-name').value,
         event_date: $('ev-date').value,
         timezone: $('ev-tz').value,
+        ...eventCentre(),
       });
       resetEventForm();
       banner(`Saved ${saved.name}.`);
@@ -699,6 +764,7 @@ $('event-form').addEventListener('submit', async (ev) => {
       timezone: $('ev-tz').value,
       organization_id: S.user.is_system_admin
         ? Number($('ev-org').value) : undefined,
+      ...eventCentre(),
     });
     $('ev-slug').value = ''; $('ev-name').value = '';
     banner(`Created ${created.name}.`);
@@ -771,6 +837,10 @@ async function importFiles(files) {
   $('import-status').hidden = true;
   $('course-file').value = '';
   loadStaged();
+  // An import seeds the event's map centre when it had none, and the Places
+  // map reads that from S.events - which would otherwise say "none" until
+  // the next visit to the Events tab.
+  loadEvents().catch((err) => banner(err.message, true));
 }
 
 $('course-file').addEventListener('change', (ev) => {
@@ -784,8 +854,14 @@ async function uploadCourseFile(file) {
   form.append('file', file);
   const response = await fetch(`/api/setup/events/${S.eventId}/import`,
     {method: 'POST', body: form});
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.detail || 'Import failed');
+  // Parse defensively, then check the status. A 413 from Apache for a KMZ
+  // over LimitRequestBody, or a proxy's 502, is an HTML page - and parsing
+  // it first put "Unexpected token '<'" on screen where "file too large"
+  // belonged, on exactly the file the organizer sent.
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.detail || `Upload failed (${response.status})`);
+  }
 
   const kinds = Object.entries(data.by_type)
     .map(([k, n]) => `${n} ${k}`).join(', ');
@@ -795,6 +871,15 @@ async function uploadCourseFile(file) {
   // line rather than being reduced to a count.
   (data.warnings || []).forEach((w) => banner(w, true));
   return data;
+}
+
+/* The layer a picked point is offered first: staffed, because a place a
+   person is going to stand at is the common case, or the first layer there
+   is. Never a hardcoded key - see the note at the pick. */
+function defaultPlaceLayer() {
+  const layers = S.poiCategories || [];
+  const staffed = layers.find((c) => c.staffed) || layers[0];
+  return staffed ? staffed.key : '';
 }
 
 /* The review screen offers whatever layers this event has, so importing a
@@ -971,7 +1056,11 @@ function togglePick(id) {
 
   const picked = S.staged.filter((f) => S.picked.has(f.id));
   const allLines = picked.length > 0 && picked.every((f) => f.geom_type !== 'point');
-  $('assign-type').value = allLines ? 'course' : 'aid_station';
+  // A point defaults to the first STAFFED layer - the taxonomy is the
+  // club's, and a club that deleted "Aid stations" left the old hardcoded
+  // key pointing at nothing: the select went blank and Assign was refused
+  // for a layer they had removed on purpose.
+  $('assign-type').value = allLines ? 'course' : defaultPlaceLayer();
   if (picked.length === 1 && !$('assign-name').value) {
     $('assign-name').value = picked[0].name.replace(/\s*\[\d+\]$/, '');
   }
@@ -1039,8 +1128,7 @@ async function loadCourses() {
             data-bib="${c.id}">
           <input placeholder="Yellow" value="${esc(c.bib_color_name || '')}"
             data-bibname="${c.id}" style="width:90px"></td>
-      <td class="actions">${iconBtn('save', {'data-savec': c.id}, `Save ${c.name}`)
-        + iconBtn('remove', {'data-delc': c.id}, `Delete ${c.name}`)}</td>
+      <td class="actions">${iconBtn('remove', {'data-delc': c.id}, `Delete ${c.name}`)}</td>
     </tr>`).join('') + '</tbody></table>'
     : '<p class="muted">No courses yet — upload a KML on the Import tab.</p>';
 
@@ -1055,25 +1143,41 @@ async function loadCourses() {
     }
   });
 
-  $('course-table').querySelectorAll('[data-savec]').forEach((b) =>
-    b.addEventListener('click', async () => {
-      const id = b.dataset.savec;
-      try {
-        await post(`/api/setup/events/${S.eventId}/courses/${id}`, {
-          name: $('course-table').querySelector(`[data-name="${id}"]`).value,
-          color: $('course-table').querySelector(`[data-color="${id}"]`).value,
-          bib_color: $('course-table').querySelector(`[data-bib="${id}"]`).value,
-          bib_color_name: $('course-table').querySelector(`[data-bibname="${id}"]`).value,
-        });
-        banner('Course saved.');
-        loadCourses();
-      } catch (err) { banner(err.message, true); }
-    }));
+  /* Saved as a unit, like every other editable table. This one kept a save
+     button per row longest, and each press reloaded the courses AND the
+     places table under it - so a colour saved on one race threw away a
+     half-edited Places table nobody had pressed anything on. */
+  bindSaveAll({
+    table: 'course-table',
+    button: 'course-save-all',
+    status: 'course-dirty',
+    fields: [
+      { attr: 'name', name: 'name' },
+      { attr: 'color', name: 'color' },
+      { attr: 'bib', name: 'bib_color' },
+      { attr: 'bibname', name: 'bib_color_name' },
+    ],
+    save: (id, payload) => {
+      // The two bib fields are one setting on the server (set_bib_color
+      // writes both, and a missing colour falls back to the line colour),
+      // so a change to either travels with the other as it stands.
+      if ('bib_color' in payload || 'bib_color_name' in payload) {
+        const row = $('course-table').querySelector(`tr[data-row="${id}"]`);
+        payload.bib_color = row.querySelector('[data-bib]').value;
+        payload.bib_color_name = row.querySelector('[data-bibname]').value;
+      }
+      return post(`/api/setup/events/${S.eventId}/courses/${id}`, payload);
+    },
+    noun: 'course(s)',
+    reload: loadCourses,
+  });
   $('course-table').querySelectorAll('[data-delc]').forEach((b) =>
     b.addEventListener('click', async () => {
       if (!confirm('Delete this course?')) return;
-      await post(`/api/setup/events/${S.eventId}/courses/${b.dataset.delc}/delete`);
-      loadCourses();
+      try {
+        await post(`/api/setup/events/${S.eventId}/courses/${b.dataset.delc}/delete`);
+        loadCourses();
+      } catch (err) { banner(err.message, true); }
     }));
 
   /* Two routes to what3words, neither of them the paid API (docs/PLAN.md).
@@ -1404,8 +1508,10 @@ async function loadCourses() {
   $('poi-table').querySelectorAll('[data-delp]').forEach((b) =>
     b.addEventListener('click', async () => {
       if (!confirm('Delete this aid station?')) return;
-      await post(`/api/setup/events/${S.eventId}/pois/${b.dataset.delp}/delete`);
-      loadCourses();
+      try {
+        await post(`/api/setup/events/${S.eventId}/pois/${b.dataset.delp}/delete`);
+        loadCourses();
+      } catch (err) { banner(err.message, true); }
     }));
 }
 
@@ -1481,8 +1587,16 @@ function bindSaveAll({ table, button, status, fields, save, noun, reload }) {
     if (status) $(status).textContent = count ? 'unsaved' : '';
   }
 
-  root.addEventListener('input', refresh);
-  root.addEventListener('change', refresh);
+  // Once per container, for the same reason as bindReorder: the element
+  // survives every re-render, and a listener per render meant every
+  // keystroke in a 78-row table ran one full-table diff per save so far.
+  const live = root._saveAll || (root._saveAll = { bound: false });
+  live.refresh = refresh;
+  if (!live.bound) {
+    live.bound = true;
+    root.addEventListener('input', () => live.refresh());
+    root.addEventListener('change', () => live.refresh());
+  }
 
   btn.onclick = async () => {
     const changed = dirty();
@@ -1609,9 +1723,32 @@ function versionKey(info) {
 }
 
 function noteVersion(info) {
-  // What this page is running. Recorded once, at startup, and never updated:
-  // the whole point is to compare against it later.
-  if (S.loadedVersion === undefined) S.loadedVersion = versionKey(info);
+  // What this page is running. Recorded at startup and then left alone: the
+  // whole point is to compare against it later.
+  //
+  // With one exception. Signed out, the session says nothing about the build
+  // (web.py keeps the commit behind the login), so a page that loaded on the
+  // sign-in form recorded the bare version. After signing in the poll sees a
+  // build, the two keys differ, and the notice fired on a page that IS the
+  // current code - on every fresh sign-in on the deployed server, where every
+  // build carries a git describe. So a record taken without a build is
+  // replaced by the first one taken with a build, and never again.
+  const hasBuild = !!(info && info.build);
+  if (S.loadedVersion === undefined || (hasBuild && !S.loadedVersionHasBuild)) {
+    S.loadedVersion = versionKey(info);
+    S.loadedVersionHasBuild = hasBuild;
+  }
+}
+
+/* The session, re-read once signed in, so the build is on record before the
+   first poll compares against it. Failure is not worth a banner: the notice
+   simply stays on the bare version until the next successful poll. */
+async function noteSignedInVersion() {
+  try {
+    const info = await api('/api/setup/session');
+    noteVersion(info);
+    showVersion(info);
+  } catch (err) { /* offline, or not signed in after all; the poll retries */ }
 }
 
 function checkVersion(info) {
@@ -1640,7 +1777,9 @@ async function pollVersion() {
     const data = await api('/api/setup/session');
     // A signed-out session answers with no user; nothing to say, and an error
     // banner here would be noise about a thing nobody asked for.
-    if (data && data.version) { showVersion(data); checkVersion(data); }
+    // noteVersion first: a no-op once a build is on record, and the thing
+    // that stops a bare-version record being compared against a build.
+    if (data && data.version) { showVersion(data); noteVersion(data); checkVersion(data); }
   } catch (err) { /* offline, or the session went away. Try again later. */ }
 }
 
@@ -1978,30 +2117,29 @@ function renderPlaceMap() {
   (S.pois || []).forEach((p) => {
     if (p.lat == null || p.lon == null) return;
     const layer = layers.get(p.poi_type);
-    const marker = L.circleMarker([p.lat, p.lon], {
-      radius: 7, weight: 2, color: '#0B2545',
-      fillColor: (layer && layer.color) || '#35507a', fillOpacity: 1,
+    /* An L.marker with Leaflet's own `draggable`, not a circleMarker with a
+       drag done by hand. The hand-rolled version listened for the map's
+       mousemove, which a touch drag never sends - a finger on a pin sends
+       touchmove, and the map's own drag handler cancels it - so on the
+       tablet these tables are sorted on race morning the pin would not
+       move at all. Leaflet's marker drag (L.Draggable, 1.9) starts on
+       touchstart as well as mousedown. The divIcon keeps the same circle in
+       the layer's colour the rest of the map uses; a path cannot be made
+       draggable. */
+    const marker = L.marker([p.lat, p.lon], {
+      draggable: true,
+      icon: L.divIcon({
+        className: 'place-pin-icon',
+        html: `<span class="place-pin" style="background:${
+          esc((layer && layer.color) || '#35507a')}"></span>`,
+        iconSize: [18, 18],
+        iconAnchor: [9, 9],
+        tooltipAnchor: [9, 0],
+      }),
     });
     marker.bindTooltip(`${p.name} - drag to move`);
     marker.addTo(map);
-
-    /* Leaflet's circleMarker is not draggable, so the drag is done by hand:
-       press on the pin, move, release. Doing it this way keeps the same shape
-       and colour the rest of the map uses rather than switching to an L.marker
-       with a different icon just to get dragging. */
-    marker.on('mousedown', (down) => {
-      down.originalEvent.preventDefault();
-      map.dragging.disable();
-      const move = (ev) => marker.setLatLng(ev.latlng);
-      const up = (ev) => {
-        map.off('mousemove', move);
-        map.off('mouseup', up);
-        map.dragging.enable();
-        writeRowCoordinates(p.id, ev.latlng);
-      };
-      map.on('mousemove', move);
-      map.on('mouseup', up);
-    });
+    marker.on('dragend', () => writeRowCoordinates(p.id, marker.getLatLng()));
 
     S.placeMarkers.set(p.id, marker);
     bounds.extend(marker.getLatLng());
@@ -2043,15 +2181,16 @@ function writeRowCoordinates(poiId, latlng) {
    click, paste, then go back for the other half - on race-week evening, for
    forty places. Splitting on the comma costs four lines and removes the whole
    chore. A lone number is left exactly where it was typed. */
-function splitCoordinates() {
-  const lat = $('poi-new-lat');
+function splitPair(lat, lon) {
   const parts = lat.value.split(',');
   if (parts.length !== 2) return;
   const [a, b] = parts.map((t) => t.trim());
   if (!a || !b) return;
   lat.value = a;
-  $('poi-new-lon').value = b;
+  lon.value = b;
 }
+
+function splitCoordinates() { splitPair($('poi-new-lat'), $('poi-new-lon')); }
 
 $('poi-new-lat').addEventListener('change', splitCoordinates);
 $('poi-new-lat').addEventListener('paste', () => setTimeout(splitCoordinates, 0));
@@ -2106,10 +2245,17 @@ $('poi-export').addEventListener('click', () => {
     .map((c) => c.closest('tr'))
     .map((tr) => {
       const layer = tr.querySelector('[data-player]');
+      // The coordinate boxes, not a text cell: since the map picker (#108)
+      // the cell holds two inputs, and reading a <span> that was no longer
+      // there shipped every export with the column blank while the banner
+      // said it had worked. Reading the boxes also keeps the promise above -
+      // a pin dragged and not yet saved exports where it is on the screen.
+      const lat = tr.querySelector('[data-plat]');
+      const lon = tr.querySelector('[data-plon]');
       return [
         layer ? layer.options[layer.selectedIndex].text : '',
         tr.querySelector('[data-pname]').value,
-        (tr.querySelector('.coords span') || {}).textContent || '',
+        lat && lon ? `${lat.value.trim()}, ${lon.value.trim()}` : '',
         tr.querySelector('[data-w3w]').value.trim(),
       ];
     });
@@ -2189,9 +2335,11 @@ async function loadRoster() {
   $('roster-table').querySelectorAll('[data-delr]').forEach((b) =>
     b.addEventListener('click', async () => {
       if (!confirm(`Remove ${b.dataset.delr} from the roster?`)) return;
-      await post(`/api/setup/events/${S.eventId}/roster/delete`,
-        {station_key: b.dataset.delr});
-      loadRoster();
+      try {
+        await post(`/api/setup/events/${S.eventId}/roster/delete`,
+          {station_key: b.dataset.delr});
+        loadRoster();
+      } catch (err) { banner(err.message, true); }
     }));
 }
 
@@ -2244,6 +2392,27 @@ $('roster-form').addEventListener('submit', async (ev) => {
 
 /* ---------- links -------------------------------------------------------- */
 
+/* A stored time, shown in the EVENT's zone with the date, 24-hour - the same
+   shape the report page and the live app use, for the same reason: a Windows
+   Python has no zone database, and the browser always does. Raw
+   "2026-09-14T13:02:11Z" was what the officer choosing which of three NCS
+   links to revoke had to convert in their head. */
+function eventClock(iso) {
+  if (!iso) return '';
+  const when = new Date(iso.endsWith('Z') ? iso : iso + 'Z');
+  if (Number.isNaN(when.getTime())) return iso;
+  const event = (S.events || []).find((e) => e.id === S.eventId);
+  const zone = (event && event.timezone) || '';
+  const opts = { month: 'short', day: 'numeric',
+                 hour: '2-digit', minute: '2-digit', hour12: false };
+  try {
+    return new Intl.DateTimeFormat(undefined,
+      zone ? Object.assign({ timeZone: zone }, opts) : opts).format(when);
+  } catch (err) {
+    return new Intl.DateTimeFormat(undefined, opts).format(when);
+  }
+}
+
 async function loadLinks() {
   const data = await api(`/api/setup/events/${S.eventId}/links`);
   const live = data.links.filter((l) => !l.revoked);
@@ -2286,7 +2455,7 @@ async function loadLinks() {
               `Revoke this ${group.role_label} link${who ? ' (' + who + ')' : ''}`)
           : ''}
       </div>
-      <p class="muted">${l.last_used ? 'Last used ' + esc(l.last_used)
+      <p class="muted">${l.last_used ? 'Last used ' + esc(eventClock(l.last_used))
                                      : 'Never used'}</p>`;
     }).join('');
 
@@ -2317,10 +2486,12 @@ async function loadLinks() {
 
   $('link-list').querySelectorAll('[data-add]').forEach((b) =>
     b.addEventListener('click', async () => {
-      await post(`/api/setup/events/${S.eventId}/links`,
-        {action: 'add', role: b.dataset.add});
-      banner('New link issued — label it so you know whose it is.');
-      loadLinks();
+      try {
+        await post(`/api/setup/events/${S.eventId}/links`,
+          {action: 'add', role: b.dataset.add});
+        banner('New link issued — label it so you know whose it is.');
+        loadLinks();
+      } catch (err) { banner(err.message, true); }
     }));
 
   /* Saved on change and the list is NOT reloaded: re-rendering here would
@@ -2328,10 +2499,16 @@ async function loadLinks() {
      and layer tables already had. */
   $('link-list').querySelectorAll('[data-label-for]').forEach((field) =>
     field.addEventListener('change', async () => {
-      await post(`/api/setup/events/${S.eventId}/links`,
-        {action: 'label', token_id: Number(field.dataset.labelFor),
-         label: field.value});
-      banner('Label saved.');
+      try {
+        await post(`/api/setup/events/${S.eventId}/links`,
+          {action: 'label', token_id: Number(field.dataset.labelFor),
+           label: field.value});
+        banner('Label saved.');
+      } catch (err) {
+        // Said, not swallowed: a label that did not save is lost on the
+        // next reload, and the row looks exactly as if it had.
+        banner(`Label NOT saved: ${err.message}`, true);
+      }
     }));
 
   $('link-list').querySelectorAll('[data-revoke]').forEach((b) =>
@@ -2339,20 +2516,24 @@ async function loadLinks() {
       if (!confirm(`Revoke the link for ${b.dataset.revokeWho}? `
         + 'Whoever is holding it loses access immediately. '
         + 'Every other link for this role keeps working.')) return;
-      await post(`/api/setup/events/${S.eventId}/links`,
-        {action: 'revoke', token_id: Number(b.dataset.revoke)});
-      banner('Link revoked.');
-      loadLinks();
+      try {
+        await post(`/api/setup/events/${S.eventId}/links`,
+          {action: 'revoke', token_id: Number(b.dataset.revoke)});
+        banner('Link revoked.');
+        loadLinks();
+      } catch (err) { banner(err.message, true); }
     }));
 
   $('link-list').querySelectorAll('[data-reissue]').forEach((b) =>
     b.addEventListener('click', async () => {
       if (!confirm('Anyone using a current link for this role will lose access '
         + 'immediately, including every extra link issued for it. Continue?')) return;
-      await post(`/api/setup/events/${S.eventId}/links`,
-        {action: 'reissue', role: b.dataset.reissue});
-      banner('New link issued — send it to that group.');
-      loadLinks();
+      try {
+        await post(`/api/setup/events/${S.eventId}/links`,
+          {action: 'reissue', role: b.dataset.reissue});
+        banner('New link issued — send it to that group.');
+        loadLinks();
+      } catch (err) { banner(err.message, true); }
     }));
 }
 

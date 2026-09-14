@@ -11,6 +11,118 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Added
+- **An event's map centre can be set from the browser, and an import sets
+  it for you.** The Places map opens on the event's centre when there is no
+  course or place to fit - the parade, the 5K with no file, exactly the
+  case the picker was built for (#108) - but only the CLI's `--lat/--lon`
+  ever set one, so that map opened on the whole country and the first
+  click landed in Kansas. The event form has an optional *Map centre*
+  (paste both numbers into the first box and they split), sent only when
+  typed, and an import seeds it from the middle of the staged file when
+  the event has none - once, never overwriting a centre someone set or an
+  earlier file chose. `setup-events.png` predates the field.
+
+### Changed
+- **The Courses table saves as a unit**, like every other editable table in
+  setup. It was the last one with a save button per row, and each press
+  reloaded the courses table AND the Places table under it - so saving a
+  bib colour on one race threw away every other course edit in progress and
+  a half-sorted Places table nobody had pressed anything on: the same
+  failure that cost a real user twelve renames, one table over. One
+  **Save N changes** button above the table now, sending only what changed.
+  The two bib fields travel together because the server stores them as one
+  setting. `setup-courses.png` shows the old per-row button.
+
+### Fixed
+- **A pin on the Places map could not be dragged on a touch screen.** The
+  drag was built on the map's `mousedown`/`mousemove`/`mouseup`, and a
+  finger sends none of those: a touch drag is `touchmove`, which the map's
+  own drag handler cancels, so on the tablet these tables are sorted on
+  race morning the pin sat still with no error. The pins are Leaflet
+  markers with Leaflet's own `draggable` now, which starts on `touchstart`
+  as well as `mousedown`; a `divIcon` draws the same navy-ringed circle in
+  the layer's colour, so nothing looks different. Not tested on a device -
+  read from Leaflet 1.9's `Draggable` - so try it on the tablet before the
+  event.
+- Four small setup fixes. Picking a point in the Import review forced the
+  layer to a hardcoded `aid_station` - a club that had deleted that layer
+  got a blank select and a refusal naming a layer they removed on purpose;
+  it defaults to the first staffed layer now, or the first there is. Cancel
+  on an edited event left an event admin looking at a "New event" form
+  whose submit answers 403; it goes back to hidden for anyone who may not
+  create events. The Delete button on an event showed for the host only
+  while the server lets any organization admin delete their own - a club
+  could not remove its own rehearsal event without asking; the button
+  follows the server's rule. A link's "Last used" printed the raw UTC
+  timestamp; it is the date and 24-hour time in the event's zone, the way
+  every other stored time is shown.
+- **Every re-render of a setup table stacked another set of listeners on
+  it.** The drag-to-reorder and save-all handlers listen on the table's
+  container, whose contents are replaced on every load while the element
+  itself persists, and nothing removed the previous set. After twenty saves
+  on the Places tab one drag posted the order twenty times and broadcast
+  twenty resyncs to every phone in the field, and every keystroke in a
+  78-row table ran twenty full-table diffs. Nothing visible until the tab
+  had been used for a while, which is race week. The container-level
+  listeners are registered once per table now and read the current
+  render's state.
+- **Seven setup actions failed silently when the server refused them.**
+  Delete a course, delete a place, remove a roster entry, issue another
+  link, save a link's label, revoke a link and replace a role's links all
+  awaited the request with nothing to catch a refusal, so a 400 (an unknown
+  role), a 403 ("Not your event." after a club reassignment) or a 409 became
+  an unhandled rejection: no banner, no reload, the row exactly as it was.
+  Pressing Revoke on a leaked link and seeing nothing change could not be
+  told from "already done", and a label that failed to save looked saved
+  until the next reload lost it. Each says what the server said now.
+- **A file too big for the proxy showed "Unexpected token '<'".** The
+  upload parsed the response as JSON before checking the status, and a 413
+  from Apache or a 502 is an HTML page. The person reading a parse error
+  had no way to know the size was the problem, on exactly the KMZ the
+  organizer sent. The body is parsed defensively and the status named.
+- **Switching events kept the previous event's layers.** The layer list is
+  fetched once and was only ever dropped by a layer reorder, so a host
+  working on a second event built its Import type list, the per-row Layer
+  dropdowns, the bulk Move target and the Add-place list from the first
+  event's layers. With the default seven on both nothing showed; with a
+  club-added layer on one of them, adding a place offered a layer the other
+  event does not have and the server refused it, and a place in the second
+  event's own layer rendered with the wrong option selected. "Work on this"
+  and deleting the current event both drop the cache now, along with the
+  Places filter that holds one of its keys.
+- **"New version - reload" appeared after signing in on a page that was
+  the current code.** The notice compares the build the page loaded with
+  against what the server reports, and the build is kept behind the login -
+  so a page that loaded on the sign-in form recorded the bare version, and
+  the first poll after sign-in (a tab switch is enough) saw a build, found
+  the keys different and fired. On the deployed server every build carries
+  a git describe, so this was every fresh sign-in. A record taken without a
+  build now gives way to the first one taken with one, and the session is
+  re-read on sign-in so the chip and the record are right before the first
+  poll. A notice that cries wolf on the only screen it lives on trains the
+  officer to ignore it on the day it is true.
+- **A mistyped password said "Sign in again."** The setup client treats a
+  401 from any call as an expired session, puts the sign-in form up and
+  replaces the server's message with its own - and the sign-in call answers
+  401 too, so its "Incorrect username or password." never reached the form.
+  Every wrong password read like a session problem, a disabled account was
+  told to sign in again indefinitely, and the first-run "Account created -
+  sign in with it" notice vanished on the first typo. The sign-in call is
+  the one 401 that is an answer rather than a symptom, and it passes
+  through now.
+- **Export CSV shipped every place with an empty Coordinates column.** The
+  export read a text `<span>` in the coordinates cell that the map picker
+  (#108) had replaced with two input boxes, so the selector matched nothing
+  and the fallback `''` was written - while the banner reported "Exported N
+  place(s)". The file is the list of stops with their coordinates and words
+  that goes to the organizer and is read from on air, and nothing on screen
+  said the one column it exists for was blank. It reads the boxes now, which
+  also makes good on the promise that unsaved edits export as they stand;
+  `tests/test_setup_client.py` holds the reader and the cell to the same
+  attribute names.
+
+
 ### Changed
 - **One `post()` in the field app, and the server's reason on screen.**
   Nine hand-rolled POSTs carried three different ideas of what a failure
