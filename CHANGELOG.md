@@ -12,6 +12,15 @@ month, PATCH counting releases in that month from 0. Before that they were
 ## [Unreleased]
 
 ### Fixed
+- **The deploy workflow spliced the tag and the secrets into shell lines,
+  and learned the server's host key fresh on every run.** A `${{ }}`
+  expression is substituted into the script text before the shell sees it,
+  so a tag named `v1$(...)` - or a crafted "Run workflow" input - ran on the
+  runner with the deploy key in reach. Everything now arrives through
+  `env:` and is quoted, the ref is checked against the same pattern the
+  server's forced command applies, and an `SSH_KNOWN_HOSTS` secret pins
+  the host key; without the secret the run still deploys but says, as a
+  warning, that it trusted whatever answered.
 - **Role links were written to the Apache access log on every request and
   to the journal on every restart.** The token is in the URL path, and the
   stock `combined` log format records the path - and the Referer, which is

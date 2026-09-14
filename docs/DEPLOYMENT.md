@@ -438,6 +438,7 @@ Under **Settings -> Secrets and variables -> Actions**, as *secrets*:
 | `SSH_USER` | `courseops` |
 | `SSH_KEY` | the **private** half of the key above |
 | `SSH_PORT` | only if sshd is not on 22 |
+| `SSH_KNOWN_HOSTS` | the server's host key, exactly as `ssh-keyscan -H your.server` prints it, run once from a machine you trust (the one you already ssh to the server from). With it, a deploy refuses anything but that key at that address. Without it the workflow learns the key from whatever answers, every run - which is not pinning - and says so as a warning on the run. |
 | `DEPLOY_PATH` | where the install is, e.g. `/mnt/volume_nyc3_01/opt/courseops`. Required: the workflow refuses to guess. |
 
 These names match the ones used by the other projects here deliberately - one
