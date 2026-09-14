@@ -2108,10 +2108,17 @@ $('poi-export').addEventListener('click', () => {
     .map((c) => c.closest('tr'))
     .map((tr) => {
       const layer = tr.querySelector('[data-player]');
+      // The coordinate boxes, not a text cell: since the map picker (#108)
+      // the cell holds two inputs, and reading a <span> that was no longer
+      // there shipped every export with the column blank while the banner
+      // said it had worked. Reading the boxes also keeps the promise above -
+      // a pin dragged and not yet saved exports where it is on the screen.
+      const lat = tr.querySelector('[data-plat]');
+      const lon = tr.querySelector('[data-plon]');
       return [
         layer ? layer.options[layer.selectedIndex].text : '',
         tr.querySelector('[data-pname]').value,
-        (tr.querySelector('.coords span') || {}).textContent || '',
+        lat && lon ? `${lat.value.trim()}, ${lon.value.trim()}` : '',
         tr.querySelector('[data-w3w]').value.trim(),
       ];
     });

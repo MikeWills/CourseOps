@@ -11,6 +11,18 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Fixed
+- **Export CSV shipped every place with an empty Coordinates column.** The
+  export read a text `<span>` in the coordinates cell that the map picker
+  (#108) had replaced with two input boxes, so the selector matched nothing
+  and the fallback `''` was written - while the banner reported "Exported N
+  place(s)". The file is the list of stops with their coordinates and words
+  that goes to the organizer and is read from on air, and nothing on screen
+  said the one column it exists for was blank. It reads the boxes now, which
+  also makes good on the promise that unsaved edits export as they stand;
+  `tests/test_setup_client.py` holds the reader and the cell to the same
+  attribute names.
+
 ## [2026.9.4] - 2026-09-14
 
 ### Added
