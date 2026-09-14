@@ -12,6 +12,15 @@ month, PATCH counting releases in that month from 0. Before that they were
 ## [Unreleased]
 
 ### Fixed
+- **The layer and role switches did not follow a resync.** Every setup
+  change pushes a resync so the field sees it, and the pins did redraw with
+  a layer's new name and colour - but the "Places" switch list was built
+  once, on first load. A layer added on race morning had no switch, so it
+  could not be turned on or off from a phone already holding the page; a
+  renamed layer or station role kept its old name beside pins showing the
+  new one; a deleted layer kept a dead switch. The switches are rebuilt on
+  every load now; the viewer's own on/off choices survive because they are
+  read from the browser's prefs. (Audit F4.)
 - **A dropped-off pickup drew on the map as an invisible pin.** Only
   `closed` was removed from the map, so a delivered runner kept a marker at
   the place they were picked up - and that status had no colour rule, so

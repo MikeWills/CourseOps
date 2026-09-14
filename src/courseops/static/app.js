@@ -2523,7 +2523,12 @@ function applyState(data) {
   state.positions.forEach((_, stationKey) => upsertStationMarker(stationKey));
 
   renderCourseToggles(data.courses);
-  if (firstLoad) renderLayerToggles();
+  // Every load, not just the first: every setup change publishes a resync
+  // precisely so a layer added or renamed on race morning reaches the
+  // field, and the pins redrew while the switch list kept the old names -
+  // or had no switch at all for the new layer. The viewer's own choices
+  // survive because the switches are built from state.layerPrefs.
+  renderLayerToggles();
   // Reporting, not managing: every role is somewhere an incident can happen,
   // so all four get the pin controls. What they cannot do is work the queue.
   document.getElementById('pin-actions').hidden = !can('incident_report');
