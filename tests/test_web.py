@@ -91,7 +91,7 @@ def test_revoked_token_stops_working(setup):
     conn = db.connect(db_path)
     row = next(r for r in access.tokens_for_event(conn, event_id)
                if r["token"] == tokens["liaison"])
-    access.revoke(conn, row["id"])
+    access.revoke(conn, event_id, row["id"])
     conn.close()
 
     with TestClient(app) as client:
@@ -223,7 +223,7 @@ def test_revoking_one_field_role_leaves_the_other_working(setup):
     conn = db.connect(db_path)
     row = next(r for r in access.tokens_for_event(conn, event_id)
                if r["token"] == tokens["logistics"])
-    access.revoke(conn, row["id"])
+    access.revoke(conn, event_id, row["id"])
     conn.close()
 
     with TestClient(app) as client:
@@ -1459,7 +1459,7 @@ def test_deleting_a_sighted_leader_is_refused_with_the_count(setup, tmp_path):
         refused = client.post(
             f"/api/setup/events/{event_id}/leaders/male/delete")
 
-    assert refused.status_code == 400
+    assert refused.status_code == 409
     assert "1 sighting" in refused.json()["detail"]
 
 
@@ -1605,6 +1605,70 @@ def test_an_upload_leaves_no_temp_directory_behind(setup, tmp_path, monkeypatch)
     assert list(scratch.iterdir()) == []
 
 
+def test_deleting_a_place_with_sightings_or_a_posted_station_is_refused(
+        setup, tmp_path):
+    """`lead_sighting.poi_id` cascades and `roster.poi_id` nulls, so a bare
+    DELETE took every report at the place with it and un-posted the operator
+    standing there - the leader's position jumped back a station and a
+    non-beaconing operator fell off the map, with nothing to say why. Same
+    rule as a layer with places in it or a leader with sightings."""
+    app, tokens, db_path, event_id = setup
+    _make_admin(db_path)
+
+    conn = db.connect(db_path)
+    course_id = conn.execute(
+        "SELECT id FROM course WHERE event_id = ?", (event_id,)).fetchone()["id"]
+    poi = conn.execute(
+        "SELECT id FROM poi WHERE event_id = ?", (event_id,)).fetchone()["id"]
+    db.assign_station_to_poi(conn, event_id, "KI4HMD-1", poi)
+    conn.close()
+
+    with TestClient(app) as client:
+        _login(client)
+        client.post(
+            f"/api/m2026/{tokens['ncs']}/leaders/sighting",
+            json={"course_id": course_id, "division": "male", "poi_id": poi},
+        )
+        refused = client.post(f"/api/setup/events/{event_id}/pois/{poi}/delete")
+        state = client.get(f"/api/m2026/{tokens['ncs']}/state").json()
+
+    assert refused.status_code == 409
+    detail = refused.json()["detail"]
+    assert "1 lead runner sighting" in detail
+    assert "1 posted station" in detail
+    assert [p["id"] for p in state["pois"]] == [poi]
+    assert next(r for r in state["roster"]
+                if r["station_key"] == "KI4HMD-1")["poi_id"] == poi
+
+
+def test_deleting_a_course_with_sightings_is_refused(setup, tmp_path):
+    """`lead_sighting.course_id` cascades the same way."""
+    app, tokens, db_path, event_id = setup
+    _make_admin(db_path)
+
+    conn = db.connect(db_path)
+    course_id = conn.execute(
+        "SELECT id FROM course WHERE event_id = ?", (event_id,)).fetchone()["id"]
+    poi = conn.execute(
+        "SELECT id FROM poi WHERE event_id = ?", (event_id,)).fetchone()["id"]
+    conn.close()
+
+    with TestClient(app) as client:
+        _login(client)
+        client.post(
+            f"/api/m2026/{tokens['ncs']}/leaders/sighting",
+            json={"course_id": course_id, "division": "male", "poi_id": poi},
+        )
+        refused = client.post(
+            f"/api/setup/events/{event_id}/courses/{course_id}/delete")
+        courses = client.get(
+            f"/api/setup/events/{event_id}/courses").json()["courses"]
+
+    assert refused.status_code == 409
+    assert "1 lead runner sighting" in refused.json()["detail"]
+    assert [c["id"] for c in courses] == [course_id]
+
+
 # --- places added and moved by hand (#108) ----------------------------------
 
 def _login(client):
@@ -1707,6 +1771,89 @@ def test_a_place_needs_a_layer_that_exists(setup, tmp_path):
                   "lat": 44.1, "lon": -93.9})
 
     assert refused.status_code == 400
+
+
+# --- tenancy: ids from another event are refused, never acted on ------------
+
+def _second_event(db_path):
+    """Another club's event with its own staged file and one place."""
+    conn = db.connect(db_path)
+    other = db.create_event(conn, "other", "Other Club's Race")
+    importer.stage_file(conn, other, FIXTURE)
+    features = importer.pending_features(conn, other)
+    point = next(r["id"] for r in features if r["geom_type"] == "point")
+    line = next(r["id"] for r in features if r["geom_type"] == "linestring")
+    poi_id = importer.assign_poi(conn, other, point, "aid_station",
+                                 name="Secret stop")
+    conn.close()
+    return other, line, poi_id
+
+
+def test_assigning_another_events_feature_is_a_400(setup, tmp_path):
+    """Feature ids are one global sequence. Event A's admin naming event B's
+    id must get a refusal, not B's course geometry copied into A and B's
+    review row flipped to assigned behind their back."""
+    app, _, db_path, event_id = setup
+    _make_admin(db_path)
+    other, line, _ = _second_event(db_path)
+
+    with TestClient(app) as client:
+        _login(client)
+        stolen = client.post(f"/api/setup/events/{event_id}/assign",
+                             json={"kind": "course", "ids": [line],
+                                   "name": "Stolen"})
+        discarded = client.post(f"/api/setup/events/{event_id}/assign",
+                                json={"kind": "discard", "ids": [line]})
+        courses = client.get(
+            f"/api/setup/events/{event_id}/courses").json()["courses"]
+
+    assert stolen.status_code == 400
+    assert discarded.status_code == 400
+    assert [c["name"] for c in courses] == ["Half"]
+    conn = db.connect(db_path)
+    status = conn.execute("SELECT status FROM import_feature WHERE id = ?",
+                          (line,)).fetchone()["status"]
+    conn.close()
+    assert status == "pending"
+
+
+def test_assigning_a_staged_point_into_a_missing_layer_is_a_400(setup, tmp_path):
+    """"Assign all suggestions" posts whatever layer key the hint produced. A
+    club that deleted that default layer must be told, not left with a place
+    in the table that draws nowhere."""
+    app, _, db_path, event_id = setup
+    _make_admin(db_path)
+
+    with TestClient(app) as client:
+        _login(client)
+        staged = client.get(
+            f"/api/setup/events/{event_id}/staged").json()["features"]
+        point = next(f["id"] for f in staged if f["geom_type"] == "point")
+        refused = client.post(f"/api/setup/events/{event_id}/assign",
+                              json={"kind": "poi", "ids": [point],
+                                    "poi_type": "not_a_layer"})
+
+    assert refused.status_code == 400
+    assert "layer" in refused.json()["detail"].lower()
+
+
+def test_editing_another_events_place_is_refused(setup, tmp_path):
+    """`course_ids` alone used to skip the scoped UPDATE and return the other
+    event's row - name and coordinates included."""
+    app, _, db_path, event_id = setup
+    _make_admin(db_path)
+    _, _, foreign_poi = _second_event(db_path)
+
+    with TestClient(app) as client:
+        _login(client)
+        peek = client.post(f"/api/setup/events/{event_id}/pois/{foreign_poi}",
+                           json={"course_ids": []})
+        rename = client.post(f"/api/setup/events/{event_id}/pois/{foreign_poi}",
+                             json={"name": "Renamed from outside"})
+
+    assert peek.status_code == 400
+    assert "Secret stop" not in peek.text
+    assert rename.status_code == 400
 
 
 def test_adding_a_place_reaches_a_connected_map(setup, tmp_path):
@@ -1992,6 +2139,42 @@ def test_revoking_one_link_leaves_the_others_working(setup):
         assert client.get(f"/api/m2026/{kept['token']}/state").status_code == 200
 
 
+def test_another_events_link_cannot_be_revoked_or_relabelled(setup):
+    """Token ids are small sequential integers and the id arrives in the
+    body while the route authorises on the event in the URL. An admin of one
+    club revoking another club's NCS link on race morning shows up on the
+    other club's phones as a 404 with no error anywhere on their side."""
+    app, _, db_path, event_id = setup
+    _make_admin(db_path)
+    conn = db.connect(db_path)
+    other = db.create_event(conn, "other", "Other Club's Race")
+    theirs = access.ensure_tokens(conn, other)["ncs"]
+    their_id = next(r["id"] for r in access.tokens_for_event(conn, other)
+                    if r["token"] == theirs)
+    conn.close()
+
+    with TestClient(app) as client:
+        _sign_in(client)
+        revoked = client.post(f"/api/setup/events/{event_id}/links",
+                              json={"action": "revoke", "token_id": their_id})
+        relabelled = client.post(f"/api/setup/events/{event_id}/links",
+                                 json={"action": "label", "token_id": their_id,
+                                       "label": "defaced"})
+        # A missing or non-numeric id is a complaint, not a traceback.
+        blank = client.post(f"/api/setup/events/{event_id}/links",
+                            json={"action": "revoke"})
+        assert client.get(f"/api/other/{theirs}/state").status_code == 200
+
+    assert revoked.status_code == 404
+    assert relabelled.status_code == 404
+    assert blank.status_code == 400
+    conn = db.connect(db_path)
+    row = conn.execute("SELECT revoked, label FROM access_token WHERE id = ?",
+                       (their_id,)).fetchone()
+    conn.close()
+    assert (row["revoked"], row["label"]) == (0, None)
+
+
 def test_reissue_replaces_every_link_for_that_role(setup):
     """Per-link revoke is for one operator; reissue is for "this role is
     compromised", so it must not leave a second link alive."""
@@ -2083,3 +2266,120 @@ def test_the_help_link_opens_in_a_new_tab():
         assert 'target="_blank"' in anchor, page
         # Without noopener the opened page can navigate this one.
         assert "noopener" in anchor, page
+
+
+# --- a client mistake is a message, never a traceback (audit B7) ------------
+#
+# The shipped client sends the right types, so every one of these needs a
+# hand-made request - but a 500 is logged as a server fault and hides the real
+# cause, and the officer on the setup screen sees "Internal Server Error"
+# instead of what to fix. Each entry is a body that used to reach a
+# `.strip()`, an `int()`, or a NOT NULL / foreign-key column unguarded.
+
+def _setup_payloads(event_id, course_id, poi_id, user_id):
+    e = f"/api/setup/events/{event_id}"
+    return [
+        (f"{e}", {"name": "   "}),                       # NOT NULL via .strip()
+        (f"{e}", {"timezone": " "}),
+        (f"{e}", {"center_lat": "abc"}),                 # served to every phone
+        (f"{e}", {"center_lat": {"a": 1}}),
+        (f"{e}", {"center_lon": 200}),
+        (f"{e}", {"zoom": {"a": 1}}),
+        (f"{e}", {"zoom": 99}),
+        ("/api/setup/events", {"slug": "x", "name": "X",
+                               "organization_id": "abc"}),
+        ("/api/setup/events", {"slug": "x", "name": "X",
+                               "organization_id": 999999}),   # FK
+        (f"{e}/roster", {"station_key": 5, "display_label": "x"}),
+        (f"{e}/roster", {"station_key": "N0CALL", "display_label": ["x"]}),
+        (f"{e}/roster/delete", {"station_key": [5]}),
+        (f"{e}/courses/{course_id}", {"bib_color": 5}),
+        (f"{e}/courses/{course_id}", {"bib_color_name": {"x": 1}}),
+        (f"{e}/courses/{course_id}", {"name": ["x"]}),
+        (f"{e}/pois/{poi_id}", {"name": {"x": 1}}),
+        (f"{e}/pois/{poi_id}", {"notes": ["x"]}),
+        (f"{e}/pois/{poi_id}", {"what3words": 5}),
+        (f"{e}/assign", {"kind": "poi", "ids": "12"}),
+        (f"{e}/assign", {"kind": "poi", "ids": [None]}),
+        (f"{e}/links", {"action": "label", "token_id": "x"}),
+        ("/api/setup/users", {"username": 5, "password": 5, "role": "org_admin"}),
+        ("/api/setup/users", {"username": "u", "password": "a-long-enough-one",
+                              "role": "org_admin", "organization_id": "x"}),
+        ("/api/setup/users", {"username": "u", "password": "a-long-enough-one",
+                              "role": "org_admin", "organization_id": 999999}),
+        ("/api/setup/users", {"username": "u", "password": "a-long-enough-one",
+                              "role": "event_admin", "organization_id": 1,
+                              "event_ids": "12"}),
+        ("/api/setup/users", {"username": "u", "password": "a-long-enough-one",
+                              "role": "event_admin", "organization_id": 1,
+                              "event_ids": [999999]}),             # FK
+        (f"/api/setup/users/{user_id}", {"event_ids": "12"}),
+        (f"/api/setup/users/{user_id}", {"password": 5}),
+        ("/api/setup/users/999999", {"is_active": False}),
+        ("/api/setup/users/999999/delete", {}),
+        ("/api/setup/organizations", {"slug": ["x"], "name": "x"}),
+        ("/api/setup/organizations/1", {"name": ["x"]}),
+    ]
+
+
+def test_wrong_type_setup_payloads_are_400_not_500(setup):
+    app, _, db_path, event_id = setup
+    user = _make_admin(db_path)
+    conn = db.connect(db_path)
+    course_id = conn.execute("SELECT id FROM course").fetchone()["id"]
+    poi_id = conn.execute("SELECT id FROM poi").fetchone()["id"]
+    conn.close()
+
+    with TestClient(app) as client:
+        _login(client)
+        for path, body in _setup_payloads(event_id, course_id, poi_id, user.id):
+            response = client.post(path, json=body)
+            assert 400 <= response.status_code < 500, (path, body, response.text)
+            assert response.json().get("detail"), (path, body, response.text)
+            # An array where an object was expected, on the same route.
+            listed = client.post(path, json=[1, 2])
+            assert listed.status_code in (400, 404), (path, listed.text)
+
+
+def test_wrong_type_field_payloads_are_400_not_500(setup):
+    app, tokens, db_path, event_id = setup
+    conn = db.connect(db_path)
+    course_id = conn.execute("SELECT id FROM course").fetchone()["id"]
+    poi_id = conn.execute("SELECT id FROM poi").fetchone()["id"]
+    conn.close()
+    ncs = f"/api/m2026/{tokens['ncs']}"
+    cases = [
+        (f"{ncs}/station/N0CALL-7/status", {"op_status": "active",
+                                            "changed_by": {"x": 1}}),
+        (f"{ncs}/station/N0CALL-7/status", {"op_status": ["active"]}),
+        (f"{ncs}/leaders/sighting", {"course_id": course_id, "division": "male",
+                                     "poi_id": poi_id, "bib": {"x": 1}}),
+        (f"{ncs}/leaders/sighting", {"course_id": course_id, "division": "male",
+                                     "poi_id": poi_id, "changed_by": [5]}),
+        (f"{ncs}/leaders/sighting", {"course_id": course_id, "division": ["male"],
+                                     "poi_id": poi_id}),
+        (f"{ncs}/ssid/ignore", {"station_key": "K9XYZ-7", "reason": {"x": 1}}),
+    ]
+
+    with TestClient(app) as client:
+        for path, body in cases:
+            response = client.post(path, json=body)
+            assert response.status_code == 400, (path, body, response.text)
+            listed = client.post(path, json=[1, 2])
+            assert listed.status_code in (400, 404), (path, listed.text)
+
+
+def test_a_missing_event_is_a_404_for_a_system_admin_too(setup):
+    """`may_access_event` says yes to a system admin before looking the
+    event up, so a stale bookmark to a deleted event's setup page was a
+    traceback: `event["slug"]` on None, or an INSERT of tokens against a
+    row that is not there."""
+    app, _, db_path, _ = setup
+    _make_admin(db_path)
+
+    with TestClient(app) as client:
+        _login(client)
+        assert client.get("/api/setup/events/999999/links").status_code == 404
+        assert client.get("/api/setup/events/999999/courses").status_code == 404
+        assert client.post("/api/setup/events/999999",
+                           json={"name": "X"}).status_code == 404

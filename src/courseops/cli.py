@@ -9,7 +9,7 @@ import sys
 
 from . import (access, aprsis, categories, db, discovery, importer, kml,
                leaders, styling, units, users, what3words)
-from .config import Settings, load_dotenv
+from .config import ConfigError, Settings, load_dotenv
 
 # Station roles are a fixed set - each carries its own status wording - so the
 # CLI can still offer them as choices. Their *names* are per event and edited in
@@ -93,7 +93,7 @@ def cmd_roster(args: argparse.Namespace) -> int:
 
 
 def cmd_ingest(args: argparse.Namespace) -> int:
-    from .ingest import run_ingest
+    from .ingest import IngestError, run_ingest
 
     settings = _settings()
     logging.basicConfig(
@@ -104,6 +104,13 @@ def cmd_ingest(args: argparse.Namespace) -> int:
         asyncio.run(run_ingest(settings, args.event, max_packets=args.max_packets))
     except KeyboardInterrupt:
         print("\nStopped.")
+    except IngestError as exc:
+        # The feed says why it cannot run with an ordinary exception, because
+        # the same function runs inside the web server, where a SystemExit
+        # would take the whole site down. Here, at the terminal, an exit code
+        # and the message are the right shape - so this is the one place
+        # that translation happens.
+        raise SystemExit(str(exc)) from exc
     return 0
 
 
@@ -158,6 +165,10 @@ def cmd_check_in(args: argparse.Namespace) -> int:
     except KeyboardInterrupt:
         print("\nStopped early.")
         return 1
+    except ConfigError as exc:
+        # require_callsign raises an ordinary error (see config.ConfigError);
+        # the terminal is where it becomes an exit code.
+        raise SystemExit(str(exc)) from exc
 
     def line_for(entry):
         where = (f"{entry.last_lat:.4f},{entry.last_lon:.4f}"
@@ -404,8 +415,12 @@ def cmd_assign_poi(args: argparse.Namespace) -> int:
 def cmd_discard(args: argparse.Namespace) -> int:
     settings = _settings()
     conn = db.connect(settings.db_path)
-    _event_or_exit(conn, args.event)
-    count = importer.discard(conn, args.ids)
+    event = _event_or_exit(conn, args.event)
+    try:
+        count = importer.discard(conn, event["id"], args.ids)
+    except ValueError as exc:
+        print(f"Could not discard: {exc}", file=sys.stderr)
+        return 1
     print(f"Discarded {count} feature(s).")
     return 0
 
@@ -420,17 +435,14 @@ def cmd_layers(args: argparse.Namespace) -> int:
     conn = db.connect(settings.db_path)
     event = _event_or_exit(conn, args.event)
     rows = categories.poi_categories(conn, event["id"])
-    conn.commit()
+    counts = categories.place_counts(conn, event["id"])
 
     print()
     print(f"Place layers for {event['name']!r}")
     print()
     print(f"  {'KEY':<20} {'NAME':<22} {'STAFFED':<9} PLACES")
     for row in rows:
-        count = conn.execute(
-            "SELECT COUNT(*) AS c FROM poi WHERE event_id = ? AND poi_type = ?",
-            (event["id"], row["key"]),
-        ).fetchone()["c"]
+        count = counts.get(row["key"], 0)
         staffed = "yes" if row["staffed"] else "-"
         print(f"  {row['key']:<20} {row['name']:<22} {staffed:<9} {count}")
 
@@ -618,11 +630,11 @@ def cmd_list_links(args: argparse.Namespace) -> int:
 def cmd_revoke_link(args: argparse.Namespace) -> int:
     settings = _settings()
     conn = db.connect(settings.db_path)
-    _event_or_exit(conn, args.event)
-    if access.revoke(conn, args.token_id):
+    event = _event_or_exit(conn, args.event)
+    if access.revoke(conn, event["id"], args.token_id):
         print(f"Link {args.token_id} revoked. Anyone holding it now gets a 404.")
         return 0
-    print(f"No link with id {args.token_id}.", file=sys.stderr)
+    print(f"No link with id {args.token_id} in {args.event}.", file=sys.stderr)
     return 1
 
 

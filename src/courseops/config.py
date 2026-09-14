@@ -11,6 +11,16 @@ from . import resources
 APP_NAME = "Course Ops"
 
 
+class ConfigError(RuntimeError):
+    """A setting is missing or unusable where it is actually needed.
+
+    An ordinary exception on purpose, never SystemExit: this is raised inside
+    the server's ingest task as well as from the CLI, and a SystemExit there
+    is re-raised out of the event loop and takes the whole server down. Only
+    `cli.py` may turn it into an exit code.
+    """
+
+
 def load_dotenv(path: str | Path = ".env") -> None:
     """Populate os.environ from a .env file. Existing variables win.
 
@@ -71,7 +81,7 @@ class Settings:
         """Refuse to go on where a callsign is genuinely needed."""
         problem = self.callsign_problem
         if problem:
-            raise SystemExit(problem)
+            raise ConfigError(problem)
 
     @classmethod
     def from_env(cls) -> "Settings":

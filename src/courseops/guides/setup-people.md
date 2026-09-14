@@ -34,6 +34,13 @@ they bring on the day; ask a coordinator to collect it in advance and you will b
 told the wrong one. The app learns it from the first position it hears, and Net
 Control can match a station to the right person in one tap on the day.
 
+**Typed it wrong? Edit the row.** Changing the callsign on an existing entry
+corrects it in place: the label, role, place and status history all stay with
+the one row. A match Net Control made on the day survives a correction too -
+it records which radio was heard, which a typo in the callsign does not change.
+The edit is refused if the new callsign is already another entry's, or already
+the radio another entry has been matched to.
+
 **Post people at places.** An operator posted to an aid station is drawn there
 even though they never transmit, and sorts into course order with everyone else.
 That is the only way a handheld-only operator appears in the right place.

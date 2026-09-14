@@ -224,7 +224,7 @@ def _course_position(index: "progress.CourseIndex", lat: float, lon: float):
     return located.as_dict() if located else None
 
 
-def make_position_handler(hub, roster_by_key: dict, known_keys: set[str], index):
+def make_position_handler(hub, known_keys: set[str], index):
     """The ingest callback: fan a position out, and announce a new station.
 
     The SSID alerts ("Needs attention") are computed from stored positions
@@ -244,10 +244,7 @@ def make_position_handler(hub, roster_by_key: dict, known_keys: set[str], index)
         await hub.publish(
             event_id,
             hub_module.position_message(
-                report,
-                roster_by_key.get(report.station_key),
-                _course_position(index, report.lat, report.lon),
-            ),
+                report, _course_position(index, report.lat, report.lon)),
         )
         key = report.station_key
         if key not in known_keys and key not in announced:
@@ -509,8 +506,20 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         finally:
             conn.close()
 
-        for slug in wanted:
-            await _start_ingest(slug)
+        # One connection for the whole server, so at most one feed starts.
+        # The switch turns the displaced event's flag off as it goes, so two
+        # flagged events means a database from before it did - or a slug on
+        # the command line beside a stale flag. The command line is explicit
+        # and wins; otherwise the newest event, which is the likelier live
+        # one against an old rehearsal. Starting them all in id order used
+        # to start the first and cancel it for the second, silently.
+        if wanted:
+            named = [slug for slug in (ingest_events or []) if slug in wanted]
+            chosen = named[-1] if named else wanted[-1]
+            for slug in wanted:
+                if slug != chosen:
+                    await _displace_ingest(slug, by=chosen)
+            await _start_ingest(chosen)
         try:
             yield
         finally:
@@ -689,6 +698,15 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         every endpoint.
         """
         conn, user = require_user(request)
+        # Existence first: may_access_event says yes to a system admin before
+        # looking the event up, and a stale bookmark to a deleted event's
+        # setup page was then a traceback from whichever route dereferenced
+        # the missing row. For anyone else the answer is 403 either way, so
+        # nothing is confirmed that was not already.
+        if conn.execute("SELECT 1 FROM event WHERE id = ?",
+                        (event_id,)).fetchone() is None:
+            conn.close()
+            raise HTTPException(status_code=404, detail="No such event.")
         if not users.may_access_event(conn, user, event_id):
             conn.close()
             raise HTTPException(status_code=403, detail="Not your event.")
@@ -973,11 +991,23 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     # --- setup: events -----------------------------------------------------
 
     def _guard(fn, *args):
-        """Turn a domain error into a 400 with its message, closing the conn."""
+        """Turn a domain error into a 400 with its message.
+
+        The caller's try/finally closes the connection. TypeError is here
+        because `int(None)` from a missing body field is one, and
+        IntegrityError because a foreign key that does not exist (an
+        organization id, an event id) or a NOT NULL column is the database
+        saying the same thing a ValueError would - the person on the setup
+        screen needs the message, not "Internal Server Error".
+        """
         try:
             return fn(*args)
-        except (ValueError, users.AuthError) as exc:
+        except (ValueError, TypeError, users.AuthError) as exc:
             raise HTTPException(status_code=400, detail=str(exc))
+        except sqlite3.IntegrityError as exc:
+            raise HTTPException(
+                status_code=400,
+                detail=f"That does not fit the data already here: {exc}.")
 
     @app.get("/api/setup/events")
     async def setup_events(request: Request) -> JSONResponse:
@@ -1014,10 +1044,21 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
                     )
             else:
                 organization_id = user.organization_id
-            event = _guard(admin.create_event, conn, body, int(organization_id))
+            event = _guard(_create_event, conn, body, organization_id)
         finally:
             conn.close()
         return JSONResponse(event, status_code=201)
+
+    def _create_event(conn, body: dict, organization_id) -> dict:
+        # Inside the guard, so a non-numeric or unknown organization id is a
+        # message rather than a traceback.
+        return admin.create_event(conn, body, _int(organization_id, "organization"))
+
+    def _int(value, what: str) -> int:
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            raise ValueError(f"{value!r} is not a {what} id.") from None
 
     @app.post("/api/setup/events/{event_id}")
     async def setup_update_event(event_id: int, request: Request) -> JSONResponse:
@@ -1042,9 +1083,14 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
                 detail="Only an organization or system administrator can delete an event.",
             )
         try:
+            row = conn.execute(
+                "SELECT slug FROM event WHERE id = ?", (event_id,)).fetchone()
             admin.delete_event(conn, event_id)
         finally:
             conn.close()
+        # The feed must not outlive the event - see _forget_ingest.
+        if row is not None:
+            await app.state.forget_ingest(row["slug"], event_id)
         return JSONResponse({"deleted": event_id})
 
     # --- setup: course import ----------------------------------------------
@@ -1134,7 +1180,6 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         try:
             count = _guard(
                 admin.reorder_courses, conn, event_id, body.get("course_ids") or [])
-            conn.commit()
         finally:
             conn.close()
         return JSONResponse({"ordered": count})
@@ -1158,9 +1203,15 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     ) -> JSONResponse:
         conn, user = require_event_admin(request, event_id)
         try:
-            admin.delete_course(conn, event_id, course_id)
+            blocked = admin.delete_course(conn, event_id, course_id)
         finally:
             conn.close()
+        if blocked:
+            # The reports would cascade away with nothing to say where they
+            # went - the same refusal as deleting a sighted leader.
+            raise HTTPException(
+                status_code=409,
+                detail=f"{blocked} recorded on this course. Clear them first.")
         return JSONResponse({"deleted": course_id})
 
     # Declared before /pois/{poi_id}: FastAPI matches in declaration order,
@@ -1176,7 +1227,6 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         body = await _json_body(request, conn)
         try:
             row = _guard(admin.create_poi, conn, event_id, body)
-            conn.commit()
         finally:
             conn.close()
         return JSONResponse(row, status_code=201)
@@ -1188,7 +1238,6 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         try:
             count = _guard(
                 admin.reorder_pois, conn, event_id, body.get("poi_ids") or [])
-            conn.commit()
         finally:
             conn.close()
         return JSONResponse({"ordered": count})
@@ -1202,7 +1251,6 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
                 admin.move_pois, conn, event_id,
                 body.get("poi_ids") or [], (body.get("poi_type") or "").strip(),
             )
-            conn.commit()
         finally:
             conn.close()
         return JSONResponse({"moved": moved})
@@ -1226,9 +1274,16 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     ) -> JSONResponse:
         conn, user = require_event_admin(request, event_id)
         try:
-            admin.delete_poi(conn, event_id, poi_id)
+            blocked = admin.delete_poi(conn, event_id, poi_id)
         finally:
             conn.close()
+        if blocked:
+            # Sightings would cascade away and the posted operator would fall
+            # off the map, neither with anything on screen to say why.
+            raise HTTPException(
+                status_code=409,
+                detail=f"{blocked} at this place. Clear the sightings and "
+                       "move the stations first.")
         return JSONResponse({"deleted": poi_id})
 
     # --- setup: roster ------------------------------------------------------
@@ -1324,27 +1379,48 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         wanted = bool(body.get("enabled"))
         try:
             state = _guard(_tracking_state, conn, event_id)
-            slug = conn.execute(
-                "SELECT slug FROM event WHERE id = ?", (event_id,)
-            ).fetchone()["slug"]
+            event = conn.execute(
+                "SELECT slug, aprs_filter_extra FROM event WHERE id = ?",
+                (event_id,),
+            ).fetchone()
+            slug = event["slug"]
 
+            # Refuse rather than start a task that dies immediately: the
+            # switch would sit at "on" with nothing behind it. Both refusals
+            # mirror the feed's own, so the switch never asks for something
+            # the feed will turn down. The messages say what to do about it.
             if wanted and not state["has_callsign"]:
-                # Refuse rather than start a task that dies immediately: the
-                # switch would sit at "on" with nothing behind it. The message
-                # is the one from settings, which says what to do about it.
                 raise HTTPException(
                     status_code=400,
                     detail=" ".join(
                         state["callsign_problem"].split()))
-            db.set_ingest_enabled(conn, slug, wanted)
-            conn.commit()
+            if (wanted and state["tracked"] == 0 and state["area_mi"] is None
+                    and not event["aprs_filter_extra"]):
+                raise HTTPException(
+                    status_code=400, detail=ingest_module.NOTHING_TO_LISTEN_FOR)
+            if not wanted:
+                db.set_ingest_enabled(conn, slug, False)
         finally:
             conn.close()
 
-        if wanted:
-            await app.state.start_ingest(slug)
-        else:
+        if not wanted:
             await app.state.stop_ingest(slug)
+        else:
+            # Start first, persist second. The flag is what the next boot
+            # acts on, so it must describe a feed that actually started: a
+            # flag written before the attempt turned one refused press into
+            # a service that restarted into the same failure under systemd.
+            started = await app.state.start_ingest(slug)
+            if not started:
+                raise HTTPException(
+                    status_code=400,
+                    detail=app.state.ingest_errors.get(slug)
+                    or "The feed stopped before it connected.")
+            conn = get_conn()
+            try:
+                db.set_ingest_enabled(conn, slug, True)
+            finally:
+                conn.close()
 
         conn = get_conn()
         try:
@@ -1356,37 +1432,23 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     async def setup_categories(event_id: int, request: Request) -> JSONResponse:
         conn, user = require_event_admin(request, event_id)
         try:
+            # The counts are what make "delete" honest: a layer with places,
+            # a role someone holds, a leader with sightings cannot go, and
+            # the number says how many are in the way.
+            places = categories.place_counts(conn, event_id)
+            roles = categories.role_counts(conn, event_id)
+            sightings = categories.sighting_counts(conn, event_id)
             payload = {
                 "poi_categories": [
-                    # The count is what makes "delete" honest: a layer with
-                    # places in it cannot go, and the number says how many.
-                    dict(row) | {"place_count": conn.execute(
-                        "SELECT COUNT(*) AS c FROM poi"
-                        " WHERE event_id = ? AND poi_type = ?",
-                        (event_id, row["key"]),
-                    ).fetchone()["c"]}
+                    dict(row) | {"place_count": places.get(row["key"], 0)}
                     for row in categories.poi_categories(conn, event_id)
                 ],
                 "roster_roles": [
-                    # The count is what makes "delete" honest: a role someone
-                    # on the roster holds cannot go, and the number says how
-                    # many would have to move first.
-                    dict(row) | {"in_use": conn.execute(
-                        "SELECT COUNT(*) AS c FROM roster"
-                        " WHERE event_id = ? AND category = ?",
-                        (event_id, row["key"]),
-                    ).fetchone()["c"]}
+                    dict(row) | {"in_use": roles.get(row["key"], 0)}
                     for row in categories.roster_roles(conn, event_id)
                 ],
                 "lead_divisions": [
-                    # The count is what makes "delete" honest: a leader with
-                    # sightings against it cannot go, and the number says how
-                    # many reports would disappear with it.
-                    dict(row) | {"in_use": conn.execute(
-                        "SELECT COUNT(*) AS c FROM lead_sighting"
-                        " WHERE event_id = ? AND division = ?",
-                        (event_id, row["key"]),
-                    ).fetchone()["c"]}
+                    dict(row) | {"in_use": sightings.get(row["key"], 0)}
                     for row in categories.lead_divisions(conn, event_id)
                 ],
             }
@@ -1404,7 +1466,6 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
                 body.get("name", ""), bool(body.get("staffed")),
                 body.get("icon") or "pin", body.get("color"),
             )
-            conn.commit()
         finally:
             conn.close()
         return JSONResponse(dict(row), status_code=201)
@@ -1420,7 +1481,6 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
             count = _guard(
                 categories.reorder_poi_categories, conn, event_id,
                 body.get("keys") or [])
-            conn.commit()
         finally:
             conn.close()
         return JSONResponse({"ordered": count})
@@ -1435,7 +1495,6 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
             row = _guard(
                 categories.update_poi_category, conn, event_id, key, body
             )
-            conn.commit()
         finally:
             conn.close()
         return JSONResponse(dict(row))
@@ -1447,7 +1506,6 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         conn, user = require_event_admin(request, event_id)
         try:
             in_use = _guard(categories.delete_poi_category, conn, event_id, key)
-            conn.commit()
         finally:
             conn.close()
         if in_use:
@@ -1467,7 +1525,6 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         try:
             row = _guard(categories.add_roster_role, conn, event_id,
                          body.get("name") or "")
-            conn.commit()
         finally:
             conn.close()
         return JSONResponse(dict(row), status_code=201)
@@ -1480,12 +1537,13 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         conn, user = require_event_admin(request, event_id)
         try:
             in_use = _guard(categories.delete_roster_role, conn, event_id, key)
-            conn.commit()
         finally:
             conn.close()
         if in_use:
+            # 409 like the other in-use refusals: the request was well
+            # formed, it is the data that is in the way.
             raise HTTPException(
-                status_code=400,
+                status_code=409,
                 detail=f"{in_use} roster entr{'y' if in_use == 1 else 'ies'} "
                        "still use this role. Move them first.")
         return JSONResponse({"deleted": key})
@@ -1501,7 +1559,6 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
                 categories.rename_roster_role, conn, event_id, key,
                 body.get("name", ""),
             )
-            conn.commit()
         finally:
             conn.close()
         return JSONResponse(dict(row))
@@ -1516,7 +1573,6 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         try:
             row = _guard(categories.add_lead_division, conn, event_id,
                          body.get("name") or "")
-            conn.commit()
         finally:
             conn.close()
         return JSONResponse(dict(row), status_code=201)
@@ -1532,7 +1588,6 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         try:
             count = _guard(categories.reorder_lead_divisions, conn, event_id,
                            body.get("keys") or [])
-            conn.commit()
         finally:
             conn.close()
         return JSONResponse({"ordered": count})
@@ -1544,14 +1599,13 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         conn, user = require_event_admin(request, event_id)
         try:
             in_use = _guard(categories.delete_lead_division, conn, event_id, key)
-            conn.commit()
         finally:
             conn.close()
         if in_use:
             # The sightings would stay in the database and vanish from the
             # panel, with nothing on screen to say where they went.
             raise HTTPException(
-                status_code=400,
+                status_code=409,
                 detail=f"{in_use} sighting{'' if in_use == 1 else 's'} "
                        "recorded against this leader. Clear them first.")
         return JSONResponse({"deleted": key})
@@ -1565,7 +1619,6 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         try:
             row = _guard(categories.rename_lead_division, conn, event_id, key,
                          body.get("name", ""))
-            conn.commit()
         finally:
             conn.close()
         return JSONResponse(dict(row))
@@ -1586,7 +1639,8 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         conn, user = require_event_admin(request, event_id)
         body = await _json_body(request, conn)
         try:
-            admin.delete_roster_entry(conn, event_id, body.get("station_key", ""))
+            _guard(admin.delete_roster_entry, conn, event_id,
+                   body.get("station_key", ""))
         finally:
             conn.close()
         return JSONResponse({"ok": True})
@@ -1617,9 +1671,20 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         conn, user = require_event_admin(request, event_id)
         body = await _json_body(request, conn)
         action = (body.get("action") or "").strip()
+
+        def token_id() -> int:
+            try:
+                return int(body.get("token_id"))
+            except (TypeError, ValueError):
+                raise HTTPException(status_code=400, detail="Which link?")
+
         try:
             if action == "revoke":
-                access.revoke(conn, int(body.get("token_id")))
+                # 404, not 400: the id is either not a link at all or is a
+                # link in some other event, and the difference must not be
+                # reported - it would confirm the other event's link exists.
+                if not access.revoke(conn, event_id, token_id()):
+                    raise HTTPException(status_code=404, detail="No such link.")
             elif action == "add":
                 # A second, third, fourth link for one role. Three Net Control
                 # operators can share one link - the token allows any number of
@@ -1635,8 +1700,9 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
             elif action == "label":
                 # Whose link this is. Free text and never trusted for anything:
                 # it exists so the row to revoke can be found under pressure.
-                access.set_label(conn, int(body.get("token_id")),
-                                 _link_label(body.get("label")))
+                if not access.set_label(conn, event_id, token_id(),
+                                        _link_label(body.get("label"))):
+                    raise HTTPException(status_code=404, detail="No such link.")
             elif action == "reissue":
                 role = str(body.get("role", ""))
                 if role not in access.ROLES:
@@ -1648,7 +1714,7 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
                 # the per-link action above.
                 for row in access.tokens_for_event(conn, event_id):
                     if row["role"] == role and not row["revoked"]:
-                        access.revoke(conn, row["id"])
+                        access.revoke(conn, event_id, row["id"])
                 access.create_token(conn, event_id, role)
             else:
                 raise HTTPException(status_code=400, detail="Unknown action.")
@@ -1709,9 +1775,16 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     ) -> JSONResponse:
         conn, user = require_system_admin(request)
         try:
+            # Cascades through the organization's events, so their feeds go
+            # the same way an event's own delete takes its feed with it.
+            gone = conn.execute(
+                "SELECT id, slug FROM event WHERE organization_id = ?",
+                (organization_id,)).fetchall()
             conn.execute("DELETE FROM organization WHERE id = ?", (organization_id,))
         finally:
             conn.close()
+        for event in gone:
+            await app.state.forget_ingest(event["slug"], event["id"])
         return JSONResponse({"deleted": organization_id})
 
     # --- setup: users -------------------------------------------------------
@@ -1753,23 +1826,49 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
                         status_code=403,
                         detail="Only a system administrator can create one.",
                     )
-            created = _guard(
-                users.create_user, conn, body.get("username", ""),
-                body.get("password", ""), role, body.get("display_name"),
-                int(organization_id) if organization_id else None,
-            )
-            users.set_events(conn, created.id,
-                             [int(i) for i in body.get("event_ids", [])])
+            created = _guard(_create_user, conn, body, role, organization_id)
         finally:
             conn.close()
         return JSONResponse(created.as_dict(), status_code=201)
+
+    def _create_user(conn, body: dict, role, organization_id) -> users.User:
+        # Everything checked before the INSERT: the connection is autocommit,
+        # so validating event_ids after create_user left a half-made account
+        # behind the error.
+        org = _int(organization_id, "organization") if organization_id else None
+        event_ids = _event_ids(conn, body.get("event_ids", []), org)
+        with db.transaction(conn):
+            created = users.create_user(
+                conn, body.get("username", ""), body.get("password", ""), role,
+                body.get("display_name"), org,
+            )
+            users.set_events(conn, created.id, event_ids)
+        return created
+
+    def _event_ids(conn, values, organization_id) -> list[int]:
+        """Event ids for an administrator's assignment, all real, all theirs.
+
+        `may_access_event` checks the organization before the assignment, so
+        a cross-club row granted nothing - but it was a junk row, and an id
+        that did not exist was a foreign-key traceback after the account had
+        already been created.
+        """
+        if isinstance(values, (str, bytes)) or not isinstance(values, (list, tuple)):
+            raise ValueError("event_ids must be a list.")
+        ids = [_int(v, "event") for v in values]
+        allowed = {e["id"] for e in admin.list_events(conn, organization_id)}
+        unknown = [i for i in ids if i not in allowed]
+        if unknown:
+            raise ValueError(
+                f"No event with id {unknown[0]} in this organization.")
+        return ids
 
     @app.post("/api/setup/users/{user_id}")
     async def setup_update_user(user_id: int, request: Request) -> JSONResponse:
         conn, actor = require_user_manager(request)
         body = await _json_body(request, conn)
         try:
-            target = users.get_user(conn, user_id)
+            target = _get_user(conn, user_id)
             if not users.may_manage_user(conn, actor, target):
                 raise HTTPException(status_code=403, detail="Not your administrator.")
             if "password" in body:
@@ -1785,18 +1884,26 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
                     )
                 users.set_active(conn, user_id, active)
             if "event_ids" in body:
-                users.set_events(conn, user_id,
-                                 [int(i) for i in body["event_ids"]])
+                users.set_events(conn, user_id, _guard(
+                    _event_ids, conn, body["event_ids"], target.organization_id))
             result = users.get_user(conn, user_id).as_dict()
         finally:
             conn.close()
         return JSONResponse(result)
 
+    def _get_user(conn, user_id: int) -> users.User:
+        # Two admins editing the same list - one deletes, the other saves -
+        # is a 404 with a message, not a blank error.
+        try:
+            return users.get_user(conn, user_id)
+        except users.AuthError:
+            raise HTTPException(status_code=404, detail="No such administrator.")
+
     @app.post("/api/setup/users/{user_id}/delete")
     async def setup_delete_user(user_id: int, request: Request) -> JSONResponse:
         conn, actor = require_user_manager(request)
         try:
-            target = users.get_user(conn, user_id)
+            target = _get_user(conn, user_id)
             if not users.may_manage_user(conn, actor, target):
                 raise HTTPException(status_code=403, detail="Not your administrator.")
             if user_id == actor.id:
@@ -1988,18 +2095,14 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         event_slug: str, token: str, station_key: str, request: Request
     ) -> JSONResponse:
         conn, granted = require_capability(event_slug, token, access.CAP_STATIONS)
-        try:
-            body = await request.json()
-        except Exception:
-            conn.close()
-            raise HTTPException(status_code=400, detail="Expected a JSON body.")
-
-        op_status = str(body.get("op_status", "")).strip().lower()
-        # Free-text initials typed once per shift. A log annotation for handover,
-        # never authentication - do not start trusting it as identity.
-        changed_by = (body.get("changed_by") or "").strip()[:12] or None
+        body = await _json_body(request, conn)
 
         try:
+            op_status = (db.clean_text(body.get("op_status")) or "").lower()
+            # Free-text initials typed once per shift. A log annotation for
+            # handover, never authentication - do not start trusting it as
+            # identity.
+            changed_by = db.clean_text(body.get("changed_by"), 12)
             row = db.set_op_status(
                 conn, granted.event_id, station_key, op_status, changed_by
             )
@@ -2175,8 +2278,12 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         if not station_key:
             conn.close()
             raise HTTPException(status_code=400, detail="A station_key is required.")
-        db.exclude_station(conn, granted.event_id, station_key,
-                           body.get("reason") or "dismissed from the map")
+        try:
+            db.exclude_station(conn, granted.event_id, station_key,
+                               body.get("reason") or "dismissed from the map")
+        except ValueError as exc:
+            conn.close()
+            raise HTTPException(status_code=400, detail=str(exc))
         conn.close()
         app.state.nearby.get(granted.event_id, {}).pop(station_key.upper(), None)
         await _publish_state_hint(granted.event_id)
@@ -2264,7 +2371,7 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
             leaders.record_sighting(
                 conn, granted.event_id,
                 course_id=int(body.get("course_id")),
-                division=str(body.get("division", "")),
+                division=body.get("division"),
                 poi_id=int(body.get("poi_id")),
                 bib=body.get("bib"),
                 by=body.get("changed_by"),
@@ -2403,11 +2510,10 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         event = db.get_event(conn, slug)
         if event is None:
             conn.close()
-            log.error("Cannot ingest unknown event %r", slug)
-            return
-        roster_by_key = {
-            row["station_key"]: row for row in db.roster_for_event(conn, event["id"])
-        }
+            # Raised rather than logged and returned, so the supervisor
+            # records it and the tracking panel can say so.
+            raise ingest_module.IngestError(
+                f"No event with slug {slug!r}. Create it first.")
         known_keys = set(db.all_station_keys(conn, event["id"]))
         known_keys |= db.bound_station_keys(conn, event["id"])
         # Course geometry is loaded once for the life of the ingest task rather
@@ -2416,8 +2522,7 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         index = progress.CourseIndex.for_event(conn, event["id"])
         conn.close()
 
-        on_position = make_position_handler(
-            app.state.hub, roster_by_key, known_keys, index)
+        on_position = make_position_handler(app.state.hub, known_keys, index)
         on_nearby = make_nearby_handler(app.state.hub, app.state.nearby, index)
         await run_ingest(settings, slug, on_position=on_position,
                          on_nearby=on_nearby)
@@ -2428,30 +2533,46 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
             await _ingest_for(slug)
         except asyncio.CancelledError:
             raise
-        except Exception as exc:                       # noqa: BLE001
+        except BaseException as exc:                   # noqa: BLE001
             # A missing callsign lands here, and so does anything APRS-IS does
             # that the client cannot recover from. Losing it to the log alone
             # means the switch says "on" and nothing arrives.
+            #
+            # BaseException, not Exception, and the difference is the whole
+            # server: asyncio re-raises SystemExit and KeyboardInterrupt out
+            # of a task and out of the loop, so a feed that once signalled
+            # "nothing to listen for" with SystemExit took every role page
+            # down with it, and the persisted switch restarted it into the
+            # same crash. Nothing that happens inside one feed is allowed to
+            # decide that the site stops.
             app.state.ingest_errors[slug] = str(exc) or exc.__class__.__name__
             log.error("Ingest for %r stopped: %s", slug, exc)
         finally:
             app.state.ingest_tasks.pop(slug, None)
 
-    async def _start_ingest(slug: str) -> None:
-        """Start one feed, replacing any other.
+    async def _start_ingest(slug: str) -> bool:
+        """Start one feed, replacing any other. True if it is running.
 
         APRS-IS bans clients that open many connections, so there is exactly
         one for the whole server - which means turning a feed on turns any
         other one off, rather than quietly running two.
+
+        The feed does its refusals - no callsign, no event, nothing to listen
+        for - before its first real await, so one turn of the loop is enough
+        to know whether it got as far as connecting. The caller persists the
+        switch only on True: a flag written for a feed that never started is
+        what turned one bad press into a restart loop.
         """
         if slug in app.state.ingest_tasks:
-            return
+            return True
         for running in list(app.state.ingest_tasks):
             if running != slug:
-                await _stop_ingest(running)
+                await _displace_ingest(running, by=slug)
         app.state.ingest_errors.pop(slug, None)
         app.state.ingest_tasks[slug] = asyncio.create_task(
             _supervise_ingest(slug), name=f"ingest:{slug}")
+        await asyncio.sleep(0)
+        return slug in app.state.ingest_tasks
 
     async def _stop_ingest(slug: str) -> None:
         task = app.state.ingest_tasks.pop(slug, None)
@@ -2461,7 +2582,47 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         with contextlib.suppress(asyncio.CancelledError):
             await task
 
+    def _event_name(slug: str) -> str:
+        conn = db.connect(settings.db_path)
+        try:
+            event = db.get_event(conn, slug)
+            return event["name"] if event else slug
+        finally:
+            conn.close()
+
+    async def _displace_ingest(slug: str, by: str) -> None:
+        """Turn one event's feed off because another's is going on.
+
+        The persisted switch is what the next boot acts on, so the displaced
+        event's flag has to come off with the feed: left on, the boot found
+        two flagged, started the first and cancelled it for the second, and
+        the displaced tab read "on - but not connected" with nothing to say
+        why. The reason goes where the tab already looks for one.
+        """
+        await _stop_ingest(slug)
+        conn = db.connect(settings.db_path)
+        try:
+            db.set_ingest_enabled(conn, slug, False)
+        finally:
+            conn.close()
+        app.state.ingest_errors[slug] = (
+            f"Tracking was turned on for {_event_name(by)}, and there is "
+            "one APRS-IS connection for the whole server.")
+
+    async def _forget_ingest(slug: str, event_id: int) -> None:
+        """The event is gone; nothing about its feed may outlive it.
+
+        Otherwise the connection keeps a wildcard filter on the deleted
+        event's volunteers until the next restart, and re-creating the slug
+        finds a feed "already running" that is bound to the dead event id.
+        The nearby list is keyed by event id, the rest by slug.
+        """
+        await _stop_ingest(slug)
+        app.state.ingest_errors.pop(slug, None)
+        app.state.nearby.pop(event_id, None)
+
     app.state.start_ingest = _start_ingest
     app.state.stop_ingest = _stop_ingest
+    app.state.forget_ingest = _forget_ingest
 
     return app

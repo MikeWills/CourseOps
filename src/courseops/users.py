@@ -37,6 +37,8 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from hashlib import scrypt
 
+from . import db
+
 ROLE_SYSTEM_ADMIN = "system_admin"
 ROLE_ORG_ADMIN = "org_admin"
 ROLE_EVENT_ADMIN = "event_admin"
@@ -87,6 +89,15 @@ LOGIN_WINDOW_SECONDS = 60
 
 class AuthError(Exception):
     """Login or permission failure. The message is safe to show a user."""
+
+
+def _text(value: object, limit: int | None = None) -> str | None:
+    """Free text from a body, as an AuthError when it is not text at all -
+    the one exception every caller of this module already handles."""
+    try:
+        return db.clean_text(value, limit)
+    except ValueError as exc:
+        raise AuthError(str(exc)) from None
 
 
 @dataclass(frozen=True)
@@ -245,7 +256,7 @@ class LoginLimiter:
 
 
 def check_password_quality(password: str) -> None:
-    if len(password or "") < MIN_PASSWORD_LENGTH:
+    if not isinstance(password, str) or len(password) < MIN_PASSWORD_LENGTH:
         raise AuthError(
             f"Password must be at least {MIN_PASSWORD_LENGTH} characters. "
             "Length matters far more than punctuation."
@@ -255,7 +266,7 @@ def check_password_quality(password: str) -> None:
 # --- accounts ---------------------------------------------------------------
 
 def normalize_username(username: str) -> str:
-    return (username or "").strip().lower()
+    return (_text(username) or "").lower()
 
 
 def create_user(
@@ -284,7 +295,7 @@ def create_user(
         "INSERT INTO user (username, password_hash, role, display_name,"
         " organization_id) VALUES (?, ?, ?, ?, ?)",
         (username, hash_password(password), role,
-         (display_name or "").strip() or None,
+         _text(display_name, 80),
          None if role == ROLE_SYSTEM_ADMIN else organization_id),
     )
     return get_user(conn, int(cur.lastrowid))
@@ -336,25 +347,27 @@ def delete_user(conn: sqlite3.Connection, user_id: int) -> None:
 
 
 def list_organizations(conn: sqlite3.Connection) -> list[dict]:
+    events = {r[0]: r[1] for r in conn.execute(
+        "SELECT organization_id, COUNT(*) FROM event GROUP BY organization_id"
+    ).fetchall()}
+    admins = {r[0]: r[1] for r in conn.execute(
+        "SELECT organization_id, COUNT(*) FROM user GROUP BY organization_id"
+    ).fetchall()}
     out = []
     for row in conn.execute(
         "SELECT * FROM organization ORDER BY name"
     ).fetchall():
         entry = {key: row[key] for key in row.keys()}
-        entry["event_count"] = conn.execute(
-            "SELECT COUNT(*) FROM event WHERE organization_id = ?", (row["id"],)
-        ).fetchone()[0]
-        entry["admin_count"] = conn.execute(
-            "SELECT COUNT(*) FROM user WHERE organization_id = ?", (row["id"],)
-        ).fetchone()[0]
+        entry["event_count"] = events.get(row["id"], 0)
+        entry["admin_count"] = admins.get(row["id"], 0)
         out.append(entry)
     return out
 
 
 def create_organization(conn: sqlite3.Connection, slug: str, name: str,
                         contact: str | None = None) -> dict:
-    slug = (slug or "").strip().lower()
-    name = (name or "").strip()
+    slug = (_text(slug) or "").lower()
+    name = _text(name) or ""
     if not slug or not name:
         raise AuthError("An organization needs a short name and a full name.")
     if not slug.replace("-", "").replace("_", "").isalnum():
@@ -363,7 +376,7 @@ def create_organization(conn: sqlite3.Connection, slug: str, name: str,
         raise AuthError(f"An organization called {slug!r} already exists.")
     cur = conn.execute(
         "INSERT INTO organization (slug, name, contact) VALUES (?, ?, ?)",
-        (slug, name, (contact or "").strip() or None),
+        (slug, name, _text(contact, 200)),
     )
     row = conn.execute("SELECT * FROM organization WHERE id = ?",
                        (int(cur.lastrowid),)).fetchone()
@@ -411,14 +424,14 @@ def update_organization(conn: sqlite3.Connection, organization_id: int,
     """
     fields, values = [], []
     if "name" in payload:
-        name = (payload.get("name") or "").strip()
+        name = _text(payload.get("name"))
         if not name:
             raise AuthError("An organization needs a full name.")
         fields.append("name = ?")
         values.append(name)
     if "contact" in payload:
         fields.append("contact = ?")
-        values.append((payload.get("contact") or "").strip() or None)
+        values.append(_text(payload.get("contact"), 200))
     if not fields:
         raise AuthError("Nothing to change.")
 
