@@ -12,6 +12,144 @@ month, PATCH counting releases in that month from 0. Before that they were
 ## [Unreleased]
 
 ### Fixed
+- **A refused setup change could leave half of itself behind.** The
+  connection is autocommit, so every statement was its own transaction and
+  the eighteen `conn.commit()` calls in the routes were no-ops that read as
+  if the statements before them were one unit. `create_poi` INSERTed the
+  place and THEN validated its What3Words address, so a 400 left a place
+  behind it and the officer who corrected the address and submitted again
+  had two "Water Stop C" pins; a roster edit's rename survived a bad
+  posting; a course assignment or a reorder could stop half way and look
+  as if it had worked. `db.transaction` (`BEGIN IMMEDIATE` / `COMMIT` /
+  `ROLLBACK`) now wraps every write that touches more than one row -
+  creating an event with its seeds and links, staging a file, assigning
+  features, creating and editing a place, saving a roster entry, renaming a
+  station with its status log, setting a status with its log row, every
+  reorder, creating an administrator with their events - so a 4xx means
+  nothing landed. The decorative commits are gone and a test keeps them
+  gone: inside a real transaction they would have committed early. A file
+  is parsed before its transaction opens, so the write lock is never held
+  while a large organizer file is read. (Audit 2026-09-14, B6.)
+
+### Changed
+- **One reorder routine.** Places, courses, layers and leaders each had a
+  textually identical loop - four places to fix the next ordering bug.
+  `db.reorder` is the one implementation, with the two real differences as
+  arguments: places may be ordered a few at a time, and courses read as a
+  stack so the first id given draws on top. Every key is still checked
+  before anything is written.
+- **One GROUP BY per count.** The events list ran four COUNTs per event,
+  the organizations list two per club, and the setup taxonomy screen and
+  `courseops layers` each counted every layer, role and leader one at a
+  time - the CLI with its own copy of the web's query. `categories.place_counts`,
+  `role_counts` and `sighting_counts` feed both.
+- Refusing to delete a layer, a role or a leader that is still in use is a
+  409 in all three cases; roles and leaders said 400. The client treats them
+  alike, but the next taxonomy copies whichever one it reads first.
+
+### Fixed
+- Deleting a station role that did not exist reported success. A stale row
+  on the Roles tab "deleted" and the list reloaded unchanged; it is refused
+  like an unknown layer or leader. (Audit 2026-09-14, B10.)
+- **A layer's colour and icon were accepted unchecked by the server.**
+  Course colours went through `styling.is_valid_color`; layer colours and
+  icon names were stored as sent, and the map was safe only because the
+  client re-validated both before interpolating them into a style
+  attribute and a glyph lookup. The server is the boundary between an admin
+  and the field phones, and a future client trusting the stored colour
+  would have carried a CSS injection. A layer colour is now a hex colour or
+  nothing, and an icon is a name from the palette in `icons.js` - read from
+  that file, so the list cannot drift from what the client can draw.
+  (Audit 2026-09-14, B9.)
+- **A lead runner sighting could be recorded for a leader the event does
+  not track.** `record_sighting` checked only that the division was
+  non-empty, so a client holding a stale leader list - one deleted in setup
+  since the page loaded - got a 201 for a report that was stored and then
+  shown on no panel at all. It is checked against the event's own leaders
+  now. Also: undo compared the division raw while record and clear
+  lower-cased it, so a report sent as "Male" landed under `male` and then
+  would not undo; the three normalise the same way. (Audit 2026-09-14, B8.)
+- **A wrong-typed or half-filled setup request was a 500, not a message.**
+  The shipped client sends the right types, so these needed a hand-made
+  request - but the cost was "Internal Server Error" on the setup screen
+  and a traceback in the journal that hides the real cause, and one of them
+  poisoned the map: a string in `center_lat` was stored and then served to
+  every phone as the map's first view. Now: an event's name and time zone
+  cannot be blanked (a single space passed the form's `required` and hit a
+  NOT NULL column); the centre and zoom are range-checked like a place's
+  coordinates; a number or object where text was expected is either read as
+  text (a bib of `5`) or refused (`["x"]` as a station label); id lists are
+  lists; an administrator's event assignments are checked to exist and to
+  be in their club BEFORE the account is created, so a bad one no longer
+  leaves a half-made account; a foreign key or NOT NULL failure is a 400
+  with the message; an unknown administrator id is a 404; and a system
+  administrator opening a deleted event's setup page gets a 404 rather than
+  a traceback. One helper, `db.clean_text`, is now how free text leaves a
+  JSON body. (Audit 2026-09-14, B7.)
+- **Deleting a place silently deleted every lead runner sighting at it and
+  un-posted the operator standing there.** `lead_sighting.poi_id` cascades
+  and `roster.poi_id` nulls, and `delete_poi` was a bare DELETE - so the
+  leader's position on the NCS panel jumped back a station, and an operator
+  who never beacons (for whom the posting is the only thing putting them on
+  the map) vanished, with nothing on screen to say why. Every other delete in
+  the family - a layer with places, a leader with sightings - refuses with
+  the count; this one now does too, naming both counts, and so does deleting
+  a course with sightings recorded on it, which cascaded the same way.
+  Setup is used mid-event, which is why this matters. The Places tab's
+  delete button does not yet show the refusal (its handler has no error
+  path - audit task G7). (Audit 2026-09-14, B5.)
+- **Renaming a station left its status history under the old callsign.**
+  `roster_status_log` is keyed by callsign text with no foreign key, so a
+  same-callsign SSID correction (`N0CALL-1` to `N0CALL-7`, which really
+  renames) left every status change filed under the old key: the rows were
+  still there, and the event-wide handover log still showed them, but the
+  per-station log NCS opens on that station came back empty, as if it had
+  never changed status. A rename now moves the history with the row - it is
+  a rename, not a rebinding, so the history belongs on the new key. (Audit
+  2026-09-14, B4.)
+- **Correcting a callsign on the Roster tab created a second roster row.**
+  The setup form sent the edit through the same code NCS's "this is really
+  Aid 3" uses, which deliberately BINDS rather than renames - so for a bare
+  callsign gaining its SSID, or a wrong callsign replaced with the right one,
+  the original row stayed and was bound to the new key, and the save then
+  upserted a fresh row under the new key. Two "Aid 1" rows, both attributing
+  the same packets, status set on one not showing on the other, an extra
+  entry in the filter, and no error - discovered the morning someone fixed a
+  typo. A setup edit is now a rename (`db.rename_station_key`): the row
+  moves, keeping its label, place and any match NCS made, and is refused if
+  the new callsign is another entry's or the radio another entry is matched
+  to. Binding stays NCS's tool on the live map. (Audit 2026-09-14, B3.)
+- **A link could be revoked or relabelled through another event's setup
+  page.** The links route authorised the event in the URL and then acted
+  on whatever `token_id` was in the body, and token ids are small sequential
+  integers - so an admin of one club, or a leaked admin session, could
+  revoke every NCS, SAG and Liaison link of another club's race on race
+  morning, which on that club's phones is a 404 with no error anywhere on
+  their side. `access.revoke` and `access.set_label` take the event and
+  match on it; a link outside the event is a 404 and nothing is written.
+  `courseops revoke-link` checks the same way. A missing or non-numeric id
+  is a 400 rather than a traceback. (Audit 2026-09-14, B2.)
+- **A staged import feature could be assigned, or discarded, from another
+  event.** `import_feature.id` is one global sequence and the assign route
+  looked features up by id alone, so an admin of one club naming another
+  club's id got that club's course geometry copied into their own event and
+  the original review row flipped to `assigned` or `discarded` - which to
+  the other club looks like a failed import the week before their race. The
+  organizer's course file is exactly the third-party data this repo's
+  history was purged for. Every staged-feature read and write now carries
+  the event, a foreign id is a 400, and `discard` checks the whole list
+  before writing any of it. (Audit 2026-09-14, B1.)
+- **Assigning a staged point into a layer that does not exist was accepted.**
+  "Assign all suggestions" posts whatever key the hint produced, and a club
+  that had deleted that default layer got a place in the table that drew
+  nowhere, with no error - the rule "a suggestion must name a layer that
+  exists" was enforced for hand-added and edited places but not on the
+  review screen. `assign_poi` checks the layer first, so the CLI and the
+  setup screen both refuse.
+- `update_poi` with only `course_ids` in the payload never reached the
+  event-scoped UPDATE, so it wrote race assignments for - and returned the
+  name and coordinates of - a place in any event. It checks the place is in
+  the event before doing anything.
 - **A feed that could not start took the whole server down, and the
   persisted switch restarted it into the same crash.** `run_ingest` signalled
   "no callsign", "no such event" and "nothing to listen for" with

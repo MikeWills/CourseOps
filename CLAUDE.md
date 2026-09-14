@@ -346,6 +346,18 @@ usability, not style preferences.
   order and toggling a line back on re-adds it on top, so `restackCourses()`
   runs after every draw and every toggle - forgetting it puts a course on
   top with no error.
+- **A write that touches more than one row goes inside `db.transaction`,
+  and nothing calls `conn.commit()`.** The connection is autocommit, so
+  each statement used to be its own transaction and `create_poi` INSERTed
+  the place before validating its What3Words address - a 400 left the
+  place behind it, and the corrected resubmit made two pins. `@db.transactional`
+  on the domain function (not the route) gives the CLI the same guarantee;
+  it nests, so a function that wraps itself can be called from one that
+  already has. `conn.commit()` is a no-op on a bare connection and an EARLY
+  commit inside a transaction block, which is why there is a test that no
+  source file contains it. Parse a file BEFORE opening the transaction:
+  `BEGIN IMMEDIATE` holds the write lock, and the ingest task is writing
+  positions on its own connection meanwhile.
 - **Adding a schema column requires a migration entry.** `CREATE TABLE IF NOT
   EXISTS` skips existing tables, so a new column never reaches an existing
   database. Add it to `_ADDED_COLUMNS` in `db.py` as well as `schema.sql`.
@@ -642,6 +654,16 @@ usability, not style preferences.
   person with the radio is often not the person whose callsign is on the
   roster. `change_station_key` binds across callsigns via `bound_key` and
   never renames; `unbind_station` is the undo, and NCS has an Unmatch button.
+- **A setup-screen edit of a callsign is a RENAME; a match on the live map
+  is a BIND.** They answer opposite questions. Binding says which HEARD
+  station is this person and leaves the typed key alone so it stays
+  undoable; the Roster tab's edit says what the typed key should have been,
+  so `db.rename_station_key` moves the row - label, place, status log and
+  any binding NCS made go with it. Routing the setup edit through the bind
+  logic left TWO rows for one person (the original bound to the new key,
+  plus a fresh upsert under it), both attributing the same packets, on the
+  morning someone corrected a typo. Never send a setup edit through
+  `change_station_key`, and never let the NCS match route rename.
 - **Membership is re-read while the feed runs.** `ingest.Membership` refreshes
   who the roster knows when an unknown packet arrives (at most every 5 s),
   because NCS matches stations mid-event and from then on their packets must

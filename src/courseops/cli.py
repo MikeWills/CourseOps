@@ -415,8 +415,12 @@ def cmd_assign_poi(args: argparse.Namespace) -> int:
 def cmd_discard(args: argparse.Namespace) -> int:
     settings = _settings()
     conn = db.connect(settings.db_path)
-    _event_or_exit(conn, args.event)
-    count = importer.discard(conn, args.ids)
+    event = _event_or_exit(conn, args.event)
+    try:
+        count = importer.discard(conn, event["id"], args.ids)
+    except ValueError as exc:
+        print(f"Could not discard: {exc}", file=sys.stderr)
+        return 1
     print(f"Discarded {count} feature(s).")
     return 0
 
@@ -431,17 +435,14 @@ def cmd_layers(args: argparse.Namespace) -> int:
     conn = db.connect(settings.db_path)
     event = _event_or_exit(conn, args.event)
     rows = categories.poi_categories(conn, event["id"])
-    conn.commit()
+    counts = categories.place_counts(conn, event["id"])
 
     print()
     print(f"Place layers for {event['name']!r}")
     print()
     print(f"  {'KEY':<20} {'NAME':<22} {'STAFFED':<9} PLACES")
     for row in rows:
-        count = conn.execute(
-            "SELECT COUNT(*) AS c FROM poi WHERE event_id = ? AND poi_type = ?",
-            (event["id"], row["key"]),
-        ).fetchone()["c"]
+        count = counts.get(row["key"], 0)
         staffed = "yes" if row["staffed"] else "-"
         print(f"  {row['key']:<20} {row['name']:<22} {staffed:<9} {count}")
 
@@ -629,11 +630,11 @@ def cmd_list_links(args: argparse.Namespace) -> int:
 def cmd_revoke_link(args: argparse.Namespace) -> int:
     settings = _settings()
     conn = db.connect(settings.db_path)
-    _event_or_exit(conn, args.event)
-    if access.revoke(conn, args.token_id):
+    event = _event_or_exit(conn, args.event)
+    if access.revoke(conn, event["id"], args.token_id):
         print(f"Link {args.token_id} revoked. Anyone holding it now gets a 404.")
         return 0
-    print(f"No link with id {args.token_id}.", file=sys.stderr)
+    print(f"No link with id {args.token_id} in {args.event}.", file=sys.stderr)
     return 1
 
 
