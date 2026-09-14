@@ -133,6 +133,11 @@ def _seed_categories(conn: sqlite3.Connection) -> None:
     for row in conn.execute("SELECT id FROM event").fetchall():
         categories.seed_poi_categories(conn, row["id"])
         categories.seed_roster_roles(conn, row["id"])
+        # A place or a sighting under a key nothing names is invisible, with
+        # no error to say so. Repaired here, once, at startup - it used to be
+        # done on every read of the list, which made every snapshot a writer.
+        categories.adopt_orphan_poi_types(conn, row["id"])
+        categories.adopt_orphan_divisions(conn, row["id"])
 
 
 def _adopt_orphan_events(conn: sqlite3.Connection) -> None:

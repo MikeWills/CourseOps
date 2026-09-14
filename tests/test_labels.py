@@ -120,6 +120,8 @@ def test_layer_created_by_import_starts_unlabelled(tmp_path):
     conn.execute(
         "INSERT INTO poi (event_id, name, poi_type, lat, lon)"
         " VALUES (?, 'MM 1', 'mile_markers', 1.0, 2.0)", (event_id,))
+    # The orphan repair is a startup step now, not a read.
+    categories.adopt_orphan_poi_types(conn, event_id)
     rows = {r["key"]: r for r in categories.poi_categories(conn, event_id)}
     assert rows["mile_markers"]["show_labels"] == 0
 

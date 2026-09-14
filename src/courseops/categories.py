@@ -126,15 +126,36 @@ def seed_poi_categories(conn: sqlite3.Connection, event_id: int) -> None:
                 (event_id, key, name, int(staffed), icon, color, order * 10,
                  _labels_default(staffed)),
             )
-    # Unlike the defaults, this runs every time: a place whose layer does not
-    # exist is in the database, off the map, with no error to say so. Better an
-    # unnamed layer the club can rename than a place nobody can see.
-    for row in conn.execute(
-        "SELECT DISTINCT poi_type FROM poi WHERE event_id = ?", (event_id,)
-    ).fetchall():
-        key = (row["poi_type"] or "").strip()
-        if not key:
-            continue
+
+
+def adopt_orphan_poi_types(conn: sqlite3.Connection, event_id: int) -> list[str]:
+    """Give every place whose layer does not exist a layer.
+
+    Such a place is in the database, off the map, with no error to say so.
+    Better an unnamed layer the club can rename than a place nobody can see.
+
+    This used to run on every READ of the layer list, as INSERT OR IGNORE per
+    place type - and an INSERT OR IGNORE that ignores still takes the writer
+    lock. Every phone's snapshot reads the layer list, so every snapshot was
+    a writer competing with the ingest loop and with each other, and with
+    busy_timeout at 5 s a snapshot could stall the event loop waiting for a
+    lock it had no use for. So it runs at startup and after the one write
+    that can orphan a key (`importer.assign_poi`; the setup edits validate the
+    layer first). The SELECT finds the missing keys and the INSERT happens only
+    when there are some, which is nearly never.
+    """
+    missing = [
+        row["poi_type"] for row in conn.execute(
+            """
+            SELECT DISTINCT poi_type FROM poi
+            WHERE event_id = ? AND TRIM(COALESCE(poi_type, '')) <> ''
+              AND poi_type NOT IN
+                (SELECT key FROM poi_category WHERE event_id = ?)
+            """,
+            (event_id, event_id),
+        ).fetchall()
+    ]
+    for key in missing:
         conn.execute(
             """
             INSERT OR IGNORE INTO poi_category
@@ -144,9 +165,12 @@ def seed_poi_categories(conn: sqlite3.Connection, event_id: int) -> None:
             """,
             (event_id, key, key.replace("_", " ").title()),
         )
+    return missing
 
 
 def poi_categories(conn: sqlite3.Connection, event_id: int) -> list[sqlite3.Row]:
+    # Only the defaults, and only into an event with none: a SELECT that finds
+    # a row. Nothing else here may write - see adopt_orphan_poi_types.
     seed_poi_categories(conn, event_id)
     return conn.execute(
         "SELECT * FROM poi_category WHERE event_id = ?"
@@ -456,29 +480,47 @@ def seed_lead_divisions(conn: sqlite3.Connection, event_id: int) -> None:
                 " (event_id, key, name, sort_order) VALUES (?, ?, ?, ?)",
                 (event_id, key, name, order * 10),
             )
-    # Unlike the defaults, this runs every time. A sighting whose leader is not
-    # in the list is a report that was made on the net and would then show as
-    # nothing at all - the leader would appear stuck at the previous station,
-    # with no error anywhere. Better a plainly-named row the club can rename.
-    #
-    # It is also the upgrade path: events that predate this table already hold
-    # male and female sightings, and this is what puts them back on the panel.
-    for row in conn.execute(
-        "SELECT DISTINCT division FROM lead_sighting WHERE event_id = ?",
-        (event_id,),
-    ).fetchall():
-        key = (row["division"] or "").strip()
-        if not key:
-            continue
+
+
+def adopt_orphan_divisions(conn: sqlite3.Connection, event_id: int) -> list[str]:
+    """Give every sighting whose leader is not in the list a leader.
+
+    A sighting whose leader is not in the list is a report that was made on
+    the net and would then show as nothing at all - the leader would appear
+    stuck at the previous station, with no error anywhere. Better a
+    plainly-named row the club can rename.
+
+    It is also the upgrade path: events that predate this table already hold
+    male and female sightings, and this is what puts them back on the panel.
+
+    Runs at startup and after `leaders.record_sighting`, not on read - the
+    same reason as adopt_orphan_poi_types: the leader list is read by every
+    phone's snapshot, and a read that writes is a writer.
+    """
+    missing = [
+        row["division"] for row in conn.execute(
+            """
+            SELECT DISTINCT division FROM lead_sighting
+            WHERE event_id = ? AND TRIM(COALESCE(division, '')) <> ''
+              AND division NOT IN
+                (SELECT key FROM lead_division WHERE event_id = ?)
+            """,
+            (event_id, event_id),
+        ).fetchall()
+    ]
+    for key in missing:
         conn.execute(
             "INSERT OR IGNORE INTO lead_division"
             " (event_id, key, name, sort_order) VALUES (?, ?, ?, 900)",
             (event_id, key, "First " + key.replace("_", " ")),
         )
+    return missing
 
 
 def lead_divisions(conn: sqlite3.Connection, event_id: int) -> list[sqlite3.Row]:
     """Every leader this event tracks, in the club's order."""
+    # Only the defaults, and only into an event with none. Nothing else here
+    # may write - see adopt_orphan_divisions.
     seed_lead_divisions(conn, event_id)
     return conn.execute(
         "SELECT * FROM lead_division WHERE event_id = ?"

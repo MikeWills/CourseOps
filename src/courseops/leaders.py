@@ -20,6 +20,8 @@ import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
+from . import categories
+
 # Which leaders an event tracks is the club's, not the code's: `lead_division`,
 # one row per kind of racer, seeded with the two below and edited in setup. This
 # was a two-item constant here, which meant a race with a wheelchair field could
@@ -189,6 +191,10 @@ def record_sighting(
         (event_id, course_id, division, poi_id,
          (bib or "").strip()[:16] or None, (by or "").strip()[:24] or None),
     )
+    # A report for a leader the list does not name would show as nothing at
+    # all. This is the write that can do that, so the repair follows it rather
+    # than running on every read of the list.
+    categories.adopt_orphan_divisions(conn, event_id)
     return conn.execute(
         "SELECT * FROM lead_sighting WHERE id = ?", (int(cur.lastrowid),)
     ).fetchone()

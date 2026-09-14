@@ -12,6 +12,18 @@ month, PATCH counting releases in that month from 0. Before that they were
 ## [Unreleased]
 
 ### Changed
+- **Reading the layer or leader list no longer writes.** Both readers ran
+  an `INSERT OR IGNORE` per place type and per sighted division on every
+  call - the repair that gives an orphaned key a row so the place or the
+  report does not vanish - and an `INSERT OR IGNORE` that ignores still
+  takes the writer lock. Every phone's snapshot reads both lists, so every
+  snapshot was a writer competing with the ingest loop and with each other,
+  and with the 5 s busy timeout one could stall the event loop waiting for
+  a lock it had no use for. The repair now runs once at startup and after
+  the two writes that can orphan a key (assigning an imported place to a
+  layer, recording a sighting); the readers only SELECT. Seeding the
+  defaults into an event that has none is unchanged. A demo snapshot went
+  from 43 statements with 9 writes to 31 with none.
 - **The snapshot build is half the work it was.** `CourseIndex.locate`
   walks every vertex of every course in pure Python, and one snapshot asked
   it about each place four times over - in the course-order sort key, for

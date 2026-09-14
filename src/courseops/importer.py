@@ -22,7 +22,7 @@ import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import geo, kml, styling
+from . import categories, geo, kml, styling
 from .geo import LonLat
 
 
@@ -370,6 +370,10 @@ def assign_poi(
         "UPDATE import_feature SET status = 'assigned', poi_id = ? WHERE id = ?",
         (poi_id, feature_id),
     )
+    # A layer nothing names would leave the place off the map with no error.
+    # This is the one write that can do that (the setup edits validate the
+    # layer first), so the repair follows it rather than running on every read.
+    categories.adopt_orphan_poi_types(conn, event_id)
     return poi_id
 
 
