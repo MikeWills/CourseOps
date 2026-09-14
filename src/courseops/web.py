@@ -1727,6 +1727,11 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         payload = {
             "type": "station_status",
             "station_key": row["station_key"],
+            # The client keys its roster by what it HEARS (the bound SSID for
+            # a bare-callsign entry), so a message keyed only by the roster's
+            # own key misses that map on every screen but the one that
+            # pressed the button. Same helper as the snapshot uses.
+            "tracking_key": db.tracking_key(row),
             "op_status": row["op_status"],
             "op_status_at": row["op_status_at"],
             "op_status_by": row["op_status_by"],

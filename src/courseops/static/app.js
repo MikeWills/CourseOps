@@ -2543,7 +2543,11 @@ function connect() {
       return;
     }
     if (message.type === 'station_status') {
-      const entry = state.roster.get(message.station_key);
+      // state.roster is keyed by the tracking key (see applyState), so a
+      // bound bare-callsign entry is NOT found under its roster key - and
+      // that miss was silent: every screen but the one that pressed the
+      // button kept the old status until an unrelated resync.
+      const entry = state.roster.get(message.tracking_key || message.station_key);
       if (entry) {
         entry.op_status = message.op_status;
         entry.op_status_at = message.op_status_at;

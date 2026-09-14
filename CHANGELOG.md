@@ -11,6 +11,18 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Fixed
+- **A status change on a matched station reached only the screen that made
+  it.** The `station_status` socket message carried the roster's own key,
+  but the client keys its roster by the SSID it hears - the bound key for a
+  bare-callsign entry, which is a supported, documented path. Every other
+  browser looked that key up, missed, and dropped the message: the NCS
+  operator who pressed the button saw "Rolling" (optimistic update), the
+  second NCS screen and Logistics - who wait on the sweep's status to say a
+  road is clear - kept the old one until an unrelated resync happened by.
+  The message now carries `tracking_key` from the same helper the snapshot
+  uses, and the client looks that up. (Audit F1.)
+
 ## [2026.9.4] - 2026-09-14
 
 ### Added

@@ -299,6 +299,41 @@ def test_status_change_is_broadcast_to_every_viewer(setup):
     assert message["op_status_label"] == "Finished"
 
 
+def test_status_broadcast_carries_the_tracking_key_for_a_bound_entry(setup):
+    """The client keys its roster by what it HEARS, not by what was typed.
+
+    A bare-callsign entry bound to the SSID that beaconed lives in the
+    client's map under that SSID. A broadcast keyed only by the roster's own
+    key misses that map on every other screen: the operator who pressed the
+    button sees the change (optimistic update), the second NCS operator and
+    Logistics keep the old status until an unrelated resync happens by.
+    """
+    app, tokens, db_path, event_id = setup
+    conn = db.connect(db_path)
+    db.upsert_roster_entry(conn, event_id, "WX0MIK", "Aid 9", "aid_station")
+    assert db.bind_heard_ssid(conn, event_id, "WX0MIK-5") is not None
+    conn.close()
+
+    with TestClient(app) as client:
+        with client.websocket_connect(f"/ws/m2026/{tokens['logistics']}") as ws:
+            # NCS's screen holds the tracking key, and that is what it sends.
+            response = client.post(status_url(tokens["ncs"], "WX0MIK-5"),
+                                   json={"op_status": "active"})
+            assert response.status_code == 200
+            message = ws.receive_json()
+
+    assert message["type"] == "station_status"
+    assert message["station_key"] == "WX0MIK"
+    assert message["tracking_key"] == "WX0MIK-5"
+
+    # An unbound entry carries its own key in both, so the client never
+    # needs a fallback to find the row.
+    with TestClient(app) as client:
+        plain = client.post(status_url(tokens["ncs"]),
+                            json={"op_status": "active"}).json()
+    assert plain["tracking_key"] == "N0CALL-7"
+
+
 def test_state_carries_both_status_axes_independently(setup):
     """expects_aprs=0 plus op_status=active is a healthy row, not a conflict."""
     app, tokens, _, _ = setup
