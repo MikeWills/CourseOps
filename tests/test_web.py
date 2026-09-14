@@ -948,13 +948,99 @@ def test_the_first_run_flag_is_substituted_not_swallowed(setup):
         html = client.get("/setup").text
 
     import re
-    scripts = re.findall(r"<script>(.*?)</script>", html, re.S)
-    flag = next(s for s in scripts if "__FIRST_RUN__" in s)
+    assert "{{FIRST_RUN}}" not in html
+    assert "window.false" not in html          # the bug: both sides replaced
+    # The flag rides <body data-first-run>; setup-boot.js turns it into the
+    # global setup.js reads, because the CSP allows no inline script.
+    flag = re.search(r'<body[^>]*\bdata-first-run="([^"]*)"', html)
+    assert flag and flag.group(1) in ("true", "false")
+    assert '<script src="/static/setup-boot.js' in html
 
-    assert "{{FIRST_RUN}}" not in flag
-    assert "window.false" not in flag          # the bug: both sides replaced
-    assert flag.strip() in ("window.__FIRST_RUN__ = true;",
-                            "window.__FIRST_RUN__ = false;")
+
+# --- content security policy and shipped Leaflet ----------------------------
+#
+# Leaflet came from unpkg.com on every page: every field phone reporting to a
+# third party to draw the map, and a CDN outage on race morning would have
+# been no map at all. It is shipped now, and every response carries a CSP
+# that allows no inline script, so a future escaping slip in either client
+# becomes a blocked request rather than a stolen token.
+
+STATIC = Path(web.__file__).parent / "static"
+
+
+def test_the_shipped_leaflet_is_the_pinned_upstream_build():
+    """Byte for byte the files the pages used to load with subresource
+    integrity, checked against those same hashes."""
+    import base64
+    import hashlib
+    expected = {
+        "leaflet.js": "20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=",
+        "leaflet.css": "p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=",
+    }
+    for name, digest in expected.items():
+        data = (STATIC / "leaflet" / name).read_bytes()
+        assert base64.b64encode(hashlib.sha256(data).digest()).decode() == digest, name
+    for image in ("marker-icon.png", "marker-icon-2x.png", "marker-shadow.png",
+                  "layers.png", "layers-2x.png"):
+        assert (STATIC / "leaflet" / "images" / image).is_file(), image
+    assert (STATIC / "leaflet" / "LICENSE").is_file()
+
+
+def test_no_page_loads_anything_from_a_cdn():
+    import re
+    for name in ("index.html", "setup.html"):
+        text = (STATIC / name).read_text(encoding="utf-8")
+        assert "unpkg.com" not in text, name
+        for url in re.findall(r'(?:src|href)="([^"]+)"', text):
+            assert not url.startswith(("http://", "https://")) or "/help" in url, (name, url)
+
+
+@pytest.mark.parametrize("name", ["index.html", "setup.html"])
+def test_the_pages_have_no_inline_script(name):
+    import re
+    text = (STATIC / name).read_text(encoding="utf-8")
+    for tag in re.findall(r"<script\b[^>]*>", text):
+        assert 'src="' in tag, (name, tag)
+    assert 'name="referrer" content="strict-origin-when-cross-origin"' in text
+
+
+def test_every_page_carries_the_security_headers(setup):
+    """Set by the app, so the Windows build and a LAN install get them, not
+    only a server behind the shipped Apache config."""
+    app, tokens, db_path, event_id = setup
+    _make_admin(db_path)
+    with TestClient(app, base_url="https://courseops.example.org") as client:
+        _login(client)
+        pages = [
+            client.get(f"/e/m2026/{tokens['ncs']}"),
+            client.get("/setup"),
+            client.get(f"/setup/events/{event_id}/report"),
+            client.get("/help/sag"),
+            client.get(f"/api/m2026/{tokens['ncs']}/state"),
+        ]
+    for page in pages:
+        assert page.status_code == 200, page.url
+        csp = page.headers["content-security-policy"]
+        assert "script-src 'self'" in csp
+        assert "unsafe-inline" not in csp.split("script-src")[1].split(";")[0]
+        assert "img-src 'self' data: blob: https://tile.openstreetmap.org" in csp
+        # The socket, by the page's own host, spelled out for older WebKit.
+        assert "wss://courseops.example.org" in csp
+        assert page.headers["referrer-policy"] == "strict-origin-when-cross-origin"
+        assert page.headers["x-content-type-options"] == "nosniff"
+        assert page.headers["x-frame-options"] == "SAMEORIGIN"
+
+
+def test_the_vendored_assets_are_cache_busted_too(setup):
+    """`_asset_version` used the basename, so anything in a subdirectory of
+    static/ was stamped ?v=0 forever - an updated Leaflet would have been
+    served from cache against new markup."""
+    app, tokens, _, _ = setup
+    with TestClient(app) as client:
+        html = client.get(f"/e/m2026/{tokens['ncs']}").text
+    import re
+    stamp = re.search(r'src="/static/leaflet/leaflet\.js\?v=(\d+)"', html)
+    assert stamp and stamp.group(1) != "0"
 
 
 # --- behind a reverse proxy -------------------------------------------------
@@ -997,6 +1083,140 @@ def test_session_cookie_is_secure_when_the_proxy_says_https(setup, tmp_path):
     # And the other protections travel with it.
     assert "httponly" in cookie
     assert "samesite=lax" in cookie
+    # Over HTTPS the cookie carries the __Host- prefix, which the browser
+    # enforces: Secure, no Domain, path=/ - so a cookie set by a sibling
+    # site under the same registrable domain cannot shadow ours.
+    assert cookie.startswith("__host-courseops_session=")
+    # And the session it names is the one that comes back.
+    with TestClient(app, base_url="https://courseops.example.org") as client:
+        client.post("/api/setup/login",
+                    json={"username": "mike",
+                          "password": "a-long-enough-password"})
+        whoami = client.get("/api/setup/session").json()
+    assert whoami["user"]["username"] == "mike"
+
+
+# --- cross-site requests ----------------------------------------------------
+#
+# The setup API is cookie-authenticated, and SameSite=Lax is a same-SITE
+# rule: anything else hosted under the same registrable domain - this VPS
+# hosts more than one app - could post to the tracking switch, delete an
+# event or revoke every link with the officer's cookie attached. Browsers
+# name the page a request came from in Origin (or Referer), and a page on
+# another host is refused before the route runs.
+
+def _admin_client(setup):
+    app, _, db_path, event_id = setup
+    _make_admin(db_path)
+    client = TestClient(app, base_url="https://courseops.example.org")
+    client.__enter__()
+    _login(client)
+    return client, event_id
+
+
+def test_a_setup_write_from_another_origin_is_refused(setup):
+    client, event_id = _admin_client(setup)
+    try:
+        response = client.post(
+            f"/api/setup/events/{event_id}/tracking", json={"enabled": False},
+            headers={"Origin": "https://other.example.org"})
+        assert response.status_code == 403
+        # The route never ran: the event is untouched and the answer is
+        # the refusal, not a domain error from further in.
+        assert "cross-site" in response.json()["detail"].lower()
+    finally:
+        client.__exit__(None, None, None)
+
+
+def test_a_setup_write_from_our_own_origin_goes_through(setup):
+    client, event_id = _admin_client(setup)
+    try:
+        response = client.post(
+            f"/api/setup/events/{event_id}/tracking", json={"enabled": False},
+            headers={"Origin": "https://courseops.example.org"})
+        assert response.status_code == 200
+    finally:
+        client.__exit__(None, None, None)
+
+
+def test_referer_is_checked_when_there_is_no_origin(setup):
+    client, event_id = _admin_client(setup)
+    try:
+        response = client.post(
+            f"/api/setup/events/{event_id}/tracking", json={"enabled": False},
+            headers={"Referer": "https://other.example.org/setup"})
+        assert response.status_code == 403
+        response = client.post(
+            f"/api/setup/events/{event_id}/tracking", json={"enabled": False},
+            headers={"Referer": "https://courseops.example.org/setup"})
+        assert response.status_code == 200
+    finally:
+        client.__exit__(None, None, None)
+
+
+def test_an_opaque_origin_is_refused(setup):
+    """`Origin: null` is what a sandboxed frame or a redirect chain sends -
+    nothing we could ever have served."""
+    client, event_id = _admin_client(setup)
+    try:
+        response = client.post(
+            f"/api/setup/events/{event_id}/tracking", json={"enabled": False},
+            headers={"Origin": "null"})
+        assert response.status_code == 403
+    finally:
+        client.__exit__(None, None, None)
+
+
+def test_the_origin_check_covers_sign_in_too(setup):
+    """Login sets the cookie, so a cross-site login could sign the officer
+    into an attacker's account - and it is the one setup route that runs a
+    hash, so a page elsewhere must not be able to spend our CPU either."""
+    app, _, db_path, _ = setup
+    _make_admin(db_path)
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/setup/login",
+            json={"username": "mike", "password": "a-long-enough-password"},
+            headers={"Origin": "http://other.example.org"})
+    assert response.status_code == 403
+
+
+def test_the_origin_check_does_not_touch_reads_or_the_field_api(setup):
+    """The field routes carry their credential in the path, so a cross-site
+    page that could make one already holds the token; and a GET must be a
+    read, which is the other half of this fix."""
+    app, tokens, db_path, event_id = setup
+    _make_admin(db_path)
+    with TestClient(app) as client:
+        _login(client)
+        assert client.get(f"/api/setup/events/{event_id}/links",
+                          headers={"Origin": "http://other.example.org"}
+                          ).status_code == 200
+        assert client.get(f"/api/m2026/{tokens['ncs']}/state",
+                          headers={"Origin": "http://other.example.org"}
+                          ).status_code == 200
+
+
+def test_listing_links_creates_nothing(setup):
+    """A GET never writes. Lax cookies ARE sent on a cross-site top-level
+    navigation, so a GET with a side effect is the one setup route a page
+    elsewhere can drive; the missing-role fill-in belongs to the POST."""
+    app, _, db_path, event_id = setup
+    _make_admin(db_path)
+    conn = db.connect(db_path)
+    conn.execute("DELETE FROM access_token WHERE event_id = ?", (event_id,))
+    conn.close()
+    with TestClient(app) as client:
+        _login(client)
+        listed = client.get(f"/api/setup/events/{event_id}/links")
+        assert listed.status_code == 200
+        assert listed.json()["links"] == []
+        # The next action fills the missing roles in, so a role never stays
+        # without a link for longer than it takes to press something.
+        acted = client.post(f"/api/setup/events/{event_id}/links",
+                            json={"action": "add", "role": "ncs"})
+        live_roles = {l["role"] for l in acted.json()["links"] if not l["revoked"]}
+        assert live_roles == set(access.ROLES)
 
 
 # --- SAG: scoped write access -----------------------------------------------
@@ -1241,6 +1461,148 @@ def test_deleting_a_sighted_leader_is_refused_with_the_count(setup, tmp_path):
 
     assert refused.status_code == 409
     assert "1 sighting" in refused.json()["detail"]
+
+
+def test_a_sixth_wrong_password_in_a_minute_is_refused_without_hashing(
+        setup, monkeypatch):
+    """Sign-in is the one route open to the whole internet with no
+    credential, and every attempt costs the server a third of a second of
+    scrypt. Unthrottled, two wrong passwords a second was enough to keep
+    the map from updating for every volunteer, and on the phones that is
+    indistinguishable from a bad signal. The refusal has to come BEFORE the
+    hash or it saves nothing."""
+    app, _, db_path, _ = setup
+    _make_admin(db_path)
+    from courseops import users
+    with TestClient(app) as client:
+        for _ in range(5):
+            response = client.post("/api/setup/login",
+                                   json={"username": "mike", "password": "wrong"})
+            assert response.status_code == 401
+        calls = []
+        real = users.scrypt
+        monkeypatch.setattr(users, "scrypt",
+                            lambda *a, **k: calls.append(1) or real(*a, **k))
+        response = client.post("/api/setup/login",
+                               json={"username": "mike", "password": "wrong"})
+        assert response.status_code == 429
+        assert "Retry-After" in response.headers
+        assert calls == []
+        # And the right password does not get through either, until the
+        # window passes - otherwise the limiter is a hint about which of the
+        # six was correct.
+        response = client.post("/api/setup/login",
+                               json={"username": "mike",
+                                     "password": "a-long-enough-password"})
+        assert response.status_code == 429
+
+
+def test_login_does_not_block_the_event_loop(setup):
+    """The hash runs in a worker thread. While it runs, another request on
+    the same loop must be answered - which it was not when scrypt ran
+    inline, and the whole map waited on whoever was signing in."""
+    import asyncio
+    import httpx
+    app, _, db_path, _ = setup
+    _make_admin(db_path)
+
+    async def race():
+        transport = httpx.ASGITransport(app=app)
+        async with app.router.lifespan_context(app):
+            async with httpx.AsyncClient(transport=transport,
+                                         base_url="http://t") as client:
+                login = asyncio.create_task(client.post(
+                    "/api/setup/login",
+                    json={"username": "mike", "password": "wrong"}))
+                # Give the login a moment to reach the hash, then see whether
+                # a trivial request is answered before it completes.
+                await asyncio.sleep(0.02)
+                ping = await asyncio.wait_for(client.get("/healthz"), 0.2)
+                assert ping.status_code == 200
+                assert not login.done()
+                assert (await login).status_code == 401
+
+    asyncio.run(race())
+
+
+# --- request body caps ------------------------------------------------------
+#
+# Nothing limited a request body. The login route needs no credential, so a
+# multi-hundred-megabyte POST from anyone was buffered whole in RAM before a
+# byte of it was looked at - enough to take down a small VPS, and the
+# Windows build has no proxy in front of it at all.
+
+def test_an_oversized_json_body_is_refused_before_it_is_read(setup):
+    app, _, _, _ = setup
+    body = b'{"username": "' + b"a" * (web.MAX_JSON_BYTES + 10) + b'"}'
+    with TestClient(app) as client:
+        response = client.post("/api/setup/login", content=body,
+                               headers={"Content-Type": "application/json"})
+    assert response.status_code == 413
+
+
+def test_a_chunked_body_with_no_length_is_still_capped(setup):
+    """Content-Length is the client's claim. A body that omits it is read in
+    chunks and cut off at the same cap."""
+    app, _, _, _ = setup
+
+    def chunks():
+        yield b'{"username": "'
+        for _ in range(8):
+            yield b"a" * (web.MAX_JSON_BYTES // 4)
+        yield b'"}'
+
+    with TestClient(app) as client:
+        response = client.post("/api/setup/login", content=chunks(),
+                               headers={"Content-Type": "application/json"})
+    assert response.status_code == 413
+
+
+def test_an_ordinary_body_is_untouched(setup):
+    app, _, db_path, _ = setup
+    _make_admin(db_path)
+    with TestClient(app) as client:
+        assert _login(client).status_code == 200
+
+
+def test_an_upload_over_the_parser_limit_is_refused(setup, monkeypatch):
+    from courseops import kml
+    app, _, db_path, event_id = setup
+    _make_admin(db_path)
+    monkeypatch.setattr(kml, "MAX_KML_BYTES", 1000)
+    with TestClient(app) as client:
+        _login(client)
+        response = client.post(
+            f"/api/setup/events/{event_id}/import",
+            files={"file": ("big.kml", b"<kml>" + b" " * 2000 + b"</kml>",
+                            "application/vnd.google-earth.kml+xml")})
+    assert response.status_code == 413
+
+
+def test_an_upload_leaves_no_temp_directory_behind(setup, tmp_path, monkeypatch):
+    """One empty directory per import, for the life of the service: harmless
+    on a VPS until someone loops it, and on the club laptop it is %TEMP%."""
+    import tempfile
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    monkeypatch.setattr(tempfile, "tempdir", str(scratch))
+    app, _, db_path, event_id = setup
+    _make_admin(db_path)
+    with TestClient(app) as client:
+        _login(client)
+        response = client.post(
+            f"/api/setup/events/{event_id}/import",
+            files={"file": ("course.kml", FIXTURE.read_bytes(),
+                            "application/vnd.google-earth.kml+xml")})
+        assert response.status_code == 201
+        assert response.json()["total"] > 0
+        # And the failure path cleans up too.
+        response = client.post(
+            f"/api/setup/events/{event_id}/import",
+            files={"file": ("broken.kmz", b"PK\x03\x04 not really a zip",
+                            "application/vnd.google-earth.kmz")})
+        assert response.status_code == 400
+    assert list(scratch.iterdir()) == []
 
 
 def test_deleting_a_place_with_sightings_or_a_posted_station_is_refused(

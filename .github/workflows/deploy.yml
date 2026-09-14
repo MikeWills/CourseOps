@@ -18,10 +18,20 @@
 #   SSH_KEY    private half of an SSH key whose public half is in that
 #                 user's authorized_keys
 #   SSH_PORT   optional, defaults to 22
+#   SSH_KNOWN_HOSTS  the server's host key line(s), as `ssh-keyscan` prints
+#                 them, taken once from a machine you trust. Without it the
+#                 host key is learned from whatever answers at deploy time,
+#                 which is not pinning, and the run says so.
 #   DEPLOY_PATH  where the install is, e.g. /mnt/volume_nyc3_01/opt/courseops
 #
 # See docs/DEPLOYMENT.md for how to create that key and why it is restricted to
 # a single command.
+#
+# Nothing from an event or a secret is spliced into a `run:` line. A `${{ }}`
+# expression is substituted into the script TEXT before the shell sees it, so
+# a tag named v1$(cat ~/.ssh/id_deploy) would run on the runner with the deploy
+# key in reach. Everything goes through `env:` and is quoted, and the ref is
+# checked against the same pattern the server's forced command applies.
 name: deploy
 
 on:
@@ -45,35 +55,63 @@ jobs:
     steps:
       - name: Work out what we are deploying
         id: target
+        env:
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
         run: |
-          TAG="${{ github.event.inputs.tag || github.ref_name }}"
           if [ -z "$TAG" ]; then echo "nothing to deploy"; exit 1; fi
+          # The same rule as deploy/ssh-deploy-command.sh, applied before
+          # the ref reaches an ssh command line.
+          if ! printf '%s' "$TAG" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._/-]{0,60}$'; then
+            echo "refusing to deploy a ref that does not look like one: $TAG"
+            exit 1
+          fi
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "Deploying $TAG"
 
       - name: Set up the SSH key
+        env:
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT || 22 }}
         run: |
           mkdir -p ~/.ssh
-          printf '%s\n' "${{ secrets.SSH_KEY }}" > ~/.ssh/id_deploy
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_deploy
           chmod 600 ~/.ssh/id_deploy
-          # Pin the host key rather than accepting whatever answers. Without
-          # this, StrictHostKeyChecking=no would deploy happily to anything
-          # holding the address.
-          ssh-keyscan -p "${{ secrets.SSH_PORT || 22 }}" \
-            -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            # The server's key as recorded once from a trusted machine. A
+            # deploy then refuses anything else at that address, which is
+            # what a pinned host key means.
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            # Learning the key from whatever answers is trust-on-first-use
+            # on EVERY run: a hijacked address at deploy time is handed the
+            # deploy key. Kept so an install without the secret still
+            # deploys, but said out loud on the run.
+            echo "::warning::SSH_KNOWN_HOSTS is not set; trusting whatever answers at $SSH_HOST. See docs/DEPLOYMENT.md."
+            ssh-keyscan -p "$SSH_PORT" -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          fi
+          chmod 600 ~/.ssh/known_hosts
 
       - name: Deploy
         # No default for DEPLOY_PATH: the install is wherever the club put it,
         # and a guessed /opt/courseops failed only on the server, as a
         # "No such file" from a key that can run nothing else anyway.
+        env:
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT || 22 }}
+          TAG: ${{ steps.target.outputs.tag }}
         run: |
-          if [ -z "${{ secrets.DEPLOY_PATH }}" ]; then
+          if [ -z "$DEPLOY_PATH" ]; then
             echo "DEPLOY_PATH secret is not set - where is the install?"; exit 1
           fi
           ssh -i ~/.ssh/id_deploy \
-              -p "${{ secrets.SSH_PORT || 22 }}" \
-              "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
-              "${{ secrets.DEPLOY_PATH }}/deploy/deploy.sh ${{ steps.target.outputs.tag }}"
+              -o StrictHostKeyChecking=yes \
+              -p "$SSH_PORT" \
+              "$SSH_USER@$SSH_HOST" \
+              "$DEPLOY_PATH/deploy/deploy.sh $TAG"
 
       # The deploy script already checks health from inside the box and rolls
       # back if it fails. This checks from outside, which is a different
@@ -81,14 +119,16 @@ jobs:
       # the app is fine but nobody can reach it.
       - name: Check it from the outside
         if: ${{ vars.PUBLIC_URL != '' }}
+        env:
+          PUBLIC_URL: ${{ vars.PUBLIC_URL }}
         run: |
           for attempt in $(seq 1 10); do
-            if curl --silent --fail --max-time 10 "${{ vars.PUBLIC_URL }}/healthz"; then
+            if curl --silent --fail --max-time 10 "$PUBLIC_URL/healthz"; then
               echo; echo "reachable over the public address"
               exit 0
             fi
             sleep 3
           done
-          echo "deployed, but not reachable at ${{ vars.PUBLIC_URL }}"
+          echo "deployed, but not reachable at $PUBLIC_URL"
           echo "the app rolled itself back only if IT was unhealthy - check Apache"
           exit 1

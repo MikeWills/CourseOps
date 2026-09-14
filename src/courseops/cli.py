@@ -638,6 +638,23 @@ def cmd_revoke_link(args: argparse.Namespace) -> int:
     return 1
 
 
+def links_are_printable(stream=None) -> bool:
+    """Whether the role links may be written to `stream` (default stdout).
+
+    The links ARE the credentials. On a terminal the person who started the
+    server reads them once and they are gone with the scrollback; under
+    systemd the same print lands in the journal on every restart and every
+    deploy, readable by anyone in systemd-journal, and a revoked link does
+    nothing about old journal lines. So they are printed only to a terminal;
+    everywhere else the officer reads them off the Links tab.
+    """
+    stream = sys.stdout if stream is None else stream
+    try:
+        return bool(stream.isatty())
+    except (AttributeError, ValueError):
+        return False
+
+
 def cmd_serve(args: argparse.Namespace) -> int:
     import uvicorn
 
@@ -667,11 +684,16 @@ def cmd_serve(args: argparse.Namespace) -> int:
         tokens = access.ensure_tokens(conn, event["id"])
         lines.append(f"Event: {event['name']}")
         lines.append("")
-        for role in access.ROLES:
-            lines.append(
-                f"  {access.ROLE_LABELS[role]:<14} "
-                f"{base}/e/{event['slug']}/{tokens[role]}"
-            )
+        if links_are_printable():
+            for role in access.ROLES:
+                lines.append(
+                    f"  {access.ROLE_LABELS[role]:<14} "
+                    f"{base}/e/{event['slug']}/{tokens[role]}"
+                )
+        else:
+            lines.append("  Role links are on the Links tab in setup.")
+            lines.append("  (Not printed: this is not a terminal, so it is a")
+            lines.append("  log, and a log is no place for credentials.)")
         if args.no_ingest:
             lines.append("")
             lines.append("  APRS-IS ingest disabled (--no-ingest).")

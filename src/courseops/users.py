@@ -31,6 +31,8 @@ from __future__ import annotations
 import hmac
 import secrets
 import sqlite3
+import time
+from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from hashlib import scrypt
@@ -48,9 +50,14 @@ ROLE_LABELS = {
     ROLE_EVENT_ADMIN: "Event administrator",
 }
 
-# scrypt parameters. n=2**15 with r=8 costs roughly 32 MB and a few tens of
-# milliseconds per hash - unnoticeable on a login, expensive in bulk. Stored
-# with each hash so these can be raised later without breaking old passwords.
+# scrypt parameters. n=2**15 with r=8 costs roughly 32 MB and about a third
+# of a second per hash (measured 0.25-0.36 s on a desktop; a VPS core is no
+# faster) - unnoticeable on a login, expensive in bulk. That cost is the
+# point, and it is also why the web layer runs every hash in a worker thread
+# and refuses repeated failures: a third of a second on the event loop is a
+# third of a second in which no phone in the field receives a position.
+# Stored with each hash so these can be raised later without breaking old
+# passwords.
 SCRYPT_N = 2 ** 15
 SCRYPT_R = 8
 SCRYPT_P = 1
@@ -69,6 +76,15 @@ SESSION_DAYS = 30
 # Minimum that is worth enforcing without being theatre. Length beats
 # composition rules, which mostly produce Password1! and a sticky note.
 MIN_PASSWORD_LENGTH = 10
+
+# How many failed sign-ins one username, or one address, gets per window
+# before the next attempt is refused outright. Five is enough for a person
+# who has forgotten which password they used and nowhere near enough for a
+# guesser. The window is short because the person who matters is the officer
+# locked out at 6am on race morning: a minute is an annoyance, an hour is a
+# phone call.
+LOGIN_MAX_FAILURES = 5
+LOGIN_WINDOW_SECONDS = 60
 
 
 class AuthError(Exception):
@@ -157,6 +173,86 @@ def verify_password(password: str, stored: str) -> bool:
     # compare_digest, not ==, so a wrong password cannot be found byte by byte
     # from response timing.
     return hmac.compare_digest(candidate, bytes.fromhex(digest_hex))
+
+
+# The hash that a sign-in with an unknown username is checked against, so the
+# missing-account and wrong-password paths cost exactly one scrypt each.
+#
+# It used to be `hash_password("dummy-for-timing")` computed inline, followed
+# by the verify - two hashes for a name that does not exist against one for a
+# name that does. Half a second against a quarter is a gap that survives any
+# network jitter, so the "same time" the comment promised was in fact a list
+# of which officers have accounts. Computed once, lazily: paying a third of a
+# second at import would put it on every CLI invocation, including --help.
+_dummy_hash_cache: str | None = None
+
+
+def dummy_hash() -> str:
+    global _dummy_hash_cache
+    if _dummy_hash_cache is None:
+        _dummy_hash_cache = hash_password(secrets.token_hex(16))
+    return _dummy_hash_cache
+
+
+class LoginLimiter:
+    """In-memory count of recent sign-in failures, per key.
+
+    Keyed by whatever the caller passes - the web layer uses the username
+    AND the client address, so a guesser cycling names is stopped by the
+    address and one cycling addresses is stopped by the name. Memory only:
+    it exists to keep scrypt off the loop under a flood, and a restart
+    forgetting the counts costs nothing. One instance per application, so a
+    test suite's many sign-ins never throttle each other.
+
+    `clock` is injectable for tests; the default is monotonic so a clock
+    change on the club laptop cannot lock anyone out for longer than the
+    window.
+    """
+
+    def __init__(self, max_failures: int = LOGIN_MAX_FAILURES,
+                 window_seconds: float = LOGIN_WINDOW_SECONDS,
+                 clock=time.monotonic) -> None:
+        self.max_failures = max_failures
+        self.window = float(window_seconds)
+        self._clock = clock
+        self._failures: dict[str, deque[float]] = {}
+
+    def _recent(self, key: str) -> deque[float]:
+        now = self._clock()
+        hits = self._failures.get(key)
+        if hits is None:
+            return deque()
+        while hits and hits[0] <= now - self.window:
+            hits.popleft()
+        if not hits:
+            # Drop the key rather than keep an empty deque per address the
+            # internet has ever tried, or the map fills with them.
+            del self._failures[key]
+            return deque()
+        return hits
+
+    def retry_after(self, *keys: str) -> int | None:
+        """Seconds until the next attempt is allowed, or None if it is now."""
+        wait = 0.0
+        for key in keys:
+            hits = self._recent(key)
+            if len(hits) >= self.max_failures:
+                wait = max(wait, hits[0] + self.window - self._clock())
+        if wait <= 0:
+            return None
+        return max(1, int(wait + 0.999))
+
+    def failed(self, *keys: str) -> None:
+        now = self._clock()
+        for key in keys:
+            self._failures.setdefault(key, deque()).append(now)
+
+    def succeeded(self, *keys: str) -> None:
+        """A correct password clears the slate: the person who mistyped four
+        times and then got it right is not a guesser, and must not be left
+        one slip from a lockout for the next minute."""
+        for key in keys:
+            self._failures.pop(key, None)
 
 
 def check_password_quality(password: str) -> None:
@@ -408,9 +504,10 @@ def authenticate(conn: sqlite3.Connection, username: str, password: str) -> User
         "SELECT * FROM user WHERE username = ?", (normalize_username(username),)
     ).fetchone()
 
-    # Hash even when the user does not exist, so a missing account and a wrong
-    # password take the same time and cannot be told apart.
-    stored = row["password_hash"] if row else hash_password("dummy-for-timing")
+    # Verify against a real hash even when the user does not exist, so a
+    # missing account and a wrong password cost one scrypt each and cannot be
+    # told apart by the clock. See dummy_hash for what went wrong before.
+    stored = row["password_hash"] if row else dummy_hash()
     ok = verify_password(password or "", stored)
 
     if row is None or not ok or not row["is_active"]:
@@ -426,6 +523,11 @@ def authenticate(conn: sqlite3.Connection, username: str, password: str) -> User
 
 
 def start_session(conn: sqlite3.Connection, user_id: int) -> str:
+    # Every sign-in adds a row and nothing else ever removed the expired
+    # ones: resolve_session deletes a stale row only when that exact token
+    # is presented again, which a browser that has forgotten it never does.
+    # One DELETE per login keeps the table the size of the live sessions.
+    purge_expired_sessions(conn)
     token = secrets.token_urlsafe(SESSION_BYTES)
     expires = (_now() + timedelta(days=SESSION_DAYS)).strftime("%Y-%m-%dT%H:%M:%SZ")
     conn.execute(

@@ -245,6 +245,14 @@ Verify it explicitly rather than assuming — see [Checking it worked](#4-checki
 
 ### The Referrer-Policy is the other one
 
+The app sets its own security headers on every response now -
+`Content-Security-Policy`, `Referrer-Policy`, `X-Content-Type-Options`,
+`X-Frame-Options` - so the Windows build and a LAN install get them without
+Apache. The lines in the vhost template stay: they cost nothing, cover
+Apache's own error pages, and a `Header always set` with the same value as
+the app's is harmless. What they must not do is DISAGREE with the app, and
+the one worth understanding is the referrer policy.
+
 The template sets `Referrer-Policy "strict-origin-when-cross-origin"`. Keep
 it. It looks like a hardening line to tighten to `same-origin`, and that was
 the original setting - but `same-origin` sends **no Referer at all** to
@@ -260,6 +268,50 @@ point of the tighter setting.
 line by hand:** edit the site file, `sudo apache2ctl configtest`, `sudo
 systemctl reload apache2`, then force-reload the map once because the blocked
 tiles are cached.
+
+### Apache lines an existing install has to add by hand
+
+`deploy.sh` never touches the Apache config, so anything added to the
+templates in `deploy/` after a server was set up has to be copied into
+`/etc/apache2/sites-available/courseops.conf` (and the `-le-ssl` twin
+certbot made) by hand, then `sudo apache2ctl configtest && sudo systemctl
+reload apache2`. The lines, and why each is there:
+
+- `Referrer-Policy "strict-origin-when-cross-origin"` - above.
+- `LimitRequestBody 70000000` - Apache's default is no limit at all, so a
+  request of any size reaches the app; the app now refuses oversized bodies
+  itself (64 KB for anything but a course file, 64 MB for that), but
+  stopping it in Apache costs nothing and stopping it in Python costs a
+  process the read.
+- The `LOGPATH` rewrite rules, the `courseops` `LogFormat` and the
+  `CustomLog` that uses it, in place of `combined`. **The role token is in
+  the URL path**, so the stock format wrote every volunteer's credential to
+  `courseops-access.log` on every request - and again in the Referer of
+  every request the page then made. Revoking a link does nothing about old
+  log lines, and logrotate keeps copies. The replacement logs
+  `/e/<slug>/-token-` and no Referer. Once the new format is in, the old
+  files under `/var/log/apache2/courseops-access.log*` still hold every
+  link ever used: delete them, or `logrotate --force` and delete the
+  rotated copies.
+
+The journal is the other log. `courseops serve <event>` used to print the
+five role links on every start, which under systemd is every restart and
+every deploy, into `journalctl` for anyone in `systemd-journal`. It now
+prints them only when stdout is a terminal; under the service it says to
+read them off the Links tab instead. `journalctl --vacuum-time=1d -u
+courseops` clears what earlier versions wrote.
+
+### `ProxyPreserveHost On` is load-bearing
+
+The app refuses any setup write (anything that is not a GET under
+`/api/setup/`) whose `Origin` or `Referer` names a host other than the one
+the request was addressed to. That is what stops a page on some other site -
+including another app under the same domain - from flipping the tracking
+switch or revoking every link with an officer's cookie attached. The
+comparison is against the `Host` header, so the proxy has to pass the
+browser's `Host` through: the template does (`ProxyPreserveHost On`). Take
+that line out and every save on the setup screen answers 403 "Cross-site
+request refused".
 
 ## 3. Certificate
 
@@ -394,6 +446,7 @@ Under **Settings -> Secrets and variables -> Actions**, as *secrets*:
 | `SSH_USER` | `courseops` |
 | `SSH_KEY` | the **private** half of the key above |
 | `SSH_PORT` | only if sshd is not on 22 |
+| `SSH_KNOWN_HOSTS` | the server's host key, exactly as `ssh-keyscan -H your.server` prints it, run once from a machine you trust (the one you already ssh to the server from). With it, a deploy refuses anything but that key at that address. Without it the workflow learns the key from whatever answers, every run - which is not pinning - and says so as a warning on the run. |
 | `DEPLOY_PATH` | where the install is, e.g. `/mnt/volume_nyc3_01/opt/courseops`. Required: the workflow refuses to guess. |
 
 These names match the ones used by the other projects here deliberately - one

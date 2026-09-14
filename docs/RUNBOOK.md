@@ -400,7 +400,10 @@ check and when._
 courseops serve mankato2026
 ```
 
-This opens **one** APRS-IS connection and prints one link per role.
+This opens **one** APRS-IS connection and, when run from a terminal, prints
+one link per role. Under systemd on the VPS it does not - stdout is the
+journal there, and a journal is no place for credentials - so read the links
+off the Links tab in setup instead.
 
 Confirm before going live:
 

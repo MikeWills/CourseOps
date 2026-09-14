@@ -11,6 +11,109 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Changed
+- **Leaflet is shipped with the app instead of loaded from unpkg.com.** The
+  same reason the fonts are: every field phone was reporting to a third
+  party to draw the map, and a CDN outage on race morning would have been
+  no map at all. `static/leaflet/` is byte for byte the 1.9.4 build the
+  pages used to pin with subresource integrity, and a test checks it
+  against those same hashes.
+- **Every response carries a Content-Security-Policy, set by the app.**
+  `script-src 'self'` - no inline script, no CDN - with the tile server the
+  one named exception for images and the page's own host for the WebSocket.
+  Both clients build markup from server data all day, and the policy turns
+  a future escaping slip into a blocked request rather than a stolen
+  token. The three inline scripts (the setup page's first-run flag and the
+  report's clock and mini-maps) moved to files, with the values they need
+  on `data-` attributes. The app also sends `Referrer-Policy`,
+  `X-Content-Type-Options` and `X-Frame-Options` itself, and the map,
+  setup and report pages state the referrer policy in a `<meta>`, so the
+  Windows build and a LAN install get what only the Apache template gave
+  before.
+
+### Fixed
+- Files in a subdirectory of `static/` got `?v=0` forever: the cache
+  marker looked the file up by basename. It looks it up by path now, or an
+  updated Leaflet would have been served from cache against new markup.
+- Expired admin sessions were never removed: a stale row went only when its
+  own token was presented again, which a browser that has dropped the
+  cookie never does, so the table grew by a row per sign-in forever. Every
+  sign-in now sweeps the expired rows out first.
+- **The deploy workflow spliced the tag and the secrets into shell lines,
+  and learned the server's host key fresh on every run.** A `${{ }}`
+  expression is substituted into the script text before the shell sees it,
+  so a tag named `v1$(...)` - or a crafted "Run workflow" input - ran on the
+  runner with the deploy key in reach. Everything now arrives through
+  `env:` and is quoted, the ref is checked against the same pattern the
+  server's forced command applies, and an `SSH_KNOWN_HOSTS` secret pins
+  the host key; without the secret the run still deploys but says, as a
+  warning, that it trusted whatever answered.
+- **Role links were written to the Apache access log on every request and
+  to the journal on every restart.** The token is in the URL path, and the
+  stock `combined` log format records the path - and the Referer, which is
+  the map page's URL for every request it makes - so `courseops-access.log`
+  and its rotated copies held every volunteer's credential, readable by
+  anyone in `adm`, and revoking a link did nothing about the old lines.
+  Separately `courseops serve <event>` printed the five links on every
+  start, which under systemd is every deploy, into `journalctl`. The
+  vhosts now log `/e/<slug>/-token-` and no Referer, and `serve` prints
+  links only when stdout is a terminal. Both are operator changes on an
+  installed server: the Apache lines go in by hand, and the old log files
+  and journal should be cleared - `docs/DEPLOYMENT.md` says how.
+- **No request body had a size limit.** The login route needs no credential,
+  so a multi-hundred-megabyte POST from anyone was buffered whole in RAM
+  before a byte of it was looked at - enough to take down a small VPS, and
+  the Windows build has no proxy in front of it at all. The import read a
+  whole upload into memory before the parser's own 64 MB cap applied. A
+  declared `Content-Length` over the limit is refused with 413 before the
+  body is read (64 KB for JSON, the parser's cap for a course file); a body
+  that omits it is counted as it streams and cut off at the same point; the
+  upload streams to disk in chunks. Both Apache vhosts set
+  `LimitRequestBody` too - an existing install adds that line by hand, see
+  `docs/DEPLOYMENT.md`.
+- The import left one empty temp directory behind per upload for the life
+  of the service, and a truncated KMZ that passed the zip header check
+  answered a 500 with a traceback in the journal rather than a sentence on
+  the screen. The directory is removed with the file; the bad archive is a
+  400 like any other unreadable file.
+- **Cross-site protection on the setup API was SameSite=Lax alone.** Lax is
+  a same-SITE rule: anything else hosted under the same registrable domain -
+  the VPS hosts more than one app - could POST to the tracking switch,
+  delete an event or revoke every link with the officer's cookie attached,
+  and a browser that does not enforce SameSite failed open. Every setup
+  write is now refused with 403 unless its `Origin` (or `Referer`) names
+  the host the request was addressed to; the field API is untouched, its
+  credential being in the path. Over HTTPS the session cookie carries the
+  browser-enforced `__Host-` prefix, so no sibling site can shadow it.
+- **Two setup GETs wrote.** Listing links created any role's missing link
+  on the way past, and Lax cookies ARE sent on a cross-site top-level
+  navigation - so a GET with a side effect was the one kind of setup route a
+  page elsewhere could drive. The fill-in happens on the links POST now
+  (revoking the only NCS link is still a rotation, never a net with no Net
+  Control), and the GET only reports. The categories GET's decorative
+  `commit()` is gone; the seeding inside it is a separate task.
+- **Signing in ran scrypt on the event loop, unthrottled.** A password hash
+  costs about a third of a second (the comment said "tens of milliseconds";
+  it was measured at 0.25-0.36 s), and it ran inline in the login route -
+  so for that third of a second nothing else was served: no WebSocket
+  fan-out, no snapshot, no incident post. Two wrong passwords a second from
+  anyone on the internet, with no credential, took the map offline for every
+  volunteer, and on the phones it looked exactly like a bad signal. Login,
+  first-user and password change now hash in a worker thread on a connection
+  opened there, and an in-memory limiter refuses the sixth failure in a
+  minute from one username or one address with a 429 - checked before the
+  hash, so a flood costs nothing. Behind `--behind-proxy` the address is the
+  one uvicorn already resolved from the proxy, never a header a client can
+  set. Per application instance, so the test suite's hundreds of sign-ins
+  never throttle each other.
+- **An unknown username took twice as long to refuse as a wrong password.**
+  The "dummy hash for timing" was computed fresh on every miss and then
+  verified against - two scrypts to the real path's one - so the gap the
+  comment promised to close was in fact doubled, and a stopwatch could list
+  which officers have accounts. The dummy is computed once and both paths
+  run exactly one hash; there is a test counting them.
+
+
 ### Fixed
 - **A refused setup change could leave half of itself behind.** The
   connection is autocommit, so every statement was its own transaction and

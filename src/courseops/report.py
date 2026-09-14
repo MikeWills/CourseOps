@@ -26,11 +26,10 @@ from . import categories, geo, incidents, progress
 # The same Leaflet and the same tiles the live map uses, so the small maps on
 # this page cost nothing new: no dependency, no server-side call, nothing sent
 # anywhere the live map does not already send it. The browser draws them, which
-# is also what makes them survive printing and screenshots.
-LEAFLET_CSS = ("https://unpkg.com/leaflet@1.9.4/dist/leaflet.css",
-               "sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=")
-LEAFLET_JS = ("https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
-              "sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=")
+# is also what makes them survive printing and screenshots. Leaflet is the
+# shipped copy under static/leaflet/, never a CDN.
+LEAFLET_CSS = "/static/leaflet/leaflet.css"
+LEAFLET_JS = "/static/leaflet/leaflet.js"
 TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
 MINI_MAP_ZOOM = 16
 
@@ -158,7 +157,9 @@ def _time(iso: str | None) -> str:
 
 
 def render(report: Report) -> str:
-    """The page. Self-contained: inline style, one tiny script for the clock."""
+    """The page. Inline style; the two scripts are static/report.js, because
+    the Content-Security-Policy allows no inline script and this is the one
+    page that puts club-typed text near a <script> block."""
     e = escape
     if report.pickups == 0:
         pickups = "<p class=\"big\">No pickups.</p>"
@@ -208,8 +209,9 @@ def render(report: Report) -> str:
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="strict-origin-when-cross-origin">
 <title>{e(report.event_name)} - report</title>
-<link rel="stylesheet" href="{LEAFLET_CSS[0]}" integrity="{LEAFLET_CSS[1]}" crossorigin="">
+<link rel="stylesheet" href="{LEAFLET_CSS}">
 <style>
   /* The same face as the app, from the same files; the report is opened
      from setup, where they are already cached. */
@@ -248,7 +250,7 @@ def render(report: Report) -> str:
   @media print {{ body {{ padding: 0; }} footer {{ display: none; }}
                   .mini {{ border-color: #999; }} }}
 </style></head>
-<body>
+<body data-tile-url="{e(TILE_URL)}" data-mini-zoom="{MINI_MAP_ZOOM}">
 <header>
   <h1>{e(report.event_name)}</h1>
   <p class="sub">Course report{date} &middot; times are <span id="tz">{e(report.timezone)}</span></p>
@@ -262,54 +264,8 @@ def render(report: Report) -> str:
 
 <footer>Counts and locations only. No names are recorded here.</footer>
 
-<script>
-/* Stored UTC; shown in the event's zone. The browser has the zone database;
-   a Windows install of Python may not. If the zone name is unknown, fall
-   back to the reader's own zone and say so, rather than showing UTC without
-   a label - a time with the wrong zone on it is worse than none. */
-(function () {{
-  /* Read from the escaped element, never interpolated into this script: a
-     zone name is admin-typed text, and text inside a <script> is the one
-     place HTML escaping does not protect. */
-  var tz = document.getElementById("tz").textContent;
-  var opts = {{ hour: "2-digit", minute: "2-digit", hour12: false }};
-  var fmt;
-  try {{ fmt = new Intl.DateTimeFormat(undefined, Object.assign({{ timeZone: tz }}, opts)); }}
-  catch (err) {{
-    fmt = new Intl.DateTimeFormat(undefined, opts);
-    document.getElementById("tz").textContent = "your local zone (event zone " + tz + " unknown)";
-  }}
-  document.querySelectorAll("time[datetime]").forEach(function (el) {{
-    var d = new Date(el.getAttribute("datetime"));
-    if (!isNaN(d)) el.textContent = fmt.format(d);
-  }});
-}})();
-</script>
 <script id="courses" type="application/json">{courses_json}</script>
-<script src="{LEAFLET_JS[0]}" integrity="{LEAFLET_JS[1]}" crossorigin=""></script>
-<script>
-/* A small, still map for each note: the course line for context and a dot
-   where it happened. Not interactive - this page is printed or screenshotted,
-   and a map that pans under a thumb is a map that shows the wrong corner.
-   If Leaflet did not load (no network), the box stays a plain grey square
-   and the words beside it still say where. */
-(function () {{
-  if (typeof L === "undefined") return;
-  var courses = JSON.parse(document.getElementById("courses").textContent || "[]");
-  document.querySelectorAll(".mini[data-lat]").forEach(function (el) {{
-    var lat = Number(el.dataset.lat), lon = Number(el.dataset.lon);
-    var map = L.map(el, {{ zoomControl: false, dragging: false, scrollWheelZoom: false,
-      doubleClickZoom: false, touchZoom: false, boxZoom: false, keyboard: false,
-      attributionControl: false }}).setView([lat, lon], {MINI_MAP_ZOOM});
-    L.tileLayer({TILE_URL!r}, {{ maxZoom: 19 }}).addTo(map);
-    courses.forEach(function (c) {{
-      L.polyline(c.coordinates.map(function (p) {{ return [p[1], p[0]]; }}),
-        {{ color: c.color, weight: 4, opacity: 0.85 }}).addTo(map);
-    }});
-    L.marker([lat, lon], {{ icon: L.divIcon({{ className: "", iconSize: [14, 14],
-      iconAnchor: [7, 7], html: '<div class="dot"></div>' }}), interactive: false }}).addTo(map);
-  }});
-}})();
-</script>
+<script src="{LEAFLET_JS}"></script>
+<script src="/static/report.js"></script>
 </body></html>
 """

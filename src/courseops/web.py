@@ -14,7 +14,8 @@ import importlib.metadata as _metadata
 import logging
 import re
 import sqlite3
-import pathlib
+import tempfile
+import zipfile
 from pathlib import Path
 from typing import Any
 
@@ -58,6 +59,63 @@ except Exception:            # pragma: no cover - the package always ships this
         __version__ = "0.0.0+source"
 
 SESSION_COOKIE = "courseops_session"
+# The same cookie over HTTPS. The `__Host-` prefix is enforced by the browser:
+# it will only store the cookie if it is Secure, has no Domain and its path is
+# `/`, and no other host - not a sibling app under the same registrable
+# domain - can set a cookie of that name for us. Over plain HTTP (local
+# development, the Windows build on a LAN) the prefix would make the browser
+# drop the cookie, so the plain name stays for that case.
+SECURE_SESSION_COOKIE = "__Host-" + SESSION_COOKIE
+
+# The most any JSON request may carry. The biggest real body is a reorder of
+# a few hundred ids, well under a kilobyte; the cap is generous so a large
+# roster cannot hit it and small enough that a flood of them costs nothing.
+# The course file upload is the one exception and has its own cap in kml.py.
+MAX_JSON_BYTES = 64 * 1024
+
+# Where the one large upload arrives. Everything else is held to
+# MAX_JSON_BYTES before a byte of it is read.
+_IMPORT_PATH = re.compile(r"^/api/setup/events/\d+/import$")
+
+# Methods that change something. Everything else on the setup API is a read,
+# and stays one (see refuse_cross_site_setup_writes).
+_WRITE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+
+
+def _header_host(value: str) -> str | None:
+    """The host[:port] named by an Origin or Referer header, or None if the
+    header names nothing a page of ours could have sent."""
+    value = (value or "").strip()
+    if not value or value.lower() == "null":
+        return None
+    from urllib.parse import urlsplit
+    try:
+        return urlsplit(value).netloc.lower() or None
+    except ValueError:
+        return None
+
+
+def request_is_same_origin(request: Request) -> bool:
+    """Whether a state-changing request came from a page we served.
+
+    Browsers name the page a request was made from in `Origin` (every
+    cross-origin request, and every POST in current browsers) or `Referer`;
+    a page on another host cannot forge either. The comparison is against the
+    Host the request was addressed to, which behind Apache is the public name
+    because the vhost sets ProxyPreserveHost.
+
+    A request carrying neither header did not come from a browser page - a
+    script, a test, the CLI - and passes: the cookie it would need is not in
+    its hands unless it is ours. `Origin: null` is a sandboxed frame or a
+    redirect chain, and is refused.
+    """
+    origin = request.headers.get("origin")
+    if origin is not None:
+        return _header_host(origin) == request.headers.get("host", "").lower()
+    referer = request.headers.get("referer")
+    if referer:
+        return _header_host(referer) == request.headers.get("host", "").lower()
+    return True
 
 # Appended to local script and stylesheet URLs so a changed file is fetched
 # rather than served from cache. Without it a browser runs yesterday's
@@ -72,10 +130,59 @@ _ASSET_URL = re.compile(r'((?:src|href)=")(/static/[^"?]+\.(?:js|css))"')
 
 
 def _asset_version(name: str) -> str:
+    # `name` is the URL path, so the file is looked up under static/ by the
+    # part after /static/ - a bare basename lost the leaflet/ directory and
+    # stamped the vendored files "0" forever.
     try:
-        return str(int((STATIC_DIR / Path(name).name).stat().st_mtime))
+        relative = name.removeprefix("/static/")
+        return str(int((STATIC_DIR / relative).stat().st_mtime))
     except OSError:
         return "0"
+
+
+# Where the map tiles come from. Named in the Content-Security-Policy, so a
+# change of tile provider (#3) is a change here too.
+TILE_ORIGIN = "https://tile.openstreetmap.org"
+
+
+def security_headers(host: str) -> dict[str, str]:
+    """The headers every response carries, set by the app so the Windows build
+    and a LAN install get them, not only a server behind the shipped Apache
+    config.
+
+    The policy is 'self' for everything, with two named exceptions: the tile
+    server for images, and the page's own host for the WebSocket - spelled
+    out as ws:/wss: because older WebKit does not read 'self' as covering
+    them. Inline STYLE is allowed because Leaflet positions every marker with
+    a style attribute; inline SCRIPT is not, and that is the point: the two
+    clients build markup from server data all day, and with no inline script
+    permitted an escaping slip becomes a blocked request instead of a stolen
+    token.
+    """
+    sockets = f" ws://{host} wss://{host}" if host else ""
+    csp = "; ".join([
+        "default-src 'self'",
+        "script-src 'self'",
+        "style-src 'self' 'unsafe-inline'",
+        f"img-src 'self' data: blob: {TILE_ORIGIN}",
+        f"connect-src 'self'{sockets}",
+        "font-src 'self'",
+        "manifest-src 'self'",
+        "object-src 'none'",
+        "base-uri 'self'",
+        "form-action 'self'",
+        "frame-ancestors 'self'",
+    ])
+    return {
+        "Content-Security-Policy": csp,
+        "X-Content-Type-Options": "nosniff",
+        # NOT same-origin: the token is in the path and must never reach a
+        # third party, but same-origin sends NO Referer to the tile server,
+        # and OSM serves an "Access blocked" tile to traffic it cannot
+        # attribute to a site. This sends the origin alone cross-site.
+        "Referrer-Policy": "strict-origin-when-cross-origin",
+        "X-Frame-Options": "SAMEORIGIN",
+    }
 
 
 def _page(html: str) -> HTMLResponse:
@@ -435,6 +542,10 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     # the kind of failure nobody notices until the net is quiet for the wrong
     # reason, so it is kept and shown rather than only logged.
     app.state.ingest_errors = {}
+    # Recent sign-in failures, by username and by address. Per application
+    # rather than module-level so every test gets a clean one - the suite
+    # signs in hundreds of times and must never throttle itself.
+    app.state.login_limiter = users.LoginLimiter()
 
     # A setup change during an event has to reach the field, not wait for
     # someone to pull to refresh.
@@ -464,6 +575,58 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
             await app.state.hub.publish(int(match.group(1)), {"type": "resync"})
         return response
 
+    # The setup API is cookie-authenticated, and SameSite=Lax is a same-SITE
+    # rule, not a same-origin one: anything else hosted under the same
+    # registrable domain - this VPS hosts more than one app - could POST to
+    # the tracking switch, delete an event or revoke every link with the
+    # officer's cookie attached, and any browser that does not enforce
+    # SameSite fails open. Refused here, in one place, for every method that
+    # writes: a new setup route gets it for free and none can forget it. The
+    # field API is left alone - its credential is in the path, so a page that
+    # can make the request already holds the token.
+    @app.middleware("http")
+    async def add_security_headers(request: Request, call_next):
+        response = await call_next(request)
+        for name, value in security_headers(request.headers.get("host", "")).items():
+            response.headers.setdefault(name, value)
+        return response
+
+    @app.middleware("http")
+    async def refuse_cross_site_setup_writes(request: Request, call_next):
+        if (request.method in _WRITE_METHODS
+                and request.url.path.startswith("/api/setup/")
+                and not request_is_same_origin(request)):
+            return JSONResponse(
+                {"detail": "Cross-site request refused."}, status_code=403)
+        return await call_next(request)
+
+    # Nothing capped request bodies: the login route, which needs no
+    # credential, would buffer a multi-hundred-megabyte POST in RAM before
+    # looking at it, and the import read a whole upload into memory before
+    # the parser's own limit applied. The Windows build has no proxy in
+    # front of it at all. Refused here on Content-Length, before the body is
+    # read; a body that lies about its length, or sends none, is stopped by
+    # the readers below, which count as they go.
+    def body_limit(path: str) -> int:
+        if _IMPORT_PATH.match(path):
+            # The parser's cap plus room for the multipart framing.
+            return kml.MAX_KML_BYTES + 64 * 1024
+        return MAX_JSON_BYTES
+
+    @app.middleware("http")
+    async def refuse_oversized_bodies(request: Request, call_next):
+        declared = request.headers.get("content-length")
+        if declared is not None:
+            try:
+                length = int(declared)
+            except ValueError:
+                return JSONResponse({"detail": "Bad Content-Length."},
+                                    status_code=400)
+            if length > body_limit(request.url.path):
+                return JSONResponse({"detail": "Request body too large."},
+                                    status_code=413)
+        return await call_next(request)
+
     def get_conn() -> sqlite3.Connection:
         # SQLite connections are not shareable across threads; one per request
         # is cheap for this workload and avoids the whole question.
@@ -481,8 +644,14 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
 
     # --- administrator sessions --------------------------------------------
 
+    def session_token(request: Request) -> str:
+        # Either name: a browser that reached us over HTTPS holds the
+        # prefixed cookie, one on plain HTTP the bare one.
+        return (request.cookies.get(SECURE_SESSION_COOKIE)
+                or request.cookies.get(SESSION_COOKIE, ""))
+
     def current_user(request: Request, conn) -> users.User | None:
-        return users.resolve_session(conn, request.cookies.get(SESSION_COOKIE, ""))
+        return users.resolve_session(conn, session_token(request))
 
     def require_user(request: Request) -> tuple[Any, users.User]:
         conn = get_conn()
@@ -559,15 +728,51 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         """
         return request.url.scheme == "https"
 
+    def client_host(request: Request) -> str:
+        """The address a request came from, for the sign-in limiter.
+
+        Behind Apache every request arrives from 127.0.0.1; with
+        `--behind-proxy` uvicorn has already replaced the peer with the
+        X-Forwarded-For address, and only for a peer it was told to trust -
+        so this is the real client there and the loopback address otherwise,
+        and never a header any client could set.
+        """
+        return request.client.host if request.client else ""
+
+    def _refuse_if_throttled(request: Request, username: str) -> tuple[str, ...]:
+        """The limiter keys for this attempt, or a 429 if it is over the line.
+
+        Checked BEFORE the body is hashed: the whole point is that a flood of
+        wrong passwords costs the server nothing, because every hash it does
+        run takes a third of a second during which no phone in the field
+        receives a position.
+        """
+        keys = ("user:" + users.normalize_username(username),
+                "addr:" + client_host(request))
+        wait = app.state.login_limiter.retry_after(*keys)
+        if wait is not None:
+            raise HTTPException(
+                status_code=429,
+                detail=f"Too many attempts. Try again in {wait} seconds.",
+                headers={"Retry-After": str(wait)},
+            )
+        return keys
+
     def _set_session_cookie(response, token: str, secure: bool) -> None:
         response.set_cookie(
-            SESSION_COOKIE, token,
+            SECURE_SESSION_COOKIE if secure else SESSION_COOKIE, token,
             httponly=True,          # unreadable from JavaScript
             samesite="lax",         # not sent on cross-site POSTs
             secure=secure,          # HTTPS only, when we are on HTTPS
             max_age=users.SESSION_DAYS * 24 * 3600,
             path="/",
         )
+
+    def _clear_session_cookie(response) -> None:
+        # Both names: which one the browser holds depends on how it reached
+        # us, and a sign-out that leaves the other behind is not a sign-out.
+        response.delete_cookie(SESSION_COOKIE, path="/")
+        response.delete_cookie(SECURE_SESSION_COOKIE, path="/", secure=True)
 
     @app.get("/robots.txt")
     async def robots() -> PlainTextResponse:
@@ -662,24 +867,35 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         Does NOT start a session: the account is created and the person then
         signs in with it.
         """
-        conn = get_conn()
-        body = await _json_body(request, conn)
-        try:
-            if users.any_users(conn):
-                raise HTTPException(
-                    status_code=409,
-                    detail="Setup is already complete. Sign in instead.",
+        body = await _json_body(request)
+        username = str(body.get("username", "") or "")
+        keys = _refuse_if_throttled(request, username)
+
+        def create() -> users.User:
+            # Its own connection, opened in the worker thread: a sqlite
+            # connection refuses to be used from any thread but the one
+            # that opened it, and the hash has to run off the loop.
+            conn = get_conn()
+            try:
+                if users.any_users(conn):
+                    raise HTTPException(
+                        status_code=409,
+                        detail="Setup is already complete. Sign in instead.",
+                    )
+                return users.create_user(
+                    conn, username, body.get("password", ""),
+                    users.ROLE_SYSTEM_ADMIN, body.get("display_name"),
                 )
-            user = users.create_user(
-                conn, body.get("username", ""), body.get("password", ""),
-                users.ROLE_SYSTEM_ADMIN, body.get("display_name"),
-            )
+            finally:
+                conn.close()
+
+        try:
+            user = await asyncio.to_thread(create)
         except users.AuthError as exc:
             # Two submits can race: both see no users, both try to create, and
             # the loser hits the unique constraint. From the person's point of
             # view their account WAS created, so say that rather than the
             # confusing "already exists".
-            conn.close()
             check = get_conn()
             try:
                 exists = users.any_users(check)
@@ -690,10 +906,10 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
                     status_code=409,
                     detail="Setup is already complete. Sign in instead.",
                 )
+            # A rejected password is a failure worth counting: this route is
+            # open to the whole internet until the first account exists.
+            app.state.login_limiter.failed(*keys)
             raise HTTPException(status_code=400, detail=str(exc))
-        finally:
-            if conn:
-                conn.close()
         # Deliberately no session: they sign in with the account straight away,
         # which proves the password works while they still remember typing it.
         # This is a credential they may not use again until the next event.
@@ -702,17 +918,33 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
 
     @app.post("/api/setup/login")
     async def login(request: Request) -> JSONResponse:
-        conn = get_conn()
-        body = await _json_body(request, conn)
+        """Sign an administrator in.
+
+        The hash runs in a worker thread, on a connection opened there. It
+        ran on the event loop once: a third of a second per attempt during
+        which the WebSocket fan-out, the snapshots and the incident posts all
+        waited - so two wrong passwords a second from anyone at all, with no
+        credential, froze the map for every volunteer, and on the phones it
+        looked exactly like a bad signal.
+        """
+        body = await _json_body(request)
+        username = str(body.get("username", "") or "")
+        keys = _refuse_if_throttled(request, username)
+
+        def sign_in() -> tuple[users.User, str]:
+            conn = get_conn()
+            try:
+                user = users.authenticate(conn, username, body.get("password", ""))
+                return user, users.start_session(conn, user.id)
+            finally:
+                conn.close()
+
         try:
-            user = users.authenticate(
-                conn, body.get("username", ""), body.get("password", "")
-            )
-            token = users.start_session(conn, user.id)
+            user, token = await asyncio.to_thread(sign_in)
         except users.AuthError as exc:
-            conn.close()
+            app.state.login_limiter.failed(*keys)
             raise HTTPException(status_code=401, detail=str(exc))
-        conn.close()
+        app.state.login_limiter.succeeded(*keys)
         response = JSONResponse({"user": user.as_dict()})
         _set_session_cookie(response, token, request_is_secure(request))
         return response
@@ -721,28 +953,39 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     async def logout(request: Request) -> JSONResponse:
         conn = get_conn()
         try:
-            users.end_session(conn, request.cookies.get(SESSION_COOKIE, ""))
+            users.end_session(conn, session_token(request))
         finally:
             conn.close()
         response = JSONResponse({"ok": True})
-        response.delete_cookie(SESSION_COOKIE, path="/")
+        _clear_session_cookie(response)
         return response
 
     @app.post("/api/setup/password")
     async def change_own_password(request: Request) -> JSONResponse:
         conn, user = require_user(request)
-        body = await _json_body(request, conn)
-        try:
-            # Re-authenticate first: a borrowed unlocked laptop must not be
-            # enough to lock the real owner out.
-            users.authenticate(conn, user.username, body.get("current_password", ""))
-            users.set_password(conn, user.id, body.get("new_password", ""))
-        except users.AuthError as exc:
-            conn.close()
-            raise HTTPException(status_code=400, detail=str(exc))
         conn.close()
+        body = await _json_body(request)
+        keys = _refuse_if_throttled(request, user.username)
+
+        def change() -> None:
+            conn = get_conn()
+            try:
+                # Re-authenticate first: a borrowed unlocked laptop must not
+                # be enough to lock the real owner out.
+                users.authenticate(conn, user.username,
+                                   body.get("current_password", ""))
+                users.set_password(conn, user.id, body.get("new_password", ""))
+            finally:
+                conn.close()
+
+        try:
+            await asyncio.to_thread(change)
+        except users.AuthError as exc:
+            app.state.login_limiter.failed(*keys)
+            raise HTTPException(status_code=400, detail=str(exc))
+        app.state.login_limiter.succeeded(*keys)
         response = JSONResponse({"ok": True})
-        response.delete_cookie(SESSION_COOKIE, path="/")   # sessions were cleared
+        _clear_session_cookie(response)   # sessions were cleared
         return response
 
     # --- setup: events -----------------------------------------------------
@@ -857,29 +1100,45 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         event_id: int, request: Request, file: UploadFile = File(...)
     ) -> JSONResponse:
         conn, user = require_event_admin(request, event_id)
-        payload = await file.read()
         # Written to a temp file because the parser takes a path: it has to
         # detect KMZ by reading the zip header, not by trusting the extension.
-        import tempfile
+        # Streamed there in chunks rather than read into memory first - a
+        # 64 MB file is within the parser's limit and does not need to be
+        # held in RAM as well as on disk - and counted on the way, because
+        # the Content-Length check above is only as honest as the client.
+        # TemporaryDirectory removes the directory too; mkdtemp left one
+        # empty directory behind per upload for the life of the service.
         lowered = (file.filename or "").lower()
         suffix = next((ext for ext in (".kmz", ".gpx") if lowered.endswith(ext)), ".kml")
-        tmp = pathlib.Path(tempfile.mkdtemp()) / f"upload{suffix}"
-        tmp.write_bytes(payload)
         try:
-            summary = importer.stage_file(conn, event_id, tmp)
-        except kml.KmlError as exc:
-            conn.close()
-            raise HTTPException(status_code=400, detail=str(exc))
+            with tempfile.TemporaryDirectory() as workdir:
+                tmp = Path(workdir) / f"upload{suffix}"
+                written = 0
+                with tmp.open("wb") as out:
+                    while chunk := await file.read(1024 * 1024):
+                        written += len(chunk)
+                        if written > kml.MAX_KML_BYTES:
+                            raise HTTPException(
+                                status_code=413,
+                                detail=f"File is larger than the "
+                                       f"{kml.MAX_KML_BYTES / 1e6:.0f} MB limit.")
+                        out.write(chunk)
+                try:
+                    summary = importer.stage_file(conn, event_id, tmp)
+                except (kml.KmlError, zipfile.BadZipFile) as exc:
+                    # BadZipFile: a truncated KMZ passes is_zipfile and fails
+                    # inside the reader, which was a 500 with a traceback in
+                    # the journal rather than a sentence on the screen.
+                    raise HTTPException(status_code=400, detail=str(exc))
+            result = {
+                "filename": file.filename,
+                "total": summary.total,
+                "by_type": summary.by_type,
+                "warnings": summary.warnings,
+                "features": admin.staged_features(conn, event_id),
+            }
         finally:
-            tmp.unlink(missing_ok=True)
-        result = {
-            "filename": file.filename,
-            "total": summary.total,
-            "by_type": summary.by_type,
-            "warnings": summary.warnings,
-            "features": admin.staged_features(conn, event_id),
-        }
-        conn.close()
+            conn.close()
         return JSONResponse(result, status_code=201)
 
     @app.get("/api/setup/events/{event_id}/staged")
@@ -1392,7 +1651,11 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     async def setup_links(event_id: int, request: Request) -> JSONResponse:
         conn, user = require_event_admin(request, event_id)
         try:
-            access.ensure_tokens(conn, event_id)
+            # A read, and only a read. This used to create any role's
+            # missing link on the way past, which is benign in itself - but
+            # Lax cookies ARE sent on a cross-site top-level navigation, so
+            # a GET with a side effect is the one kind of setup route a page
+            # elsewhere can drive. The fill-in lives on the POST below.
             event = conn.execute(
                 "SELECT slug FROM event WHERE id = ?", (event_id,)
             ).fetchone()
@@ -1455,6 +1718,10 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
                 access.create_token(conn, event_id, role)
             else:
                 raise HTTPException(status_code=400, detail="Unknown action.")
+            # Every role keeps at least one live link: revoking the only NCS
+            # link is a rotation, not a net with no Net Control. Fills in a
+            # missing role and never collapses extras.
+            access.ensure_tokens(conn, event_id)
             links = admin.list_links(conn, event_id)
         finally:
             conn.close()
@@ -1781,14 +2048,31 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     # rewrite of each endpoint. It used to be a single yes/no; SAG needs to work
     # its pickup queue without being able to revoke a link or edit the roster.
 
-    async def _json_body(request: Request, conn) -> dict:
+    async def _json_body(request: Request, conn=None) -> dict:
+        # Read in chunks and counted, so a chunked body with no
+        # Content-Length - which the middleware cannot size - is still cut
+        # off at the cap rather than buffered whole.
+        chunks: list[bytes] = []
+        size = 0
         try:
-            body = await request.json()
+            async for chunk in request.stream():
+                size += len(chunk)
+                if size > MAX_JSON_BYTES:
+                    raise HTTPException(status_code=413,
+                                        detail="Request body too large.")
+                chunks.append(chunk)
+            body = json.loads(b"".join(chunks))
+        except HTTPException:
+            if conn is not None:
+                conn.close()
+            raise
         except Exception:
-            conn.close()
+            if conn is not None:
+                conn.close()
             raise HTTPException(status_code=400, detail="Expected a JSON body.")
         if not isinstance(body, dict):
-            conn.close()
+            if conn is not None:
+                conn.close()
             raise HTTPException(status_code=400, detail="Expected a JSON object.")
         return body
 

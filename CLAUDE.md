@@ -454,6 +454,15 @@ usability, not style preferences.
   sends only the origin: identified, no path, no token. This is Apache
   config that `deploy.sh` never touches, so an installed server has to be
   edited by hand.
+- **A setup WRITE must come from our own origin; a setup GET must not
+  write.** `refuse_cross_site_setup_writes` compares `Origin`/`Referer`
+  against the `Host` header for every non-GET under `/api/setup/`, because
+  SameSite=Lax is a same-SITE rule and the VPS hosts other apps under the
+  same domain. Two consequences: `ProxyPreserveHost On` in the vhost is
+  load-bearing (without it every save answers 403), and a GET that creates
+  something is the one kind of setup route a cross-site navigation can still
+  drive - `/links` used to. The field API is exempt on purpose: its
+  credential is in the path.
 - **Apache needs `mod_proxy_wstunnel` and /ws/ rules BEFORE the catch-all.**
   Otherwise the map loads and then never moves, with no visible error.
 - **NEVER modify `.env`.** It is the user's file and holds their callsign. To
@@ -894,6 +903,25 @@ usability, not style preferences.
   `--font-data` in `app.css` are the only places a face is named; anything
   that is a VALUE read off the screen (callsign, bib, age, mile) takes
   `--font-data`, the word beside it does not.
+- **Leaflet is shipped too: `static/leaflet/`, byte for byte the pinned
+  upstream build.** Same reason as the fonts, plus a CDN outage on race
+  morning was no map at all. `tests/test_web.py` checks the files against
+  the SRI hashes the pages used to carry; upgrading means replacing the
+  files, the hashes in that test and the LICENSE note together. Leaflet
+  finds its marker images from the stylesheet's own URL, so the css and
+  `images/` stay side by side.
+- **No inline `<script>` anywhere, and the CSP is what enforces it.**
+  `security_headers()` in `web.py` sends `script-src 'self'` on every
+  response, so both clients - which build markup from server data all day -
+  turn an escaping slip into a blocked request rather than a stolen token.
+  Inline STYLE is allowed because Leaflet positions markers with style
+  attributes. A value the server must hand a page travels as a `data-`
+  attribute (the first-run flag on `<body>`, the tile URL on the report)
+  and a small file reads it; `onclick=` in a template string, `eval`, or a
+  `javascript:` href are all silently dead under this policy, with the
+  failure in the browser console and nowhere else. The tile server is the
+  one named third party, and it is `TILE_ORIGIN` - change it with the
+  tile URL (#3) or the map goes grey.
 - **The guides ship WITH the app and are rendered by OUR converter.** They
   are Markdown in `src/courseops/guides/` (inside the package, or the wheel
   and the .exe lose them), served at `/help/<page>`, and `guides.render`
