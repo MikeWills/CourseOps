@@ -71,3 +71,34 @@ def test_the_layer_cache_is_dropped_when_the_event_changes():
     delete = _block("await post(`/api/setup/events/${event.id}/delete`);",
                     "banner(`Deleted ${event.name}.`);")
     assert "S.poiCategories = null;" in delete
+
+
+def test_every_mutating_handler_reports_a_refusal():
+    """api() throws on any non-2xx. A handler that awaits it with no catch
+    turns a 400 or 403 into an unhandled rejection: no banner, no reload,
+    the row exactly as it was. Revoke on a leaked link, delete on a course,
+    remove on a roster entry NCS has rebound - the person could not tell
+    "already done" from "refused"."""
+    calls = [
+        "/courses/${b.dataset.delc}/delete",
+        "/pois/${b.dataset.delp}/delete",
+        "/roster/delete`",
+        "{action: 'add', role: b.dataset.add}",
+        "{action: 'label', token_id",
+        "{action: 'revoke', token_id",
+        "{action: 'reissue', role",
+    ]
+    for call in calls:
+        at = SETUP_JS.index(call)
+        # The nearest enclosing async handler must open a try before the call.
+        handler = SETUP_JS.rfind("async () =>", 0, at)
+        assert "try {" in SETUP_JS[handler:at], call
+
+
+def test_the_upload_parses_the_body_before_trusting_it_is_json():
+    """A 413 from Apache or a 502 from the proxy is an HTML page, and
+    parsing it before checking the status showed "Unexpected token '<'"
+    instead of "file too large" - on the KMZ the organizer sent."""
+    upload = _block("async function uploadCourseFile(", "async function fillAssignTypes")
+    assert "response.json().catch(() => ({}))" in upload
+    assert upload.index(".catch(() => ({}))") < upload.index("if (!response.ok)")

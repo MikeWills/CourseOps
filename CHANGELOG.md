@@ -12,6 +12,20 @@ month, PATCH counting releases in that month from 0. Before that they were
 ## [Unreleased]
 
 ### Fixed
+- **Seven setup actions failed silently when the server refused them.**
+  Delete a course, delete a place, remove a roster entry, issue another
+  link, save a link's label, revoke a link and replace a role's links all
+  awaited the request with nothing to catch a refusal, so a 400 (an unknown
+  role), a 403 ("Not your event." after a club reassignment) or a 409 became
+  an unhandled rejection: no banner, no reload, the row exactly as it was.
+  Pressing Revoke on a leaked link and seeing nothing change could not be
+  told from "already done", and a label that failed to save looked saved
+  until the next reload lost it. Each says what the server said now.
+- **A file too big for the proxy showed "Unexpected token '<'".** The
+  upload parsed the response as JSON before checking the status, and a 413
+  from Apache or a 502 is an HTML page. The person reading a parse error
+  had no way to know the size was the problem, on exactly the KMZ the
+  organizer sent. The body is parsed defensively and the status named.
 - **Switching events kept the previous event's layers.** The layer list is
   fetched once and was only ever dropped by a layer reorder, so a host
   working on a second event built its Import type list, the per-row Layer

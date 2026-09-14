@@ -163,7 +163,9 @@ $('version-notice').addEventListener('click', () => {
 });
 
 $('logout').addEventListener('click', async () => {
-  await post('/api/setup/logout');
+  try {
+    await post('/api/setup/logout');
+  } catch (err) { /* the session is gone either way; the reload shows the gate */ }
   location.reload();
 });
 
@@ -814,8 +816,14 @@ async function uploadCourseFile(file) {
   form.append('file', file);
   const response = await fetch(`/api/setup/events/${S.eventId}/import`,
     {method: 'POST', body: form});
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.detail || 'Import failed');
+  // Parse defensively, then check the status. A 413 from Apache for a KMZ
+  // over LimitRequestBody, or a proxy's 502, is an HTML page - and parsing
+  // it first put "Unexpected token '<'" on screen where "file too large"
+  // belonged, on exactly the file the organizer sent.
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.detail || `Upload failed (${response.status})`);
+  }
 
   const kinds = Object.entries(data.by_type)
     .map(([k, n]) => `${n} ${k}`).join(', ');
@@ -1102,8 +1110,10 @@ async function loadCourses() {
   $('course-table').querySelectorAll('[data-delc]').forEach((b) =>
     b.addEventListener('click', async () => {
       if (!confirm('Delete this course?')) return;
-      await post(`/api/setup/events/${S.eventId}/courses/${b.dataset.delc}/delete`);
-      loadCourses();
+      try {
+        await post(`/api/setup/events/${S.eventId}/courses/${b.dataset.delc}/delete`);
+        loadCourses();
+      } catch (err) { banner(err.message, true); }
     }));
 
   /* Two routes to what3words, neither of them the paid API (docs/PLAN.md).
@@ -1434,8 +1444,10 @@ async function loadCourses() {
   $('poi-table').querySelectorAll('[data-delp]').forEach((b) =>
     b.addEventListener('click', async () => {
       if (!confirm('Delete this aid station?')) return;
-      await post(`/api/setup/events/${S.eventId}/pois/${b.dataset.delp}/delete`);
-      loadCourses();
+      try {
+        await post(`/api/setup/events/${S.eventId}/pois/${b.dataset.delp}/delete`);
+        loadCourses();
+      } catch (err) { banner(err.message, true); }
     }));
 }
 
@@ -2251,9 +2263,11 @@ async function loadRoster() {
   $('roster-table').querySelectorAll('[data-delr]').forEach((b) =>
     b.addEventListener('click', async () => {
       if (!confirm(`Remove ${b.dataset.delr} from the roster?`)) return;
-      await post(`/api/setup/events/${S.eventId}/roster/delete`,
-        {station_key: b.dataset.delr});
-      loadRoster();
+      try {
+        await post(`/api/setup/events/${S.eventId}/roster/delete`,
+          {station_key: b.dataset.delr});
+        loadRoster();
+      } catch (err) { banner(err.message, true); }
     }));
 }
 
@@ -2379,10 +2393,12 @@ async function loadLinks() {
 
   $('link-list').querySelectorAll('[data-add]').forEach((b) =>
     b.addEventListener('click', async () => {
-      await post(`/api/setup/events/${S.eventId}/links`,
-        {action: 'add', role: b.dataset.add});
-      banner('New link issued — label it so you know whose it is.');
-      loadLinks();
+      try {
+        await post(`/api/setup/events/${S.eventId}/links`,
+          {action: 'add', role: b.dataset.add});
+        banner('New link issued — label it so you know whose it is.');
+        loadLinks();
+      } catch (err) { banner(err.message, true); }
     }));
 
   /* Saved on change and the list is NOT reloaded: re-rendering here would
@@ -2390,10 +2406,16 @@ async function loadLinks() {
      and layer tables already had. */
   $('link-list').querySelectorAll('[data-label-for]').forEach((field) =>
     field.addEventListener('change', async () => {
-      await post(`/api/setup/events/${S.eventId}/links`,
-        {action: 'label', token_id: Number(field.dataset.labelFor),
-         label: field.value});
-      banner('Label saved.');
+      try {
+        await post(`/api/setup/events/${S.eventId}/links`,
+          {action: 'label', token_id: Number(field.dataset.labelFor),
+           label: field.value});
+        banner('Label saved.');
+      } catch (err) {
+        // Said, not swallowed: a label that did not save is lost on the
+        // next reload, and the row looks exactly as if it had.
+        banner(`Label NOT saved: ${err.message}`, true);
+      }
     }));
 
   $('link-list').querySelectorAll('[data-revoke]').forEach((b) =>
@@ -2401,20 +2423,24 @@ async function loadLinks() {
       if (!confirm(`Revoke the link for ${b.dataset.revokeWho}? `
         + 'Whoever is holding it loses access immediately. '
         + 'Every other link for this role keeps working.')) return;
-      await post(`/api/setup/events/${S.eventId}/links`,
-        {action: 'revoke', token_id: Number(b.dataset.revoke)});
-      banner('Link revoked.');
-      loadLinks();
+      try {
+        await post(`/api/setup/events/${S.eventId}/links`,
+          {action: 'revoke', token_id: Number(b.dataset.revoke)});
+        banner('Link revoked.');
+        loadLinks();
+      } catch (err) { banner(err.message, true); }
     }));
 
   $('link-list').querySelectorAll('[data-reissue]').forEach((b) =>
     b.addEventListener('click', async () => {
       if (!confirm('Anyone using a current link for this role will lose access '
         + 'immediately, including every extra link issued for it. Continue?')) return;
-      await post(`/api/setup/events/${S.eventId}/links`,
-        {action: 'reissue', role: b.dataset.reissue});
-      banner('New link issued — send it to that group.');
-      loadLinks();
+      try {
+        await post(`/api/setup/events/${S.eventId}/links`,
+          {action: 'reissue', role: b.dataset.reissue});
+        banner('New link issued — send it to that group.');
+        loadLinks();
+      } catch (err) { banner(err.message, true); }
     }));
 }
 
