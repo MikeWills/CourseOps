@@ -245,6 +245,14 @@ Verify it explicitly rather than assuming — see [Checking it worked](#4-checki
 
 ### The Referrer-Policy is the other one
 
+The app sets its own security headers on every response now -
+`Content-Security-Policy`, `Referrer-Policy`, `X-Content-Type-Options`,
+`X-Frame-Options` - so the Windows build and a LAN install get them without
+Apache. The lines in the vhost template stay: they cost nothing, cover
+Apache's own error pages, and a `Header always set` with the same value as
+the app's is harmless. What they must not do is DISAGREE with the app, and
+the one worth understanding is the referrer policy.
+
 The template sets `Referrer-Policy "strict-origin-when-cross-origin"`. Keep
 it. It looks like a hardening line to tighten to `same-origin`, and that was
 the original setting - but `same-origin` sends **no Referer at all** to

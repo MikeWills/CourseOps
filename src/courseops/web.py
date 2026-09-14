@@ -130,10 +130,59 @@ _ASSET_URL = re.compile(r'((?:src|href)=")(/static/[^"?]+\.(?:js|css))"')
 
 
 def _asset_version(name: str) -> str:
+    # `name` is the URL path, so the file is looked up under static/ by the
+    # part after /static/ - a bare basename lost the leaflet/ directory and
+    # stamped the vendored files "0" forever.
     try:
-        return str(int((STATIC_DIR / Path(name).name).stat().st_mtime))
+        relative = name.removeprefix("/static/")
+        return str(int((STATIC_DIR / relative).stat().st_mtime))
     except OSError:
         return "0"
+
+
+# Where the map tiles come from. Named in the Content-Security-Policy, so a
+# change of tile provider (#3) is a change here too.
+TILE_ORIGIN = "https://tile.openstreetmap.org"
+
+
+def security_headers(host: str) -> dict[str, str]:
+    """The headers every response carries, set by the app so the Windows build
+    and a LAN install get them, not only a server behind the shipped Apache
+    config.
+
+    The policy is 'self' for everything, with two named exceptions: the tile
+    server for images, and the page's own host for the WebSocket - spelled
+    out as ws:/wss: because older WebKit does not read 'self' as covering
+    them. Inline STYLE is allowed because Leaflet positions every marker with
+    a style attribute; inline SCRIPT is not, and that is the point: the two
+    clients build markup from server data all day, and with no inline script
+    permitted an escaping slip becomes a blocked request instead of a stolen
+    token.
+    """
+    sockets = f" ws://{host} wss://{host}" if host else ""
+    csp = "; ".join([
+        "default-src 'self'",
+        "script-src 'self'",
+        "style-src 'self' 'unsafe-inline'",
+        f"img-src 'self' data: blob: {TILE_ORIGIN}",
+        f"connect-src 'self'{sockets}",
+        "font-src 'self'",
+        "manifest-src 'self'",
+        "object-src 'none'",
+        "base-uri 'self'",
+        "form-action 'self'",
+        "frame-ancestors 'self'",
+    ])
+    return {
+        "Content-Security-Policy": csp,
+        "X-Content-Type-Options": "nosniff",
+        # NOT same-origin: the token is in the path and must never reach a
+        # third party, but same-origin sends NO Referer to the tile server,
+        # and OSM serves an "Access blocked" tile to traffic it cannot
+        # attribute to a site. This sends the origin alone cross-site.
+        "Referrer-Policy": "strict-origin-when-cross-origin",
+        "X-Frame-Options": "SAMEORIGIN",
+    }
 
 
 def _page(html: str) -> HTMLResponse:
@@ -526,6 +575,13 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     # writes: a new setup route gets it for free and none can forget it. The
     # field API is left alone - its credential is in the path, so a page that
     # can make the request already holds the token.
+    @app.middleware("http")
+    async def add_security_headers(request: Request, call_next):
+        response = await call_next(request)
+        for name, value in security_headers(request.headers.get("host", "")).items():
+            response.headers.setdefault(name, value)
+        return response
+
     @app.middleware("http")
     async def refuse_cross_site_setup_writes(request: Request, call_next):
         if (request.method in _WRITE_METHODS

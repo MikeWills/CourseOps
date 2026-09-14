@@ -11,7 +11,30 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Changed
+- **Leaflet is shipped with the app instead of loaded from unpkg.com.** The
+  same reason the fonts are: every field phone was reporting to a third
+  party to draw the map, and a CDN outage on race morning would have been
+  no map at all. `static/leaflet/` is byte for byte the 1.9.4 build the
+  pages used to pin with subresource integrity, and a test checks it
+  against those same hashes.
+- **Every response carries a Content-Security-Policy, set by the app.**
+  `script-src 'self'` - no inline script, no CDN - with the tile server the
+  one named exception for images and the page's own host for the WebSocket.
+  Both clients build markup from server data all day, and the policy turns
+  a future escaping slip into a blocked request rather than a stolen
+  token. The three inline scripts (the setup page's first-run flag and the
+  report's clock and mini-maps) moved to files, with the values they need
+  on `data-` attributes. The app also sends `Referrer-Policy`,
+  `X-Content-Type-Options` and `X-Frame-Options` itself, and the map,
+  setup and report pages state the referrer policy in a `<meta>`, so the
+  Windows build and a LAN install get what only the Apache template gave
+  before.
+
 ### Fixed
+- Files in a subdirectory of `static/` got `?v=0` forever: the cache
+  marker looked the file up by basename. It looks it up by path now, or an
+  updated Leaflet would have been served from cache against new markup.
 - Expired admin sessions were never removed: a stale row went only when its
   own token was presented again, which a browser that has dropped the
   cookie never does, so the table grew by a row per sign-in forever. Every

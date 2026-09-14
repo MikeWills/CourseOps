@@ -948,13 +948,99 @@ def test_the_first_run_flag_is_substituted_not_swallowed(setup):
         html = client.get("/setup").text
 
     import re
-    scripts = re.findall(r"<script>(.*?)</script>", html, re.S)
-    flag = next(s for s in scripts if "__FIRST_RUN__" in s)
+    assert "{{FIRST_RUN}}" not in html
+    assert "window.false" not in html          # the bug: both sides replaced
+    # The flag rides <body data-first-run>; setup-boot.js turns it into the
+    # global setup.js reads, because the CSP allows no inline script.
+    flag = re.search(r'<body[^>]*\bdata-first-run="([^"]*)"', html)
+    assert flag and flag.group(1) in ("true", "false")
+    assert '<script src="/static/setup-boot.js' in html
 
-    assert "{{FIRST_RUN}}" not in flag
-    assert "window.false" not in flag          # the bug: both sides replaced
-    assert flag.strip() in ("window.__FIRST_RUN__ = true;",
-                            "window.__FIRST_RUN__ = false;")
+
+# --- content security policy and shipped Leaflet ----------------------------
+#
+# Leaflet came from unpkg.com on every page: every field phone reporting to a
+# third party to draw the map, and a CDN outage on race morning would have
+# been no map at all. It is shipped now, and every response carries a CSP
+# that allows no inline script, so a future escaping slip in either client
+# becomes a blocked request rather than a stolen token.
+
+STATIC = Path(web.__file__).parent / "static"
+
+
+def test_the_shipped_leaflet_is_the_pinned_upstream_build():
+    """Byte for byte the files the pages used to load with subresource
+    integrity, checked against those same hashes."""
+    import base64
+    import hashlib
+    expected = {
+        "leaflet.js": "20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=",
+        "leaflet.css": "p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=",
+    }
+    for name, digest in expected.items():
+        data = (STATIC / "leaflet" / name).read_bytes()
+        assert base64.b64encode(hashlib.sha256(data).digest()).decode() == digest, name
+    for image in ("marker-icon.png", "marker-icon-2x.png", "marker-shadow.png",
+                  "layers.png", "layers-2x.png"):
+        assert (STATIC / "leaflet" / "images" / image).is_file(), image
+    assert (STATIC / "leaflet" / "LICENSE").is_file()
+
+
+def test_no_page_loads_anything_from_a_cdn():
+    import re
+    for name in ("index.html", "setup.html"):
+        text = (STATIC / name).read_text(encoding="utf-8")
+        assert "unpkg.com" not in text, name
+        for url in re.findall(r'(?:src|href)="([^"]+)"', text):
+            assert not url.startswith(("http://", "https://")) or "/help" in url, (name, url)
+
+
+@pytest.mark.parametrize("name", ["index.html", "setup.html"])
+def test_the_pages_have_no_inline_script(name):
+    import re
+    text = (STATIC / name).read_text(encoding="utf-8")
+    for tag in re.findall(r"<script\b[^>]*>", text):
+        assert 'src="' in tag, (name, tag)
+    assert 'name="referrer" content="strict-origin-when-cross-origin"' in text
+
+
+def test_every_page_carries_the_security_headers(setup):
+    """Set by the app, so the Windows build and a LAN install get them, not
+    only a server behind the shipped Apache config."""
+    app, tokens, db_path, event_id = setup
+    _make_admin(db_path)
+    with TestClient(app, base_url="https://courseops.example.org") as client:
+        _login(client)
+        pages = [
+            client.get(f"/e/m2026/{tokens['ncs']}"),
+            client.get("/setup"),
+            client.get(f"/setup/events/{event_id}/report"),
+            client.get("/help/sag"),
+            client.get(f"/api/m2026/{tokens['ncs']}/state"),
+        ]
+    for page in pages:
+        assert page.status_code == 200, page.url
+        csp = page.headers["content-security-policy"]
+        assert "script-src 'self'" in csp
+        assert "unsafe-inline" not in csp.split("script-src")[1].split(";")[0]
+        assert "img-src 'self' data: blob: https://tile.openstreetmap.org" in csp
+        # The socket, by the page's own host, spelled out for older WebKit.
+        assert "wss://courseops.example.org" in csp
+        assert page.headers["referrer-policy"] == "strict-origin-when-cross-origin"
+        assert page.headers["x-content-type-options"] == "nosniff"
+        assert page.headers["x-frame-options"] == "SAMEORIGIN"
+
+
+def test_the_vendored_assets_are_cache_busted_too(setup):
+    """`_asset_version` used the basename, so anything in a subdirectory of
+    static/ was stamped ?v=0 forever - an updated Leaflet would have been
+    served from cache against new markup."""
+    app, tokens, _, _ = setup
+    with TestClient(app) as client:
+        html = client.get(f"/e/m2026/{tokens['ncs']}").text
+    import re
+    stamp = re.search(r'src="/static/leaflet/leaflet\.js\?v=(\d+)"', html)
+    assert stamp and stamp.group(1) != "0"
 
 
 # --- behind a reverse proxy -------------------------------------------------
