@@ -14,7 +14,8 @@ import importlib.metadata as _metadata
 import logging
 import re
 import sqlite3
-import pathlib
+import tempfile
+import zipfile
 from pathlib import Path
 from typing import Any
 
@@ -65,6 +66,16 @@ SESSION_COOKIE = "courseops_session"
 # development, the Windows build on a LAN) the prefix would make the browser
 # drop the cookie, so the plain name stays for that case.
 SECURE_SESSION_COOKIE = "__Host-" + SESSION_COOKIE
+
+# The most any JSON request may carry. The biggest real body is a reorder of
+# a few hundred ids, well under a kilobyte; the cap is generous so a large
+# roster cannot hit it and small enough that a flood of them costs nothing.
+# The course file upload is the one exception and has its own cap in kml.py.
+MAX_JSON_BYTES = 64 * 1024
+
+# Where the one large upload arrives. Everything else is held to
+# MAX_JSON_BYTES before a byte of it is read.
+_IMPORT_PATH = re.compile(r"^/api/setup/events/\d+/import$")
 
 # Methods that change something. Everything else on the setup API is a read,
 # and stays one (see refuse_cross_site_setup_writes).
@@ -524,6 +535,33 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
                 {"detail": "Cross-site request refused."}, status_code=403)
         return await call_next(request)
 
+    # Nothing capped request bodies: the login route, which needs no
+    # credential, would buffer a multi-hundred-megabyte POST in RAM before
+    # looking at it, and the import read a whole upload into memory before
+    # the parser's own limit applied. The Windows build has no proxy in
+    # front of it at all. Refused here on Content-Length, before the body is
+    # read; a body that lies about its length, or sends none, is stopped by
+    # the readers below, which count as they go.
+    def body_limit(path: str) -> int:
+        if _IMPORT_PATH.match(path):
+            # The parser's cap plus room for the multipart framing.
+            return kml.MAX_KML_BYTES + 64 * 1024
+        return MAX_JSON_BYTES
+
+    @app.middleware("http")
+    async def refuse_oversized_bodies(request: Request, call_next):
+        declared = request.headers.get("content-length")
+        if declared is not None:
+            try:
+                length = int(declared)
+            except ValueError:
+                return JSONResponse({"detail": "Bad Content-Length."},
+                                    status_code=400)
+            if length > body_limit(request.url.path):
+                return JSONResponse({"detail": "Request body too large."},
+                                    status_code=413)
+        return await call_next(request)
+
     def get_conn() -> sqlite3.Connection:
         # SQLite connections are not shareable across threads; one per request
         # is cheap for this workload and avoids the whole question.
@@ -960,29 +998,45 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         event_id: int, request: Request, file: UploadFile = File(...)
     ) -> JSONResponse:
         conn, user = require_event_admin(request, event_id)
-        payload = await file.read()
         # Written to a temp file because the parser takes a path: it has to
         # detect KMZ by reading the zip header, not by trusting the extension.
-        import tempfile
+        # Streamed there in chunks rather than read into memory first - a
+        # 64 MB file is within the parser's limit and does not need to be
+        # held in RAM as well as on disk - and counted on the way, because
+        # the Content-Length check above is only as honest as the client.
+        # TemporaryDirectory removes the directory too; mkdtemp left one
+        # empty directory behind per upload for the life of the service.
         lowered = (file.filename or "").lower()
         suffix = next((ext for ext in (".kmz", ".gpx") if lowered.endswith(ext)), ".kml")
-        tmp = pathlib.Path(tempfile.mkdtemp()) / f"upload{suffix}"
-        tmp.write_bytes(payload)
         try:
-            summary = importer.stage_file(conn, event_id, tmp)
-        except kml.KmlError as exc:
-            conn.close()
-            raise HTTPException(status_code=400, detail=str(exc))
+            with tempfile.TemporaryDirectory() as workdir:
+                tmp = Path(workdir) / f"upload{suffix}"
+                written = 0
+                with tmp.open("wb") as out:
+                    while chunk := await file.read(1024 * 1024):
+                        written += len(chunk)
+                        if written > kml.MAX_KML_BYTES:
+                            raise HTTPException(
+                                status_code=413,
+                                detail=f"File is larger than the "
+                                       f"{kml.MAX_KML_BYTES / 1e6:.0f} MB limit.")
+                        out.write(chunk)
+                try:
+                    summary = importer.stage_file(conn, event_id, tmp)
+                except (kml.KmlError, zipfile.BadZipFile) as exc:
+                    # BadZipFile: a truncated KMZ passes is_zipfile and fails
+                    # inside the reader, which was a 500 with a traceback in
+                    # the journal rather than a sentence on the screen.
+                    raise HTTPException(status_code=400, detail=str(exc))
+            result = {
+                "filename": file.filename,
+                "total": summary.total,
+                "by_type": summary.by_type,
+                "warnings": summary.warnings,
+                "features": admin.staged_features(conn, event_id),
+            }
         finally:
-            tmp.unlink(missing_ok=True)
-        result = {
-            "filename": file.filename,
-            "total": summary.total,
-            "by_type": summary.by_type,
-            "warnings": summary.warnings,
-            "features": admin.staged_features(conn, event_id),
-        }
-        conn.close()
+            conn.close()
         return JSONResponse(result, status_code=201)
 
     @app.get("/api/setup/events/{event_id}/staged")
@@ -1832,8 +1886,23 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     # its pickup queue without being able to revoke a link or edit the roster.
 
     async def _json_body(request: Request, conn=None) -> dict:
+        # Read in chunks and counted, so a chunked body with no
+        # Content-Length - which the middleware cannot size - is still cut
+        # off at the cap rather than buffered whole.
+        chunks: list[bytes] = []
+        size = 0
         try:
-            body = await request.json()
+            async for chunk in request.stream():
+                size += len(chunk)
+                if size > MAX_JSON_BYTES:
+                    raise HTTPException(status_code=413,
+                                        detail="Request body too large.")
+                chunks.append(chunk)
+            body = json.loads(b"".join(chunks))
+        except HTTPException:
+            if conn is not None:
+                conn.close()
+            raise
         except Exception:
             if conn is not None:
                 conn.close()

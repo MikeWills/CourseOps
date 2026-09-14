@@ -1439,6 +1439,86 @@ def test_login_does_not_block_the_event_loop(setup):
     asyncio.run(race())
 
 
+# --- request body caps ------------------------------------------------------
+#
+# Nothing limited a request body. The login route needs no credential, so a
+# multi-hundred-megabyte POST from anyone was buffered whole in RAM before a
+# byte of it was looked at - enough to take down a small VPS, and the
+# Windows build has no proxy in front of it at all.
+
+def test_an_oversized_json_body_is_refused_before_it_is_read(setup):
+    app, _, _, _ = setup
+    body = b'{"username": "' + b"a" * (web.MAX_JSON_BYTES + 10) + b'"}'
+    with TestClient(app) as client:
+        response = client.post("/api/setup/login", content=body,
+                               headers={"Content-Type": "application/json"})
+    assert response.status_code == 413
+
+
+def test_a_chunked_body_with_no_length_is_still_capped(setup):
+    """Content-Length is the client's claim. A body that omits it is read in
+    chunks and cut off at the same cap."""
+    app, _, _, _ = setup
+
+    def chunks():
+        yield b'{"username": "'
+        for _ in range(8):
+            yield b"a" * (web.MAX_JSON_BYTES // 4)
+        yield b'"}'
+
+    with TestClient(app) as client:
+        response = client.post("/api/setup/login", content=chunks(),
+                               headers={"Content-Type": "application/json"})
+    assert response.status_code == 413
+
+
+def test_an_ordinary_body_is_untouched(setup):
+    app, _, db_path, _ = setup
+    _make_admin(db_path)
+    with TestClient(app) as client:
+        assert _login(client).status_code == 200
+
+
+def test_an_upload_over_the_parser_limit_is_refused(setup, monkeypatch):
+    from courseops import kml
+    app, _, db_path, event_id = setup
+    _make_admin(db_path)
+    monkeypatch.setattr(kml, "MAX_KML_BYTES", 1000)
+    with TestClient(app) as client:
+        _login(client)
+        response = client.post(
+            f"/api/setup/events/{event_id}/import",
+            files={"file": ("big.kml", b"<kml>" + b" " * 2000 + b"</kml>",
+                            "application/vnd.google-earth.kml+xml")})
+    assert response.status_code == 413
+
+
+def test_an_upload_leaves_no_temp_directory_behind(setup, tmp_path, monkeypatch):
+    """One empty directory per import, for the life of the service: harmless
+    on a VPS until someone loops it, and on the club laptop it is %TEMP%."""
+    import tempfile
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    monkeypatch.setattr(tempfile, "tempdir", str(scratch))
+    app, _, db_path, event_id = setup
+    _make_admin(db_path)
+    with TestClient(app) as client:
+        _login(client)
+        response = client.post(
+            f"/api/setup/events/{event_id}/import",
+            files={"file": ("course.kml", FIXTURE.read_bytes(),
+                            "application/vnd.google-earth.kml+xml")})
+        assert response.status_code == 201
+        assert response.json()["total"] > 0
+        # And the failure path cleans up too.
+        response = client.post(
+            f"/api/setup/events/{event_id}/import",
+            files={"file": ("broken.kmz", b"PK\x03\x04 not really a zip",
+                            "application/vnd.google-earth.kmz")})
+        assert response.status_code == 400
+    assert list(scratch.iterdir()) == []
+
+
 # --- places added and moved by hand (#108) ----------------------------------
 
 def _login(client):

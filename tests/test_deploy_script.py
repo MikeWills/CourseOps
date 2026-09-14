@@ -243,3 +243,29 @@ def test_the_workflow_does_not_guess_the_install_path():
     text = WORKFLOW.read_text(encoding="utf-8")
     assert "'/opt/courseops'" not in text
     assert "DEPLOY_PATH secret is not set" in text
+
+
+# --- the Apache vhosts ------------------------------------------------------
+
+VHOSTS = ("apache-courseops.conf", "apache-courseops-ssl.conf")
+
+
+@pytest.mark.parametrize("name", VHOSTS)
+def test_the_vhost_caps_request_bodies(name):
+    """Apache's default is no limit. Without this line a request of any
+    size reaches uvicorn and the app's own check is the only one, on the
+    one route that needs no credential."""
+    text = (DEPLOY_DIR / name).read_text(encoding="utf-8")
+    match = re.search(r"^\s*LimitRequestBody\s+(\d+)", text, re.M)
+    assert match, f"{name} has no LimitRequestBody"
+    # Room for the 64 MB course file, and not much more.
+    assert 64 * 1024 * 1024 < int(match.group(1)) < 100 * 1024 * 1024
+
+
+@pytest.mark.parametrize("name", VHOSTS)
+def test_the_vhost_passes_the_browsers_host_through(name):
+    """The app compares Origin against Host to refuse cross-site setup
+    writes; without ProxyPreserveHost every save on the setup screen is
+    refused as cross-site."""
+    text = (DEPLOY_DIR / name).read_text(encoding="utf-8")
+    assert re.search(r"^\s*ProxyPreserveHost On", text, re.M), name

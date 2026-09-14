@@ -12,6 +12,22 @@ month, PATCH counting releases in that month from 0. Before that they were
 ## [Unreleased]
 
 ### Fixed
+- **No request body had a size limit.** The login route needs no credential,
+  so a multi-hundred-megabyte POST from anyone was buffered whole in RAM
+  before a byte of it was looked at - enough to take down a small VPS, and
+  the Windows build has no proxy in front of it at all. The import read a
+  whole upload into memory before the parser's own 64 MB cap applied. A
+  declared `Content-Length` over the limit is refused with 413 before the
+  body is read (64 KB for JSON, the parser's cap for a course file); a body
+  that omits it is counted as it streams and cut off at the same point; the
+  upload streams to disk in chunks. Both Apache vhosts set
+  `LimitRequestBody` too - an existing install adds that line by hand, see
+  `docs/DEPLOYMENT.md`.
+- The import left one empty temp directory behind per upload for the life
+  of the service, and a truncated KMZ that passed the zip header check
+  answered a 500 with a traceback in the journal rather than a sentence on
+  the screen. The directory is removed with the file; the bad archive is a
+  400 like any other unreadable file.
 - **Cross-site protection on the setup API was SameSite=Lax alone.** Lax is
   a same-SITE rule: anything else hosted under the same registrable domain -
   the VPS hosts more than one app - could POST to the tracking switch,

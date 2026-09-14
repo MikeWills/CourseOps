@@ -261,6 +261,21 @@ line by hand:** edit the site file, `sudo apache2ctl configtest`, `sudo
 systemctl reload apache2`, then force-reload the map once because the blocked
 tiles are cached.
 
+### Apache lines an existing install has to add by hand
+
+`deploy.sh` never touches the Apache config, so anything added to the
+templates in `deploy/` after a server was set up has to be copied into
+`/etc/apache2/sites-available/courseops.conf` (and the `-le-ssl` twin
+certbot made) by hand, then `sudo apache2ctl configtest && sudo systemctl
+reload apache2`. The lines, and why each is there:
+
+- `Referrer-Policy "strict-origin-when-cross-origin"` - above.
+- `LimitRequestBody 70000000` - Apache's default is no limit at all, so a
+  request of any size reaches the app; the app now refuses oversized bodies
+  itself (64 KB for anything but a course file, 64 MB for that), but
+  stopping it in Apache costs nothing and stopping it in Python costs a
+  process the read.
+
 ### `ProxyPreserveHost On` is load-bearing
 
 The app refuses any setup write (anything that is not a GET under
