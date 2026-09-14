@@ -1,0 +1,186 @@
+/* The guides, served at /help/. The same bar and the same faces as the app,
+   so opening "?" from the map lands somewhere that is visibly the same thing -
+   and a page a volunteer reads on a phone at 6am, so it is one column, large
+   type, and the list of other guides is a row of chips above it rather than a
+   sidebar that would push the text below the fold. */
+@font-face {
+  font-family: "Overpass";
+  font-style: normal;
+  font-weight: 300 900;
+  font-display: swap;
+  src: url("/static/fonts/overpass.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Overpass Mono";
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url("/static/fonts/overpass-mono.woff2") format("woff2");
+}
+
+:root {
+  --font-ui:   "Overpass", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-data: "Overpass Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --navy-700:  #0B2545;
+  --orange:    #FF6A13;
+  --orange-ink:#B34700;
+  --ink:       #0e1b2b;
+  --ink-soft:  #46566a;
+  --paper:     #ffffff;
+  --ground:    #e9eef4;
+  --line:      #bfcad6;
+  --hairline:  #e6ebf1;
+  --radius:    6px;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font: 17px/1.5 var(--font-ui);
+}
+
+#bar {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: var(--navy-700);
+  color: #fff;
+  border-bottom: 3px solid var(--orange);
+}
+#bar .brand { display: flex; align-items: center; }
+#bar .brand img { display: block; width: auto; height: 32px; }
+#bar .crumb { font-size: 15px; color: rgba(255, 255, 255, 0.72); }
+
+#frame {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 16px 16px 56px;
+}
+
+/* Every guide, one chip each. The current page is filled navy so a reader
+   can see where they are without reading the H1. */
+#pages ul {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+#pages a {
+  display: inline-block;
+  min-height: 34px;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 17px;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+#pages a:hover, #pages a:focus-visible { border-color: var(--navy-700); }
+#pages a[aria-current="page"] {
+  background: var(--navy-700);
+  border-color: var(--navy-700);
+  color: #fff;
+}
+
+#guide {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 20px 22px 28px;
+  overflow-wrap: anywhere;
+}
+
+#guide h1 { margin: 0 0 14px; font-size: 28px; line-height: 1.2; font-weight: 800; }
+#guide h2 {
+  margin: 34px 0 10px;
+  padding-top: 18px;
+  border-top: 1px solid var(--hairline);
+  font-size: 21px;
+  font-weight: 800;
+}
+#guide h3 { margin: 24px 0 8px; font-size: 17px; font-weight: 800; }
+#guide h1 + h2, #guide blockquote h2 { border-top: 0; padding-top: 0; margin-top: 0; }
+#guide p, #guide ul, #guide ol { margin: 0 0 14px; }
+#guide li { margin: 4px 0; }
+#guide a { color: var(--navy-700); text-decoration: underline; text-underline-offset: 2px; }
+#guide code {
+  font-family: var(--font-data);
+  font-size: 0.92em;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--ground);
+}
+#guide hr { border: 0; border-top: 1px solid var(--line); margin: 28px 0; }
+
+/* The "radio comes first" box on every role page. Orange on the edge, not the
+   text: it is the one thing on the page that must be read, and brand orange
+   fails contrast as text on white. */
+#guide blockquote {
+  margin: 0 0 18px;
+  padding: 12px 16px;
+  border-left: 5px solid var(--orange);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  background: #fff7f2;
+}
+#guide blockquote h2 { font-size: 18px; }
+#guide blockquote p:last-child { margin-bottom: 0; }
+
+#guide figure { margin: 18px 0 22px; }
+#guide figure img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+#guide figcaption { margin-top: 6px; font-size: 14px; color: var(--ink-soft); }
+
+/* Tables wider than a phone scroll on their own; the page does not. */
+#guide table {
+  display: block;
+  overflow-x: auto;
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0 0 18px;
+  font-size: 15px;
+}
+#guide th, #guide td {
+  text-align: left;
+  vertical-align: top;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--hairline);
+}
+#guide th { font-size: 13px; color: var(--ink-soft); font-weight: 600; white-space: nowrap; }
+
+@media (min-width: 900px) {
+  /* Room for a sidebar: the list of guides stands beside the text. */
+  #frame { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 20px; align-items: start; }
+  #pages { position: sticky; top: 63px; }
+  #pages ul { flex-direction: column; gap: 2px; margin: 0; }
+  #pages a {
+    display: block;
+    border: 0;
+    border-radius: var(--radius);
+    background: transparent;
+    padding: 8px 12px;
+  }
+  #pages a:hover, #pages a:focus-visible { background: var(--paper); }
+  #guide { padding: 28px 34px 36px; }
+}
+
+@media print {
+  #bar, #pages { display: none; }
+  body { background: #fff; }
+  #guide { border: 0; padding: 0; }
+}

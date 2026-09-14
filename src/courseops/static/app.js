@@ -123,10 +123,10 @@ function savePrefs() {
    Both field roles keep SWEEPS on, and for Logistics that is the whole point:
    the sweep is the back of the pack, so its position is what says a road
    segment is clear and the cones can come up. */
-/* Where the guides live. One page per role, published from docs/wiki/ in the
-   repository - so a club running its own copy points these at its own fork's
-   wiki, and nothing in the app has to change to correct a guide. */
-const HELP_BASE = 'https://github.com/MikeWills/CourseOps/wiki/';
+/* Where the guides live. One page per role, served by this same server from
+   guides/ in the package - so a club running its own copy shows its own
+   guides, at the version it is running, with no other site involved. */
+const HELP_BASE = '/help/';
 const HELP_PAGES = {
   ncs: 'net-control',
   sag: 'sag',
@@ -2459,7 +2459,7 @@ function applyState(data) {
        cost someone the map and leave them digging the link out of a text
        message to get back. */
     const help = document.getElementById('help-link');
-    help.href = HELP_BASE + (HELP_PAGES[data.role] || 'Home');
+    help.href = HELP_BASE + (HELP_PAGES[data.role] || '');
     help.title = `Help for ${data.role_label} (opens in a new tab)`;
     help.setAttribute('aria-label', help.title);
   }

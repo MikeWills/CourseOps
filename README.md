@@ -22,21 +22,23 @@ has been run against real traffic; it has not yet run a live event.
 
 ## Documentation
 
-**Start with the [wiki](https://github.com/MikeWills/CourseOps/wiki).** It is
-written for the people using the app rather than for developers, with
-screenshots throughout:
+**Start with the guides.** They are written for the people using the app
+rather than for developers, with screenshots throughout, and they ship
+**inside the app**: every running copy serves them at `/help/`, and the `?`
+on every screen opens the page for the link that person is holding. The same
+pages are readable here:
 
 | Page | For |
 |---|---|
-| [Setting up an event](https://github.com/MikeWills/CourseOps/wiki/setup) | The club officer standing the event up: the course, then [roster and links](https://github.com/MikeWills/CourseOps/wiki/setup-people), then [race week](https://github.com/MikeWills/CourseOps/wiki/setup-race-week) |
-| [Making it yours](https://github.com/MikeWills/CourseOps/wiki/setup-ideas) | The parts with no fixed list - layers, roles, races, links - and what clubs can do with them |
-| [The basics](https://github.com/MikeWills/CourseOps/wiki/everyone) | Everybody: the map, the status colours, the panels, the phone layout |
-| [Net Control](https://github.com/MikeWills/CourseOps/wiki/net-control) · [SAG](https://github.com/MikeWills/CourseOps/wiki/sag) · [Liaison](https://github.com/MikeWills/CourseOps/wiki/liaison) · [Logistics](https://github.com/MikeWills/CourseOps/wiki/logistics) · [Staff](https://github.com/MikeWills/CourseOps/wiki/staff) | One page per link, to send out with it |
+| [Setting up an event](src/courseops/guides/setup.md) | The club officer standing the event up: the course, then [roster and links](src/courseops/guides/setup-people.md), then [race week](src/courseops/guides/setup-race-week.md) |
+| [Making it yours](src/courseops/guides/setup-ideas.md) | The parts with no fixed list - layers, roles, races, links - and what clubs can do with them |
+| [The basics](src/courseops/guides/everyone.md) | Everybody: the map, the status colours, the panels, the phone layout |
+| [Net Control](src/courseops/guides/net-control.md) · [SAG](src/courseops/guides/sag.md) · [Liaison](src/courseops/guides/liaison.md) · [Logistics](src/courseops/guides/logistics.md) · [Staff](src/courseops/guides/staff.md) | One page per link, to send out with it |
 
-Those pages live in [`docs/wiki/`](docs/wiki/README.md) in this repository and
-are published to the wiki automatically whenever they change on `main`. **Edit
-them here, through a pull request** - an edit made in the wiki's own editor is
-overwritten by the next sync.
+They live in [`src/courseops/guides/`](src/courseops/guides/README.md) as
+Markdown, rendered by the app itself, so a club's volunteers read the guide for
+the version their club is running - and a change to a guide is a change to the
+app, reviewed the same way.
 
 The rest is in the repository, aimed at whoever is working on it:
 

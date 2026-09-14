@@ -7,7 +7,8 @@ the event. Built to be stood up by a radio club without much effort.
 Full plan, phase detail, and **known gaps / open threads**: `docs/PLAN.md`.
 Brand, palette and logo decisions: `docs/DESIGN.md`.
 Event-day operating procedure: `docs/RUNBOOK.md`.
-End-user guides, one per role, with screenshots: `docs/wiki/`.
+End-user guides, one per role, with screenshots: `src/courseops/guides/`,
+served by the app at `/help/`.
 Deployment behind Apache with TLS: `docs/DEPLOYMENT.md`.
 Brand, palette and logo decisions: `docs/DESIGN.md`.
 Complete history with the reasoning behind each fix: `CHANGELOG.md`.
@@ -56,7 +57,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 567 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 593 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -121,6 +122,8 @@ src/courseops/
   admin.py        setup API: events, import, roster, links
   users.py        admin accounts, scrypt passwords, sessions, roles
   static/setup.*  the setup application
+  guides.py       the volunteer guides: Markdown subset -> HTML, served at /help/
+  guides/         the guides themselves, one .md per page, screenshots in images/
   cli.py          courseops entry point
 tests/fixtures/packets.txt          packet corpus, `expectation|raw` per line
 tests/fixtures/messy_course.kml     synthetic KML with real organizer defects
@@ -128,8 +131,7 @@ tests/fixtures/consumer_export_course.kml  synthetic, but with a real export's
                                     defects: duplicate points, straight-line
                                     gaps, identically named placemarks.
                                     Regenerate with tools/make_course_fixture.py
-tools/build_wiki.py                 docs/wiki -> the GitHub Wiki, one way
-tools/seed_demo.py                  the demonstration event the wiki screenshots come from
+tools/seed_demo.py                  the demonstration event the guide screenshots come from
 docs/PLAN.md                        plan, decisions, known gaps
 docs/RUNBOOK.md                     event-day procedure for the club
 ```
@@ -855,6 +857,16 @@ usability, not style preferences.
   `--font-data` in `app.css` are the only places a face is named; anything
   that is a VALUE read off the screen (callsign, bib, age, mile) takes
   `--font-data`, the word beside it does not.
+- **The guides ship WITH the app and are rendered by OUR converter.** They
+  are Markdown in `src/courseops/guides/` (inside the package, or the wheel
+  and the .exe lose them), served at `/help/<page>`, and `guides.render`
+  handles exactly the constructs the pages use - anything else is left as
+  visible text, never dropped. Do not add a Markdown dependency for them, and
+  do not link them anywhere but `/help/`: a guide on another site is a guide
+  for some other version. A link inside a page is `name.md` so GitHub can
+  follow it; the renderer turns it into `/help/name`. `tests/test_guides.py`
+  resolves every link and image, which is what caught three pages pointing
+  at the wiki-only `Home`.
 - **CLI output stays ASCII.** Em dashes become mojibake in the Windows console,
   and a club laptop is the target environment.
 
@@ -890,8 +902,8 @@ person) avoids re-deriving what was already settled.
 | `CLAUDE.md` | every change | The "Recent changes" list — one line per entry, trimmed to exactly 10. Plus a new "Domain rules" bullet if the change revealed a trap. Plus the test count and status line if those moved. |
 | `docs/PLAN.md` | a *decision* changes | Phase detail, resolved questions, known gaps. If the user settles a question in conversation, it lands here — conversation is not storage. |
 | `docs/RUNBOOK.md` | operator-visible behavior changes | New command, new failure mode, new thing a volunteer must do on event day. |
-| `docs/wiki/*.md` | **anything a volunteer or club officer SEES changes** | The role guides and the setup guide. A button that moved, a control that appeared, a word that changed on screen. These are what non-developers read, and they publish to the GitHub Wiki on merge. |
-| `docs/wiki/images/` | a screenshot now shows something that is no longer true | Re-shoot it. This is the one that rots silently: the course-note fix invalidated six screenshots at once, and a stale screenshot is more convincing than stale text because it looks like proof. |
+| `src/courseops/guides/*.md` | **anything a volunteer or club officer SEES changes** | The role guides and the setup guide. A button that moved, a control that appeared, a word that changed on screen. These are what non-developers read, served inside the app at `/help/`, so they deploy with the change they describe. |
+| `src/courseops/guides/images/` | a screenshot now shows something that is no longer true | Re-shoot it. This is the one that rots silently: the course-note fix invalidated six screenshots at once, and a stale screenshot is more convincing than stale text because it looks like proof. |
 | `README.md` | user-facing behavior changes | Setup, commands, what the thing does. |
 | GitHub issues | work deferred, not done | Anything discovered but out of scope now. Reference the issue number in `docs/PLAN.md` known gaps. |
 
@@ -911,9 +923,9 @@ Rules that keep this honest:
 - **Keep CLI output and docs in step.** If a command's flags change, the README
   and runbook examples change in the same commit.
 - **A functionality change is not finished until the guides match it.** If a
-  volunteer would see it, `docs/wiki/` changes in the SAME pull request - not
-  the next one, because the wiki publishes on merge and the gap between them is
-  a guide that lies. Ask of every change: does a screenshot in there still show
+  volunteer would see it, `src/courseops/guides/` changes in the SAME pull
+  request - not the next one, because the guides deploy with the app and the
+  gap between them is a guide that lies. Ask of every change: does a screenshot in there still show
   the truth?
 
 ## Conventions
@@ -933,6 +945,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-13** The guides moved into the app: `/help/`, rendered from `src/courseops/guides/`; the GitHub Wiki is retired.
 - **2026-09-13** Nightly backups (`deploy/backup.sh`), a forced-command validator for the Actions key, `DEPLOY_PATH` required.
 - **2026-09-12** The setup bar shows the reversed lockup.
 - **2026-09-12** Versions are dates: `2026.9.0` replaces `0.10.x`.
@@ -942,4 +955,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-12** Fixed: tapping a posted, non-beaconing station's row goes to the place they are posted at.
 - **2026-09-12** Fixed: on a phone, tapping a row flew the map under the open panel; the panel closes first now.
 - **2026-09-12** Fixed: `Referrer-Policy: same-origin` in Apache blanked the Referer to OSM and every tile came back "Access blocked".
-- **2026-09-12** Setup works on a phone: tabs in a sliding row, tables as labelled cards; the Places map fits its pins.

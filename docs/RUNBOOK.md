@@ -413,11 +413,12 @@ Revoking one link (the red x beside it) leaves every other link for that role
 working. *Replace all* revokes every link for the role at once, which is what
 to reach for when the role itself is compromised rather than one phone.
 
-Send each volunteer the guide for their role along with the link. They are in
-[`docs/wiki/`](wiki/README.md), one page per role, with screenshots:
-[Net Control](wiki/net-control.md), [SAG](wiki/sag.md),
-[Liaison](wiki/liaison.md), [Logistics](wiki/logistics.md),
-[Staff](wiki/staff.md), and [the basics](wiki/everyone.md) for everyone.
+Send each volunteer the guide for their role along with the link. The
+server serves them at `/help/` - `https://<your host>/help/net-control`,
+`/help/sag`, `/help/liaison`, `/help/logistics`, `/help/staff`, and
+`/help/everyone` for the basics everyone should read - and the `?` in the top
+bar of every screen opens the right one. The source is
+[`src/courseops/guides/`](../src/courseops/guides/README.md).
 
 Tell recipients:
 

@@ -130,4 +130,4 @@ issue fresh links. Last year's event stays exactly as it was, report and all.
 
 ---
 
-Back to [the walkthrough](setup.md), or the [volunteer guides](Home).
+Back to [the walkthrough](setup.md), or the [volunteer guides](README.md).

@@ -1,4 +1,4 @@
-"""Seed a demonstration event for the wiki screenshots.
+"""Seed a demonstration event for the guide screenshots.
 
 Invented callsigns, operators and bibs on generated loops around Mankato;
 no organizer file and no captured traffic, which is what keeps the

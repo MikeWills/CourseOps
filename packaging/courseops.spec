@@ -28,6 +28,7 @@ PACKAGE = ROOT / "src" / "courseops"
 
 datas = [
     (str(PACKAGE / "static"), "courseops/static"),
+    (str(PACKAGE / "guides"), "courseops/guides"),
     (str(PACKAGE / "schema.sql"), "courseops"),
 ]
 

@@ -70,7 +70,7 @@ random strings and two of them side by side are indistinguishable.
 | **Logistics** | Traffic control, cones, teardown. Report only, and they watch the sweep |
 | **Staff** | The organizer and race staff. Read-only, and the one that is safe to forward |
 
-**Send each volunteer [their guide](Home) along with their link.** They are one
+**Send each volunteer [their guide](README.md) along with their link.** They are one
 page each, written for the phone they will be holding.
 
 > **The links are the login.** Anyone holding one has that role, so they are

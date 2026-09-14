@@ -1,7 +1,7 @@
 # Setting up an event: the course
 
 For the club officer who stands the event up, not the volunteer holding a link.
-The volunteers' pages are [here](Home).
+The volunteers' pages are [here](README.md).
 
 **Everything here happens in a browser at `/setup`** - opening the bare
 address of the server lands there too. Two things stay in a

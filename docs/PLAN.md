@@ -598,19 +598,33 @@ devices; lead runner sightings; a phone through a dead zone; the after-event
 report with real notes; GPX from a real MapMyRun export. The club may have
 tried some of these without saying so - ask before assuming untested.
 
-## End-user documentation (decided 2026-09-09/10)
+## End-user documentation (decided 2026-09-09/10, moved in-app 2026-09-13)
 
-The guides volunteers read live in `docs/wiki/` and are **published to the
-GitHub Wiki automatically** when they reach `main` (`tools/build_wiki.py` plus
-`.github/workflows/wiki.yml`).
+The guides volunteers read live in `src/courseops/guides/` and are **served by
+the app itself at `/help/<page>`** (`guides.py`). From 2026-09-10 to
+2026-09-13 they were published to the GitHub Wiki by a workflow; that put the
+one thing a volunteer reads on race morning on another site, in another look,
+and a club running its own copy was either sending people to our wiki or
+maintaining a fork of it. Now every running copy carries the guides for the
+version it is running.
 
-- **One way, always.** The wiki checkout is emptied and rewritten every run, so
-  anything typed into the wiki's own editor is overwritten. The repository is
-  the source and every change to a guide goes through a pull request - the wiki
-  has no review of its own. `_Footer.md` says this on every page, because a
-  reader who has just lost an edit deserves to have been warned first.
-- Wiki editing is restricted to collaborators; a public repo's wiki is
-  otherwise editable by any GitHub account.
+- **Still Markdown, still reviewed.** The pages are files in the package, so
+  GitHub renders them in the repository, they diff in a pull request, and a
+  screenshot is a file beside them. A change to a guide is a change to the
+  app and deploys with it.
+- **Rendered by our own converter, not a dependency.** The pages use a dozen
+  constructs; `guides.render` handles exactly those and leaves anything else
+  as visible text rather than dropping it. A Markdown library would be a
+  fifth runtime dependency for the sake of nothing on these pages.
+  `tests/test_guides.py` renders every shipped page and resolves every link
+  and image in it.
+- **Unauthenticated.** The guides are public in the repository already, name
+  no event and carry no token; the `?` has to open without asking anyone for
+  anything. A page name is a bare slug or a 404.
+- **The GitHub Wiki is retired.** `tools/build_wiki.py` and
+  `.github/workflows/wiki.yml` are gone. The wiki itself should be switched
+  off in the repository settings so a stale copy does not outlive the source
+  (a manual step; it is not in this repository).
 - **Eleven pages:** one per role, a shared "basics", and the setup guide split
   into four (course / roster and links / race week / making it yours). The
   split was by *when it is read*, not by length - "making it yours" is read
@@ -622,8 +636,8 @@ GitHub Wiki automatically** when they reach `main` (`tools/build_wiki.py` plus
   builds it (checked in 2026-09-12, after the design pass re-shot all 32
   images), so a re-shoot is a script run rather than an afternoon.
 - **In-app help:** a `?` in the top bar of every screen opens the guide for
-  the link that person is holding, in a new tab. The setup screens carry the
-  same ring, following the tab.
+  the link that person is holding, at `/help/<role>` on the same server, in a
+  new tab. The setup screens carry the same ring, following the tab.
 
 ## Several people on one role (decided 2026-09-09, confirmed as a requirement)
 
