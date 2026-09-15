@@ -215,6 +215,13 @@ def test_the_snapshot_is_built_off_the_event_loop(setup, monkeypatch):
     async def scenario():
         transport = httpx.ASGITransport(app=app)
         async with httpx.AsyncClient(transport=transport, base_url="http://t") as client:
+            # Warm the app first. FastAPI builds each route's dependency
+            # tree on its FIRST match, on the loop - 0.6 s for this route
+            # table on a Windows laptop - and that one-time cost was being
+            # read as the snapshot blocking the loop. It is not what this
+            # test is about.
+            await client.get(f"/api/m2026/{tokens['ncs']}/state")
+            await client.get("/healthz")
             started = time.perf_counter()
             snapshot = asyncio.create_task(
                 client.get(f"/api/m2026/{tokens['ncs']}/state"))

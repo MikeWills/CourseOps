@@ -11,10 +11,12 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+## [2026.9.5] - 2026-09-14
+
 Everything below comes from the 2026-09-14 audit (`docs/audit/`): eight
 reviews - security, code quality, and six traceability passes, one per
-layer - fixed in eight workstream pull requests (#143-#149, and the
-`web.py` split that had to wait for the other seven).
+layer - fixed in ten pull requests (#143-#152, the `web.py` split waiting
+for the other seven) and a follow-up round (#154).
 
 ### Added
 - **The first account needs the setup code from the console.** Until one
@@ -229,6 +231,11 @@ layer - fixed in eight workstream pull requests (#143-#149, and the
   A5.)
 
 ### Fixed
+- **The off-the-loop snapshot test was flaky on Windows.** FastAPI builds a
+  route's dependency tree on its first match, on the loop - 0.6 s for this
+  route table on a laptop - and the test read that one-time warm-up as the
+  snapshot blocking the loop. It warms the app before timing now; CI never
+  saw it because the Linux runner finishes the warm-up inside the budget.
 - **`tests/test_deploy_script.py` passes on a Windows machine again.**
   The tests that run `ssh-deploy-command.sh` and `backup.sh` called
   `bash` off PATH, which from PowerShell on Windows is the WSL launcher
