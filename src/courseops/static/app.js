@@ -68,6 +68,7 @@ const state = {
   incidents: new Map(),       // id -> incident
   incidentMarkers: new Map(), // id -> L.Marker
   eventNotes: new Map(),      // id -> event note; text and a time, no place
+  editingEventNote: null,     // id of the one note open for editing, if any
   incidentStatuses: [
     {value: 'reported', label: 'Reported'},
     {value: 'en_route', label: 'En route'},
@@ -2069,20 +2070,33 @@ async function deleteIncident(incident) {
   }
 }
 
-/* A small x, matching the setup screens. Icon-only, so it carries both a title
-   and an aria-label, and the label names the row rather than only the verb. */
-function deleteButton(label, onClick) {
+/* The same paths the setup screens draw; inline SVG so they take
+   currentColor (a glyph would arrive as a full-colour emoji pencil). */
+const ROW_ICONS = {
+  edit:   'M11.6 2.6a1.6 1.6 0 0 1 2.3 2.3l-7.4 7.4-3 .7.7-3z',
+  save:   'M3 8.4l3.6 3.6L13.4 5',
+  cancel: 'M4.2 4.2l7.6 7.6M11.8 4.2l-7.6 7.6',
+};
+
+/* A small icon button, matching the setup screens. Icon-only, so it carries
+   both a title and an aria-label, and the label names the row rather than
+   only the verb: "Delete Aid 3", never "Delete". */
+function iconButton(icon, label, onClick) {
   const button = document.createElement('button');
   button.type = 'button';
   button.className = 'incident-delete';
-  button.title = `Delete ${label}`;
-  button.setAttribute('aria-label', `Delete ${label}`);
+  button.title = label;
+  button.setAttribute('aria-label', label);
   button.innerHTML =
     '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" '
     + 'fill="none" stroke="currentColor" stroke-width="1.6" '
-    + 'stroke-linecap="round"><path d="M4.2 4.2l7.6 7.6M11.8 4.2l-7.6 7.6"/></svg>';
+    + `stroke-linecap="round" stroke-linejoin="round"><path d="${ROW_ICONS[icon]}"/></svg>`;
   button.addEventListener('click', onClick);
   return button;
+}
+
+function deleteButton(label, onClick) {
+  return iconButton('cancel', `Delete ${label}`, onClick);
 }
 
 function renderIncidents() {
@@ -2359,37 +2373,57 @@ function renderEventNotes() {
     when.textContent = clockTime(note.created_at);
     row.appendChild(when);
 
-    if (can('event_note')) {
-      // Edited in place, like a course note, so a typo is fixed where it
-      // was made rather than deleted and retyped. Commits on change.
+    /* Plain text until the pencil is pressed. A live box, as the course
+       notes have, was too easy to type into by accident on a phone - a
+       thumb landing on the row while scrolling was an edit - and there is
+       no urgency here that would justify a one-tap correction. Save and
+       Cancel are explicit; Escape cancels, Enter saves. */
+    const label = `the note from ${clockTime(note.created_at)}`;
+    if (can('event_note') && state.editingEventNote === note.id) {
       const field = document.createElement('input');
       field.type = 'text';
       field.className = 'incident-note';
       field.maxLength = 500;
       field.value = note.text || '';
-      field.setAttribute('aria-label', `Event note from ${clockTime(note.created_at)}`);
+      field.setAttribute('aria-label', `Edit ${label}`);
       field.dataset.editKey = `event-note:${note.id}`;
-      field.addEventListener('change', () => {
+      const save = () => {
         const value = field.value.trim();
-        if (!value || value === note.text) { field.value = note.text; return; }
+        state.editingEventNote = null;
+        if (!value || value === note.text) { renderEventNotes(); return; }
         editEventNote(note, value);
-      });
+      };
+      const cancel = () => { state.editingEventNote = null; renderEventNotes(); };
       field.addEventListener('keydown', (ev) => {
-        if (ev.key === 'Enter') field.blur();
+        if (ev.key === 'Enter') { ev.preventDefault(); save(); }
+        if (ev.key === 'Escape') cancel();
       });
       const fields = document.createElement('div');
       fields.className = 'incident-fields event-note-fields';
       fields.appendChild(field);
+      fields.appendChild(iconButton('save', `Save ${label}`, save));
+      fields.appendChild(iconButton('cancel', `Cancel editing ${label}`, cancel));
+      row.appendChild(fields);
+      host.appendChild(row);
+      if (!editing) field.focus();
+      return;
+    }
+    const text = document.createElement('p');
+    text.className = 'event-note-text';
+    text.textContent = note.text || '';
+    row.appendChild(text);
+    if (can('event_note')) {
+      const actions = document.createElement('div');
+      actions.className = 'event-note-actions';
+      actions.appendChild(iconButton('edit', `Edit ${label}`, () => {
+        state.editingEventNote = note.id;
+        renderEventNotes();
+      }));
       if (can('incidents')) {
-        fields.appendChild(deleteButton(
+        actions.appendChild(deleteButton(
           `the note "${note.text}"`, () => deleteEventNote(note)));
       }
-      row.appendChild(fields);
-    } else {
-      const text = document.createElement('p');
-      text.className = 'event-note-text';
-      text.textContent = note.text || '';
-      row.appendChild(text);
+      row.appendChild(actions);
     }
     host.appendChild(row);
   });

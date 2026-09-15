@@ -723,21 +723,26 @@ body {
 /* Removing an incident is rare and destructive, so the control is quiet: no
    fill, and red only on hover, where it has to be unmistakable. Sitting inside
    a row it must not compete with the amber and red that mean status. */
+/* Bare, like the setup tables' .icon-btn: the frame made a row of small
+   icons read as a row of buttons and took the eye off the text. The 34px
+   box is still the tap target; hover and focus tint it so there is
+   something to aim at. */
 .incident-delete {
   display: grid;
   place-items: center;
   width: 34px;
   min-height: 34px;
   flex: none;
-  border: 1px solid var(--line);
+  padding: 0;
+  border: 0;
   border-radius: var(--radius);
-  background: var(--paper);
+  background: none;
   color: var(--ink-soft);
   cursor: pointer;
 }
 .incident-delete:hover,
 .incident-delete:focus-visible {
-  border-color: var(--silent);
+  background: #eef2f7;
   color: var(--silent);
 }
 
@@ -977,9 +982,13 @@ body {
   color: var(--ink);
   cursor: pointer;
 }
-.event-note-when { display: block; padding: 0 2px; font-size: 13px; color: var(--ink-soft); }
-.event-note-fields { padding-left: 2px; }
-.event-note-text { margin: 2px 2px 0; font-size: 14px; }
+/* Time on the left, pencil and x on the right of the same line, the text
+   on its own line below - so a long note wraps under nothing. */
+.event-note { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; }
+.event-note-when { flex: 1; padding: 0 2px; font-size: 13px; color: var(--ink-soft); }
+.event-note-actions { display: flex; gap: 6px; }
+.event-note-fields { width: 100%; padding-left: 2px; }
+.event-note-text { width: 100%; margin: 0 2px; font-size: 14px; order: 3; }
 
 /* --- lead runners -------------------------------------------------------- */
 
