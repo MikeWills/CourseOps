@@ -11,6 +11,8 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+## [2026.9.6] - 2026-09-15
+
 ### Changed
 
 - **Setup has two levels: the installation, and one event.** One tab bar
