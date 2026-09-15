@@ -217,6 +217,15 @@ layer - fixed in eight workstream pull requests (#143-#149, and the
   A5.)
 
 ### Fixed
+- **Adding an administrator, or resetting one's password, still hashed
+  on the event loop.** The audit moved sign-in, the first account and
+  "change my password" into a worker thread (C1) and left the manager's
+  two routes behind - the same scrypt, a third of a second during which
+  no snapshot, socket frame or incident post moved for anyone. Behind the
+  login, so not the open door sign-in was, but a manager adding a helper
+  on race morning was stalling every phone for it. Both run in a thread
+  now, on a connection opened there, exactly as sign-in does; the tests
+  are the same shape as C1's. (Audit follow-up.)
 - **Renaming a bib colour on its own put the bibs back to the line
   colour.** `set_bib_color` always wrote both columns, and a payload that
   named only `bib_color_name` fell through to "no colour given, default to

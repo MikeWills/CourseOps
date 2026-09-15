@@ -1009,23 +1009,35 @@ async def setup_create_user(
                 status_code=403,
                 detail="Only a system administrator can create one.",
             )
-    created = _guard(_create_user, conn, body, role, organization_id)
+    created = await asyncio.to_thread(
+        _guard, _create_user, request, body, role, organization_id)
     return JSONResponse(created.as_dict(), status_code=201)
 
 
-def _create_user(conn, body: dict, role, organization_id) -> users.User:
-    # Everything checked before the INSERT: the connection is autocommit,
-    # so validating event_ids after create_user left a half-made account
-    # behind the error.
-    org = _int(organization_id, "organization") if organization_id else None
-    event_ids = _event_ids(conn, body.get("event_ids", []), org)
-    with db.transaction(conn):
-        created = users.create_user(
-            conn, body.get("username", ""), body.get("password", ""), role,
-            body.get("display_name"), org,
-        )
-        users.set_events(conn, created.id, event_ids)
-    return created
+def _create_user(request: Request, body: dict, role, organization_id
+                 ) -> users.User:
+    # Runs in a worker thread, like login: the hash is a third of a second
+    # during which nothing else on the loop moves, and a manager adding an
+    # account on race morning was freezing every phone for that long. Its
+    # own connection, opened here, because a sqlite connection refuses any
+    # thread but the one that opened it.
+    conn = deps.connect(request)
+    try:
+        # Everything checked before the INSERT: the connection is
+        # autocommit, so validating event_ids after create_user left a
+        # half-made account behind the error.
+        org = (_int(organization_id, "organization")
+               if organization_id else None)
+        event_ids = _event_ids(conn, body.get("event_ids", []), org)
+        with db.transaction(conn):
+            created = users.create_user(
+                conn, body.get("username", ""), body.get("password", ""),
+                role, body.get("display_name"), org,
+            )
+            users.set_events(conn, created.id, event_ids)
+        return created
+    finally:
+        conn.close()
 
 
 def _event_ids(conn, values, organization_id) -> list[int]:
@@ -1057,7 +1069,14 @@ async def setup_update_user(
     if not users.may_manage_user(conn, actor, target):
         raise HTTPException(status_code=403, detail="Not your administrator.")
     if "password" in body:
-        _guard(users.set_password, conn, user_id, body["password"])
+        def reset() -> None:
+            # Off the loop, on its own connection - see _create_user.
+            own = deps.connect(request)
+            try:
+                _guard(users.set_password, own, user_id, body["password"])
+            finally:
+                own.close()
+        await asyncio.to_thread(reset)
     if "is_active" in body:
         active = bool(body["is_active"])
         # Refuse to deactivate the last system admin: it would lock

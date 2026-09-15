@@ -1804,6 +1804,57 @@ def test_login_does_not_block_the_event_loop(setup):
     asyncio.run(race())
 
 
+def _answered_while_hashing(app, slow, expected_status):
+    """Start `slow` (a request that hashes a password), then check that a
+    trivial request on the same loop is answered before it finishes."""
+    import asyncio
+    import httpx
+
+    async def race():
+        transport = httpx.ASGITransport(app=app)
+        async with app.router.lifespan_context(app):
+            async with httpx.AsyncClient(transport=transport,
+                                         base_url="http://t") as client:
+                await client.post(
+                    "/api/setup/login",
+                    json={"username": "mike",
+                          "password": "a-long-enough-password"})
+                task = asyncio.create_task(slow(client))
+                await asyncio.sleep(0.02)
+                ping = await asyncio.wait_for(client.get("/healthz"), 0.2)
+                assert ping.status_code == 200
+                assert not task.done()
+                assert (await task).status_code == expected_status
+
+    asyncio.run(race())
+
+
+def test_creating_an_administrator_does_not_block_the_event_loop(setup):
+    """Same hash, same loop, behind the login this time: a manager adding
+    an account on race morning stalled every phone for as long as scrypt
+    took, and login had been moved off the loop while this had not."""
+    app, _, db_path, _ = setup
+    _make_admin(db_path)
+
+    def create(client):
+        return client.post("/api/setup/users", json={
+            "username": "new", "password": "another-long-password",
+            "role": "system_admin", "display_name": "New"})
+
+    _answered_while_hashing(app, create, 201)
+
+
+def test_resetting_a_password_does_not_block_the_event_loop(setup):
+    app, _, db_path, _ = setup
+    user = _make_admin(db_path)
+
+    def reset(client):
+        return client.post(f"/api/setup/users/{user.id}",
+                           json={"password": "another-long-password"})
+
+    _answered_while_hashing(app, reset, 200)
+
+
 # --- request body caps ------------------------------------------------------
 #
 # Nothing limited a request body. The login route needs no credential, so a
