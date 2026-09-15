@@ -57,7 +57,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 736 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 738 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -719,10 +719,16 @@ usability, not style preferences.
   symptom is not an error but an interface that contradicts itself: a sign-in
   form showing while the header says you are signed in. The rule lives in
   `app.css`; never remove it, and never hide by setting `style.display`.
-- **An event-scoped tab must hide its form, not just warn over it.** A banner
-  above a live form still lets someone fill it in and post to
-  `/events/null/...`. `gateOnEvent()` hides the panel body, and restores only
-  what it hid - elements hidden for their own reasons must stay hidden.
+- **Setup is two levels, and an event tab cannot be reached without an
+  event.** `#tabs` holds the installation's three tabs; `#event-tabs` the
+  nine that belong to one event, shown only inside it (`showLevel()`), with
+  the event's name as the heading. This replaced `gateOnEvent()`, which hid
+  a panel's form when no event was picked - a form left live would post to
+  `/events/null/...`. `activateTab` still falls back to the Events list for
+  an event tab with no event, and `needEvent()` guards every write, because
+  the one way to be inside with no event is that it was just deleted. The
+  hash names the event by SLUG (`#events/<slug>/<tab>`), never id: it is
+  what the field links use and it never changes.
 - **A roster entry can be matched to ANY heard station, by binding.** The
   person with the radio is often not the person whose callsign is on the
   roster. `change_station_key` binds across callsigns via `bound_key` and
@@ -1115,6 +1121,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-15** Setup is two levels: Configure on the Events list opens an event (name as heading, ‹ All events back, hash-addressed); the twelve-tab bar and "Pick an event first" are gone.
 - **2026-09-15** Fixed: deleting the last leader (or layer, or role) brought the defaults back; `event.defaults_seeded` makes seeding once-per-event, and the field app hides Lead runners when an event tracks none.
 - **2026-09-14** Audit (`docs/audit/`): eight reviews, nine PRs (#143-#151). Highlights below; the rest is in `CHANGELOG.md`.
 - **2026-09-14** `web.py` split: routers in `setup_api.py`/`field_api.py`/`pages.py`, auth as `Depends` in `deps.py`, snapshot and feed lifecycle in their own modules; `/openapi.json` off.
@@ -1124,4 +1131,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-14** Sign-in hashes off the event loop with a per-username/IP limiter; the first account needs the setup code printed at startup.
 - **2026-09-14** The feed no longer writes the public's packets to disk (`raw_packet` retired); Ignore takes effect on the next packet.
 - **2026-09-14** Snapshot off the loop, `locate` memoised, no writes on read: `/state` 178 -> 89 ms, 12 concurrent snapshots 2.2 -> 0.97 s.
-- **2026-09-14** Fixed in the field app: status changes on matched stations reach every screen; reconnect survives a dead zone; dropped-off pins visible; layer switches follow a resync.

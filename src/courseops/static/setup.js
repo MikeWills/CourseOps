@@ -229,9 +229,8 @@ const HELP_FOR_TAB = {
   tracking: 'setup-race-week',
 };
 
-// On a phone the tab bar scrolls sideways, and a tab activated by a
-// [data-goto] button may be off the edge. Bring it in; on a wide screen
-// this is a no-op.
+// On a phone the tab bar scrolls sideways, and the tab a hash restores may
+// be off the edge. Bring it in; on a wide screen this is a no-op.
 function revealTab(tab) {
   if (tab && tab.scrollIntoView) {
     tab.scrollIntoView({ block: 'nearest', inline: 'center' });
@@ -264,7 +263,29 @@ new MutationObserver((records) => {
   }));
 }).observe(document.body, { childList: true, subtree: true });
 
-function activateTab(name) {
+/* Two levels, never both on screen.
+
+   Outside an event: Organizations, Events, Users - the installation. Inside
+   one, entered by Configure on the Events list: the event's name as the
+   heading, "All events" as the way back, and the nine tabs that belong to
+   it. The old single tab bar showed all twelve at once, and a tab that
+   needed an event opened on "Pick an event first" - so which event the
+   screen was working on, or whether it was working on one at all, was a
+   line of small text above the panel that scrolled away. Here the level IS
+   the layout: a tab that needs an event cannot be reached without one.
+
+   The hash carries the place: #events, #users, or #events/<slug>/<tab>. A
+   reload and a bookmark land back inside the same event on the same tab;
+   nothing is stored anywhere else. The slug is what the field links use
+   and it never changes. Entering or leaving an event is a history entry,
+   so the browser's Back is "out of this event"; switching tabs within a
+   level replaces the entry, so Back does not walk nine tabs first. */
+const EVENT_TABS = new Set(
+  [...document.querySelectorAll('#event-tabs .tab')].map((t) => t.dataset.tab));
+
+function activateTab(name, push = false) {
+  const inEvent = EVENT_TABS.has(name);
+  if (inEvent && !S.eventId) name = 'events';
   document.querySelectorAll('.tab').forEach((t) => {
     const on = t.dataset.tab === name;
     t.classList.toggle('is-on', on);
@@ -273,46 +294,69 @@ function activateTab(name) {
   document.querySelectorAll('.panel').forEach((p) => {
     p.hidden = p.dataset.panel !== name;
   });
+  showLevel(inEvent && !!S.eventId);
   $('help-link').href = HELP_BASE + (HELP_FOR_TAB[name] || 'setup');
+  const event = S.events.find((e) => e.id === S.eventId);
+  const hash = inEvent && event ? `#events/${event.slug}/${name}` : `#${name}`;
+  if (location.hash !== hash) {
+    if (push) history.pushState(null, '', hash);
+    else history.replaceState(null, '', hash);
+  }
   refreshTab(name);
 }
+
+function showLevel(inEvent) {
+  document.body.classList.toggle('in-event', inEvent);
+  $('tabs').hidden = inEvent;
+  $('event-head').hidden = !inEvent;
+  $('event-tabs').hidden = !inEvent;
+}
+
+/* Open an event: the Configure button, or a hash on load. The tab is the
+   one asked for, else Import - the first thing a fresh event needs. */
+function enterEvent(id, tab) {
+  selectEvent(id);
+  activateTab(EVENT_TABS.has(tab) ? tab : 'course', true);
+}
+
+function leaveEvent() {
+  selectEvent(null);
+  activateTab('events', true);
+}
+
+/* Where the hash says to be. Called on load and whenever the hash changes
+   under us - the back button, or a link typed in. An unknown slug lands on
+   the Events list with the reason, rather than on a blank event. */
+function goToHash() {
+  const parts = location.hash.replace(/^#/, '').split('/');
+  if (parts[0] === 'events' && parts[1]) {
+    const event = S.events.find((e) => e.slug === parts[1]);
+    if (event) { enterEvent(event.id, parts[2]); return; }
+    banner(`No event called "${parts[1]}" here.`, true);
+    leaveEvent();
+    return;
+  }
+  if (S.eventId) selectEvent(null);
+  activateTab(['orgs', 'events', 'users'].includes(parts[0]) ? parts[0] : 'events');
+}
+window.addEventListener('hashchange', () => { if (S.user) goToHash(); });
 
 document.querySelectorAll('.tab').forEach((tab) => {
   tab.addEventListener('click', () => activateTab(tab.dataset.tab));
 });
-document.querySelectorAll('[data-goto]').forEach((b) => {
-  b.addEventListener('click', () => activateTab(b.dataset.goto));
+$('event-back').addEventListener('click', (ev) => {
+  ev.preventDefault();
+  leaveEvent();
 });
 
+/* Every write inside an event still checks, because the one way to be here
+   without one is a deleted event - and the form would post to
+   /events/null/... and fail with something unhelpful. */
 function needEvent() {
   if (S.eventId) return true;
-  banner('Pick an event first.', true);
+  banner('Open an event first: Configure, on the Events list.', true);
+  leaveEvent();
   return false;
-}
-
-/* An event-scoped tab is meaningless without an event, and its form would post
-   to /events/null/... and fail with something unhelpful. Hide the panel's
-   contents and say what to do instead.
-
-   Only what this gate hid is put back: elements already hidden for their own
-   reasons - a Cancel button, an error line, the review section - must stay
-   that way, or picking an event would reveal half-built UI. */
-function gateOnEvent(name) {
-  const panel = document.querySelector(`.panel[data-panel="${name}"]`);
-  if (!panel || !panel.hasAttribute('data-needs-event')) return true;
-  const ok = !!S.eventId;
-  panel.querySelectorAll(':scope > *').forEach((el) => {
-    if (el.classList.contains('needs-event')) {
-      el.hidden = ok;
-    } else if (!ok && !el.hidden) {
-      el.dataset.gated = '1';
-      el.hidden = true;
-    } else if (ok && el.dataset.gated) {
-      delete el.dataset.gated;
-      el.hidden = false;
-    }
-  });
-  return ok;
 }
 
 async function refreshTab(name) {
@@ -320,7 +364,7 @@ async function refreshTab(name) {
     if (name === 'orgs') return loadOrgs();
     if (name === 'events') return loadEvents();
     if (name === 'users') return loadUsers();
-    if (!gateOnEvent(name)) return;
+    if (!S.eventId) return;
     if (name === 'course') return loadStaged();
     // One loader for both: the places table needs the courses for its Races
     // column, and the courses table is small. Rendering into a panel that is
@@ -364,6 +408,17 @@ const ICONS = {
   // A box with an arrow leaving it: "opens somewhere else".
   open: ['<path d="M7 3.4H4.2a1.6 1.6 0 0 0-1.6 1.6v6.8a1.6 1.6 0 0 0 1.6 1.6H11'
        + 'a1.6 1.6 0 0 0 1.6-1.6V9M9.4 2.6h4v4M13.4 2.6L7.6 8.4"/>', 'Open'],
+  // Three sliders: "settings", the way every phone draws it. The Events
+  // list's way into an event - the row's actions are all glyphs so the
+  // four read as one set rather than a button, a link and two icons.
+  configure: ['<path d="M2.4 4.2h11.2M2.4 8h11.2M2.4 11.8h11.2"/>'
+            + '<circle cx="10.4" cy="4.2" r="1.7" fill="currentColor" stroke="none"/>'
+            + '<circle cx="5.6" cy="8" r="1.7" fill="currentColor" stroke="none"/>'
+            + '<circle cx="9" cy="11.8" r="1.7" fill="currentColor" stroke="none"/>',
+            'Configure'],
+  // A page with lines on it: the after-event report.
+  report: ['<path d="M4.2 2.6h5.2l3 3v7.8H4.2z M9.4 2.6v3h3"/>'
+         + '<path d="M6.2 8.4h3.6M6.2 10.8h3.6"/>', 'After-event report'],
 };
 
 /* The documented what3words URL: the three words after the host. The form
@@ -605,7 +660,7 @@ async function loadEvents() {
   }
   host.innerHTML = '<table class="grid"><thead><tr><th>Event</th><th>Date</th>'
     + '<th>Courses</th><th>Places</th><th>Roster</th><th></th></tr></thead><tbody>'
-    + S.events.map((e) => `<tr${e.id === S.eventId ? ' style="background:#eaf2fb"' : ''}>
+    + S.events.map((e) => `<tr>
         <td><strong>${esc(e.name)}</strong><br><span class="muted">${esc(e.slug)}</span></td>
         <td>${esc(e.event_date || '')}<br>
           <span class="muted">${esc(e.timezone || '')}</span></td>
@@ -613,21 +668,17 @@ async function loadEvents() {
         <td>${e.counts.pois}</td>
         <td>${e.counts.roster}</td>
         <td class="actions">
-          <button type="button" data-pick="${e.id}" aria-pressed="${e.id === S.eventId}"
-            title="${e.id === S.eventId
-              ? 'The other tabs are working on this event'
-              : 'Point the other tabs at this event'}"
-            >${e.id === S.eventId ? 'Working on this' : 'Work on this'}</button>
-          <a class="report-link" href="/setup/events/${e.id}/report" target="_blank"
-             rel="noopener" title="Pickups, notes and maps to hand the race lead afterwards"
-             >After-event report</a>
+          ${iconBtn('configure', {'data-pick': e.id},
+                    `Configure ${e.name}: course, places, roster, links`)}
+          ${iconLink('report', {href: `/setup/events/${e.id}/report`},
+                     `After-event report for ${e.name}`)}
           ${iconBtn('edit', {'data-edite': e.id}, `Edit ${e.name}`)}
           ${S.user.may_create_events
             ? iconBtn('remove', {'data-del': e.id}, `Delete ${e.name}`) : ''}
         </td></tr>`).join('') + '</tbody></table>';
 
   host.querySelectorAll('[data-pick]').forEach((b) => b.addEventListener('click', () => {
-    selectEvent(Number(b.dataset.pick));
+    enterEvent(Number(b.dataset.pick));
   }));
   showEventContext();
 
@@ -644,25 +695,22 @@ async function loadEvents() {
       + `history. It cannot be undone.`)) return;
     try {
       await post(`/api/setup/events/${event.id}/delete`);
-      if (S.eventId === event.id) {
-        S.eventId = null;
-        S.poiCategories = null;     // its layers went with it
-        S.poiFilterLayer = '';
-      }
+      if (S.eventId === event.id) selectEvent(null);
       banner(`Deleted ${event.name}.`);
       loadEvents();
     } catch (err) { banner(err.message, true); }
   }));
 }
 
-/* Re-read from S.events rather than remembering the name, so a rename shows up
-   here too. Otherwise the header keeps announcing the old name for the rest of
-   the session, which is the sort of quiet contradiction that makes someone
-   distrust the whole screen. */
+/* The event's name is the heading of everything inside it. Re-read from
+   S.events rather than remembered, so a rename shows up here too - otherwise
+   the heading keeps announcing the old name for the rest of the session,
+   which is the sort of quiet contradiction that makes someone distrust the
+   whole screen. */
 function showEventContext() {
   const event = S.events.find((e) => e.id === S.eventId);
-  $('event-context').textContent = event ? `Working on: ${event.name}` : '';
-  $('event-context').hidden = !event;
+  $('event-title').textContent = event ? event.name : '';
+  document.title = event ? `${event.name} - Course Ops Setup` : 'Course Ops - Setup';
 }
 
 function selectEvent(id) {
@@ -673,7 +721,8 @@ function selectEvent(id) {
      is no telling the two apart and the wrong-event one is the dangerous
      case. */
   clearProvisionalPlace();
-  S.eventId = id;
+  if (id === S.eventId) return;
+  S.eventId = id || null;
   /* The layer list is fetched lazily and belongs to ONE event. Kept across
      a switch, event A's layers built event B's Import type list, per-row
      Layer dropdowns, bulk Move target and Add-place list - invisibly when
@@ -683,9 +732,6 @@ function selectEvent(id) {
   S.poiCategories = null;
   S.poiFilterLayer = '';
   showEventContext();
-  document.querySelectorAll('.panel[data-needs-event]').forEach(
-    (p) => gateOnEvent(p.dataset.panel));
-  loadEvents();
 }
 
 /* Typing an IANA zone name from memory is a way to get it subtly wrong -
@@ -816,7 +862,8 @@ $('event-form').addEventListener('submit', async (ev) => {
     $('ev-slug').value = ''; $('ev-name').value = '';
     banner(`Created ${created.name}.`);
     await loadEvents();
-    selectEvent(created.id);
+    // Straight into it, on Import: a new event's next step is its file.
+    enterEvent(created.id);
   } catch (err) {
     $('event-error').textContent = err.message;
     $('event-error').hidden = false;
@@ -2720,9 +2767,10 @@ async function start() {
   fillTimeZones();
   if (S.user.is_system_admin) await loadOrgs();
   await loadEvents();
-  // One event is the normal case for a club, so select it rather than making
-  // them pick from a list of one.
-  if (S.events.length === 1) selectEvent(S.events[0].id);
+  // One event is the normal case for a club, so open it rather than making
+  // them pick from a list of one - unless the hash says where to be.
+  if (!location.hash && S.events.length === 1) enterEvent(S.events[0].id);
+  else goToHash();
 }
 
 (async () => {
