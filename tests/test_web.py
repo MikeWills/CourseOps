@@ -2843,3 +2843,12 @@ def test_guessing_the_setup_code_is_throttled_like_a_password(setup):
             for n in range(8)
         ]
     assert 403 in statuses and statuses[-1] == 429
+
+
+def test_the_openapi_schema_is_not_served(setup):
+    """/openapi.json lists every route to anyone who asks - the same reason
+    /healthz stays minimal - so the schema, /docs and /redoc are all off."""
+    app, _, _, _ = setup
+    with TestClient(app) as client:
+        for path in ("/openapi.json", "/docs", "/redoc"):
+            assert client.get(path).status_code == 404, path

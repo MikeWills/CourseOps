@@ -57,7 +57,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 721 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 723 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -1097,7 +1097,8 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
-- **2026-09-14** Audit (`docs/audit/`): eight reviews, seven PRs (#143-#149). Highlights below; the rest is in `CHANGELOG.md`.
+- **2026-09-14** Audit (`docs/audit/`): eight reviews, nine PRs (#143-#151). Highlights below; the rest is in `CHANGELOG.md`.
+- **2026-09-14** `web.py` split: routers in `setup_api.py`/`field_api.py`/`pages.py`, auth as `Depends` in `deps.py`, snapshot and feed lifecycle in their own modules; `/openapi.json` off.
 - **2026-09-14** Fixed: turning Tracking on for an event with nothing to listen for exited the server and boot-looped; the switch now refuses, and persists only after the feed starts.
 - **2026-09-14** Fixed: staged import features and access links were addressed by bare id - one event's admin could reach another's. Both scoped by event.
 - **2026-09-14** Fixed: correcting a callsign on the Roster tab made a second roster row; a setup edit is a RENAME (status log follows), binding stays NCS's.
@@ -1106,4 +1107,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-14** Snapshot off the loop, `locate` memoised, no writes on read: `/state` 178 -> 89 ms, 12 concurrent snapshots 2.2 -> 0.97 s.
 - **2026-09-14** Fixed in the field app: status changes on matched stations reach every screen; reconnect survives a dead zone; dropped-off pins visible; layer switches follow a resync.
 - **2026-09-14** Fixed in setup: Export CSV coordinates, the login error text, Courses saves as a unit, layers per event, touch drag on the Places map, an event centre from the form.
-- **2026-09-14** Leaflet vendored, CSP from the app, body-size caps, tokens redacted from Apache logs, `db.transaction`, ~20 dead functions removed.

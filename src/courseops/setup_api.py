@@ -657,8 +657,6 @@ async def setup_set_tracking(
             status_code=400, detail=ingest_module.NOTHING_TO_LISTEN_FOR)
     if not wanted:
         db.set_ingest_enabled(conn, slug, False)
-
-    if not wanted:
         await request.app.state.stop_ingest(slug)
     else:
         # Start first, persist second. The flag is what the next boot
