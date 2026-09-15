@@ -408,6 +408,17 @@ const ICONS = {
   // A box with an arrow leaving it: "opens somewhere else".
   open: ['<path d="M7 3.4H4.2a1.6 1.6 0 0 0-1.6 1.6v6.8a1.6 1.6 0 0 0 1.6 1.6H11'
        + 'a1.6 1.6 0 0 0 1.6-1.6V9M9.4 2.6h4v4M13.4 2.6L7.6 8.4"/>', 'Open'],
+  // Three sliders: "settings", the way every phone draws it. The Events
+  // list's way into an event - the row's actions are all glyphs so the
+  // four read as one set rather than a button, a link and two icons.
+  configure: ['<path d="M2.4 4.2h11.2M2.4 8h11.2M2.4 11.8h11.2"/>'
+            + '<circle cx="10.4" cy="4.2" r="1.7" fill="currentColor" stroke="none"/>'
+            + '<circle cx="5.6" cy="8" r="1.7" fill="currentColor" stroke="none"/>'
+            + '<circle cx="9" cy="11.8" r="1.7" fill="currentColor" stroke="none"/>',
+            'Configure'],
+  // A page with lines on it: the after-event report.
+  report: ['<path d="M4.2 2.6h5.2l3 3v7.8H4.2z M9.4 2.6v3h3"/>'
+         + '<path d="M6.2 8.4h3.6M6.2 10.8h3.6"/>', 'After-event report'],
 };
 
 /* The documented what3words URL: the three words after the host. The form
@@ -657,12 +668,10 @@ async function loadEvents() {
         <td>${e.counts.pois}</td>
         <td>${e.counts.roster}</td>
         <td class="actions">
-          <button type="button" class="primary" data-pick="${e.id}"
-            title="Course, places, roster and links for ${esc(e.name)}"
-            >Configure &rsaquo;</button>
-          <a class="report-link" href="/setup/events/${e.id}/report" target="_blank"
-             rel="noopener" title="Pickups, notes and maps to hand the race lead afterwards"
-             >After-event report</a>
+          ${iconBtn('configure', {'data-pick': e.id},
+                    `Configure ${e.name}: course, places, roster, links`)}
+          ${iconLink('report', {href: `/setup/events/${e.id}/report`},
+                     `After-event report for ${e.name}`)}
           ${iconBtn('edit', {'data-edite': e.id}, `Edit ${e.name}`)}
           ${S.user.may_create_events
             ? iconBtn('remove', {'data-del': e.id}, `Delete ${e.name}`) : ''}

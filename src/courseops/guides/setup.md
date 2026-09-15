@@ -20,12 +20,12 @@ labelled - so a callsign can be fixed from the car park on race morning.
 > 3. [Race week and after](setup-race-week.md) - tracking, the rehearsal, the report
 > 4. [Making it yours](setup-ideas.md) - layers, roles, and what else this can do
 
-![The Events tab: one row per event, with courses, places and roster counts, and Configure](images/setup-events.png)
+![The Events tab: one row per event, with courses, places and roster counts, and four icon buttons](images/setup-events.png)
 
 The setup screen has two levels. **Outside an event** there are three tabs -
 Organizations, Events and Users - which belong to the installation. **Inside
-an event**, opened with **Configure** on the Events list, the event's name is
-the heading, **‹ All events** takes you back out, and the tabs below it -
+an event**, opened with the sliders button (**Configure**) on its row of the
+Events list, the event's name is the heading, **‹ All events** takes you back out, and the tabs below it -
 Import, Courses, Places and the rest - all belong to that one event. They run
 roughly in the order you will use them. If your club has a single event it
 opens on its own when you sign in.

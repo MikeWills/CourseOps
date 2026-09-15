@@ -19,13 +19,15 @@ month, PATCH counting releases in that month from 0. Before that they were
   whether it was working on one at all, was a line of small text above the
   panel that scrolled away, and a second event made it genuinely confusing.
   Now Organizations, Events and Users are the only tabs outside an event;
-  **Configure** on the Events list opens one, with its name as the heading,
+  **Configure** (the sliders glyph; the row's four actions - configure,
+  report, edit, delete - are all icon buttons now, where they were a button,
+  a link and two icons) opens one, with its name as the heading,
   **‹ All events** as the way back and the nine event tabs beneath. The
   hash carries the place (`#events/<slug>/roster`), so a reload or a
   bookmark lands back inside the same event on the same tab, and Back is
   "out of this event". `gateOnEvent` and the nine "pick an event" notes are
   gone: an event tab cannot be reached without an event. Creating an event
-  opens it on Import.
+  opens it on Import. Eleven guide screenshots re-shot.
 
 ### Fixed
 
