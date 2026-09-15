@@ -11,6 +11,8 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+## [2026.9.7] - 2026-09-15
+
 ### Added
 
 - **Phone tracking for people without a callsign** (issue #6, designed
