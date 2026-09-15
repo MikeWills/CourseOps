@@ -11,6 +11,8 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+## [2026.9.8] - 2026-09-15
+
 ### Added
 
 - **A guide for the person being tracked by phone**, `/help/phone-tracking`:
