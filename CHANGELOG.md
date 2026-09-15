@@ -11,6 +11,14 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Added
+
+- **A guide for the person being tracked by phone**, `/help/phone-tracking`:
+  install OwnTracks the week before, permission *Always*, scan the card, set
+  Tracker ID, turn it off when done, and what to check if Net Control cannot
+  see you. The setup guide and the runbook point at it; it is the page a
+  club texts to its bike medics with a picture of the card.
+
 ## [2026.9.7] - 2026-09-15
 
 ### Added

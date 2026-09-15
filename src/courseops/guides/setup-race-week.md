@@ -59,7 +59,8 @@ off after the event.
    QR code for the whole event, the three steps, and the exact designators.
 3. **Print this card** and put it on the briefing table.
 
-Each person then:
+Each person then follows [Being tracked by your phone](phone-tracking.md) -
+send them that link with the picture of the card, the week before. In short:
 
 1. Installs **OwnTracks** (free, iOS and Android) *before* the event - a
    scanned code does nothing on a phone without the app.

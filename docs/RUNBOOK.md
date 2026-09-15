@@ -436,6 +436,9 @@ the app), scans the card, and sets **Tracker ID** in the app's settings to
 their designator exactly as printed. Traccar Client users type the URL from
 the card and the designator into *Device identifier*.
 
+Send each of them `/help/phone-tracking` the week before, with a picture of
+the card - the whole setup is on that page.
+
 Their row in the stations list reads a fresh time once the app is posting,
 and **never** until it is. Someone who typed a different designator shows up
 in Net Control's **Needs attention** as *a phone app reporting as MEDIC1*;
