@@ -217,6 +217,13 @@ layer - fixed in eight workstream pull requests (#143-#149, and the
   A5.)
 
 ### Fixed
+- **Incident text fields go through the one cleaner.** `incidents.py`
+  kept a private `_clean` that `str()`ed whatever arrived, so a bib sent
+  as an object landed as `"{'x': 1}"` and a list for `changed_by` went
+  into the log as `"[5]"` - while every other field in the app refuses
+  those with a message via `db.clean_text` (audit D). Same helper now;
+  the status route turns its refusal into a 400 like create and edit
+  already did. The length caps stay where they were. (Audit follow-up.)
 - **An incident's HTTP response is now the socket message.** The 201
   from `POST /incidents` (and the status and edit responses) was the bare
   row, while the `incident` broadcast carried `course_position` - so the

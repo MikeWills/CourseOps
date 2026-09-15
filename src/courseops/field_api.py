@@ -252,7 +252,9 @@ async def set_incident_status(
             str(body.get("status", "")).strip().lower(),
             by=body.get("changed_by"),
         )
-    except incidents.IncidentError as exc:
+    except (incidents.IncidentError, ValueError) as exc:
+        # ValueError: `changed_by` sent as a list or an object, which the
+        # text cleaner refuses rather than storing "[5]" in the log.
         raise HTTPException(status_code=400, detail=str(exc))
     return JSONResponse(
         await _publish_incident(request.app, granted.event_id, row, "status"))

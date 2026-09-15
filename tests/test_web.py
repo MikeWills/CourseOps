@@ -2736,6 +2736,39 @@ def test_wrong_type_field_payloads_are_400_not_500(setup):
             assert listed.status_code in (400, 404), (path, listed.text)
 
 
+def test_wrong_type_incident_fields_are_400_not_stored(setup):
+    """Incidents had a private cleaner that `str()`ed whatever arrived, so
+    a bib sent as an object was stored as "{'x': 1}" and a list for
+    `changed_by` on a status change went in as "[5]". They share
+    `db.clean_text` now, which refuses a list or an object with a message -
+    and the status route has to turn that into a 400 like the others."""
+    app, tokens, _, _ = setup
+    ncs = f"/api/m2026/{tokens['ncs']}"
+    with TestClient(app) as client:
+        created = client.post(f"{ncs}/incidents",
+                              json={"lat": 34.732, "lon": -86.575}).json()
+        incident_id = created["id"]
+        cases = [
+            (f"{ncs}/incidents", {"lat": 34.732, "lon": -86.575,
+                                  "bib": {"x": 1}}),
+            (f"{ncs}/incidents", {"lat": 34.732, "lon": -86.575,
+                                  "changed_by": [5]}),
+            (f"{ncs}/incidents/{incident_id}/status",
+             {"status": "en_route", "changed_by": [5]}),
+            (f"{ncs}/incidents/{incident_id}", {"note": ["x"]}),
+            (f"{ncs}/incidents/{incident_id}", {"bib": "1", "changed_by": {}}),
+        ]
+        for path, body in cases:
+            response = client.post(path, json=body)
+            assert response.status_code == 400, (path, body, response.text)
+            assert response.json().get("detail"), (path, body, response.text)
+        # Nothing above landed.
+        data = client.get(f"{ncs}/state").json()
+        assert len(data["incidents"]) == 1
+        assert data["incidents"][0]["status"] == "reported"
+        assert data["incidents"][0]["note"] is None
+
+
 def test_a_missing_event_is_a_404_for_a_system_admin_too(setup):
     """`may_access_event` says yes to a system admin before looking the
     event up, so a stale bookmark to a deleted event's setup page was a
