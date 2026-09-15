@@ -311,6 +311,13 @@ listed as APRS-tracked, the "who has gone quiet" panel fills with false alarms
 and people stop reading it within twenty minutes. That panel is only useful
 because it is short.
 
+**Someone without a callsign** - a bike medic, race staff, a driver - goes on
+the roster in the browser with **Tracked by: Phone app** and a short
+designator (`M1`, `BIKE2`) in place of the callsign. They run a free tracking
+app on their own phone; see "Phone tracking" under race morning below and
+`docs/phone-tracking.md`. Ask them first: this collects their location from
+their own phone.
+
 Confirm the roster and the filter it produces:
 
 ```bash
@@ -418,6 +425,25 @@ Confirm before going live:
 - [ ] The status badge top-right reads **Live** (green)
 - [ ] The course and aid stations are drawn
 - [ ] At least one mobile station appears within a few minutes
+
+### Phone tracking
+
+If anyone is on the roster as **Phone app**, the Tracking tab's **Phone
+tracking** switch has to be on, and the card it shows - one QR code, three
+steps, the designators - printed and on the briefing table. Each person
+installs **OwnTracks** *before* the day (a scanned code does nothing without
+the app), scans the card, and sets **Tracker ID** in the app's settings to
+their designator exactly as printed. Traccar Client users type the URL from
+the card and the designator into *Device identifier*.
+
+Their row in the stations list reads a fresh time once the app is posting,
+and **never** until it is. Someone who typed a different designator shows up
+in Net Control's **Needs attention** as *a phone app reporting as MEDIC1*;
+match them to the right person there.
+
+**Reset the link** on the Tracking tab cuts off every phone until they
+rescan - it is the only revocation there is. **Turn the switch off after the
+event.**
 
 ### Send the links
 
@@ -731,6 +757,9 @@ event. One page: how many pickups and when, how many near each water stop, and
 every course note with where and when. Print it or screenshot it. It carries
 no names, so it can go straight to the organizer.
 
+**Turn tracking off** - both switches on the Tracking tab. The APRS filter
+follows each callsign wherever it goes, and the phone link keeps accepting
+positions from any app still running.
 
 ```bash
 # Ctrl-C to stop the server

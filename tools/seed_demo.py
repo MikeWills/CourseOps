@@ -125,6 +125,12 @@ for key, label, who, cat, aprs, post in roster:
     db.upsert_roster_entry(conn, event_id, key, label, cat, expects_aprs=aprs, operator_name=who)
     if post:
         db.assign_station_to_poi(conn, event_id, key, pois[post])
+# Two bike medics tracked by phone app rather than APRS (issue #6): a
+# designator each, no callsign, and the event's tracker URL switched on.
+for key, label, who in (("M1", "Bike medic 1", "Lena"), ("M2", "Bike medic 2", "Theo")):
+    db.upsert_roster_entry(conn, event_id, key, label, "rover", operator_name=who,
+                           tracked_by=db.TRACKED_BY_PHONE)
+db.set_tracker_token(conn, event_id, "demo-tracker-token-not-for-a-real-event")
 for key in ("N0DEM-3", "N0DEM-4", "N0DEM-5", "N0DEM-6", "N0DEM-7", "KC0DEM-2", "W0RRC-1",
             "AC0DEM-9", "WB0DEM-9", "WB0DEM-7", "KD0DEM-9", "KD0DEM-8"):
     db.set_op_status(conn, event_id, key, "active", changed_by="W0RRC")

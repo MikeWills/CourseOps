@@ -681,3 +681,28 @@ td.races { line-height: 1.35; }
   white-space: nowrap;
 }
 #version-notice:hover { background: rgba(255, 106, 19, 0.08); }
+
+/* Phone tracking (issue #6): the card a club prints for the briefing table.
+   The QR is server-drawn SVG sized here; the steps sit beside it on a wide
+   screen and under it on a phone. */
+.phone-card { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; margin-top: 12px; }
+.phone-qr { flex: 0 0 auto; width: min(240px, 100%); }
+.phone-qr svg { display: block; width: 100%; height: auto; background: #fff; }
+.phone-steps { flex: 1 1 280px; min-width: 0; }
+.phone-steps ol { margin: 0 0 10px; padding-left: 20px; }
+.phone-steps li { margin-bottom: 6px; }
+.phone-designators { margin-top: 8px; }
+.phone-actions { align-items: center; gap: 10px; flex-wrap: wrap; }
+
+/* "Print this card" prints only the card. Everything else is hidden and
+   the card's own controls with it: the sheet is for the briefing table,
+   which needs the code, the steps and the exact designators to type. */
+@media print {
+  body.print-phone-card > :not(main),
+  body.print-phone-card main > :not([data-panel="tracking"]),
+  body.print-phone-card [data-panel="tracking"] > :not(#phone-box),
+  body.print-phone-card .phone-actions,
+  body.print-phone-card .toggle { display: none !important; }
+  body.print-phone-card #phone-box { border: 0; padding: 0; }
+  body.print-phone-card [data-panel="tracking"] { display: block !important; }
+}

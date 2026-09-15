@@ -62,6 +62,10 @@ The rest is in the repository, aimed at whoever is working on it:
 - Put the organizer's own layers on the map - mile markers, medical, traffic
   control, portable toilets - naming each one yourself, with its own icon,
   colour and on/off switch. There is no fixed list and no limit
+- Track people without a callsign - bike medics, race staff, drivers - with
+  a free tracking app on their own phone (OwnTracks or Traccar Client): one
+  QR code for the event, a short designator each, and the roster as the
+  allowlist
 
 ## Design notes
 
@@ -80,9 +84,10 @@ The rest is in the repository, aimed at whoever is working on it:
 
 ## Requirements
 
-**Python 3.11 or newer**, and nothing else. Five runtime dependencies, installed
-for you by the command below: `aprslib`, `defusedxml`, `fastapi`, `uvicorn` and
-`python-multipart`. No database server, no npm, no build step.
+**Python 3.11 or newer**, and nothing else. Six runtime dependencies, installed
+for you by the command below: `aprslib`, `defusedxml`, `fastapi`, `uvicorn`,
+`python-multipart` and `segno` (the QR code on the Tracking tab). No database
+server, no npm, no build step.
 
 You also need **your own callsign**. The app connects to APRS-IS to listen; the
 passcode stays `-1`, which grants read access and no transmit capability. It

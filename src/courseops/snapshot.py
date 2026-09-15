@@ -28,6 +28,12 @@ def course_position(index: "progress.CourseIndex", lat: float, lon: float):
     return located.as_dict() if located else None
 
 
+def position_message_for(report, index) -> dict[str, Any]:
+    """One live position, framed for the socket, with its course position."""
+    return hub_module.position_message(
+        report, course_position(index, report.lat, report.lon))
+
+
 def make_position_handler(hub, known_keys: set[str], index):
     """The ingest callback: fan a position out, and announce a new station.
 
@@ -45,11 +51,7 @@ def make_position_handler(hub, known_keys: set[str], index):
     announced: set[str] = set()
 
     async def on_position(event_id: int, report) -> None:
-        await hub.publish(
-            event_id,
-            hub_module.position_message(
-                report, course_position(index, report.lat, report.lon)),
-        )
+        await hub.publish(event_id, position_message_for(report, index))
         key = report.station_key
         if key not in known_keys and key not in announced:
             announced.add(key)
@@ -85,6 +87,10 @@ def make_nearby_handler(hub, store: dict, index):
             "symbol": symbols.describe(report.symbol_table, report.symbol_code),
             "looks_like_infrastructure": symbols.is_infrastructure(
                 report.symbol_table, report.symbol_code),
+            # "phone" for a tracking app posting under a designator the
+            # roster does not know - almost always a designator typed
+            # differently from the card, which the client says outright.
+            "source": "phone" if report.aprs_format == "phone" else "aprs",
             "packets": (previous["packets"] + 1) if previous else 1,
             "course_position": located.as_dict() if located else None,
         }

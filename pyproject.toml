@@ -20,6 +20,10 @@ dependencies = [
     # boot at all. Found by installing into an empty virtualenv, which is the
     # only way this class of omission shows up.
     "python-multipart>=0.0.9",
+    # The QR code on the Tracking tab that configures a phone tracking app
+    # (issue #6). Pure Python, no dependencies of its own, renders SVG - so
+    # the code is drawn by the server and nothing is vendored into static/.
+    "segno>=1.6",
     "uvicorn[standard]>=0.27",
 ]
 

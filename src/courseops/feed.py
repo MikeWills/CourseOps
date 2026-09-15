@@ -18,14 +18,15 @@ import sqlite3
 
 from fastapi import FastAPI
 
-from . import db, progress, snapshot
+from . import db, progress, snapshot, tracker
 from . import ingest as ingest_module
 from .ingest import run_ingest
 
 log = logging.getLogger(__name__)
 
 
-def tracking_state(app: FastAPI, conn: sqlite3.Connection, event_id: int) -> dict:
+def tracking_state(app: FastAPI, conn: sqlite3.Connection, event_id: int,
+                   base_url: str = "") -> dict:
     """Everything needed to answer "is the feed on, and if not, why not?".
 
     The last part is the point. A switch that says "on" while nothing
@@ -56,7 +57,38 @@ def tracking_state(app: FastAPI, conn: sqlite3.Connection, event_id: int) -> dic
         "tracked": len(tracked),
         "filter": access_filter_preview(tracked, area),
         "error": app.state.ingest_errors.get(slug, ""),
+        "phone": phone_tracking_state(conn, event_id, slug, base_url),
     }
+
+
+def phone_tracking_state(conn: sqlite3.Connection, event_id: int, slug: str,
+                         base_url: str) -> dict:
+    """The phone tracking half of the Tracking tab: the one URL, the QR
+    code that configures OwnTracks with it, and the designators to print
+    beside it - because the whole scheme depends on the string a person
+    types matching the roster, and a person guessing at the wording is the
+    failure mode. Off (no token) means the endpoint answers 404."""
+    token = db.tracker_token(conn, event_id)
+    designators = [
+        {"station_key": row["station_key"],
+         "display_label": row["display_label"]}
+        for row in conn.execute(
+            "SELECT station_key, display_label FROM roster"
+            " WHERE event_id = ? AND tracked_by = ?"
+            " ORDER BY station_key",
+            (event_id, db.TRACKED_BY_PHONE),
+        ).fetchall()
+    ]
+    state = {"enabled": bool(token), "designators": designators}
+    if token:
+        url = f"{base_url.rstrip('/')}/track/{slug}/{token}"
+        link = tracker.owntracks_link(url)
+        state.update({
+            "url": url,
+            "owntracks_link": link,
+            "qr_svg": tracker.qr_svg(link),
+        })
+    return state
 
 
 def access_filter_preview(tracked, area=None) -> str:

@@ -141,13 +141,17 @@ There is no "finished" state. A later sighting is the correction.
 ![A station heard on an SSID the roster does not name, with buttons to match it](images/ncs-needs-attention.png)
 
 This section appears when something is heard that the roster does not recognise.
-That is normally one of two things:
+That is normally one of three things:
 
 - **A rostered callsign on a different SSID.** The volunteer signed up as `-9`
   and is beaconing from `-5`. Without this they would be invisible all day and
   nothing would say why.
 - **A station near the course we do not know.** Somebody's mobile driving past,
   or a digipeater.
+- **A phone app reporting as a designator the roster does not have.** A bike
+  medic typed `Medic 1` into the app where the card said `M1`. The entry says
+  *A phone app reporting as MEDIC1*; pick the right person under **This is...**
+  and from then on their positions land on that row.
 
 You have three answers:
 
@@ -171,6 +175,7 @@ Only you see this section. Nobody else's link receives it.
 | Question | Answer |
 |---|---|
 | An operator says they are on the air, but the row is red | Their radio is on an SSID the roster does not name. Look at **Needs attention** |
+| A bike medic's app is running, but their row says *never* | They typed a different designator than the card. Look at **Needs attention** for *a phone app reporting as...* and match it |
 | A station shows a mile figure I do not believe | Where races share pavement the mile is snapped to whichever line is nearest. The race name always travels with it - check which race it says |
 | No mile figure at all | They are too far from every course for the number to mean anything. Nothing beats a wrong number here |
 | I renamed something in setup and the field still sees the old name | It should not - every setup change pushes out to everyone. Check the connection badge on the field phone |

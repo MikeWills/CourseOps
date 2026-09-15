@@ -33,6 +33,12 @@ CREATE TABLE IF NOT EXISTS event (
     -- the filter matches each operator's callsign wherever they are, so
     -- running it continuously would log where volunteers live and work.
     ingest_enabled    INTEGER NOT NULL DEFAULT 0,
+    -- The one bearer token a phone tracking app posts positions to, for the
+    -- whole event: one URL, one printed QR code, and each person types their
+    -- own designator into the app. NULL means phone tracking is off and the
+    -- endpoint answers 404. Resetting it cuts off every phone at once, which
+    -- is the accepted trade for a one-day event - see docs/phone-tracking.md.
+    tracker_token     TEXT,
     created_at        TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
 );
 
@@ -202,6 +208,11 @@ CREATE TABLE IF NOT EXISTS roster (
     -- Without this the "who has gone quiet" panel fills with operators who
     -- were never going to beacon, and stops being read.
     expects_aprs  INTEGER NOT NULL DEFAULT 1,
+    -- Where this entry's positions come from: 'aprs' (a callsign, heard over
+    -- APRS-IS) or 'phone' (a designator such as M1, typed into a tracking app
+    -- that posts to the event's tracker URL). A phone entry never goes into
+    -- the APRS-IS filter; expects_aprs still says whether silence is an alarm.
+    tracked_by    TEXT    NOT NULL DEFAULT 'aprs',
     -- Fixed assignment: drawn at this POI when they do not beacon.
     poi_id        INTEGER REFERENCES poi(id) ON DELETE SET NULL,
     -- Manual, NCS-set. pending | active | closed. Independent of radio status:

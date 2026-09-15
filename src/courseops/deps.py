@@ -207,21 +207,26 @@ EventAdmin = Annotated[Admin, Depends(event_admin)]
 
 # --- request bodies --------------------------------------------------------
 
-async def json_body(request: Request) -> dict:
-    """The request's JSON object, capped, or a 4xx that says what was wrong."""
+async def raw_body(request: Request) -> bytes:
+    """The request body, capped at MAX_JSON_BYTES, or 413."""
     # Read in chunks and counted, so a chunked body with no
     # Content-Length - which the middleware cannot size - is still cut
     # off at the cap rather than buffered whole.
     chunks: list[bytes] = []
     size = 0
+    async for chunk in request.stream():
+        size += len(chunk)
+        if size > MAX_JSON_BYTES:
+            raise HTTPException(status_code=413,
+                                detail="Request body too large.")
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
+async def json_body(request: Request) -> dict:
+    """The request's JSON object, capped, or a 4xx that says what was wrong."""
     try:
-        async for chunk in request.stream():
-            size += len(chunk)
-            if size > MAX_JSON_BYTES:
-                raise HTTPException(status_code=413,
-                                    detail="Request body too large.")
-            chunks.append(chunk)
-        body = json.loads(b"".join(chunks))
+        body = json.loads(await raw_body(request))
     except HTTPException:
         raise
     except Exception:

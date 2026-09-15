@@ -505,6 +505,56 @@
       </p>
       <code id="tracking-filter" class="link-url"></code>
     </div>
+
+    <h3>Phone tracking</h3>
+    <p class="muted">
+      For people without a callsign — bike medics, race staff, drivers. They
+      install a free tracking app (OwnTracks; Traccar Client also works),
+      scan one code, and type their designator from the roster into it. Only
+      designators on the roster are stored; anything else goes to Net
+      Control's “heard nearby” list to match or ignore.
+    </p>
+    <p class="muted">
+      <strong>This collects a person's location from their own phone.</strong>
+      Ask before adding someone, tell them when to turn the app off, and
+      turn this off after the event.
+    </p>
+    <div id="phone-box" class="card">
+      <label class="toggle">
+        <input id="phone-on" type="checkbox">
+        <span class="label" id="phone-label">Phone tracking off</span>
+      </label>
+      <div id="phone-card" hidden>
+        <div class="phone-card">
+          <div id="phone-qr" class="phone-qr" role="img"
+               aria-label="QR code that configures OwnTracks for this event"></div>
+          <div class="phone-steps">
+            <ol>
+              <li>Install <strong>OwnTracks</strong> from the App Store or
+                Google Play <em>before</em> the event.</li>
+              <li>Scan this code with the phone's camera and open the link
+                — it configures the app.</li>
+              <li>In OwnTracks, open Settings and set
+                <strong>Tracker ID</strong> to your designator, exactly as
+                listed here.</li>
+            </ol>
+            <p class="muted">Using Traccar Client instead: set the server
+              URL below and the Device identifier to your designator.</p>
+            <code id="phone-url" class="link-url"></code>
+          </div>
+        </div>
+        <h4>Designators on the roster</h4>
+        <p id="phone-none" class="muted" hidden>Nobody on the roster is tracked
+          by phone yet. Add them on the Roster tab with “Tracked by: Phone
+          app”.</p>
+        <table class="grid phone-designators" id="phone-designators"></table>
+        <div class="row phone-actions">
+          <button id="phone-print" type="button">Print this card</button>
+          <button id="phone-reset" type="button" class="danger">Reset the link</button>
+          <span class="muted">Resetting cuts off every phone until they rescan.</span>
+        </div>
+      </div>
+    </div>
   </section>
 
   <section class="panel" data-panel="roster" hidden>
@@ -534,11 +584,15 @@
       <div class="row">
         <label class="field"><span>Posted at</span>
           <select id="rs-poi"><option value="">Not posted</option></select></label>
+        <label class="field"><span>Tracked by
+            <small id="rs-tracking-hint">APRS: the callsign is asked for on
+            APRS-IS and silence is an alert.</small></span>
+          <select id="rs-tracking">
+            <option value="aprs">APRS radio</option>
+            <option value="phone">Phone app (no callsign)</option>
+            <option value="none">Not tracked</option>
+          </select></label>
       </div>
-      <label class="check"><input id="rs-aprs" type="checkbox" checked>
-        <span>Expected to beacon APRS
-          <small>Leave off for aid station operators who do not transmit —
-          it keeps them out of the “gone quiet” alerts.</small></span></label>
       <p id="roster-error" class="error" hidden></p>
       <div class="row">
         <button class="primary" type="submit">Save station</button>
