@@ -120,7 +120,17 @@ src/courseops/
   resources.py    paths to shipped files; correct inside the frozen build
   access.py       role tokens: ncs writes; liaison + logistics read
   hub.py          per-event fan-out, bounded queues
-  web.py          FastAPI: map page, state snapshot, WebSocket
+  web.py          create_app: lifespan, middleware, routers, static mounts
+  deps.py         FastAPI dependencies: resolve a link or a session, yield the
+                  request's connection, close it whichever way the route ends
+  pages.py        what a browser navigates to: /, /setup, the map page, the
+                  report, /help, plus /healthz and robots.txt
+  setup_api.py    /api/setup/...: the setup application's API, cookie auth;
+                  the three taxonomies are one route set made from TAXONOMIES
+  field_api.py    /api/{slug}/{token}/... and the WebSocket, by role link
+  snapshot.py     build_state (what a client draws from) and the feed callbacks
+  feed.py         the one APRS-IS task: start, stop, displace, forget; the
+                  tracking panel's view of it
   static/         Leaflet client, no build step, plus the icon set
   static/icons.js shared glyph set, inline SVG, used by map and setup
   static/util.js  shared helpers (escapeHtml), loaded before app.js and setup.js
@@ -234,7 +244,10 @@ usability, not style preferences.
   `?` on each opens "Making it yours". Leaders shipped as a second heading
   under Courses because the NCS panel shows a row per race per leader - but
   that grid is a consequence of the data, not where it lives: `lead_division`
-  is event-scoped like the other two. A fourth taxonomy goes the same way.
+  is event-scoped like the other two. A fourth taxonomy goes the same way -
+  and on the server it is one entry in `TAXONOMIES` (`setup_api.py`), not a
+  fourth copy of the four routes: the three copies had already drifted on
+  the in-use status code once.
 - **Which leaders an event tracks is the club's, not the code's.** Same rule
   as the place layers and the station roles, and it arrived late for the same
   reason: `leaders.DIVISIONS` was a two-item constant, copied into the state
@@ -361,7 +374,15 @@ usability, not style preferences.
   because `db.connect` sets `check_same_thread=False` - a request may hand
   its connection to a thread, but a connection is one request's and is
   never shared between two, and a write is never started in a thread while
-  the request goes on using the connection on the loop. `PRAGMA
+  the request goes on using the connection on the loop. The connection
+  comes from a dependency in `deps.py` (`FieldAccess`, `EventAdmin`, `Conn`)
+  that yields it and closes it in a `finally` - never `conn.close()` in a
+  route, which is how a hundred of them came to miss an error path. Those
+  dependencies are `async def` on purpose: a sync generator dependency is
+  run in a worker thread, and the route would then be using on the loop a
+  connection opened elsewhere. A route that needs a SECOND connection (the
+  sign-in hash in its thread, a publish helper) opens it with `deps.connect`
+  and closes it itself. `PRAGMA
   journal_mode = WAL` lives in `init_schema`, not `connect`: it is stored in
   the file, and asking for it per connect was most of the connect cost.
 - **A read must be a read.** The layer and leader lists used to repair
@@ -407,10 +428,11 @@ usability, not style preferences.
   alone. Both read-only.
 - **Sweeps stay visible to Logistics.** The sweep is the back of the pack, so its
   position is what says a road is clear and the cones can come up.
-- **Every mutation goes through `require_capability()`.** One place enforces
-  permission and each endpoint names what it needs, so widening a role is a
-  change to `ROLE_CAPABILITIES`. A valid token lacking the capability gets 403;
-  an invalid token still gets 404.
+- **Every mutation names its capability with `Depends(needs(...))`.** One
+  dependency in `deps.py` enforces permission and each endpoint names what it
+  needs in its signature, so widening a role is a change to
+  `ROLE_CAPABILITIES`. A valid token lacking the capability gets 403; an
+  invalid token still gets 404.
 - **The operator callsign is a log annotation, never identity.** Asked for as
   a callsign because that is how a ham signs a log, but it is free text - a
   name or initials work - kept in the browser, truncated server-side. Nothing
@@ -760,7 +782,7 @@ usability, not style preferences.
   below, which is how Delete once rendered black instead of red.
 - **Permission is per capability, not one write flag.** `ROLE_CAPABILITIES` in
   `access.py` is the whole policy; each endpoint names what it needs via
-  `require_capability`. Never widen a field role by adding it to a second place.
+  `Depends(needs(...))`. Never widen a field role by adding it to a second place.
 - **Reporting an incident and working the queue are different capabilities.**
   `CAP_INCIDENT_REPORT` (all four roles) opens a pickup or a note and fills in
   its bib, note and position; `CAP_INCIDENTS` (NCS and SAG) moves one along and
@@ -852,7 +874,13 @@ usability, not style preferences.
   a selection in bulk. Never assume points arrive pre-sorted.
 - **Declare literal routes before parameterised ones.** `/pois/move` after
   `/pois/{poi_id}` is never reached: FastAPI matches in order, "move" parses as
-  an id, and the UI button silently does nothing.
+  an id, and the UI button silently does nothing. The order is the declaration
+  order inside each router (`setup_api.py`, `field_api.py`, `pages.py`); the
+  routers themselves share no prefix, so their include order in `web.py` is
+  not what protects this. And never parameterise the KIND of thing in a path
+  (`/events/{id}/{kind}/...`): it would sit in front of `/roster`, `/tracking`
+  and `/links` and swallow them, which is why `_taxonomy_routes` registers a
+  literal path per taxonomy.
 - **GIS exporters put their attribute table in `<description>` as HTML, not in
   `ExtendedData`.** For an ArcGIS file it is the only thing distinguishing a
   water stop from a mile marker - every placemark being named after its race.

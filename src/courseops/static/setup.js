@@ -1774,7 +1774,7 @@ function noteVersion(info) {
   // whole point is to compare against it later.
   //
   // With one exception. Signed out, the session says nothing about the build
-  // (web.py keeps the commit behind the login), so a page that loaded on the
+  // (setup_api.py keeps the commit behind the login), so a page that loaded on the
   // sign-in form recorded the bare version. After signing in the poll sees a
   // build, the two keys differ, and the notice fired on a page that IS the
   // current code - on every fresh sign-in on the deployed server, where every

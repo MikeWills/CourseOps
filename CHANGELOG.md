@@ -13,7 +13,8 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 Everything below comes from the 2026-09-14 audit (`docs/audit/`): eight
 reviews - security, code quality, and six traceability passes, one per
-layer - fixed in seven workstream pull requests (#143-#149).
+layer - fixed in eight workstream pull requests (#143-#149, and the
+`web.py` split that had to wait for the other seven).
 
 ### Added
 - **The first account needs the setup code from the console.** Until one
@@ -52,6 +53,33 @@ layer - fixed in seven workstream pull requests (#143-#149).
   earlier file chose. `setup-events.png` predates the field.
 
 ### Changed
+- **`web.py` is bootstrap now; the routes live beside the people they
+  serve.** One 2700-line module held a 1800-line `create_app` closure with
+  every route of both APIs, the WebSocket, the guides, the snapshot and
+  the whole APRS-IS lifecycle inside it, all closing over `app` and
+  `settings`. Three things that shape produced, each a real cost: every
+  route opened its own connection and had to close it on every path by
+  hand - 106 `conn.close()` calls, and the ones the audit found that
+  missed an error path; 38 routes unpacked a `user` they never read,
+  because the same helper was repeated 38 times where a dependency could
+  not be one; and place layers, station roles and leaders were the same
+  four routes written three times, drifted once already on the in-use
+  status code, with "a fourth taxonomy goes the same way" meaning sixty
+  more lines of copy. Now: `deps.py` holds the FastAPI dependencies
+  (`FieldAccess`, `needs(capability)`, `EventAdmin` and the rest) that
+  resolve the link or the session, yield the request's connection and
+  close it in a `finally` whichever way the route ended; `setup_api.py`,
+  `field_api.py` and `pages.py` are `APIRouter`s with every route body
+  unchanged and in the order it had, reading the hub and the feed
+  controls from `request.app.state`; `snapshot.py` holds `build_state`
+  and the feed callbacks; `feed.py` holds start / stop / displace / forget
+  and the tracking panel's view of the one APRS-IS task; and the three
+  taxonomy route sets are one, made from a `TAXONOMIES` table with a
+  literal path per taxonomy. No refusal changed: an invalid link is still
+  404, a valid link lacking a capability 403 with the reason, a taxonomy
+  entry in use 409 with the count. Nothing a volunteer or an officer sees
+  changed; the test suite ran unaltered apart from four patch targets
+  that moved with the code. (Audit H1: OPT-12, OPT-13, OPT-16.)
 - **One timestamp helper, one `dict(row)`.** `parser`, `users` and `access`
   each formatted "now" for SQLite with their own copy of the format string
   (and one had once drifted to a second format); `clock.utc_now_iso()` is
@@ -185,6 +213,14 @@ layer - fixed in seven workstream pull requests (#143-#149).
   A5.)
 
 ### Fixed
+- **A KML description is read only up to 64 KB.** A placemark's
+  `<description>` is third-party input and can be as long as the file's
+  64 MB limit, and the regex that pulls an exporter's attribute table out
+  of it ran over the whole blob inside the import. Measured, the pattern
+  is linear on the hostile shapes tried - but linear over 64 MB is still
+  the wrong thing to be doing on race week, and a real Esri table is a few
+  hundred bytes. `kml.MAX_DESCRIPTION_CHARS` caps what the regex sees;
+  everything past it is ignored. (Audit H2: SEC-19.)
 - **Deleting a course or a place sends what it was built from back to
   review.** The staged import features behind it were left `assigned` with
   their target NULLed by the foreign key: off the review list, impossible to
