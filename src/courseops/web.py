@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import functools
 import hmac
 import json
 import importlib.metadata as _metadata
@@ -28,11 +29,10 @@ from fastapi.responses import (HTMLResponse, JSONResponse, PlainTextResponse,
 from fastapi.staticfiles import StaticFiles
 
 from . import (access, admin, build, categories, db, guides, hub as hub_module, importer,
-               incidents, report, resources, kml, leaders, progress, snapshot,
-               users)
+               feed, incidents, report, resources, kml, leaders, progress,
+               snapshot, users)
 from .config import Settings
 from . import ingest as ingest_module
-from .ingest import run_ingest
 
 log = logging.getLogger(__name__)
 
@@ -288,13 +288,13 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
             chosen = named[-1] if named else wanted[-1]
             for slug in wanted:
                 if slug != chosen:
-                    await _displace_ingest(slug, by=chosen)
-            await _start_ingest(chosen)
+                    await feed.displace_ingest(application, slug, by=chosen)
+            await feed.start_ingest(application, chosen)
         try:
             yield
         finally:
             for slug in list(application.state.ingest_tasks):
-                await _stop_ingest(slug)
+                await feed.stop_ingest(application, slug)
             # A resync still waiting on a burst of saves has nobody left to
             # reach; drop it rather than leave a pending task at loop close.
             for task in list(resync_tasks):
@@ -927,7 +927,7 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
             admin.delete_event(conn, event_id)
         finally:
             conn.close()
-        # The feed must not outlive the event - see _forget_ingest.
+        # The feed must not outlive the event - see feed.forget_ingest.
         if row is not None:
             await app.state.forget_ingest(row["slug"], event_id)
         return JSONResponse({"deleted": event_id})
@@ -1155,58 +1155,11 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         finally:
             conn.close()
 
-    def _tracking_state(conn, event_id: int) -> dict:
-        """Everything needed to answer "is the feed on, and if not, why not?".
-
-        The last part is the point. A switch that says "on" while nothing
-        arrives is worse than no switch: the failure looks like a quiet net,
-        and a quiet net on race day is something people act on.
-        """
-        row = conn.execute(
-            "SELECT slug, ingest_enabled FROM event WHERE id = ?", (event_id,)
-        ).fetchone()
-        if row is None:
-            raise ValueError("No such event.")
-        slug = row["slug"]
-        tracked = db.tracked_station_keys(conn, event_id)
-        area = progress.CourseIndex.for_event(conn, event_id).area(
-            ingest_module.AREA_MARGIN_M)
-        # callsign_problem says WHY it cannot be used, not merely that it
-        # cannot - "still the placeholder N0CALL" is a different fix from
-        # "not set", and the person reading this is not at a terminal.
-        problem = settings.callsign_problem
-        return {
-            "area_mi": round(area[2] / 1609.344, 1) if area else None,
-            "enabled": bool(row["ingest_enabled"]),
-            "running": slug in app.state.ingest_tasks,
-            "callsign": settings.callsign or "",
-            "has_callsign": problem is None,
-            "callsign_problem": problem or "",
-            "tracked": len(tracked),
-            "filter": access_filter_preview(tracked, area),
-            "error": app.state.ingest_errors.get(slug, ""),
-        }
-
-    def access_filter_preview(tracked, area=None) -> str:
-        """The APRS-IS filter this roster produces, for the operator to see.
-
-        Shown because the commonest silent failure here is an empty or wrong
-        filter: the feed connects, nothing matches, and the map stays blank
-        while everything reports healthy.
-        """
-        try:
-            from .aprsis import build_filter
-            return build_filter(
-                sorted(tracked),
-                area=(area[0], area[1], area[2] / 1000.0) if area else None)
-        except Exception:                              # noqa: BLE001
-            return ""
-
     @app.get("/api/setup/events/{event_id}/tracking")
     async def setup_tracking(event_id: int, request: Request) -> JSONResponse:
         conn, user = require_event_admin(request, event_id)
         try:
-            return JSONResponse(_guard(_tracking_state, conn, event_id))
+            return JSONResponse(_guard(feed.tracking_state, app, conn, event_id))
         finally:
             conn.close()
 
@@ -1223,7 +1176,7 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         body = await _json_body(request, conn)
         wanted = bool(body.get("enabled"))
         try:
-            state = _guard(_tracking_state, conn, event_id)
+            state = _guard(feed.tracking_state, app, conn, event_id)
             event = conn.execute(
                 "SELECT slug, aprs_filter_extra FROM event WHERE id = ?",
                 (event_id,),
@@ -1269,7 +1222,7 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
 
         conn = get_conn()
         try:
-            return JSONResponse(_tracking_state(conn, event_id))
+            return JSONResponse(feed.tracking_state(app, conn, event_id))
         finally:
             conn.close()
 
@@ -2346,128 +2299,10 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     app.mount("/help/images", StaticFiles(directory=guides.GUIDES_DIR / "images"),
               name="guide-images")
 
-    # --- ingest lifecycle --------------------------------------------------
-
-    async def _ingest_for(slug: str) -> None:
-        conn = db.connect(settings.db_path)
-        event = db.get_event(conn, slug)
-        if event is None:
-            conn.close()
-            # Raised rather than logged and returned, so the supervisor
-            # records it and the tracking panel can say so.
-            raise ingest_module.IngestError(
-                f"No event with slug {slug!r}. Create it first.")
-        known_keys = set(db.all_station_keys(conn, event["id"]))
-        known_keys |= db.bound_station_keys(conn, event["id"])
-        # Course geometry is loaded once for the life of the ingest task rather
-        # than per packet. Courses are set up before the event and do not change
-        # while it runs; restart the server if one is re-imported mid-event.
-        index = progress.CourseIndex.for_event(conn, event["id"])
-        conn.close()
-
-        on_position = snapshot.make_position_handler(
-            app.state.hub, known_keys, index)
-        on_nearby = snapshot.make_nearby_handler(
-            app.state.hub, app.state.nearby, index)
-        await run_ingest(settings, slug, on_position=on_position,
-                         on_nearby=on_nearby)
-
-    async def _supervise_ingest(slug: str) -> None:
-        """Run one feed, and remember why it stopped."""
-        try:
-            await _ingest_for(slug)
-        except asyncio.CancelledError:
-            raise
-        except BaseException as exc:                   # noqa: BLE001
-            # A missing callsign lands here, and so does anything APRS-IS does
-            # that the client cannot recover from. Losing it to the log alone
-            # means the switch says "on" and nothing arrives.
-            #
-            # BaseException, not Exception, and the difference is the whole
-            # server: asyncio re-raises SystemExit and KeyboardInterrupt out
-            # of a task and out of the loop, so a feed that once signalled
-            # "nothing to listen for" with SystemExit took every role page
-            # down with it, and the persisted switch restarted it into the
-            # same crash. Nothing that happens inside one feed is allowed to
-            # decide that the site stops.
-            app.state.ingest_errors[slug] = str(exc) or exc.__class__.__name__
-            log.error("Ingest for %r stopped: %s", slug, exc)
-        finally:
-            app.state.ingest_tasks.pop(slug, None)
-
-    async def _start_ingest(slug: str) -> bool:
-        """Start one feed, replacing any other. True if it is running.
-
-        APRS-IS bans clients that open many connections, so there is exactly
-        one for the whole server - which means turning a feed on turns any
-        other one off, rather than quietly running two.
-
-        The feed does its refusals - no callsign, no event, nothing to listen
-        for - before its first real await, so one turn of the loop is enough
-        to know whether it got as far as connecting. The caller persists the
-        switch only on True: a flag written for a feed that never started is
-        what turned one bad press into a restart loop.
-        """
-        if slug in app.state.ingest_tasks:
-            return True
-        for running in list(app.state.ingest_tasks):
-            if running != slug:
-                await _displace_ingest(running, by=slug)
-        app.state.ingest_errors.pop(slug, None)
-        app.state.ingest_tasks[slug] = asyncio.create_task(
-            _supervise_ingest(slug), name=f"ingest:{slug}")
-        await asyncio.sleep(0)
-        return slug in app.state.ingest_tasks
-
-    async def _stop_ingest(slug: str) -> None:
-        task = app.state.ingest_tasks.pop(slug, None)
-        if task is None:
-            return
-        task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await task
-
-    def _event_name(slug: str) -> str:
-        conn = db.connect(settings.db_path)
-        try:
-            event = db.get_event(conn, slug)
-            return event["name"] if event else slug
-        finally:
-            conn.close()
-
-    async def _displace_ingest(slug: str, by: str) -> None:
-        """Turn one event's feed off because another's is going on.
-
-        The persisted switch is what the next boot acts on, so the displaced
-        event's flag has to come off with the feed: left on, the boot found
-        two flagged, started the first and cancelled it for the second, and
-        the displaced tab read "on - but not connected" with nothing to say
-        why. The reason goes where the tab already looks for one.
-        """
-        await _stop_ingest(slug)
-        conn = db.connect(settings.db_path)
-        try:
-            db.set_ingest_enabled(conn, slug, False)
-        finally:
-            conn.close()
-        app.state.ingest_errors[slug] = (
-            f"Tracking was turned on for {_event_name(by)}, and there is "
-            "one APRS-IS connection for the whole server.")
-
-    async def _forget_ingest(slug: str, event_id: int) -> None:
-        """The event is gone; nothing about its feed may outlive it.
-
-        Otherwise the connection keeps a wildcard filter on the deleted
-        event's volunteers until the next restart, and re-creating the slug
-        finds a feed "already running" that is bound to the dead event id.
-        The nearby list is keyed by event id, the rest by slug.
-        """
-        await _stop_ingest(slug)
-        app.state.ingest_errors.pop(slug, None)
-        app.state.nearby.pop(event_id, None)
-
-    app.state.start_ingest = _start_ingest
-    app.state.stop_ingest = _stop_ingest
-    app.state.forget_ingest = _forget_ingest
+    # Bound to this app so a route or a test can say `start_ingest(slug)`
+    # without carrying the application around; the implementation is feed.py.
+    app.state.start_ingest = functools.partial(feed.start_ingest, app)
+    app.state.stop_ingest = functools.partial(feed.stop_ingest, app)
+    app.state.forget_ingest = functools.partial(feed.forget_ingest, app)
 
     return app
