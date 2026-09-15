@@ -11,6 +11,21 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Fixed
+
+- **Scanning the phone tracking card did nothing on an iPhone.** OwnTracks
+  answered *URI or file configuration not allowed*: recent versions refuse
+  `owntracks:///config` links unless **Settings → Remote Control → Allow
+  external configuration** is already on, on iOS and Android alike - the
+  first thing the real-phone test found. The card and both guides now carry
+  that switch as the step before the scan, and the volunteer guide names the
+  error so someone who skipped it knows what they are looking at - and
+  walks the four taps with the app's own screens (i → Status Info →
+  Settings → Remote Control, at the bottom), because "Settings" is not
+  where a first-time user would look. With the switch on, the scan
+  configured the app and a fix reached the live map: verified on a real
+  iPhone, Android still to try.
+
 ## [2026.9.8] - 2026-09-15
 
 ### Added
