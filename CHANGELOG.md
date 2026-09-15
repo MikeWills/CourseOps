@@ -20,7 +20,8 @@ month, PATCH counting releases in that month from 0. Before that they were
   plain text with a pencil beside it; the pencil opens a box with Save
   (tick) and Cancel (x), Enter saves, Escape cancels. The row's icon
   buttons now share one `iconButton()` with the same paths the setup
-  screens draw.
+  screens draw, and are bare like the setup tables' - the frame made a
+  row of small icons read as a row of buttons; the 34px tap target stays.
 
 ## [2026.9.10] - 2026-09-15
 
