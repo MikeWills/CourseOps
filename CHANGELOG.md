@@ -11,6 +11,8 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+## [2026.9.5] - 2026-09-14
+
 Everything below comes from the 2026-09-14 audit (`docs/audit/`): eight
 reviews - security, code quality, and six traceability passes, one per
 layer - fixed in eight workstream pull requests (#143-#149, and the
