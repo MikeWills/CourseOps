@@ -11,6 +11,8 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+## [2026.9.11] - 2026-09-15
+
 ### Changed
 
 - **An event note is edited behind a pencil, not in a live box.** The
