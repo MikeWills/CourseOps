@@ -201,14 +201,16 @@ def test_the_snapshot_is_built_off_the_event_loop(setup, monkeypatch):
 
     import httpx
 
+    from courseops import snapshot as snapshot_module
+
     app, tokens, _, _ = setup
-    real = web.build_state
+    real = snapshot_module.build_state
 
     def slow(conn, event_id):
         time.sleep(0.4)
         return real(conn, event_id)
 
-    monkeypatch.setattr(web, "build_state", slow)
+    monkeypatch.setattr(snapshot_module, "build_state", slow)
 
     async def scenario():
         transport = httpx.ASGITransport(app=app)
