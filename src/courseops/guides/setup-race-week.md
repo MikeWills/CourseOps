@@ -64,10 +64,14 @@ send them that link with the picture of the card, the week before. In short:
 
 1. Installs **OwnTracks** (free, iOS and Android) *before* the event - a
    scanned code does nothing on a phone without the app.
-2. Scans the code with the phone camera and opens the link. That configures
+2. In OwnTracks, turns on **Settings → Remote Control → Allow external
+   configuration**. The app refuses configuration links until this is on -
+   *URI or file configuration not allowed* is what a skipped step looks
+   like.
+3. Scans the code with the phone camera and opens the link. That configures
    the app with the event's address.
-3. Opens the app's settings and sets **Tracker ID** to their designator,
-   exactly as printed.
+4. Sets **Tracker ID** in the same settings to their designator, exactly as
+   printed.
 
 **Traccar Client** works too: set the server URL from the card and the *Device
 identifier* to the designator. Its QR step is not something we can promise, so

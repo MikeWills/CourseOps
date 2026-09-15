@@ -777,10 +777,11 @@ Things discovered but not yet acted on. Each is a real constraint, not a wish.
   is the allowlist, designators are normalised on both sides, the unknown
   ones go to Net Control's nearby list, and the reported timestamp - never
   arrival - is what is stored, because both apps buffer through dead zones.
-  **Still a gap: nobody has scanned the printed card on a real phone yet.**
-  The OwnTracks field (`tid`) and the config link are verified against the
-  documentation only; the first event to use this rehearses it a week out,
-  on an iPhone and an Android, and watches a fix arrive.
+  **Still a gap: no fix has arrived from a real phone yet.** The first scan
+  on an iPhone (2026-09-15) found OwnTracks refusing the config link until
+  *Settings → Remote Control → Allow external configuration* is on - now a
+  step on the card. The first event to use this rehearses the rest a week
+  out, on an iPhone and an Android, and watches a fix arrive.
 - ~~**Course notes have no export**~~ - done 2026-09-05, issue #7. The report
   page (`report.py`) is one printable page for the race lead: pickup counts by
   stop and window, and every course note with a small map, no names.

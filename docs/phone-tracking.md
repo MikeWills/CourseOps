@@ -123,9 +123,18 @@ The issue left three things unverified. Two are settled from the booklet:
    guide says install first, and the briefing email a week out matters more
    than the card. Not verified on a phone; expected.
 
-**Not yet done on a real phone:** scanning the printed card, on iOS and on
-Android, and watching a fix arrive. That is the rehearsal step for the
-first event that uses this, and `docs/PLAN.md` carries it as a gap.
+**Found on a real iPhone (2026-09-15):** the scan itself works, and
+OwnTracks answers *URI or file configuration not allowed*. Recent versions
+reject `owntracks:///config` links unless **Settings → Remote Control →
+Allow external configuration** is already on - a deliberate default, since
+a link can reconfigure the whole app, and identical on Android
+(owntracks/ios#910, owntracks/android#2318). So the card and the guides
+carry that switch as the step before the scan. It cannot be set by the
+link itself: the security preferences are exactly the ones a config file
+may not change.
+
+**Still not seen on a real phone:** a fix arriving after the switch and the
+scan, on iOS and on Android. `docs/PLAN.md` carries it.
 
 ## Offline buffering, and the trap it brings
 

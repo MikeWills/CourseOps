@@ -27,19 +27,32 @@ When it asks for location permission, choose **Always** (or *Allow all the
 time*). "While using the app" means it stops the moment your phone goes in
 your pocket, and that is the whole reason for the app.
 
-## 2. Scan the card
+## 2. Let the app accept a configuration
+
+OwnTracks refuses configuration links unless you say it may take them - a
+sensible default, since a link can reconfigure the whole app. Once, before
+you scan:
+
+1. Open OwnTracks and tap **i** (top left), then **Settings**.
+2. Scroll to **Remote Control** and turn on **Allow external
+   configuration**. Confirm the warning.
+
+Skip this and scanning the card shows *URI or file configuration not
+allowed* and does nothing.
+
+## 3. Scan the card
 
 The club will have a printed card, or send you a picture of it. Point your
 phone camera at the code and tap the link that appears. OwnTracks opens and
-asks whether to apply the configuration - say yes.
+applies the configuration.
 
 That is the event's address. You do not need to type anything from it.
 
-## 3. Set your designator
+## 4. Set your designator
 
-Open OwnTracks' settings (the gear, or the menu). Find **Tracker ID** and
-type the designator printed beside your name on the card - `M1`, `BIKE2`,
-whatever the club chose for you.
+Back in OwnTracks' settings, find **Tracker ID** and type the designator
+printed beside your name on the card - `M1`, `BIKE2`, whatever the club
+chose for you.
 
 Type it exactly as printed. Capitals, spaces and dashes do not matter, but
 `Medic 1` is not `M1` - if you make one up, Net Control sees an unknown
@@ -59,6 +72,9 @@ That is the setup. Leave the app installed.
 
 ## If Net Control cannot see you
 
+- Did the scan actually take? *URI or file configuration not allowed*
+  means step 2 was skipped - turn on **Allow external configuration** and
+  scan again.
 - Is the app running, and did you open it once today?
 - Location permission set to **Always**?
 - Any signal? The app keeps your positions while you are out of coverage
