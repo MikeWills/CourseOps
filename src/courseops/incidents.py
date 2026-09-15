@@ -18,6 +18,8 @@ from __future__ import annotations
 import sqlite3
 from dataclasses import dataclass
 
+from . import db
+
 # Two different things end up as a pin on the map, and conflating them was a
 # mistake worth naming.
 #
@@ -86,13 +88,6 @@ class Incident:
         return data
 
 
-def _clean(value, limit: int) -> str | None:
-    if value is None:
-        return None
-    text = str(value).strip()[:limit]
-    return text or None
-
-
 def _validate_status(status: str) -> str:
     if status not in STATUSES:
         raise IncidentError(
@@ -132,19 +127,19 @@ def create(
         if found is None:
             raise IncidentError(f"No aid station with id {poi_id} in this event.")
 
-    who = _clean(by, MAX_WHO_LENGTH)
+    who = db.clean_text(by, MAX_WHO_LENGTH)
     cur = conn.execute(
         """
         INSERT INTO incident (event_id, kind, bib, lat, lon, poi_id, note,
                               reported_by, status_by)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (event_id, kind, _clean(bib, MAX_BIB_LENGTH), lat, lon, poi_id,
-         _clean(note, MAX_NOTE_LENGTH), who, who),
+        (event_id, kind, db.clean_text(bib, MAX_BIB_LENGTH), lat, lon, poi_id,
+         db.clean_text(note, MAX_NOTE_LENGTH), who, who),
     )
     incident_id = int(cur.lastrowid)
     _log(conn, incident_id, who, "created",
-         f"bib {_clean(bib, MAX_BIB_LENGTH) or '(unknown)'}"
+         f"bib {db.clean_text(bib, MAX_BIB_LENGTH) or '(unknown)'}"
          if kind == KIND_PICKUP else "course note")
     return get(conn, event_id, incident_id)
 
@@ -163,7 +158,7 @@ def set_status(
     """
     _validate_status(status)
     current = get(conn, event_id, incident_id)
-    who = _clean(by, MAX_WHO_LENGTH)
+    who = db.clean_text(by, MAX_WHO_LENGTH)
 
     conn.execute(
         """
@@ -198,7 +193,7 @@ def update(
     updates, values, described = [], [], []
     for name, limit in allowed.items():
         if name in fields:
-            value = _clean(fields[name], limit)
+            value = db.clean_text(fields[name], limit)
             updates.append(f"{name} = ?")
             values.append(value)
             described.append(f"{name}={value or '(cleared)'}")
@@ -219,7 +214,7 @@ def update(
         f"UPDATE incident SET {', '.join(updates)} WHERE id = ? AND event_id = ?",
         values,
     )
-    _log(conn, incident_id, _clean(by, MAX_WHO_LENGTH), "edited", ", ".join(described))
+    _log(conn, incident_id, db.clean_text(by, MAX_WHO_LENGTH), "edited", ", ".join(described))
     return get(conn, event_id, incident_id)
 
 
