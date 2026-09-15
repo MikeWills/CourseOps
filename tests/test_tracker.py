@@ -213,7 +213,7 @@ def test_a_buffered_backlog_keeps_the_newest_fix_on_top(setup):
     """A phone that buffered through a dead zone delivers ten minutes of
     fixes in one burst, in whatever order it kept them. The newest by
     REPORTED time is the position, never the last one inserted; a resent
-    duplicate is not a second row."""
+    duplicate is not counted twice. One row survives (#166)."""
     app, token, _, db_path, event_id = setup
     with TestClient(app) as client:
         for stamp, lat in [(1788268800, "34.71"), (1788268200, "34.70"),
@@ -222,9 +222,9 @@ def test_a_buffered_backlog_keeps_the_newest_fix_on_top(setup):
                        params={"id": "M1", "lat": lat, "lon": "-86.5",
                                "timestamp": str(stamp)})
     conn = db.connect(db_path)
-    rows = conn.execute("SELECT received_at FROM position ORDER BY id").fetchall()
-    assert [r["received_at"] for r in rows] == [
-        "2026-09-01T13:20:00Z", "2026-09-01T13:10:00Z"]
+    rows = conn.execute("SELECT received_at, packets FROM position").fetchall()
+    assert [(r["received_at"], r["packets"]) for r in rows] == [
+        ("2026-09-01T13:20:00Z", 2)]
     latest = db.latest_position_per_station(conn, event_id)
     assert latest[0]["received_at"] == "2026-09-01T13:20:00Z"
     assert latest[0]["lat"] == 34.71

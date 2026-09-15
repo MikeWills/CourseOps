@@ -8,9 +8,10 @@ takes to set up.
 > ## Before you start
 >
 > This shares your location with the event's Net Control **while the app is
-> running.** Nobody else sees it, it is only kept for this event, and it
-> stops the moment you turn the app off. If you are not comfortable with
-> that, say so - nobody will mind.
+> running.** Nobody else sees it, and it stops the moment you turn the app
+> off. Only your **latest** position is kept - each new one replaces the last,
+> so there is no record of where you have been, only where you are. If you
+> are not comfortable with that, say so - nobody will mind.
 
 ## 1. Install OwnTracks - do this at home, the week before
 
@@ -102,6 +103,6 @@ permissions and turning it off applies.
 
 ---
 
-*Your phone's position is stored with the time it was taken, not the time it
+*Your phone's position is kept with the time it was taken, not the time it
 arrived, so a gap in coverage never makes you look like you are somewhere
-you left ten minutes ago.*
+you left ten minutes ago. Only the newest one is kept.*

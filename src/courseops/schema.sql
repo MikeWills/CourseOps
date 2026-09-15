@@ -230,6 +230,14 @@ CREATE TABLE IF NOT EXISTS roster (
     UNIQUE (event_id, station_key)
 );
 
+-- ONE row per station per event: the newest position, which is all the
+-- map ever draws. A row per fix was a record of where every volunteer - and
+-- every phone-tracked medic - had been all day, with nothing reading it
+-- (#166). `db.insert_position` replaces the station's previous row, and
+-- `db.prune_positions` brings an older database into line at startup.
+-- `raw` is always '' now: it held the packet or the app's payload verbatim,
+-- and an OwnTracks fix carries the phone's wifi SSID and BSSID. The column
+-- stays because a migration never drops one.
 CREATE TABLE IF NOT EXISTS position (
     id           INTEGER PRIMARY KEY,
     event_id     INTEGER NOT NULL REFERENCES event(id) ON DELETE CASCADE,
@@ -244,7 +252,11 @@ CREATE TABLE IF NOT EXISTS position (
     symbol_code  TEXT,
     comment      TEXT,
     aprs_format  TEXT,
-    raw          TEXT    NOT NULL
+    raw          TEXT    NOT NULL,
+    -- How many reports this row stands for. The one number kept from the
+    -- history: a steady beacon and a one-off look different on the
+    -- Needs-attention card, and a count says which without a trail.
+    packets      INTEGER NOT NULL DEFAULT 1
 );
 
 CREATE INDEX IF NOT EXISTS idx_position_station

@@ -57,7 +57,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 768 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 775 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -217,6 +217,15 @@ usability, not style preferences.
   newer than what it holds, and `app.js` refuses to replace a held position
   with an older one. Break any one of those and a medic returning to
   coverage is drawn where they were ten minutes ago, freshly.
+- **One position per station, and `raw` is always empty.** The map, the
+  snapshot and the SSID alerts read a station's NEWEST row and nothing
+  reads older ones, so `db.insert_position` replaces the previous row -
+  the newest by REPORTED time survives, whichever order a phone's backlog
+  lands in - and writes `raw` as `''` (an OwnTracks payload carries the
+  phone's wifi SSID and BSSID). `packets` on that row is the count and the
+  only thing kept of the history. A feature that wants a trail (#166) is a
+  decision to start keeping one, not a bug to fix; there is a test that no
+  source reads `row["raw"]`.
 - **`expects_aprs=0` means "do not alert when silent", not "discard".** It gates
   staleness alerting and filter construction only. Use `tracked_station_keys` to
   build the filter and `all_station_keys` to decide whether to store. Getting this
@@ -1143,6 +1152,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-15** One position per station and no raw payload (#166): a fix replaces the previous one, `raw` is blank, a count is all that survives; existing databases pruned at startup.
 - **2026-09-15** Fixed: the OwnTracks QR was refused on a real iPhone until *Settings → Remote Control → Allow external configuration* is on; it is now the step before the scan on the card and in the guides.
 - **2026-09-15** `/help/phone-tracking`: the guide for the person being tracked - install, permission Always, scan, set Tracker ID, turn it off after.
 - **2026-09-15** Phone tracking (#6): a roster entry can be tracked by a phone app under a designator; one URL and one QR per event on the Tracking tab, the roster as the allowlist, reported time stored rather than arrival. `docs/phone-tracking.md`.
@@ -1152,4 +1162,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-14** `web.py` split: routers in `setup_api.py`/`field_api.py`/`pages.py`, auth as `Depends` in `deps.py`, snapshot and feed lifecycle in their own modules; `/openapi.json` off.
 - **2026-09-14** Fixed: turning Tracking on for an event with nothing to listen for exited the server and boot-looped; the switch now refuses, and persists only after the feed starts.
 - **2026-09-14** Fixed: staged import features and access links were addressed by bare id - one event's admin could reach another's. Both scoped by event.
-- **2026-09-14** Fixed: correcting a callsign on the Roster tab made a second roster row; a setup edit is a RENAME (status log follows), binding stays NCS's.

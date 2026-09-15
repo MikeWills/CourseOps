@@ -90,7 +90,8 @@ def handle_line(
     line, taken BEFORE the roster check - which, with the area filter on,
     was every status, message and telemetry packet from every ham near the
     course, verbatim, in a database that is backed up nightly. Nothing ever
-    read it. A stored position keeps its own raw line in `position.raw`.
+    read it. A stored position keeps no raw line either (#166): one row per
+    station, the newest, and the packet text is not in it.
     """
     try:
         report = parse_packet(line)

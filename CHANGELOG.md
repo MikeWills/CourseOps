@@ -11,6 +11,20 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Changed
+
+- **One position per station, and no raw payload (#166).** A row per fix
+  was a record of where every volunteer - and every phone-tracked medic -
+  had been all day, and nothing read it: the map, the snapshot and the
+  SSID alerts only ever take a station's newest row. Now `insert_position`
+  replaces the station's previous row (newest by reported time survives,
+  whichever order a backlog lands in), `position.raw` is written empty -
+  an OwnTracks fix carries the phone's wifi SSID and BSSID - and a
+  `packets` count on the one row is all that survives of the history, so
+  the Needs-attention card can still tell a steady beacon from a one-off.
+  `db.prune_positions` brings an existing database into line on every
+  start. `courseops tail` therefore shows one line per station.
+
 ## [2026.9.9] - 2026-09-15
 
 ### Fixed

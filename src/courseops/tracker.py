@@ -303,10 +303,11 @@ def is_newest(conn: sqlite3.Connection, event_id: int,
               report: PositionReport) -> bool:
     """Whether this fix is newer than everything stored for its station.
 
-    A buffered backlog arrives in whatever order the app kept it. Every fix
-    is stored - the track is real - but only a fix newer than the newest
-    already held is worth publishing, or the marker would walk backwards
-    through the backlog and stop wherever the burst happened to end.
+    A buffered backlog arrives in whatever order the app kept it. Only a
+    fix newer than the newest held is worth publishing, or the marker would
+    walk backwards through the backlog and stop wherever the burst happened
+    to end - and only that fix is kept, since `db.insert_position` holds
+    one row per station (#166).
     """
     row = conn.execute(
         "SELECT MAX(received_at) AS newest FROM position"
