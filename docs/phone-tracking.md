@@ -157,9 +157,17 @@ track - late rather than lost. Three rules follow:
   `db.latest_position_per_station` ranks by `received_at` (window
   function), where it used to take `MAX(id)`. The client also refuses to
   replace a held position with an older one. And the server publishes only
-  a fix newer than everything it holds for that station: every fix is
-  stored, because the track is real, but the marker never walks backwards
-  through a backlog.
+  a fix newer than everything it holds for that station, so the marker
+  never walks backwards through a backlog.
+- **One row per station, and no raw payload (#166, 2026-09-15).** The
+  original design stored every fix "because the track is real"; nothing
+  ever read the track, and a row per fix was a record of where every
+  phone-tracked medic had been all day, with the app's raw payload - which
+  for OwnTracks carries the phone's wifi SSID and BSSID - on each. Now
+  `db.insert_position` replaces the station's previous row (newest by
+  reported time survives, whichever order they land in), `raw` is written
+  empty, and a count of reports is the one thing kept from the history.
+  Older databases are brought into line at startup by `db.prune_positions`.
 - **A resent fix is not a second row.** Same station, same second, same
   source is a duplicate and is skipped.
 

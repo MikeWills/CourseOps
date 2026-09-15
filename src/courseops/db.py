@@ -134,6 +134,7 @@ _ADDED_COLUMNS: list[tuple[str, str, str]] = [
     ("event", "defaults_seeded", "INTEGER NOT NULL DEFAULT 0"),
     ("roster", "tracked_by", "TEXT NOT NULL DEFAULT 'aprs'"),
     ("event", "tracker_token", "TEXT"),
+    ("position", "packets", "INTEGER NOT NULL DEFAULT 1"),
 ]
 
 # Columns whose sensible starting value comes from data already in the table.
@@ -192,6 +193,7 @@ def init_schema(conn: sqlite3.Connection) -> list[str]:
     _adopt_orphan_events(conn)
     _clean_html_notes(conn)
     _seed_categories(conn)
+    prune_positions(conn)
     return applied
 
 
@@ -512,22 +514,104 @@ def tracked_station_keys(conn: sqlite3.Connection, event_id: int) -> list[str]:
 
 # --- packets --------------------------------------------------------------
 
+@transactional
 def insert_position(conn: sqlite3.Connection, event_id: int, report: PositionReport) -> int:
+    """Store a position, REPLACING the station's previous one.
+
+    The app only ever reads a station's newest position - the marker, the
+    snapshot, the SSID alerts - so a row per fix was a record of where every
+    volunteer, and every phone-tracked medic, had been all day, kept for
+    nothing (#166). One row per station is what the map needs and all the
+    database holds. Which row survives is decided by REPORTED time, not by
+    arrival: a phone delivering its dead-zone backlog sends fixes in
+    whatever order it kept them, and the newest must win whichever order
+    they land in - the same rule `latest_position_per_station` sorts by.
+
+    `raw` is written empty. It held the packet or the app's payload
+    verbatim, and an OwnTracks fix carries the phone's wifi SSID and BSSID;
+    nothing reads the column (there is a test), so nothing is kept.
+
+    What survives of the history is a COUNT: `packets` on the one row says
+    how many times the station has reported, which is what tells NCS a
+    steady beacon from a one-off on the Needs-attention card. A number,
+    not a trail.
+    """
+    previous = conn.execute(
+        "SELECT COALESCE(SUM(packets), 0) AS n FROM position"
+        " WHERE event_id = ? AND station_key = ?",
+        (event_id, report.station_key),
+    ).fetchone()["n"]
     cur = conn.execute(
         """
         INSERT INTO position (
             event_id, station_key, received_at, lat, lon, course_deg, speed_kmh,
             altitude_m, symbol_table, symbol_code, comment, aprs_format, raw
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '')
         """,
         (
             event_id, report.station_key, report.received_at, report.lat, report.lon,
             report.course_deg, report.speed_kmh, report.altitude_m,
             report.symbol_table, report.symbol_code, report.comment,
-            report.aprs_format, report.raw,
+            report.aprs_format,
         ),
     )
+    _keep_newest_position(conn, event_id, report.station_key)
+    # On whichever row survived - a late fix from a backlog leaves the older
+    # insert in place, and the count still goes up by one.
+    conn.execute(
+        "UPDATE position SET packets = ? WHERE event_id = ? AND station_key = ?",
+        (int(previous) + 1, event_id, report.station_key),
+    )
     return int(cur.lastrowid)
+
+
+def _keep_newest_position(conn: sqlite3.Connection, event_id: int,
+                          station_key: str) -> None:
+    conn.execute(
+        """
+        DELETE FROM position WHERE event_id = ? AND station_key = ? AND id NOT IN (
+            SELECT id FROM position WHERE event_id = ? AND station_key = ?
+            ORDER BY received_at DESC, id DESC LIMIT 1
+        )
+        """,
+        (event_id, station_key, event_id, station_key),
+    )
+
+
+def prune_positions(conn: sqlite3.Connection) -> None:
+    """Bring a database from before the one-row rule into line: every
+    station down to its newest position, every raw payload blanked. Runs
+    on every start from `init_schema`; cheap once it has nothing to do."""
+    # The count of what is about to go, carried onto the survivor first.
+    conn.execute(
+        """
+        UPDATE position SET packets = (
+            SELECT SUM(p2.packets) FROM position p2
+             WHERE p2.event_id = position.event_id
+               AND p2.station_key = position.station_key
+        ) WHERE id IN (
+            SELECT id FROM (
+                SELECT id, ROW_NUMBER() OVER (
+                    PARTITION BY event_id, station_key
+                    ORDER BY received_at DESC, id DESC
+                ) AS rank FROM position
+            ) WHERE rank = 1
+        )
+        """
+    )
+    conn.execute(
+        """
+        DELETE FROM position WHERE id NOT IN (
+            SELECT id FROM (
+                SELECT id, ROW_NUMBER() OVER (
+                    PARTITION BY event_id, station_key
+                    ORDER BY received_at DESC, id DESC
+                ) AS rank FROM position
+            ) WHERE rank = 1
+        )
+        """
+    )
+    conn.execute("UPDATE position SET raw = '' WHERE raw != ''")
 
 
 def recent_positions(
@@ -793,16 +877,13 @@ def unexpected_ssids(conn: sqlite3.Connection, event_id: int) -> list[sqlite3.Ro
     rows = conn.execute(
         """
         SELECT p.station_key,
-               counts.packets          AS packets,
+               p.packets               AS packets,
                p.received_at           AS last_at,
                p.symbol_table          AS symbol_table,
                p.symbol_code           AS symbol_code
           FROM position p
-          JOIN (
-                SELECT station_key, COUNT(*) AS packets, MAX(id) AS max_id
-                  FROM position WHERE event_id = ? GROUP BY station_key
-               ) counts ON counts.max_id = p.id
-      ORDER BY counts.packets DESC
+         WHERE p.event_id = ?
+      ORDER BY p.packets DESC
         """,
         (event_id,),
     ).fetchall()

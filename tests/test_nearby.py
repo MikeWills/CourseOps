@@ -110,14 +110,14 @@ def test_a_strangers_status_packet_is_not_written_down_either(event):
     assert conn.execute("SELECT COUNT(*) FROM raw_packet").fetchone()[0] == 0
 
 
-def test_a_stored_position_is_not_written_twice(event):
-    """`position.raw` already keeps the packet; a second copy in raw_packet
-    doubled the writes per packet on the loop the feed blocks on."""
+def test_a_stored_position_keeps_no_copy_of_the_packet(event):
+    """raw_packet is retired, and position.raw is blank too (#166): the
+    row is what the map draws and nothing else."""
     conn, event_id = event
     report, _ = _feed(conn, event_id, _packet("K0JZP-9"))
     assert report is not None
     assert conn.execute("SELECT COUNT(*) FROM raw_packet").fetchone()[0] == 0
-    assert conn.execute("SELECT raw FROM position").fetchone()[0] == _packet("K0JZP-9")
+    assert conn.execute("SELECT raw FROM position").fetchone()[0] == ""
 
 
 def test_a_rostered_station_is_stored_as_before(event):

@@ -197,8 +197,10 @@ again afterwards.
 
 **Leave it off the rest of the time.** The filter asks APRS-IS for each
 operator's callsign wherever they are, not only on the course - so a feed left
-running records where your volunteers are every day, which is not what anyone
-agreed to by being on a roster.
+running follows your volunteers around every day, which is not what anyone
+agreed to by being on a roster. (Only each station's latest position is kept,
+so what a forgotten feed holds is where everyone is now, not where they have
+been - but that is still their front door.)
 
 The tab shows the filter your roster produces. If that line is empty, nothing
 will ever arrive no matter how healthy everything else looks - check the roster
@@ -768,9 +770,11 @@ positions from any app still running.
 # Ctrl-C to stop the server
 ```
 
-The SQLite database keeps every position and raw packet, so the event can be
-reviewed later **[PHASE 7]**. Back up the database file — it is the whole
-record.
+The SQLite database keeps ONE position per station - the latest - and no
+raw packets, so it holds where everyone ended the day and nothing about the
+route they took (#166). The incidents, notes and lead runner sightings are
+the event's record; the after-event report is how the organizer gets them.
+Back up the database file.
 
 **[CLUB]** _Where do backups go? Who keeps them and for how long?_
 
