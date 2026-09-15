@@ -14,7 +14,7 @@ Brand, palette and logo decisions: `docs/DESIGN.md`.
 Complete history with the reasoning behind each fix: `CHANGELOG.md`.
 Open work is tracked as GitHub issues:
 #3 map tiles, #4 archive an event off the live server, #5 multi-tenant hosting,
-#6 tracking non-ham volunteers (built 2026-09-15; unverified on a real phone),
+#6 tracking non-ham volunteers (built and verified on iOS 2026-09-15; Android untried),
 #110 custom views and role names (future: planned, waiting on a second club).
 Issues #3-#5 are triggered by hosting a SECOND organization, not the first.
 
