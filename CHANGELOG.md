@@ -217,6 +217,18 @@ layer - fixed in eight workstream pull requests (#143-#149, and the
   A5.)
 
 ### Fixed
+- **`tests/test_deploy_script.py` passes on a Windows machine again.**
+  The tests that run `ssh-deploy-command.sh` and `backup.sh` called
+  `bash` off PATH, which from PowerShell on Windows is the WSL launcher
+  in `WindowsApps` - it answers in UTF-16 (or "RPC call contains a
+  handle" with no distro) and fourteen tests failed on the developer's
+  own machine while CI was green, so the file was being left out of the
+  local run. The tests now look for Git for Windows' `bash.exe` (under
+  `Program Files`, then beside `git --exec-path`) before PATH, prove the
+  candidate answers `echo ok` in plain text, and skip with a reason
+  naming the cause when nothing usable is found. CI is unchanged: on
+  Linux the first candidate is `/usr/bin/bash` as before. (Audit
+  follow-up.)
 - **Incident text fields go through the one cleaner.** `incidents.py`
   kept a private `_clean` that `str()`ed whatever arrived, so a bib sent
   as an object landed as `"{'x': 1}"` and a list for `changed_by` went

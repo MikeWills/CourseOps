@@ -7,8 +7,12 @@ reports success and changes nothing is worse than one that fails.
 
 from __future__ import annotations
 
+import functools
+import os
 import re
+import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -102,21 +106,70 @@ def test_the_script_is_committed_executable():
 # and the exec target is swapped for a stub that records what it was given.
 
 DEPLOY_DIR = SCRIPT.parent
-BASH = "bash"
 
 
-def _bash_available() -> bool:
-    try:
-        return subprocess.run([BASH, "-c", "true"], capture_output=True).returncode == 0
-    except OSError:
-        return False
+def _bash_candidates() -> list[str]:
+    """Where a real bash might be, most trustworthy first.
+
+    On Windows, `bash` on PATH is usually the WSL launcher in
+    `%LOCALAPPDATA%/Microsoft/WindowsApps`, which answers in UTF-16
+    ("RPC call contains a handle" when no distro is set up) and cannot
+    run these scripts. Git for Windows ships a working bash; look there
+    first, then beside whatever `git` is installed, and only then PATH.
+    On Linux (CI) the first candidate found is /usr/bin/bash as before.
+    """
+    found: list[str] = []
+    if sys.platform == "win32":
+        roots = [Path(p) / "Git" for p in (
+            os.environ.get("ProgramFiles", r"C:\Program Files"),
+            os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"),
+            os.environ.get("LOCALAPPDATA", ""),   # per-user install
+        ) if p]
+        git = shutil.which("git")
+        if git:
+            try:
+                exec_path = subprocess.run(
+                    [git, "--exec-path"], capture_output=True, text=True,
+                    timeout=10).stdout.strip()
+                # .../Git/mingw64/libexec/git-core -> .../Git
+                roots.append(Path(exec_path).parents[2])
+            except (OSError, subprocess.SubprocessError, IndexError):
+                pass
+        for root in roots:
+            for rel in ("bin/bash.exe", "usr/bin/bash.exe"):
+                found.append(str(root / rel))
+    on_path = shutil.which("bash")
+    if on_path and "WindowsApps" not in on_path:
+        found.append(on_path)
+    return found
+
+
+@functools.lru_cache(maxsize=1)
+def _bash() -> str | None:
+    """The first bash that actually runs a script and answers in text."""
+    for candidate in _bash_candidates():
+        try:
+            out = subprocess.run([candidate, "-c", "echo ok"],
+                                 capture_output=True, text=True, timeout=20)
+        except (OSError, subprocess.SubprocessError):
+            continue
+        if out.returncode == 0 and out.stdout.strip() == "ok":
+            return candidate
+    return None
+
+
+def _require_bash() -> str:
+    bash = _bash()
+    if bash is None:
+        pytest.skip("no usable bash: on Windows, `bash` on PATH is the WSL "
+                    "launcher; install Git for Windows")
+    return bash
 
 
 @pytest.fixture
 def forced_command(tmp_path):
     """A copy of the validator whose deploy.sh is a stub echoing its argument."""
-    if not _bash_available():
-        pytest.skip("bash is not available")
+    BASH = _require_bash()
     deploy = tmp_path / "deploy"
     deploy.mkdir()
     (deploy / "ssh-deploy-command.sh").write_bytes(
@@ -174,8 +227,7 @@ def test_backup_takes_a_consistent_copy_and_rotates_per_label(tmp_path):
     .backup, not cp, because the database is in WAL mode. Rotation is per
     label so a burst of deploys cannot push the nightlies out.
     """
-    if not _bash_available():
-        pytest.skip("bash is not available")
+    BASH = _require_bash()
     if subprocess.run([BASH, "-c", "command -v sqlite3"], capture_output=True).returncode:
         pytest.skip("sqlite3 CLI is not available")
     import sqlite3
@@ -211,8 +263,7 @@ def test_backup_takes_a_consistent_copy_and_rotates_per_label(tmp_path):
 
 def test_backup_with_no_database_is_not_an_error(tmp_path):
     """A fresh install has no database yet; cron must not page about it."""
-    if not _bash_available():
-        pytest.skip("bash is not available")
+    BASH = _require_bash()
     (tmp_path / "deploy").mkdir()
     (tmp_path / "deploy" / "backup.sh").write_bytes((DEPLOY_DIR / "backup.sh").read_bytes())
     out = subprocess.run([BASH, str(tmp_path / "deploy" / "backup.sh")],
