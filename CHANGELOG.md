@@ -11,6 +11,8 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+## [2026.9.9] - 2026-09-15
+
 ### Fixed
 
 - **Scanning the phone tracking card did nothing on an iPhone.** OwnTracks
