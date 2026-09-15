@@ -205,8 +205,11 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
             for task in list(resync_tasks):
                 task.cancel()
 
+    # No /docs, no /redoc and no /openapi.json: the schema lists every route
+    # to anyone who asks, which is the same reason /healthz stays minimal.
     app = FastAPI(
-        title="Course Ops", docs_url=None, redoc_url=None, lifespan=lifespan
+        title="Course Ops", docs_url=None, redoc_url=None, openapi_url=None,
+        lifespan=lifespan,
     )
     app.state.settings = settings
     app.state.hub = hub_module.Hub()

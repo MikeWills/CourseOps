@@ -53,6 +53,10 @@ layer - fixed in eight workstream pull requests (#143-#149, and the
   earlier file chose. `setup-events.png` predates the field.
 
 ### Changed
+- **`/openapi.json` is off, with `/docs` and `/redoc`.** The schema listed
+  every route to anyone who asked, for the same reason `/healthz` keeps to
+  liveness and a version. Noticed during the `web.py` split.
+
 - **`web.py` is bootstrap now; the routes live beside the people they
   serve.** One 2700-line module held a 1800-line `create_app` closure with
   every route of both APIs, the WebSocket, the guides, the snapshot and
