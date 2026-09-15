@@ -141,7 +141,7 @@ what to do when something breaks - is in
 ![The after-event report: counts, places, times, no names](images/setup-report.png)
 
 Every event row has an **After-event report** link. It carries counts, places,
-times and course notes with **no volunteer names**, because it goes to the race
+times, course notes and event notes with **no volunteer names**, because it goes to the race
 organizer, who needs to know that four runners were collected and where - not
 which of your members reported it.
 

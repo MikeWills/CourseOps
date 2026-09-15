@@ -129,6 +129,22 @@ Every heading folds. Fold what you are not using and it stays folded, including
 after your phone reloads the page on its own coming out of a dead zone. The
 layer switches sit at the bottom on purpose: set them once, then forget them.
 
+### Event notes
+
+Below the layer switches (Net Control has it under *Course notes* instead) is
+**Event notes**: a box and an **Add** button. It is for anything worth telling
+the organizer afterwards that happened nowhere in particular - *bring more
+pizza next year*, *the start was twenty minutes late*, *van 2 needs a spare*.
+Type it and press Add. The time is kept with it; ignore the time when it does
+not matter.
+
+**Every link can add one**, the Staff link included, because everyone's day is
+a different view of the event and this is what the club has forgotten by next
+spring. Nobody acts on these today: they are not pickups, they have no pin and
+no status, and they never enter any count. They go to the organizer in the
+after-event report, without your name. You can correct your own words in the
+box afterwards; Net Control and SAG can delete one.
+
 ## On a phone
 
 ![The map with the Layers button along the bottom](images/phone-sheet.png)

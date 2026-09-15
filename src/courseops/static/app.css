@@ -946,6 +946,41 @@ body {
   color: var(--ink-soft);
 }
 
+/* --- event notes --------------------------------------------------------- */
+
+/* A sentence and a clock time. The row reuses .incident for its rule and
+   spacing; the time takes the data face because it is read off the screen. */
+.event-note-form { display: flex; gap: 6px; margin-bottom: 8px; }
+.event-note-form input {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  font: inherit;
+  font-size: 16px;      /* 16px stops iOS zooming the page on focus */
+  color: var(--ink);
+  background: var(--paper);
+}
+.event-note-form button {
+  flex: none;
+  min-height: 44px;
+  min-width: 64px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--ink);
+  cursor: pointer;
+}
+.event-note-when { display: block; padding: 0 2px; font-size: 13px; color: var(--ink-soft); }
+.event-note-fields { padding-left: 2px; }
+.event-note-text { margin: 2px 2px 0; font-size: 14px; }
+
 /* --- lead runners -------------------------------------------------------- */
 
 .leader-course {

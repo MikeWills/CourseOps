@@ -11,6 +11,23 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Added
+
+- **Event notes: a sentence for the organizer, tied to nowhere.** *Bring
+  more pizza next year*, *the start was twenty minutes late*, *van 2 needs
+  a spare*. Not a pickup and not a place on the course, so it is neither
+  an incident nor a pin: its own table (`event_note`), text and a time and
+  the operator's annotation, no status, no position, no count. A new
+  section in the field app - under *Course notes* in Net Control's panel,
+  below the layer switches for everyone else - with a box and an **Add**
+  button, edited in place like a course note. A third heading on the
+  after-event report, times and words, no names. Every link may add one,
+  **Staff included**: `CAP_EVENT_NOTE` is the one capability all five
+  roles hold, because it cannot make the live picture lie, and the
+  forwarded link is held by exactly the people (race staff, the
+  organizer's crew) whose notes the club wants. Deleting is `CAP_INCIDENTS`.
+  The Staff badge no longer says *view only*.
+
 ### Changed
 
 - **One position per station, and no raw payload (#166).** A row per fix

@@ -15,11 +15,12 @@ not.
 
 ![Staff: the full map, lead runners and courses on the left, every station on the right](images/staff-overview.png)
 
-Your badge says **Staff - view only**. That is exactly what the link does: every
-layer, every station, the lead runners, and no button that changes anything.
+Your badge says **Staff**. The link shows every layer, every station and the
+lead runners, and has one thing you can add: an **event note** (below).
+Nothing else on the screen changes anything.
 
 **This is the link that gets forwarded.** It is safe to hand to somebody the
-club has never met, which is why it can do nothing.
+club has never met, which is why it can change nothing anyone acts on today.
 
 ---
 
@@ -33,6 +34,15 @@ club has never met, which is why it can do nothing.
 | **People / Places** | Which kinds of station and which kinds of place are drawn on the map |
 
 Tap any station row, pin or marker to fly the map to it and read its detail.
+
+## The one thing you can add
+
+At the bottom of the panel, below the layer switches, is **Event notes**. Type
+anything worth telling the organizer afterwards - *more portable toilets at the
+start*, *the finish-line PA was inaudible* - and press **Add**. It is kept
+with the time, goes into the after-event report without your name, and nobody
+acts on it during the race. Put your name or initials in the **Operator** box
+underneath if you want Net Control to know who wrote it; nothing checks it.
 
 ## What you do not get
 

@@ -397,6 +397,28 @@ CREATE TABLE IF NOT EXISTS incident_log (
 CREATE INDEX IF NOT EXISTS idx_incident_log ON incident_log (incident_id, at);
 
 
+-- Event notes: things worth telling the organizer that happened nowhere in
+-- particular. "Bring more pizza next year", "the start was late", "van 2 needs
+-- a spare". Not an incident: an incident is a pin with a status, and a
+-- location-less row in that table would have to lie about where it was. Any
+-- role may add one - Staff included, the one write that link has - because
+-- every volunteer's day is a different view of the event, and this is what
+-- the club has forgotten by the following spring. Whole rows, no workflow.
+CREATE TABLE IF NOT EXISTS event_note (
+    id          INTEGER PRIMARY KEY,
+    event_id    INTEGER NOT NULL REFERENCES event(id) ON DELETE CASCADE,
+    text        TEXT    NOT NULL,
+    -- Stored always; the report shows it and the reader ignores it when it
+    -- does not matter. "Ran out of cups at 14:32" is still a fact.
+    created_at  TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+    -- The operator's own annotation, free text, never identity. Never shown
+    -- on the report, which carries no names.
+    created_by  TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_event_note ON event_note (event_id, created_at);
+
+
 -- Lead runner sightings, called in from aid stations.
 --
 -- The counterpart to the sweep: the sweep says when an aid station can close,

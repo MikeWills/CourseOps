@@ -73,12 +73,19 @@ CAP_INCIDENTS = "incidents"   # move a pickup along its workflow, delete one
 CAP_STATIONS = "stations"     # a roster entry's operational status
 CAP_SSID = "ssid"             # adopt or dismiss an unexpected SSID
 CAP_LEADERS = "leaders"       # lead runner sightings
+# An event note is a sentence for the organizer afterwards, tied to no place
+# and no runner: "bring more pizza next year". Its own capability, and the
+# only one every role holds, because it is the one write that cannot make
+# the live picture lie - it is not a pin, not a status and not in any
+# count. Deleting one is CAP_INCIDENTS, the same hands that clear the queue.
+CAP_EVENT_NOTE = "event_note"
 # There is no capability for bib colours or course styling: those are set in
 # setup, by an administrator, before the race, and a resync carries them to
 # the field. A live-app write for them existed with no control behind it.
 
 ALL_CAPABILITIES = frozenset(
-    {CAP_INCIDENT_REPORT, CAP_INCIDENTS, CAP_STATIONS, CAP_SSID, CAP_LEADERS}
+    {CAP_INCIDENT_REPORT, CAP_INCIDENTS, CAP_STATIONS, CAP_SSID, CAP_LEADERS,
+     CAP_EVENT_NOTE}
 )
 
 ROLE_CAPABILITIES = {
@@ -87,20 +94,24 @@ ROLE_CAPABILITIES = {
     # fills in the bib once they have the runner in front of them. Nothing
     # else: this is a bearer link in a moving vehicle, and the blast radius of
     # a lost phone should be one incident queue, not the whole event.
-    ROLE_SAG: frozenset({CAP_INCIDENT_REPORT, CAP_INCIDENTS}),
+    ROLE_SAG: frozenset({CAP_INCIDENT_REPORT, CAP_INCIDENTS, CAP_EVENT_NOTE}),
     # Liaison and Logistics report and no more. Both are where the incidents
     # happen: Logistics is on the course at a cone or an intersection, and
     # Liaison sits with Public Safety and Medics, taking pickups that come in
     # by another route entirely. Liaison is not AT the thing they are
     # reporting, which is why dropping a pin on the map stays the primary way
     # in and locating yourself is only ever the shortcut beside it.
-    ROLE_LIAISON: frozenset({CAP_INCIDENT_REPORT}),
-    ROLE_LOGISTICS: frozenset({CAP_INCIDENT_REPORT}),
-    # Nothing. Staff see everything the field roles see and cannot touch any
-    # of it - not even report - because this is the link that gets forwarded
-    # to people the club has never met, and a link that can write is a link
-    # that has to be tracked. It also never receives the nearby list.
-    ROLE_STAFF: frozenset(),
+    ROLE_LIAISON: frozenset({CAP_INCIDENT_REPORT, CAP_EVENT_NOTE}),
+    ROLE_LOGISTICS: frozenset({CAP_INCIDENT_REPORT, CAP_EVENT_NOTE}),
+    # Event notes and nothing else. Staff see everything the field roles see
+    # and cannot touch any of it - not even report a pickup - because this is
+    # the link that gets forwarded to people the club has never met, and a
+    # write that changes the live picture is a link that has to be tracked.
+    # An event note changes nothing anyone acts on during the race: it is a
+    # sentence for the organizer afterwards, and the people on this link
+    # (race staff, the organizer's own crew) are exactly who has those. NCS
+    # can delete one. It still never receives the queue or the nearby list.
+    ROLE_STAFF: frozenset({CAP_EVENT_NOTE}),
 }
 
 @dataclass(frozen=True)

@@ -21,7 +21,7 @@ import sqlite3
 from dataclasses import dataclass, field
 from html import escape
 
-from . import categories, geo, incidents, progress
+from . import categories, event_notes, geo, incidents, progress
 
 # The same Leaflet and the same tiles the live map uses, so the small maps on
 # this page cost nothing new: no dependency, no server-side call, nothing sent
@@ -56,6 +56,13 @@ class Note:
 
 
 @dataclass
+class EventNote:
+    """A sentence tied to nowhere: no map, no place, just when and what."""
+    at: str
+    text: str
+
+
+@dataclass
 class Report:
     event_name: str
     event_date: str | None
@@ -66,6 +73,7 @@ class Report:
     by_place: list[Place] = field(default_factory=list)
     between_stops: int = 0
     notes: list[Note] = field(default_factory=list)
+    event_notes: list[EventNote] = field(default_factory=list)
     # Drawn under each note's map so the corner is seen in relation to the
     # route, which is what makes "mile 9.1" recognisable as a place.
     courses: list[dict] = field(default_factory=list)
@@ -134,6 +142,12 @@ def build(conn: sqlite3.Connection, event_id: int) -> Report:
             ))
 
     report.by_place = [p for p in places.values() if p.count]
+    # Oldest first here, unlike the live list: on paper this reads as the
+    # day in order. `created_by` is left behind on purpose - no names.
+    report.event_notes = [
+        EventNote(at=row["created_at"], text=row["text"])
+        for row in reversed(event_notes.for_event(conn, event_id))
+    ]
     if report.notes:
         for row in conn.execute(
             "SELECT name, color, geojson FROM course WHERE event_id = ?"
@@ -199,6 +213,16 @@ def render(report: Report) -> str:
     else:
         notes = "<p class=\"big\">Nothing to report.</p>"
 
+    if report.event_notes:
+        general = "".join(
+            f'<article class="note note--general"><div class="words">'
+            f'<p class="when">{_time(n.at)}</p><p class="what">{e(n.text)}</p>'
+            f'</div></article>'
+            for n in report.event_notes
+        )
+    else:
+        general = "<p class=\"big\">Nothing recorded.</p>"
+
     # Course lines for the small maps. JSON inside a <script> is the one
     # place HTML escaping does not apply, so "<" is written as its JSON
     # escape - a course NAME is club-typed text and must not be able to end
@@ -261,6 +285,11 @@ def render(report: Report) -> str:
 
 <h2>Course notes</h2>
 {notes}
+
+<h2>Event notes</h2>
+<p class="sub">Anything a volunteer thought worth telling you that happened
+nowhere in particular.</p>
+{general}
 
 <footer>Counts and locations only. No names are recorded here.</footer>
 

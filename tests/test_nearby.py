@@ -397,8 +397,9 @@ def test_staff_see_the_whole_picture_and_none_of_the_ncs_lists(app_with_nearby):
     app, tokens, _ = app_with_nearby
     with TestClient(app) as client:
         state = client.get(f"/api/m2026/{tokens['staff']}/state").json()
-        assert state["role"] == "staff" and state["can_write"] is False
-        assert state["capabilities"] == []
+        assert state["role"] == "staff"
+        # An event note is the one write this link has; see test_event_notes.
+        assert state["capabilities"] == ["event_note"]
         assert "roster" in state and "positions" in state and "pois" in state
         assert "nearby" not in state and "ignored" not in state
         # Pickups and notes are not theirs either - see test_web.py.

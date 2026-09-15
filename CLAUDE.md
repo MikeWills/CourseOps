@@ -57,7 +57,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 775 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 790 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -844,6 +844,15 @@ usability, not style preferences.
   other browser holds the row AND a map marker and nothing will mention it
   again. `incident_log` cascades: it is the history OF an incident, not an
   audit trail that outlives it.
+- **An event note is not a course note.** `event_note` is its own table:
+  text, a time, an annotation - no position, no status, no kind. A course
+  note is a pin, and everything that renders an incident assumes a marker
+  and a `course_position`; a location-less row in `incident` would have to
+  lie about where it was. It is also the ONE write every role holds,
+  Staff included (`CAP_EVENT_NOTE`), because nothing anyone acts on during
+  the race depends on it - which is the test for whether the forwarded
+  link may do something. Deleting is `CAP_INCIDENTS`. The snapshot and the
+  socket carry it to every role, unlike incidents; do not gate it.
 - **A course note is not a pickup.** `incident.kind` separates them. The pickup
   queue and its count are read as "who is still waiting", so a note must never
   appear there. Notes have no status workflow; their audience is the organizer
@@ -1152,6 +1161,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-15** Event notes: freeform, location-less notes for the organizer ("bring more pizza next year"), addable from every link including Staff, under Course notes for NCS and at the bottom of the sheet for everyone else, on the after-event report.
 - **2026-09-15** One position per station and no raw payload (#166): a fix replaces the previous one, `raw` is blank, a count is all that survives; existing databases pruned at startup.
 - **2026-09-15** Fixed: the OwnTracks QR was refused on a real iPhone until *Settings → Remote Control → Allow external configuration* is on; it is now the step before the scan on the card and in the guides.
 - **2026-09-15** `/help/phone-tracking`: the guide for the person being tracked - install, permission Always, scan, set Tracker ID, turn it off after.
@@ -1161,4 +1171,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-14** Audit (`docs/audit/`): eight reviews, nine PRs (#143-#151). Highlights below; the rest is in `CHANGELOG.md`.
 - **2026-09-14** `web.py` split: routers in `setup_api.py`/`field_api.py`/`pages.py`, auth as `Depends` in `deps.py`, snapshot and feed lifecycle in their own modules; `/openapi.json` off.
 - **2026-09-14** Fixed: turning Tracking on for an event with nothing to listen for exited the server and boot-looped; the switch now refuses, and persists only after the feed starts.
-- **2026-09-14** Fixed: staged import features and access links were addressed by bare id - one event's admin could reach another's. Both scoped by event.
