@@ -24,6 +24,10 @@ of your screen.
 Everyone should also read **[The basics, whichever link you hold](everyone.md)**:
 the map, the colours, the panels, and how it behaves on a phone.
 
+**No callsign, but Net Control needs to find you?** Bike medics, race staff
+and drivers: [Being tracked by your phone](phone-tracking.md) - install one
+free app, scan one code, type your designator. Five minutes, the week before.
+
 ## Standing the event up rather than working it?
 
 | Page | Covers |

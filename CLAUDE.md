@@ -1143,6 +1143,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-15** `/help/phone-tracking`: the guide for the person being tracked - install, permission Always, scan, set Tracker ID, turn it off after.
 - **2026-09-15** Phone tracking (#6): a roster entry can be tracked by a phone app under a designator; one URL and one QR per event on the Tracking tab, the roster as the allowlist, reported time stored rather than arrival. `docs/phone-tracking.md`.
 - **2026-09-15** Setup is two levels: Configure on the Events list opens an event (name as heading, ‹ All events back, hash-addressed); the twelve-tab bar and "Pick an event first" are gone.
 - **2026-09-15** Fixed: deleting the last leader (or layer, or role) brought the defaults back; `event.defaults_seeded` makes seeding once-per-event, and the field app hides Lead runners when an event tracks none.
@@ -1152,4 +1153,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-14** Fixed: staged import features and access links were addressed by bare id - one event's admin could reach another's. Both scoped by event.
 - **2026-09-14** Fixed: correcting a callsign on the Roster tab made a second roster row; a setup edit is a RENAME (status log follows), binding stays NCS's.
 - **2026-09-14** Sign-in hashes off the event loop with a per-username/IP limiter; the first account needs the setup code printed at startup.
-- **2026-09-14** The feed no longer writes the public's packets to disk (`raw_packet` retired); Ignore takes effect on the next packet.

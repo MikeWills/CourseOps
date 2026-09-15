@@ -41,7 +41,7 @@ INDEX = "README"
 # order the runbook introduces them, then setup. Anything not named lands at
 # the end in file order, so a new page appears without editing this.
 ORDER = ["everyone", "net-control", "sag", "liaison", "logistics", "staff",
-         "setup", "setup-people", "setup-race-week", "setup-ideas"]
+         "phone-tracking", "setup", "setup-people", "setup-race-week", "setup-ideas"]
 
 # Short names for the navigation. The page's own H1 is the title on the page;
 # these are what fit in a list down the side of a phone screen.
@@ -53,6 +53,7 @@ NAV_TITLES = {
     "liaison": "Liaison",
     "logistics": "Logistics",
     "staff": "Staff",
+    "phone-tracking": "Tracked by your phone",
     "setup": "Setup: the course",
     "setup-people": "Setup: roster and links",
     "setup-race-week": "Setup: race week and after",
