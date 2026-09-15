@@ -20,6 +20,11 @@ CREATE TABLE IF NOT EXISTS event (
     -- to also pick up un-rostered stations near the course.
     aprs_filter_extra TEXT,
     is_active         INTEGER NOT NULL DEFAULT 1,
+    -- Whether the default layers, roles and leaders have been put in once.
+    -- "Seed only into an event with none" could not tell an event the club
+    -- had deliberately emptied from one that had never been seeded, so
+    -- deleting the last leader brought both defaults back.
+    defaults_seeded   INTEGER NOT NULL DEFAULT 0,
     -- Whether this event's APRS-IS feed should be running.
     --
     -- Persisted rather than held in memory because a deploy restarts the

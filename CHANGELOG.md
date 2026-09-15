@@ -11,6 +11,23 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Fixed
+
+- **Deleting the last leader brought both defaults back.** A bike festival is
+  not a race and wants no lead runner tracking, but deleting *First female*
+  after *First male* emptied the table, and "seed the defaults into an event
+  with none" could not tell an event the club had deliberately emptied from
+  one that had never been seeded - so both reappeared on the next page load,
+  which is the exact thing the seed-once rule was written to prevent. The
+  same latent bug sat under the place layers and the station roles. An event
+  now carries `defaults_seeded`: set once, at creation or at the first startup
+  or read after the migration, and never again. An empty taxonomy is a state
+  the club chose. Existing events that already have their leaders are marked
+  seeded by the migration; one from before leaders existed gets them once.
+- The field app hides the Lead runners section when the event has courses but
+  tracks no leaders. It used to read "No courses imported yet." over a course
+  that was plainly on the map.
+
 ## [2026.9.5] - 2026-09-14
 
 Everything below comes from the 2026-09-14 audit (`docs/audit/`): eight

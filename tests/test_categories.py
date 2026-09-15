@@ -579,10 +579,77 @@ def test_reading_the_leaders_writes_nothing(event):
 
 def test_an_event_with_no_layers_at_all_is_still_seeded_on_read(event):
     """The one write a read may do, and only once: an event from before layers
-    existed gets the defaults. Seeding an event that HAS layers would resurrect
-    what the club deleted."""
+    existed gets the defaults. "Before layers existed" is the flag, not an
+    empty table - an empty table is what a club that deleted everything
+    chose, and seeding into it would resurrect what they deleted."""
     conn, event_id = event
     conn.execute("DELETE FROM poi_category WHERE event_id = ?", (event_id,))
+    conn.execute("UPDATE event SET defaults_seeded = 0 WHERE id = ?", (event_id,))
     keys = {c["key"] for c in categories.poi_categories(conn, event_id)}
     assert "aid_station" in keys
 
+
+
+# --- deleting the LAST default must stick -----------------------------------
+
+def test_deleting_every_leader_leaves_none(event):
+    """A bike festival is not a race: nobody wants a leader panel. Deleting
+    the second of the two defaults emptied the table, and "seed into an event
+    with none" could not tell an emptied event from a never-seeded one - so
+    both came straight back."""
+    conn, event_id = event
+    for row in categories.lead_divisions(conn, event_id):
+        assert categories.delete_lead_division(conn, event_id, row["key"]) == 0
+
+    assert categories.lead_divisions(conn, event_id) == []
+    assert categories.lead_division_labels(conn, event_id) == {}
+
+
+def test_deleting_every_layer_leaves_none(event):
+    conn, event_id = event
+    for row in categories.poi_categories(conn, event_id):
+        assert categories.delete_poi_category(conn, event_id, row["key"]) == 0
+
+    assert categories.poi_categories(conn, event_id) == []
+
+
+def test_deleting_every_role_leaves_none(event):
+    conn, event_id = event
+    for row in categories.roster_roles(conn, event_id):
+        assert categories.delete_roster_role(conn, event_id, row["key"]) == 0
+
+    assert categories.roster_roles(conn, event_id) == []
+
+
+def test_an_emptied_event_stays_empty_across_a_restart(tmp_path):
+    """Startup seeds too, for events from before the taxonomies existed. It
+    must not undo a deliberate emptying the night before the event."""
+    path = tmp_path / "t.sqlite3"
+    conn = db.connect(path)
+    db.init_schema(conn)
+    event_id = db.create_event(conn, "e", "Event")
+    for row in categories.lead_divisions(conn, event_id):
+        categories.delete_lead_division(conn, event_id, row["key"])
+    conn.close()
+
+    conn = db.connect(path)
+    db.init_schema(conn)
+    assert categories.lead_divisions(conn, event_id) == []
+
+
+def test_an_event_from_before_leaders_existed_is_seeded_once(tmp_path):
+    """The case the old rule was written for: a database whose events have no
+    lead_division rows because the table did not exist yet. Simulated by
+    clearing the flag, which is what the migration leaves for such an event."""
+    path = tmp_path / "t.sqlite3"
+    conn = db.connect(path)
+    db.init_schema(conn)
+    event_id = db.create_event(conn, "e", "Event")
+    conn.execute("DELETE FROM lead_division WHERE event_id = ?", (event_id,))
+    conn.execute("UPDATE event SET defaults_seeded = 0 WHERE id = ?", (event_id,))
+    conn.close()
+
+    conn = db.connect(path)
+    db.init_schema(conn)
+    keys = {d["key"] for d in categories.lead_divisions(conn, event_id)}
+    assert keys == {"male", "female"}
