@@ -133,8 +133,12 @@ carry that switch as the step before the scan. It cannot be set by the
 link itself: the security preferences are exactly the ones a config file
 may not change.
 
-**Still not seen on a real phone:** a fix arriving after the switch and the
-scan, on iOS and on Android. `docs/PLAN.md` carries it.
+**Verified end to end on a real iPhone (2026-09-15, OwnTracks 26.2.3):**
+with the switch on, the scan configured the app (Status Info showed the
+event URL and `monitoring 2`), and the fix appeared on the live map within
+a minute, under the app's default two-letter Tracker ID - which is the
+case the nearby list exists for. **Android is not yet tried**; the setting
+is documented as identical.
 
 ## Offline buffering, and the trap it brings
 

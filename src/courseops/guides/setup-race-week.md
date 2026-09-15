@@ -64,8 +64,8 @@ send them that link with the picture of the card, the week before. In short:
 
 1. Installs **OwnTracks** (free, iOS and Android) *before* the event - a
    scanned code does nothing on a phone without the app.
-2. In OwnTracks, turns on **Settings → Remote Control → Allow external
-   configuration**. The app refuses configuration links until this is on -
+2. In OwnTracks, turns on **i → Settings → Remote Control (at the bottom)
+   → Allow external configuration**. The app refuses configuration links until this is on -
    *URI or file configuration not allowed* is what a skipped step looks
    like.
 3. Scans the code with the phone camera and opens the link. That configures

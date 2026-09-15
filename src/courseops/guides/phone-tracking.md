@@ -33,9 +33,22 @@ OwnTracks refuses configuration links unless you say it may take them - a
 sensible default, since a link can reconfigure the whole app. Once, before
 you scan:
 
-1. Open OwnTracks and tap **i** (top left), then **Settings**.
-2. Scroll to **Remote Control** and turn on **Allow external
-   configuration**. Confirm the warning.
+1. On the map screen, tap the **i** button at the top left.
+
+   ![The OwnTracks map: the i button is top left, beside the map icon](images/owntracks-map.png)
+
+2. That opens **Status Info**. Tap **Settings**, under the Connection box.
+
+   ![Status Info: the Settings link is beneath Connection, next to Logs](images/owntracks-status.png)
+
+3. Scroll all the way to the bottom of Settings and tap **Remote Control**.
+
+   ![The bottom of Settings: Remote Control is the last row](images/owntracks-settings.png)
+
+4. Turn on **Allow external configuration** (the first switch) and confirm
+   the warning. Leave the other switches alone.
+
+   ![Remote Control: Allow external configuration is the first switch, on](images/owntracks-remote-control.png)
 
 Skip this and scanning the card shows *URI or file configuration not
 allowed* and does nothing.
@@ -46,19 +59,17 @@ The club will have a printed card, or send you a picture of it. Point your
 phone camera at the code and tap the link that appears. OwnTracks opens and
 applies the configuration.
 
-That is the event's address. You do not need to type anything from it.
+To check it took: **i** → **Status Info** should now show the event's
+address under *Connection - Parameters* (it starts with the club's web
+address and `/track/`), and the row at the top of the map switches from
+*Significant* to **Move**.
 
 ## 4. Set your designator
 
-Back in OwnTracks' settings, find **Tracker ID** and type the designator
-printed beside your name on the card - `M1`, `BIKE2`, whatever the club
-chose for you.
-
-Type it exactly as printed. Capitals, spaces and dashes do not matter, but
-`Medic 1` is not `M1` - if you make one up, Net Control sees an unknown
-phone and has to work out who it is.
-
-That is the setup. Leave the app installed.
+**i** → **Settings** again. Near the top, find **Tracker ID** (the app's
+two-letter default is shown on your own dot on the map) and type the
+designator printed beside your name on the card - `M1`, `BIKE2`, whatever
+the club chose for you. It does not change on its own.
 
 ## On the day
 
