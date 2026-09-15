@@ -11,34 +11,9 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
-### Removed
-- **Code nothing ran.** The 2026-09-14 audit listed every top-level name in
-  `src/courseops` that no production code referenced, and the scan was
-  re-run after the other workstreams merged. Gone: `access.WRITE_ROLES`;
-  the server-wide setup token (`ensure_admin_token`, `resolve_admin`,
-  `rotate_admin_token`, and the `admin_token` DDL - setup has been behind
-  administrator accounts since the browser setup shipped, and a table that
-  reads like a second credential path is the kind of thing an auditor
-  spends an hour on; an existing database keeps its table, unread, rather
-  than get a `DROP` in a startup migration); `db.active_events`;
-  `discovery.roster_keys_for_event`; `leaders.DIVISIONS` (the pair lives in
-  `categories.DEFAULT_LEAD_DIVISIONS`); `units.miles_to_meters` and
-  `units.format_mile`; `build.version_string` and
-  `categories.lead_division_keys`, which only tests called; the `geo`,
-  `styling`, `Form` and (after the deletion above) `sqlite3` imports in
-  `admin.py`, `web.py` and `discovery.py`; the unused `.swatch-dot` rule
-  in `setup.css`. `incidents.waiting_count` went with them: the client has
-  derived the queue count from the list since the count and the map
-  drifted, and a count sent once in the snapshot was stale by the next
-  socket message anyway. The snapshot no longer carries `pickups_waiting`,
-  `divisions` (each `leaders` entry carries its `division_label`, the only
-  form the panel reads), `incident_kinds` (the pin-kind buttons are static)
-  or `roster[].poi_name`; `app.js` drops the two state fields that only
-  ever received them. `roster.color` stays in the schema, marked unused:
-  dropping a column is a migration. Already handled by earlier merges and
-  not repeated here: `purge_expired_sessions` (now called from
-  `start_session`), `suggest_event_center` (now wired to import), the
-  duplicate `payload["role"]` assignment. (Audit D1.)
+Everything below comes from the 2026-09-14 audit (`docs/audit/`): eight
+reviews - security, code quality, and six traceability passes, one per
+layer - fixed in seven workstream pull requests (#143-#149).
 
 ### Added
 - **The first account needs the setup code from the console.** Until one
@@ -65,24 +40,16 @@ month, PATCH counting releases in that month from 0. Before that they were
   checkboxes, each saving on its own. The setup guide gained an
   *Administrators* section.
 
-### Removed
-- **The live app's bib-colour route.** `POST .../course/{id}/bib-color` was
-  an NCS write with no control behind it - bib colours are set in setup,
-  before the race, and a resync carries them to the field - and it kept a
-  `CAP_COURSE` capability alive that nothing else used, including a
-  fallback list in `app.js` naming a power no button offered. The route,
-  the capability and the fallback entry are gone; the two read-only history
-  routes (`station-log`, `incidents/{id}/log`) stay, marked API-only: they
-  are the read side of append-only logs that a handover view can be built
-  on, and deleting them would leave those logs write-only. (Audit D2.)
-
-### Fixed
-- **Deleting a course or a place sends what it was built from back to
-  review.** The staged import features behind it were left `assigned` with
-  their target NULLed by the foreign key: off the review list, impossible to
-  discard, and the only way to redo a course stitched wrong was to upload
-  the file again - which nothing on screen said. `admin.delete_course` and
-  `admin.delete_poi` set them back to `pending` first. (Audit D3.)
+- **An event's map centre can be set from the browser, and an import sets
+  it for you.** The Places map opens on the event's centre when there is no
+  course or place to fit - the parade, the 5K with no file, exactly the
+  case the picker was built for (#108) - but only the CLI's `--lat/--lon`
+  ever set one, so that map opened on the whole country and the first
+  click landed in Kansas. The event form has an optional *Map centre*
+  (paste both numbers into the first box and they split), sent only when
+  typed, and an import seeds it from the middle of the staged file when
+  the event has none - once, never overwriting a centre someone set or an
+  earlier file chose. `setup-events.png` predates the field.
 
 ### Changed
 - **One timestamp helper, one `dict(row)`.** `parser`, `users` and `access`
@@ -97,19 +64,6 @@ month, PATCH counting releases in that month from 0. Before that they were
   Python constant now. `Subscription.dropped` was already reset by the
   socket-performance work (E7) and needed nothing. (Audit D3.)
 
-### Added
-- **An event's map centre can be set from the browser, and an import sets
-  it for you.** The Places map opens on the event's centre when there is no
-  course or place to fit - the parade, the 5K with no file, exactly the
-  case the picker was built for (#108) - but only the CLI's `--lat/--lon`
-  ever set one, so that map opened on the whole country and the first
-  click landed in Kansas. The event form has an optional *Map centre*
-  (paste both numbers into the first box and they split), sent only when
-  typed, and an import seeds it from the middle of the staged file when
-  the event has none - once, never overwriting a centre someone set or an
-  earlier file chose. `setup-events.png` predates the field.
-
-### Changed
 - **The Courses table saves as a unit**, like every other editable table in
   setup. It was the last one with a save button per row, and each press
   reloaded the courses table AND the Places table under it - so saving a
@@ -120,7 +74,124 @@ month, PATCH counting releases in that month from 0. Before that they were
   The two bib fields travel together because the server stores them as one
   setting. `setup-courses.png` shows the old per-row button.
 
+- **One `post()` in the field app, and the server's reason on screen.**
+  Nine hand-rolled POSTs carried three different ideas of what a failure
+  looked like, and all but one threw away the `detail` the server writes -
+  so "Staff is read-only." and "Unknown status" reached nobody, and the
+  status message said "check the connection" for a refusal that had nothing
+  to do with the connection. Every write goes through `post(path, body)`
+  now, which throws the server's wording, and every status line shows it.
+  `escapeHtml` moved to a shared `static/util.js` (setup's `esc` is an
+  alias): the two copies were character-for-character identical, and two
+  copies of an escaper are two places to get it wrong.
+
+- **Two small writes-on-read are gone.** A link's `last_used` was stamped
+  on every request - each phone poll a writer competing with the feed for
+  the one lock - and it is read by a human on the Links tab, where a
+  minute's resolution is plenty; it is refreshed only when a minute old.
+  The guides at `/help/` were globbed, read and rendered on every request
+  (the one unauthenticated endpoint anyone can hammer, and on the event
+  loop); they are read once per server run, since they ship in the
+  package and cannot change while it runs.
+- **A burst of setup saves reaches the field as one resync.** Save-all
+  posts one request per changed row, and each published its own resync -
+  which every phone answers with a full snapshot fetch and a map rebuild.
+  Twelve renames were twelve rebuilds per phone, on the one day setup
+  edits happen live. The server now waits a moment for the burst to end
+  (never more than a second and a half) and publishes once; the client
+  fetches at most one snapshot per half second and never two at once,
+  since two landing out of order would leave the older on screen. Flipping
+  the tracking switch and editing links no longer resync anyone: neither
+  changes anything a phone draws.
+- **The snapshot, the report and a course import are built off the event
+  loop.** Every route ran its SQLite work on the loop, and the snapshot is
+  the heavy one: while one phone's was being built nothing else moved - no
+  WebSocket send, no ingest, no other phone - and a setup save resyncs
+  every phone at once, so twelve phones were twelve builds in a row with
+  positions frozen for the sum of them. Those three now run in a worker
+  thread (`asyncio.to_thread`); the rest of the routes are quick and stay
+  where they are. Two smaller things on the same path: `/state` opened
+  three connections and now opens one, and `PRAGMA journal_mode = WAL` -
+  5 ms of a 6 ms connect, per request - is set once in `init_schema`, since
+  the mode lives in the file. On the demo event a request issued during a
+  snapshot build waited 195 ms and now waits 79 ms (the geometry still
+  holds the GIL, so the loop gets turns rather than the whole wait);
+  twelve simultaneous snapshots took 2.2 s and take under 1 s.
+- **Reading the layer or leader list no longer writes.** Both readers ran
+  an `INSERT OR IGNORE` per place type and per sighted division on every
+  call - the repair that gives an orphaned key a row so the place or the
+  report does not vanish - and an `INSERT OR IGNORE` that ignores still
+  takes the writer lock. Every phone's snapshot reads both lists, so every
+  snapshot was a writer competing with the ingest loop and with each other,
+  and with the 5 s busy timeout one could stall the event loop waiting for
+  a lock it had no use for. The repair now runs once at startup, for
+  databases written before the layer and leader keys were validated on the
+  way in; the readers only SELECT. Seeding the
+  defaults into an event that has none is unchanged. A demo snapshot went
+  from 43 statements with 9 writes to 31 with none.
+- **The snapshot build is half the work it was.** `CourseIndex.locate`
+  walks every vertex of every course in pure Python, and one snapshot asked
+  it about each place four times over - in the course-order sort key, for
+  the place's own mile figure, and twice again in the leader progression.
+  That was 88 % of `build_state`, and it grew as places times vertices:
+  the organizer's real file has 48 mile markers on a 1258-point course.
+  The index now remembers each answer for the life of the request, misses
+  included. On the demo event `build_state` went from 178 ms to 89 ms
+  median. Why it matters: the snapshot is built on the event loop, and
+  while it is, no phone's position moves.
+
+- **Leaflet is shipped with the app instead of loaded from unpkg.com.** The
+  same reason the fonts are: every field phone was reporting to a third
+  party to draw the map, and a CDN outage on race morning would have been
+  no map at all. `static/leaflet/` is byte for byte the 1.9.4 build the
+  pages used to pin with subresource integrity, and a test checks it
+  against those same hashes.
+- **Every response carries a Content-Security-Policy, set by the app.**
+  `script-src 'self'` - no inline script, no CDN - with the tile server the
+  one named exception for images and the page's own host for the WebSocket.
+  Both clients build markup from server data all day, and the policy turns
+  a future escaping slip into a blocked request rather than a stolen
+  token. The three inline scripts (the setup page's first-run flag and the
+  report's clock and mini-maps) moved to files, with the values they need
+  on `data-` attributes. The app also sends `Referrer-Policy`,
+  `X-Content-Type-Options` and `X-Frame-Options` itself, and the map,
+  setup and report pages state the referrer policy in a `<meta>`, so the
+  Windows build and a LAN install get what only the Apache template gave
+  before.
+
+- **One reorder routine.** Places, courses, layers and leaders each had a
+  textually identical loop - four places to fix the next ordering bug.
+  `db.reorder` is the one implementation, with the two real differences as
+  arguments: places may be ordered a few at a time, and courses read as a
+  stack so the first id given draws on top. Every key is still checked
+  before anything is written.
+- **One GROUP BY per count.** The events list ran four COUNTs per event,
+  the organizations list two per club, and the setup taxonomy screen and
+  `courseops layers` each counted every layer, role and leader one at a
+  time - the CLI with its own copy of the web's query. `categories.place_counts`,
+  `role_counts` and `sighting_counts` feed both.
+- Refusing to delete a layer, a role or a leader that is still in use is a
+  409 in all three cases; roles and leaders said 400. The client treats them
+  alike, but the next taxonomy copies whichever one it reads first.
+
+- Two per-packet costs on the ingest loop are gone. `bind_heard_ssid` ran
+  its two lookups for every stored packet, including ones whose key the
+  roster names outright and which can therefore never bind; it is skipped
+  for those. And `position` socket messages carried `label` and `category`
+  from a roster read once when the feed started - nothing on the client read
+  them (it joins by key, from the snapshot), and had anything started to it
+  would have shown the roster as it was hours before. `position_message`
+  and `make_position_handler` lose the roster argument. (Audit 2026-09-14,
+  A5.)
+
 ### Fixed
+- **Deleting a course or a place sends what it was built from back to
+  review.** The staged import features behind it were left `assigned` with
+  their target NULLed by the foreign key: off the review list, impossible to
+  discard, and the only way to redo a course stitched wrong was to upload
+  the file again - which nothing on screen said. `admin.delete_course` and
+  `admin.delete_poi` set them back to `pending` first. (Audit D3.)
+
 - **A pin on the Places map could not be dragged on a touch screen.** The
   drag was built on the map's `mousedown`/`mousemove`/`mouseup`, and a
   finger sends none of those: a touch drag is `touchmove`, which the map's
@@ -208,20 +279,6 @@ month, PATCH counting releases in that month from 0. Before that they were
   `tests/test_setup_client.py` holds the reader and the cell to the same
   attribute names.
 
-
-### Changed
-- **One `post()` in the field app, and the server's reason on screen.**
-  Nine hand-rolled POSTs carried three different ideas of what a failure
-  looked like, and all but one threw away the `detail` the server writes -
-  so "Staff is read-only." and "Unknown status" reached nobody, and the
-  status message said "check the connection" for a refusal that had nothing
-  to do with the connection. Every write goes through `post(path, body)`
-  now, which throws the server's wording, and every status line shows it.
-  `escapeHtml` moved to a shared `static/util.js` (setup's `esc` is an
-  alias): the two copies were character-for-character identical, and two
-  copies of an escaper are two places to get it wrong.
-
-### Fixed
 - **Small field-app fixes.** The operator name was cut to 12 characters on
   a station status change and 24 on a pickup or sighting, so one shift's
   log entries did not match each other on a handover read; it is one cap
@@ -297,8 +354,6 @@ month, PATCH counting releases in that month from 0. Before that they were
   The message now carries `tracking_key` from the same helper the snapshot
   uses, and the client looks that up. (Audit F1.)
 
-
-### Fixed
 - **The SSID alerts go only to a role that can act on them.** They were in
   every role's snapshot and rendered by none but NCS: which rostered
   callsign owns which digipeater, handed to the forwarded Staff link for
@@ -324,84 +379,6 @@ month, PATCH counting releases in that month from 0. Before that they were
   fresh snapshot. `courseops serve` states the protocol ping interval
   explicitly rather than relying on the backend's default.
 
-### Changed
-- **Two small writes-on-read are gone.** A link's `last_used` was stamped
-  on every request - each phone poll a writer competing with the feed for
-  the one lock - and it is read by a human on the Links tab, where a
-  minute's resolution is plenty; it is refreshed only when a minute old.
-  The guides at `/help/` were globbed, read and rendered on every request
-  (the one unauthenticated endpoint anyone can hammer, and on the event
-  loop); they are read once per server run, since they ship in the
-  package and cannot change while it runs.
-- **A burst of setup saves reaches the field as one resync.** Save-all
-  posts one request per changed row, and each published its own resync -
-  which every phone answers with a full snapshot fetch and a map rebuild.
-  Twelve renames were twelve rebuilds per phone, on the one day setup
-  edits happen live. The server now waits a moment for the burst to end
-  (never more than a second and a half) and publishes once; the client
-  fetches at most one snapshot per half second and never two at once,
-  since two landing out of order would leave the older on screen. Flipping
-  the tracking switch and editing links no longer resync anyone: neither
-  changes anything a phone draws.
-- **The snapshot, the report and a course import are built off the event
-  loop.** Every route ran its SQLite work on the loop, and the snapshot is
-  the heavy one: while one phone's was being built nothing else moved - no
-  WebSocket send, no ingest, no other phone - and a setup save resyncs
-  every phone at once, so twelve phones were twelve builds in a row with
-  positions frozen for the sum of them. Those three now run in a worker
-  thread (`asyncio.to_thread`); the rest of the routes are quick and stay
-  where they are. Two smaller things on the same path: `/state` opened
-  three connections and now opens one, and `PRAGMA journal_mode = WAL` -
-  5 ms of a 6 ms connect, per request - is set once in `init_schema`, since
-  the mode lives in the file. On the demo event a request issued during a
-  snapshot build waited 195 ms and now waits 79 ms (the geometry still
-  holds the GIL, so the loop gets turns rather than the whole wait);
-  twelve simultaneous snapshots took 2.2 s and take under 1 s.
-- **Reading the layer or leader list no longer writes.** Both readers ran
-  an `INSERT OR IGNORE` per place type and per sighted division on every
-  call - the repair that gives an orphaned key a row so the place or the
-  report does not vanish - and an `INSERT OR IGNORE` that ignores still
-  takes the writer lock. Every phone's snapshot reads both lists, so every
-  snapshot was a writer competing with the ingest loop and with each other,
-  and with the 5 s busy timeout one could stall the event loop waiting for
-  a lock it had no use for. The repair now runs once at startup, for
-  databases written before the layer and leader keys were validated on the
-  way in; the readers only SELECT. Seeding the
-  defaults into an event that has none is unchanged. A demo snapshot went
-  from 43 statements with 9 writes to 31 with none.
-- **The snapshot build is half the work it was.** `CourseIndex.locate`
-  walks every vertex of every course in pure Python, and one snapshot asked
-  it about each place four times over - in the course-order sort key, for
-  the place's own mile figure, and twice again in the leader progression.
-  That was 88 % of `build_state`, and it grew as places times vertices:
-  the organizer's real file has 48 mile markers on a 1258-point course.
-  The index now remembers each answer for the life of the request, misses
-  included. On the demo event `build_state` went from 178 ms to 89 ms
-  median. Why it matters: the snapshot is built on the event loop, and
-  while it is, no phone's position moves.
-
-
-### Changed
-- **Leaflet is shipped with the app instead of loaded from unpkg.com.** The
-  same reason the fonts are: every field phone was reporting to a third
-  party to draw the map, and a CDN outage on race morning would have been
-  no map at all. `static/leaflet/` is byte for byte the 1.9.4 build the
-  pages used to pin with subresource integrity, and a test checks it
-  against those same hashes.
-- **Every response carries a Content-Security-Policy, set by the app.**
-  `script-src 'self'` - no inline script, no CDN - with the tile server the
-  one named exception for images and the page's own host for the WebSocket.
-  Both clients build markup from server data all day, and the policy turns
-  a future escaping slip into a blocked request rather than a stolen
-  token. The three inline scripts (the setup page's first-run flag and the
-  report's clock and mini-maps) moved to files, with the values they need
-  on `data-` attributes. The app also sends `Referrer-Policy`,
-  `X-Content-Type-Options` and `X-Frame-Options` itself, and the map,
-  setup and report pages state the referrer policy in a `<meta>`, so the
-  Windows build and a LAN install get what only the Apache template gave
-  before.
-
-### Fixed
 - Files in a subdirectory of `static/` got `?v=0` forever: the cache
   marker looked the file up by basename. It looks it up by path now, or an
   updated Leaflet would have been served from cache against new markup.
@@ -483,8 +460,6 @@ month, PATCH counting releases in that month from 0. Before that they were
   which officers have accounts. The dummy is computed once and both paths
   run exactly one hash; there is a test counting them.
 
-
-### Fixed
 - **A refused setup change could leave half of itself behind.** The
   connection is autocommit, so every statement was its own transaction and
   the eighteen `conn.commit()` calls in the routes were no-ops that read as
@@ -504,23 +479,6 @@ month, PATCH counting releases in that month from 0. Before that they were
   is parsed before its transaction opens, so the write lock is never held
   while a large organizer file is read. (Audit 2026-09-14, B6.)
 
-### Changed
-- **One reorder routine.** Places, courses, layers and leaders each had a
-  textually identical loop - four places to fix the next ordering bug.
-  `db.reorder` is the one implementation, with the two real differences as
-  arguments: places may be ordered a few at a time, and courses read as a
-  stack so the first id given draws on top. Every key is still checked
-  before anything is written.
-- **One GROUP BY per count.** The events list ran four COUNTs per event,
-  the organizations list two per club, and the setup taxonomy screen and
-  `courseops layers` each counted every layer, role and leader one at a
-  time - the CLI with its own copy of the web's query. `categories.place_counts`,
-  `role_counts` and `sighting_counts` feed both.
-- Refusing to delete a layer, a role or a leader that is still in use is a
-  409 in all three cases; roles and leaders said 400. The client treats them
-  alike, but the next taxonomy copies whichever one it reads first.
-
-### Fixed
 - Deleting a station role that did not exist reported success. A stale row
   on the Roles tab "deleted" and the list reloaded unchanged; it is refused
   like an unknown layer or leader. (Audit 2026-09-14, B10.)
@@ -688,16 +646,44 @@ month, PATCH counting releases in that month from 0. Before that they were
   dismiss. Both now come from the station's newest packet. (Audit
   2026-09-14, A6.)
 
-### Changed
-- Two per-packet costs on the ingest loop are gone. `bind_heard_ssid` ran
-  its two lookups for every stored packet, including ones whose key the
-  roster names outright and which can therefore never bind; it is skipped
-  for those. And `position` socket messages carried `label` and `category`
-  from a roster read once when the feed started - nothing on the client read
-  them (it joins by key, from the snapshot), and had anything started to it
-  would have shown the roster as it was hours before. `position_message`
-  and `make_position_handler` lose the roster argument. (Audit 2026-09-14,
-  A5.)
+### Removed
+- **Code nothing ran.** The 2026-09-14 audit listed every top-level name in
+  `src/courseops` that no production code referenced, and the scan was
+  re-run after the other workstreams merged. Gone: `access.WRITE_ROLES`;
+  the server-wide setup token (`ensure_admin_token`, `resolve_admin`,
+  `rotate_admin_token`, and the `admin_token` DDL - setup has been behind
+  administrator accounts since the browser setup shipped, and a table that
+  reads like a second credential path is the kind of thing an auditor
+  spends an hour on; an existing database keeps its table, unread, rather
+  than get a `DROP` in a startup migration); `db.active_events`;
+  `discovery.roster_keys_for_event`; `leaders.DIVISIONS` (the pair lives in
+  `categories.DEFAULT_LEAD_DIVISIONS`); `units.miles_to_meters` and
+  `units.format_mile`; `build.version_string` and
+  `categories.lead_division_keys`, which only tests called; the `geo`,
+  `styling`, `Form` and (after the deletion above) `sqlite3` imports in
+  `admin.py`, `web.py` and `discovery.py`; the unused `.swatch-dot` rule
+  in `setup.css`. `incidents.waiting_count` went with them: the client has
+  derived the queue count from the list since the count and the map
+  drifted, and a count sent once in the snapshot was stale by the next
+  socket message anyway. The snapshot no longer carries `pickups_waiting`,
+  `divisions` (each `leaders` entry carries its `division_label`, the only
+  form the panel reads), `incident_kinds` (the pin-kind buttons are static)
+  or `roster[].poi_name`; `app.js` drops the two state fields that only
+  ever received them. `roster.color` stays in the schema, marked unused:
+  dropping a column is a migration. Already handled by earlier merges and
+  not repeated here: `purge_expired_sessions` (now called from
+  `start_session`), `suggest_event_center` (now wired to import), the
+  duplicate `payload["role"]` assignment. (Audit D1.)
+
+- **The live app's bib-colour route.** `POST .../course/{id}/bib-color` was
+  an NCS write with no control behind it - bib colours are set in setup,
+  before the race, and a resync carries them to the field - and it kept a
+  `CAP_COURSE` capability alive that nothing else used, including a
+  fallback list in `app.js` naming a power no button offered. The route,
+  the capability and the fallback entry are gone; the two read-only history
+  routes (`station-log`, `incidents/{id}/log`) stay, marked API-only: they
+  are the read side of append-only logs that a handover view can be built
+  on, and deleting them would leave those logs write-only. (Audit D2.)
 
 ## [2026.9.4] - 2026-09-14
 
