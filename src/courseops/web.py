@@ -11,7 +11,6 @@ import asyncio
 import contextlib
 import functools
 import hmac
-import json
 import importlib.metadata as _metadata
 import logging
 import re
@@ -20,17 +19,19 @@ import sqlite3
 import tempfile
 import zipfile
 from pathlib import Path
-from typing import Any
 
-from fastapi import (FastAPI, File, HTTPException, Request, UploadFile,
+from fastapi import (Depends, FastAPI, File, HTTPException, Request, UploadFile,
                      WebSocket, WebSocketDisconnect)
 from fastapi.responses import (HTMLResponse, JSONResponse, PlainTextResponse,
                                RedirectResponse)
 from fastapi.staticfiles import StaticFiles
 
-from . import (access, admin, build, categories, db, guides, hub as hub_module, importer,
-               feed, incidents, report, resources, kml, leaders, progress,
-               snapshot, users)
+from . import (access, admin, build, categories, db, deps, guides,
+               hub as hub_module, importer, feed, incidents, report, resources,
+               kml, leaders, progress, snapshot, users)
+from .deps import (MAX_JSON_BYTES, SECURE_SESSION_COOKIE, SESSION_COOKIE, Conn,
+                   EventAdmin, EventCreator, FieldAccess, Grant, SignedIn,
+                   SystemAdmin, UserManager, json_body, needs)
 from .config import Settings
 from . import ingest as ingest_module
 
@@ -59,21 +60,6 @@ except Exception:            # pragma: no cover - the package always ships this
         __version__ = _metadata.version("courseops")
     except Exception:        # running from a source tree with no install
         __version__ = "0.0.0+source"
-
-SESSION_COOKIE = "courseops_session"
-# The same cookie over HTTPS. The `__Host-` prefix is enforced by the browser:
-# it will only store the cookie if it is Secure, has no Domain and its path is
-# `/`, and no other host - not a sibling app under the same registrable
-# domain - can set a cookie of that name for us. Over plain HTTP (local
-# development, the Windows build on a LAN) the prefix would make the browser
-# drop the cookie, so the plain name stays for that case.
-SECURE_SESSION_COOKIE = "__Host-" + SESSION_COOKIE
-
-# The most any JSON request may carry. The biggest real body is a reorder of
-# a few hundred ids, well under a kilobyte; the cap is generous so a large
-# roster cannot hit it and small enough that a flood of them costs nothing.
-# The course file upload is the one exception and has its own cap in kml.py.
-MAX_JSON_BYTES = 64 * 1024
 
 # Where the one large upload arrives. Everything else is held to
 # MAX_JSON_BYTES before a byte of it is read.
@@ -451,91 +437,6 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
                                     status_code=413)
         return await call_next(request)
 
-    def get_conn() -> sqlite3.Connection:
-        # SQLite connections are not shareable across threads; one per request
-        # is cheap for this workload and avoids the whole question.
-        conn = db.connect(settings.db_path)
-        return conn
-
-    def require_access(event_slug: str, token: str) -> tuple[sqlite3.Connection, access.Access]:
-        conn = get_conn()
-        granted = access.resolve(conn, event_slug, token)
-        if granted is None:
-            conn.close()
-            # 404, not 403: an invalid token must not confirm the event exists.
-            raise HTTPException(status_code=404, detail="Not found")
-        return conn, granted
-
-    # --- administrator sessions --------------------------------------------
-
-    def session_token(request: Request) -> str:
-        # Either name: a browser that reached us over HTTPS holds the
-        # prefixed cookie, one on plain HTTP the bare one.
-        return (request.cookies.get(SECURE_SESSION_COOKIE)
-                or request.cookies.get(SESSION_COOKIE, ""))
-
-    def current_user(request: Request, conn) -> users.User | None:
-        return users.resolve_session(conn, session_token(request))
-
-    def require_user(request: Request) -> tuple[Any, users.User]:
-        conn = get_conn()
-        user = current_user(request, conn)
-        if user is None:
-            conn.close()
-            raise HTTPException(status_code=401, detail="Sign in to continue.")
-        return conn, user
-
-    def require_user_manager(request: Request):
-        """System admins and org admins both manage people, at different scopes."""
-        conn, user = require_user(request)
-        if not user.may_manage_users:
-            conn.close()
-            raise HTTPException(
-                status_code=403, detail="You cannot manage administrators."
-            )
-        return conn, user
-
-    def require_event_creator(request: Request):
-        conn, user = require_user(request)
-        if not user.may_create_events:
-            conn.close()
-            raise HTTPException(
-                status_code=403, detail="You cannot create events."
-            )
-        return conn, user
-
-    def require_system_admin(request: Request):
-        conn, user = require_user(request)
-        if not user.is_system_admin:
-            conn.close()
-            raise HTTPException(
-                status_code=403,
-                detail="Only a system administrator can do that.",
-            )
-        return conn, user
-
-    def require_event_admin(request: Request, event_id: int):
-        """Every event-scoped setup route goes through here.
-
-        One place decides whether a user may touch an event, so widening or
-        narrowing access later is a change to may_access_event rather than to
-        every endpoint.
-        """
-        conn, user = require_user(request)
-        # Existence first: may_access_event says yes to a system admin before
-        # looking the event up, and a stale bookmark to a deleted event's
-        # setup page was then a traceback from whichever route dereferenced
-        # the missing row. For anyone else the answer is 403 either way, so
-        # nothing is confirmed that was not already.
-        if conn.execute("SELECT 1 FROM event WHERE id = ?",
-                        (event_id,)).fetchone() is None:
-            conn.close()
-            raise HTTPException(status_code=404, detail="No such event.")
-        if not users.may_access_event(conn, user, event_id):
-            conn.close()
-            raise HTTPException(status_code=403, detail="Not your event.")
-        return conn, user
-
     def request_is_secure(request: Request) -> bool:
         """Whether the browser reached us over HTTPS.
 
@@ -609,7 +510,7 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         return PlainTextResponse("User-agent: *\nDisallow: /\n")
 
     @app.get("/healthz")
-    async def healthz() -> JSONResponse:
+    async def healthz(request: Request) -> JSONResponse:
         """Is this instance actually working? Used by the deploy to decide
         whether to keep a new version or roll back.
 
@@ -623,7 +524,7 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         page they are looking at.
         """
         try:
-            conn = get_conn()
+            conn = deps.connect(request)
             try:
                 conn.execute("SELECT 1 FROM event LIMIT 1").fetchone()
             finally:
@@ -634,15 +535,11 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         return JSONResponse({"status": "ok", "version": __version__})
 
     @app.get("/setup")
-    async def setup_page(request: Request) -> HTMLResponse:
-        conn = get_conn()
-        try:
-            # First run: nobody exists yet, so the page offers to create the
-            # first system administrator instead of asking for a login that
-            # could never succeed.
-            needs_first_user = not users.any_users(conn)
-        finally:
-            conn.close()
+    async def setup_page(conn: Conn) -> HTMLResponse:
+        # First run: nobody exists yet, so the page offers to create the
+        # first system administrator instead of asking for a login that
+        # could never succeed.
+        needs_first_user = not users.any_users(conn)
         html = (STATIC_DIR / "setup.html").read_text(encoding="utf-8")
         return _page(
             html.replace("{{FIRST_RUN}}", "true" if needs_first_user else "false")
@@ -652,25 +549,18 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     # no names. Behind the admin login - it is the club that prints or
     # screenshots this and hands it over, not the organizer following a link.
     @app.get("/setup/events/{event_id}/report")
-    async def setup_report(event_id: int, request: Request) -> HTMLResponse:
-        conn, user = require_event_admin(request, event_id)
-        try:
-            # Off the loop: this walks every incident and sighting of the
-            # event, and the live map must not pause while the officer reads.
-            data = await asyncio.to_thread(report.build, conn, event_id)
-        finally:
-            conn.close()
+    async def setup_report(event_id: int, auth: EventAdmin) -> HTMLResponse:
+        conn = auth.conn
+        # Off the loop: this walks every incident and sighting of the
+        # event, and the live map must not pause while the officer reads.
+        data = await asyncio.to_thread(report.build, conn, event_id)
         return HTMLResponse(report.render(data),
                             headers={"Cache-Control": "no-cache, must-revalidate"})
 
     @app.get("/api/setup/session")
-    async def whoami(request: Request) -> JSONResponse:
-        conn = get_conn()
-        try:
-            user = current_user(request, conn)
-            first_run = not users.any_users(conn)
-        finally:
-            conn.close()
+    async def whoami(request: Request, conn: Conn) -> JSONResponse:
+        user = deps.current_user(request, conn)
+        first_run = not users.any_users(conn)
         return JSONResponse({
             "user": user.as_dict() if user else None,
             "first_run": first_run,
@@ -693,7 +583,7 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         Does NOT start a session: the account is created and the person then
         signs in with it.
         """
-        body = await _json_body(request)
+        body = await json_body(request)
         username = str(body.get("username", "") or "")
         keys = _refuse_if_throttled(request, username)
 
@@ -714,7 +604,7 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
             # Its own connection, opened in the worker thread: a sqlite
             # connection refuses to be used from any thread but the one
             # that opened it, and the hash has to run off the loop.
-            conn = get_conn()
+            conn = deps.connect(request)
             try:
                 if users.any_users(conn):
                     raise HTTPException(
@@ -735,7 +625,7 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
             # the loser hits the unique constraint. From the person's point of
             # view their account WAS created, so say that rather than the
             # confusing "already exists".
-            check = get_conn()
+            check = deps.connect(request)
             try:
                 exists = users.any_users(check)
             finally:
@@ -766,12 +656,12 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         credential, froze the map for every volunteer, and on the phones it
         looked exactly like a bad signal.
         """
-        body = await _json_body(request)
+        body = await json_body(request)
         username = str(body.get("username", "") or "")
         keys = _refuse_if_throttled(request, username)
 
         def sign_in() -> tuple[users.User, str]:
-            conn = get_conn()
+            conn = deps.connect(request)
             try:
                 user = users.authenticate(conn, username, body.get("password", ""))
                 return user, users.start_session(conn, user.id)
@@ -789,25 +679,22 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         return response
 
     @app.post("/api/setup/logout")
-    async def logout(request: Request) -> JSONResponse:
-        conn = get_conn()
-        try:
-            users.end_session(conn, session_token(request))
-        finally:
-            conn.close()
+    async def logout(request: Request, conn: Conn) -> JSONResponse:
+        users.end_session(conn, deps.session_token(request))
         response = JSONResponse({"ok": True})
         _clear_session_cookie(response)
         return response
 
     @app.post("/api/setup/password")
-    async def change_own_password(request: Request) -> JSONResponse:
-        conn, user = require_user(request)
-        conn.close()
-        body = await _json_body(request)
+    async def change_own_password(
+        request: Request, auth: SignedIn
+    ) -> JSONResponse:
+        user = auth.user
+        body = await json_body(request)
         keys = _refuse_if_throttled(request, user.username)
 
         def change() -> None:
-            conn = get_conn()
+            conn = deps.connect(request)
             try:
                 # Re-authenticate first: a borrowed unlocked laptop must not
                 # be enough to lock the real owner out.
@@ -832,7 +719,7 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     def _guard(fn, *args):
         """Turn a domain error into a 400 with its message.
 
-        The caller's try/finally closes the connection. TypeError is here
+        The dependency that opened the connection closes it. TypeError is here
         because `int(None)` from a missing body field is one, and
         IntegrityError because a foreign key that does not exist (an
         organization id, an event id) or a NOT NULL column is the database
@@ -849,43 +736,39 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
                 detail=f"That does not fit the data already here: {exc}.")
 
     @app.get("/api/setup/events")
-    async def setup_events(request: Request) -> JSONResponse:
-        conn, user = require_user(request)
-        try:
-            if user.is_system_admin:
-                events = admin.list_events(conn)
-            else:
-                # Scoped to the club first, so another club's race calendar is
-                # never sent at all - not even to be filtered out here.
-                events = admin.list_events(conn, user.organization_id)
-                if not user.is_org_admin:
-                    allowed = set(users.events_for(conn, user.id))
-                    events = [e for e in events if e["id"] in allowed]
-            organizations = (users.list_organizations(conn)
-                             if user.is_system_admin else [])
-        finally:
-            conn.close()
+    async def setup_events(auth: SignedIn) -> JSONResponse:
+        conn, user = auth
+        if user.is_system_admin:
+            events = admin.list_events(conn)
+        else:
+            # Scoped to the club first, so another club's race calendar is
+            # never sent at all - not even to be filtered out here.
+            events = admin.list_events(conn, user.organization_id)
+            if not user.is_org_admin:
+                allowed = set(users.events_for(conn, user.id))
+                events = [e for e in events if e["id"] in allowed]
+        organizations = (users.list_organizations(conn)
+                         if user.is_system_admin else [])
         return JSONResponse({"events": events, "organizations": organizations})
 
     @app.post("/api/setup/events")
-    async def setup_create_event(request: Request) -> JSONResponse:
-        conn, user = require_event_creator(request)
-        body = await _json_body(request, conn)
-        try:
-            # A system admin says which club; anyone else gets their own, so a
-            # club admin cannot create an event inside someone else's.
-            if user.is_system_admin:
-                organization_id = body.get("organization_id")
-                if not organization_id:
-                    raise HTTPException(
-                        status_code=400,
-                        detail="Choose which organization this event belongs to.",
-                    )
-            else:
-                organization_id = user.organization_id
-            event = _guard(_create_event, conn, body, organization_id)
-        finally:
-            conn.close()
+    async def setup_create_event(
+        auth: EventCreator, request: Request
+    ) -> JSONResponse:
+        conn, user = auth
+        body = await json_body(request)
+        # A system admin says which club; anyone else gets their own, so a
+        # club admin cannot create an event inside someone else's.
+        if user.is_system_admin:
+            organization_id = body.get("organization_id")
+            if not organization_id:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Choose which organization this event belongs to.",
+                )
+        else:
+            organization_id = user.organization_id
+        event = _guard(_create_event, conn, body, organization_id)
         return JSONResponse(event, status_code=201)
 
     def _create_event(conn, body: dict, organization_id) -> dict:
@@ -900,33 +783,30 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
             raise ValueError(f"{value!r} is not a {what} id.") from None
 
     @app.post("/api/setup/events/{event_id}")
-    async def setup_update_event(event_id: int, request: Request) -> JSONResponse:
-        conn, user = require_event_admin(request, event_id)
-        body = await _json_body(request, conn)
-        try:
-            event = _guard(admin.update_event, conn, event_id, body)
-        finally:
-            conn.close()
+    async def setup_update_event(
+        event_id: int, auth: EventAdmin, request: Request
+    ) -> JSONResponse:
+        conn = auth.conn
+        body = await json_body(request)
+        event = _guard(admin.update_event, conn, event_id, body)
         return JSONResponse(event)
 
     @app.post("/api/setup/events/{event_id}/delete")
-    async def setup_delete_event(event_id: int, request: Request) -> JSONResponse:
+    async def setup_delete_event(
+        event_id: int, auth: EventAdmin
+    ) -> JSONResponse:
         # Deleting destroys the whole history and cascades through courses,
         # roster, positions and incidents - so it needs more than event-level
         # access, but a club must still be able to remove its own events.
-        conn, user = require_event_admin(request, event_id)
+        conn, user = auth
         if not user.may_create_events:
-            conn.close()
             raise HTTPException(
                 status_code=403,
                 detail="Only an organization or system administrator can delete an event.",
             )
-        try:
-            row = conn.execute(
-                "SELECT slug FROM event WHERE id = ?", (event_id,)).fetchone()
-            admin.delete_event(conn, event_id)
-        finally:
-            conn.close()
+        row = conn.execute(
+            "SELECT slug FROM event WHERE id = ?", (event_id,)).fetchone()
+        admin.delete_event(conn, event_id)
         # The feed must not outlive the event - see feed.forget_ingest.
         if row is not None:
             await app.state.forget_ingest(row["slug"], event_id)
@@ -936,9 +816,9 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
 
     @app.post("/api/setup/events/{event_id}/import")
     async def setup_import(
-        event_id: int, request: Request, file: UploadFile = File(...)
+        event_id: int, auth: EventAdmin, file: UploadFile = File(...)
     ) -> JSONResponse:
-        conn, user = require_event_admin(request, event_id)
+        conn = auth.conn
         # Written to a temp file because the parser takes a path: it has to
         # detect KMZ by reading the zip header, not by trusting the extension.
         # Streamed there in chunks rather than read into memory first - a
@@ -949,108 +829,91 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         # empty directory behind per upload for the life of the service.
         lowered = (file.filename or "").lower()
         suffix = next((ext for ext in (".kmz", ".gpx") if lowered.endswith(ext)), ".kml")
-        try:
-            with tempfile.TemporaryDirectory() as workdir:
-                tmp = Path(workdir) / f"upload{suffix}"
-                written = 0
-                with tmp.open("wb") as out:
-                    while chunk := await file.read(1024 * 1024):
-                        written += len(chunk)
-                        if written > kml.MAX_KML_BYTES:
-                            raise HTTPException(
-                                status_code=413,
-                                detail=f"File is larger than the "
-                                       f"{kml.MAX_KML_BYTES / 1e6:.0f} MB limit.")
-                        out.write(chunk)
-                try:
-                    # Off the loop: parsing a 1200-point KMZ and measuring
-                    # every segment takes long enough that positions would
-                    # visibly stall for everyone if the course were
-                    # re-imported during the event.
-                    summary = await asyncio.to_thread(
-                        importer.stage_file, conn, event_id, tmp)
-                except (kml.KmlError, zipfile.BadZipFile) as exc:
-                    # BadZipFile: a truncated KMZ passes is_zipfile and fails
-                    # inside the reader, which was a 500 with a traceback in
-                    # the journal rather than a sentence on the screen.
-                    raise HTTPException(status_code=400, detail=str(exc))
-            _seed_event_center(conn, event_id)
-            result = {
-                "filename": file.filename,
-                "total": summary.total,
-                "by_type": summary.by_type,
-                "warnings": summary.warnings,
-                "features": admin.staged_features(conn, event_id),
-            }
-        finally:
-            conn.close()
+        with tempfile.TemporaryDirectory() as workdir:
+            tmp = Path(workdir) / f"upload{suffix}"
+            written = 0
+            with tmp.open("wb") as out:
+                while chunk := await file.read(1024 * 1024):
+                    written += len(chunk)
+                    if written > kml.MAX_KML_BYTES:
+                        raise HTTPException(
+                            status_code=413,
+                            detail=f"File is larger than the "
+                                   f"{kml.MAX_KML_BYTES / 1e6:.0f} MB limit.")
+                    out.write(chunk)
+            try:
+                # Off the loop: parsing a 1200-point KMZ and measuring
+                # every segment takes long enough that positions would
+                # visibly stall for everyone if the course were
+                # re-imported during the event.
+                summary = await asyncio.to_thread(
+                    importer.stage_file, conn, event_id, tmp)
+            except (kml.KmlError, zipfile.BadZipFile) as exc:
+                # BadZipFile: a truncated KMZ passes is_zipfile and fails
+                # inside the reader, which was a 500 with a traceback in
+                # the journal rather than a sentence on the screen.
+                raise HTTPException(status_code=400, detail=str(exc))
+        _seed_event_center(conn, event_id)
+        result = {
+            "filename": file.filename,
+            "total": summary.total,
+            "by_type": summary.by_type,
+            "warnings": summary.warnings,
+            "features": admin.staged_features(conn, event_id),
+        }
         return JSONResponse(result, status_code=201)
 
     @app.get("/api/setup/events/{event_id}/staged")
-    async def setup_staged(event_id: int, request: Request) -> JSONResponse:
-        conn, user = require_event_admin(request, event_id)
-        try:
-            return JSONResponse({"features": admin.staged_features(conn, event_id)})
-        finally:
-            conn.close()
+    async def setup_staged(event_id: int, auth: EventAdmin) -> JSONResponse:
+        conn = auth.conn
+        return JSONResponse({"features": admin.staged_features(conn, event_id)})
 
     @app.post("/api/setup/events/{event_id}/assign")
-    async def setup_assign(event_id: int, request: Request) -> JSONResponse:
-        conn, user = require_event_admin(request, event_id)
-        body = await _json_body(request, conn)
-        try:
-            result = _guard(admin.assign_features, conn, event_id, body)
-        finally:
-            conn.close()
+    async def setup_assign(
+        event_id: int, auth: EventAdmin, request: Request
+    ) -> JSONResponse:
+        conn = auth.conn
+        body = await json_body(request)
+        result = _guard(admin.assign_features, conn, event_id, body)
         return JSONResponse(result)
 
     # --- setup: courses and aid stations -----------------------------------
 
     @app.get("/api/setup/events/{event_id}/courses")
-    async def setup_courses(event_id: int, request: Request) -> JSONResponse:
-        conn, user = require_event_admin(request, event_id)
-        try:
-            return JSONResponse({
-                "courses": admin.list_courses(conn, event_id),
-                "pois": admin.list_pois(conn, event_id),
-            })
-        finally:
-            conn.close()
+    async def setup_courses(event_id: int, auth: EventAdmin) -> JSONResponse:
+        conn = auth.conn
+        return JSONResponse({
+            "courses": admin.list_courses(conn, event_id),
+            "pois": admin.list_pois(conn, event_id),
+        })
 
     # Literal before parameterised, or "reorder" parses as a course id.
     @app.post("/api/setup/events/{event_id}/courses/reorder")
-    async def setup_reorder_courses(event_id: int, request: Request) -> JSONResponse:
-        conn, user = require_event_admin(request, event_id)
-        body = await _json_body(request, conn)
-        try:
-            count = _guard(
-                admin.reorder_courses, conn, event_id, body.get("course_ids") or [])
-        finally:
-            conn.close()
+    async def setup_reorder_courses(
+        event_id: int, auth: EventAdmin, request: Request
+    ) -> JSONResponse:
+        conn = auth.conn
+        body = await json_body(request)
+        count = _guard(
+            admin.reorder_courses, conn, event_id, body.get("course_ids") or [])
         return JSONResponse({"ordered": count})
 
     @app.post("/api/setup/events/{event_id}/courses/{course_id}")
     async def setup_update_course(
-        event_id: int, course_id: int, request: Request
+        event_id: int, course_id: int, auth: EventAdmin, request: Request
     ) -> JSONResponse:
-        conn, user = require_event_admin(request, event_id)
-        body = await _json_body(request, conn)
-        try:
-            return JSONResponse(
-                _guard(admin.update_course, conn, event_id, course_id, body)
-            )
-        finally:
-            conn.close()
+        conn = auth.conn
+        body = await json_body(request)
+        return JSONResponse(
+            _guard(admin.update_course, conn, event_id, course_id, body)
+        )
 
     @app.post("/api/setup/events/{event_id}/courses/{course_id}/delete")
     async def setup_delete_course(
-        event_id: int, course_id: int, request: Request
+        event_id: int, course_id: int, auth: EventAdmin
     ) -> JSONResponse:
-        conn, user = require_event_admin(request, event_id)
-        try:
-            blocked = admin.delete_course(conn, event_id, course_id)
-        finally:
-            conn.close()
+        conn = auth.conn
+        blocked = admin.delete_course(conn, event_id, course_id)
         if blocked:
             # The reports would cascade away with nothing to say where they
             # went - the same refusal as deleting a sighted leader.
@@ -1067,61 +930,52 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     # Add a place by hand, for the organizer who supplies no water stops - or
     # none at all, as a parade or a vehicle race will not.
     @app.post("/api/setup/events/{event_id}/pois")
-    async def setup_add_poi(event_id: int, request: Request) -> JSONResponse:
-        conn, user = require_event_admin(request, event_id)
-        body = await _json_body(request, conn)
-        try:
-            row = _guard(admin.create_poi, conn, event_id, body)
-        finally:
-            conn.close()
+    async def setup_add_poi(
+        event_id: int, auth: EventAdmin, request: Request
+    ) -> JSONResponse:
+        conn = auth.conn
+        body = await json_body(request)
+        row = _guard(admin.create_poi, conn, event_id, body)
         return JSONResponse(row, status_code=201)
 
     @app.post("/api/setup/events/{event_id}/pois/reorder")
-    async def setup_reorder_pois(event_id: int, request: Request) -> JSONResponse:
-        conn, user = require_event_admin(request, event_id)
-        body = await _json_body(request, conn)
-        try:
-            count = _guard(
-                admin.reorder_pois, conn, event_id, body.get("poi_ids") or [])
-        finally:
-            conn.close()
+    async def setup_reorder_pois(
+        event_id: int, auth: EventAdmin, request: Request
+    ) -> JSONResponse:
+        conn = auth.conn
+        body = await json_body(request)
+        count = _guard(
+            admin.reorder_pois, conn, event_id, body.get("poi_ids") or [])
         return JSONResponse({"ordered": count})
 
     @app.post("/api/setup/events/{event_id}/pois/move")
-    async def setup_move_pois(event_id: int, request: Request) -> JSONResponse:
-        conn, user = require_event_admin(request, event_id)
-        body = await _json_body(request, conn)
-        try:
-            moved = _guard(
-                admin.move_pois, conn, event_id,
-                body.get("poi_ids") or [], (body.get("poi_type") or "").strip(),
-            )
-        finally:
-            conn.close()
+    async def setup_move_pois(
+        event_id: int, auth: EventAdmin, request: Request
+    ) -> JSONResponse:
+        conn = auth.conn
+        body = await json_body(request)
+        moved = _guard(
+            admin.move_pois, conn, event_id,
+            body.get("poi_ids") or [], (body.get("poi_type") or "").strip(),
+        )
         return JSONResponse({"moved": moved})
 
     @app.post("/api/setup/events/{event_id}/pois/{poi_id}")
     async def setup_update_poi(
-        event_id: int, poi_id: int, request: Request
+        event_id: int, poi_id: int, auth: EventAdmin, request: Request
     ) -> JSONResponse:
-        conn, user = require_event_admin(request, event_id)
-        body = await _json_body(request, conn)
-        try:
-            return JSONResponse(
-                _guard(admin.update_poi, conn, event_id, poi_id, body)
-            )
-        finally:
-            conn.close()
+        conn = auth.conn
+        body = await json_body(request)
+        return JSONResponse(
+            _guard(admin.update_poi, conn, event_id, poi_id, body)
+        )
 
     @app.post("/api/setup/events/{event_id}/pois/{poi_id}/delete")
     async def setup_delete_poi(
-        event_id: int, poi_id: int, request: Request
+        event_id: int, poi_id: int, auth: EventAdmin
     ) -> JSONResponse:
-        conn, user = require_event_admin(request, event_id)
-        try:
-            blocked = admin.delete_poi(conn, event_id, poi_id)
-        finally:
-            conn.close()
+        conn = auth.conn
+        blocked = admin.delete_poi(conn, event_id, poi_id)
         if blocked:
             # Sightings would cascade away and the posted operator would fall
             # off the map, neither with anything on screen to say why.
@@ -1134,37 +988,33 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     # --- setup: roster ------------------------------------------------------
 
     @app.get("/api/setup/events/{event_id}/roster")
-    async def setup_roster(event_id: int, request: Request) -> JSONResponse:
-        conn, user = require_event_admin(request, event_id)
-        try:
-            return JSONResponse({
-                "roster": admin.list_roster(conn, event_id),
-                "categories": [
-                    {"key": row["key"], "name": row["name"]}
-                    for row in categories.roster_roles(conn, event_id)
-                ],
-                # Only places we staff can have somebody posted to them.
-                # Offering a portable toilet or a mile marker here would be
-                # noise, and the list is long enough already.
-                "pois": [
-                    poi for poi in admin.list_pois(conn, event_id)
-                    if poi["poi_type"] in categories.staffed_keys(conn, event_id)
-                ],
-                "ignored": sorted(db.excluded_station_keys(conn, event_id)),
-            })
-        finally:
-            conn.close()
+    async def setup_roster(event_id: int, auth: EventAdmin) -> JSONResponse:
+        conn = auth.conn
+        return JSONResponse({
+            "roster": admin.list_roster(conn, event_id),
+            "categories": [
+                {"key": row["key"], "name": row["name"]}
+                for row in categories.roster_roles(conn, event_id)
+            ],
+            # Only places we staff can have somebody posted to them.
+            # Offering a portable toilet or a mile marker here would be
+            # noise, and the list is long enough already.
+            "pois": [
+                poi for poi in admin.list_pois(conn, event_id)
+                if poi["poi_type"] in categories.staffed_keys(conn, event_id)
+            ],
+            "ignored": sorted(db.excluded_station_keys(conn, event_id)),
+        })
 
     @app.get("/api/setup/events/{event_id}/tracking")
-    async def setup_tracking(event_id: int, request: Request) -> JSONResponse:
-        conn, user = require_event_admin(request, event_id)
-        try:
-            return JSONResponse(_guard(feed.tracking_state, app, conn, event_id))
-        finally:
-            conn.close()
+    async def setup_tracking(event_id: int, auth: EventAdmin) -> JSONResponse:
+        conn = auth.conn
+        return JSONResponse(_guard(feed.tracking_state, app, conn, event_id))
 
     @app.post("/api/setup/events/{event_id}/tracking")
-    async def setup_set_tracking(event_id: int, request: Request) -> JSONResponse:
+    async def setup_set_tracking(
+        event_id: int, auth: EventAdmin, request: Request
+    ) -> JSONResponse:
         """Turn this event's APRS-IS feed on or off.
 
         Off outside race day is the intended state, not an oversight: the
@@ -1172,34 +1022,31 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         left running logs where volunteers live and work for as long as it is
         up. See docs/PLAN.md.
         """
-        conn, user = require_event_admin(request, event_id)
-        body = await _json_body(request, conn)
+        conn = auth.conn
+        body = await json_body(request)
         wanted = bool(body.get("enabled"))
-        try:
-            state = _guard(feed.tracking_state, app, conn, event_id)
-            event = conn.execute(
-                "SELECT slug, aprs_filter_extra FROM event WHERE id = ?",
-                (event_id,),
-            ).fetchone()
-            slug = event["slug"]
+        state = _guard(feed.tracking_state, app, conn, event_id)
+        event = conn.execute(
+            "SELECT slug, aprs_filter_extra FROM event WHERE id = ?",
+            (event_id,),
+        ).fetchone()
+        slug = event["slug"]
 
-            # Refuse rather than start a task that dies immediately: the
-            # switch would sit at "on" with nothing behind it. Both refusals
-            # mirror the feed's own, so the switch never asks for something
-            # the feed will turn down. The messages say what to do about it.
-            if wanted and not state["has_callsign"]:
-                raise HTTPException(
-                    status_code=400,
-                    detail=" ".join(
-                        state["callsign_problem"].split()))
-            if (wanted and state["tracked"] == 0 and state["area_mi"] is None
-                    and not event["aprs_filter_extra"]):
-                raise HTTPException(
-                    status_code=400, detail=ingest_module.NOTHING_TO_LISTEN_FOR)
-            if not wanted:
-                db.set_ingest_enabled(conn, slug, False)
-        finally:
-            conn.close()
+        # Refuse rather than start a task that dies immediately: the
+        # switch would sit at "on" with nothing behind it. Both refusals
+        # mirror the feed's own, so the switch never asks for something
+        # the feed will turn down. The messages say what to do about it.
+        if wanted and not state["has_callsign"]:
+            raise HTTPException(
+                status_code=400,
+                detail=" ".join(
+                    state["callsign_problem"].split()))
+        if (wanted and state["tracked"] == 0 and state["area_mi"] is None
+                and not event["aprs_filter_extra"]):
+            raise HTTPException(
+                status_code=400, detail=ingest_module.NOTHING_TO_LISTEN_FOR)
+        if not wanted:
+            db.set_ingest_enabled(conn, slug, False)
 
         if not wanted:
             await app.state.stop_ingest(slug)
@@ -1214,98 +1061,79 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
                     status_code=400,
                     detail=app.state.ingest_errors.get(slug)
                     or "The feed stopped before it connected.")
-            conn = get_conn()
-            try:
-                db.set_ingest_enabled(conn, slug, True)
-            finally:
-                conn.close()
+            db.set_ingest_enabled(conn, slug, True)
 
-        conn = get_conn()
-        try:
-            return JSONResponse(feed.tracking_state(app, conn, event_id))
-        finally:
-            conn.close()
+        return JSONResponse(feed.tracking_state(app, conn, event_id))
 
     @app.get("/api/setup/events/{event_id}/categories")
-    async def setup_categories(event_id: int, request: Request) -> JSONResponse:
-        conn, user = require_event_admin(request, event_id)
-        try:
-            # The counts are what make "delete" honest: a layer with places,
-            # a role someone holds, a leader with sightings cannot go, and
-            # the number says how many are in the way.
-            places = categories.place_counts(conn, event_id)
-            roles = categories.role_counts(conn, event_id)
-            sightings = categories.sighting_counts(conn, event_id)
-            payload = {
-                "poi_categories": [
-                    dict(row) | {"place_count": places.get(row["key"], 0)}
-                    for row in categories.poi_categories(conn, event_id)
-                ],
-                "roster_roles": [
-                    dict(row) | {"in_use": roles.get(row["key"], 0)}
-                    for row in categories.roster_roles(conn, event_id)
-                ],
-                "lead_divisions": [
-                    dict(row) | {"in_use": sightings.get(row["key"], 0)}
-                    for row in categories.lead_divisions(conn, event_id)
-                ],
-            }
-        finally:
-            conn.close()
+    async def setup_categories(
+        event_id: int, auth: EventAdmin
+    ) -> JSONResponse:
+        conn = auth.conn
+        # The counts are what make "delete" honest: a layer with places,
+        # a role someone holds, a leader with sightings cannot go, and
+        # the number says how many are in the way.
+        places = categories.place_counts(conn, event_id)
+        roles = categories.role_counts(conn, event_id)
+        sightings = categories.sighting_counts(conn, event_id)
+        payload = {
+            "poi_categories": [
+                dict(row) | {"place_count": places.get(row["key"], 0)}
+                for row in categories.poi_categories(conn, event_id)
+            ],
+            "roster_roles": [
+                dict(row) | {"in_use": roles.get(row["key"], 0)}
+                for row in categories.roster_roles(conn, event_id)
+            ],
+            "lead_divisions": [
+                dict(row) | {"in_use": sightings.get(row["key"], 0)}
+                for row in categories.lead_divisions(conn, event_id)
+            ],
+        }
         return JSONResponse(payload)
 
     @app.post("/api/setup/events/{event_id}/categories")
-    async def setup_add_category(event_id: int, request: Request) -> JSONResponse:
-        conn, user = require_event_admin(request, event_id)
-        body = await _json_body(request, conn)
-        try:
-            row = _guard(
-                categories.add_poi_category, conn, event_id,
-                body.get("name", ""), bool(body.get("staffed")),
-                body.get("icon") or "pin", body.get("color"),
-            )
-        finally:
-            conn.close()
+    async def setup_add_category(
+        event_id: int, auth: EventAdmin, request: Request
+    ) -> JSONResponse:
+        conn = auth.conn
+        body = await json_body(request)
+        row = _guard(
+            categories.add_poi_category, conn, event_id,
+            body.get("name", ""), bool(body.get("staffed")),
+            body.get("icon") or "pin", body.get("color"),
+        )
         return JSONResponse(dict(row), status_code=201)
 
     # Literal before parameterised, or "reorder" is taken as a layer key.
     @app.post("/api/setup/events/{event_id}/categories/reorder")
     async def setup_reorder_categories(
-        event_id: int, request: Request
+        event_id: int, auth: EventAdmin, request: Request
     ) -> JSONResponse:
-        conn, user = require_event_admin(request, event_id)
-        body = await _json_body(request, conn)
-        try:
-            count = _guard(
-                categories.reorder_poi_categories, conn, event_id,
-                body.get("keys") or [])
-        finally:
-            conn.close()
+        conn = auth.conn
+        body = await json_body(request)
+        count = _guard(
+            categories.reorder_poi_categories, conn, event_id,
+            body.get("keys") or [])
         return JSONResponse({"ordered": count})
 
     @app.post("/api/setup/events/{event_id}/categories/{key}")
     async def setup_update_category(
-        event_id: int, key: str, request: Request
+        event_id: int, key: str, auth: EventAdmin, request: Request
     ) -> JSONResponse:
-        conn, user = require_event_admin(request, event_id)
-        body = await _json_body(request, conn)
-        try:
-            row = _guard(
-                categories.update_poi_category, conn, event_id, key, body
-            )
-        finally:
-            conn.close()
+        conn = auth.conn
+        body = await json_body(request)
+        row = _guard(
+            categories.update_poi_category, conn, event_id, key, body
+        )
         return JSONResponse(dict(row))
 
     @app.post("/api/setup/events/{event_id}/categories/{key}/delete")
     async def setup_delete_category(
-        event_id: int, key: str, request: Request
+        event_id: int, key: str, auth: EventAdmin
     ) -> JSONResponse:
-        conn, user = require_event_admin(request, event_id)
-        try:
-            in_use = _guard(categories.delete_poi_category, conn, event_id, key)
-        finally:
-            conn.close()
+        conn = auth.conn
+        in_use = _guard(categories.delete_poi_category, conn, event_id, key)
         if in_use:
             # Deleting the layer would leave its places drawn in no layer at
             # all - present in the database, invisible on the map, no error.
@@ -1317,26 +1145,22 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         return JSONResponse({"deleted": key})
 
     @app.post("/api/setup/events/{event_id}/roles")
-    async def setup_add_role(event_id: int, request: Request) -> JSONResponse:
-        conn, user = require_event_admin(request, event_id)
-        body = await _json_body(request, conn)
-        try:
-            row = _guard(categories.add_roster_role, conn, event_id,
-                         body.get("name") or "")
-        finally:
-            conn.close()
+    async def setup_add_role(
+        event_id: int, auth: EventAdmin, request: Request
+    ) -> JSONResponse:
+        conn = auth.conn
+        body = await json_body(request)
+        row = _guard(categories.add_roster_role, conn, event_id,
+                     body.get("name") or "")
         return JSONResponse(dict(row), status_code=201)
 
     # Literal before parameterised: "/roles/{key}" would swallow this.
     @app.post("/api/setup/events/{event_id}/roles/{key}/delete")
     async def setup_delete_role(
-        event_id: int, key: str, request: Request
+        event_id: int, key: str, auth: EventAdmin, request: Request
     ) -> JSONResponse:
-        conn, user = require_event_admin(request, event_id)
-        try:
-            in_use = _guard(categories.delete_roster_role, conn, event_id, key)
-        finally:
-            conn.close()
+        conn = auth.conn
+        in_use = _guard(categories.delete_roster_role, conn, event_id, key)
         if in_use:
             # 409 like the other in-use refusals: the request was well
             # formed, it is the data that is in the way.
@@ -1348,57 +1172,47 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
 
     @app.post("/api/setup/events/{event_id}/roles/{key}")
     async def setup_rename_role(
-        event_id: int, key: str, request: Request
+        event_id: int, key: str, auth: EventAdmin, request: Request
     ) -> JSONResponse:
-        conn, user = require_event_admin(request, event_id)
-        body = await _json_body(request, conn)
-        try:
-            row = _guard(
-                categories.rename_roster_role, conn, event_id, key,
-                body.get("name", ""),
-            )
-        finally:
-            conn.close()
+        conn = auth.conn
+        body = await json_body(request)
+        row = _guard(
+            categories.rename_roster_role, conn, event_id, key,
+            body.get("name", ""),
+        )
         return JSONResponse(dict(row))
 
     # The leaders this event tracks - "First male", "First wheelchair". Called
     # leaders on screen and in these routes; the key stored on a sighting is
     # still `division`, which is internal and in databases that already exist.
     @app.post("/api/setup/events/{event_id}/leaders")
-    async def setup_add_leader(event_id: int, request: Request) -> JSONResponse:
-        conn, user = require_event_admin(request, event_id)
-        body = await _json_body(request, conn)
-        try:
-            row = _guard(categories.add_lead_division, conn, event_id,
-                         body.get("name") or "")
-        finally:
-            conn.close()
+    async def setup_add_leader(
+        event_id: int, auth: EventAdmin, request: Request
+    ) -> JSONResponse:
+        conn = auth.conn
+        body = await json_body(request)
+        row = _guard(categories.add_lead_division, conn, event_id,
+                     body.get("name") or "")
         return JSONResponse(dict(row), status_code=201)
 
     # Literal before parameterised, or "reorder" parses as a leader key and the
     # drag handle silently does nothing.
     @app.post("/api/setup/events/{event_id}/leaders/reorder")
     async def setup_reorder_leaders(
-        event_id: int, request: Request
+        event_id: int, auth: EventAdmin, request: Request
     ) -> JSONResponse:
-        conn, user = require_event_admin(request, event_id)
-        body = await _json_body(request, conn)
-        try:
-            count = _guard(categories.reorder_lead_divisions, conn, event_id,
-                           body.get("keys") or [])
-        finally:
-            conn.close()
+        conn = auth.conn
+        body = await json_body(request)
+        count = _guard(categories.reorder_lead_divisions, conn, event_id,
+                       body.get("keys") or [])
         return JSONResponse({"ordered": count})
 
     @app.post("/api/setup/events/{event_id}/leaders/{key}/delete")
     async def setup_delete_leader(
-        event_id: int, key: str, request: Request
+        event_id: int, key: str, auth: EventAdmin
     ) -> JSONResponse:
-        conn, user = require_event_admin(request, event_id)
-        try:
-            in_use = _guard(categories.delete_lead_division, conn, event_id, key)
-        finally:
-            conn.close()
+        conn = auth.conn
+        in_use = _guard(categories.delete_lead_division, conn, event_id, key)
         if in_use:
             # The sightings would stay in the database and vanish from the
             # panel, with nothing on screen to say where they went.
@@ -1410,64 +1224,58 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
 
     @app.post("/api/setup/events/{event_id}/leaders/{key}")
     async def setup_rename_leader(
-        event_id: int, key: str, request: Request
+        event_id: int, key: str, auth: EventAdmin, request: Request
     ) -> JSONResponse:
-        conn, user = require_event_admin(request, event_id)
-        body = await _json_body(request, conn)
-        try:
-            row = _guard(categories.rename_lead_division, conn, event_id, key,
-                         body.get("name", ""))
-        finally:
-            conn.close()
+        conn = auth.conn
+        body = await json_body(request)
+        row = _guard(categories.rename_lead_division, conn, event_id, key,
+                     body.get("name", ""))
         return JSONResponse(dict(row))
 
     @app.post("/api/setup/events/{event_id}/roster")
-    async def setup_save_roster(event_id: int, request: Request) -> JSONResponse:
-        conn, user = require_event_admin(request, event_id)
-        body = await _json_body(request, conn)
-        try:
-            return JSONResponse(
-                _guard(admin.save_roster_entry, conn, event_id, body)
-            )
-        finally:
-            conn.close()
+    async def setup_save_roster(
+        event_id: int, auth: EventAdmin, request: Request
+    ) -> JSONResponse:
+        conn = auth.conn
+        body = await json_body(request)
+        return JSONResponse(
+            _guard(admin.save_roster_entry, conn, event_id, body)
+        )
 
     @app.post("/api/setup/events/{event_id}/roster/delete")
-    async def setup_delete_roster(event_id: int, request: Request) -> JSONResponse:
-        conn, user = require_event_admin(request, event_id)
-        body = await _json_body(request, conn)
-        try:
-            _guard(admin.delete_roster_entry, conn, event_id,
-                   body.get("station_key", ""))
-        finally:
-            conn.close()
+    async def setup_delete_roster(
+        event_id: int, auth: EventAdmin, request: Request
+    ) -> JSONResponse:
+        conn = auth.conn
+        body = await json_body(request)
+        _guard(admin.delete_roster_entry, conn, event_id,
+               body.get("station_key", ""))
         return JSONResponse({"ok": True})
 
     # --- setup: access links ------------------------------------------------
 
     @app.get("/api/setup/events/{event_id}/links")
-    async def setup_links(event_id: int, request: Request) -> JSONResponse:
-        conn, user = require_event_admin(request, event_id)
-        try:
-            # A read, and only a read. This used to create any role's
-            # missing link on the way past, which is benign in itself - but
-            # Lax cookies ARE sent on a cross-site top-level navigation, so
-            # a GET with a side effect is the one kind of setup route a page
-            # elsewhere can drive. The fill-in lives on the POST below.
-            event = conn.execute(
-                "SELECT slug FROM event WHERE id = ?", (event_id,)
-            ).fetchone()
-            return JSONResponse({
-                "slug": event["slug"],
-                "links": admin.list_links(conn, event_id),
-            })
-        finally:
-            conn.close()
+    async def setup_links(event_id: int, auth: EventAdmin) -> JSONResponse:
+        conn = auth.conn
+        # A read, and only a read. This used to create any role's
+        # missing link on the way past, which is benign in itself - but
+        # Lax cookies ARE sent on a cross-site top-level navigation, so
+        # a GET with a side effect is the one kind of setup route a page
+        # elsewhere can drive. The fill-in lives on the POST below.
+        event = conn.execute(
+            "SELECT slug FROM event WHERE id = ?", (event_id,)
+        ).fetchone()
+        return JSONResponse({
+            "slug": event["slug"],
+            "links": admin.list_links(conn, event_id),
+        })
 
     @app.post("/api/setup/events/{event_id}/links")
-    async def setup_link_action(event_id: int, request: Request) -> JSONResponse:
-        conn, user = require_event_admin(request, event_id)
-        body = await _json_body(request, conn)
+    async def setup_link_action(
+        event_id: int, auth: EventAdmin, request: Request
+    ) -> JSONResponse:
+        conn = auth.conn
+        body = await json_body(request)
         action = (body.get("action") or "").strip()
 
         def token_id() -> int:
@@ -1476,111 +1284,98 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
             except (TypeError, ValueError):
                 raise HTTPException(status_code=400, detail="Which link?")
 
-        try:
-            if action == "revoke":
-                # 404, not 400: the id is either not a link at all or is a
-                # link in some other event, and the difference must not be
-                # reported - it would confirm the other event's link exists.
-                if not access.revoke(conn, event_id, token_id()):
-                    raise HTTPException(status_code=404, detail="No such link.")
-            elif action == "add":
-                # A second, third, fourth link for one role. Three Net Control
-                # operators can share one link - the token allows any number of
-                # devices - but then no one of them can be cut off alone, and
-                # nothing says which of them is which. A link per person is how
-                # a phone left in a parking lot is revoked without taking the
-                # net off the air.
-                role = str(body.get("role", ""))
-                if role not in access.ROLES:
-                    raise HTTPException(status_code=400, detail=f"Unknown role {role!r}")
-                access.create_token(conn, event_id, role,
-                                    _link_label(body.get("label")))
-            elif action == "label":
-                # Whose link this is. Free text and never trusted for anything:
-                # it exists so the row to revoke can be found under pressure.
-                if not access.set_label(conn, event_id, token_id(),
-                                        _link_label(body.get("label"))):
-                    raise HTTPException(status_code=404, detail="No such link.")
-            elif action == "reissue":
-                role = str(body.get("role", ""))
-                if role not in access.ROLES:
-                    raise HTTPException(status_code=400, detail=f"Unknown role {role!r}")
-                # Revoke the old one in the same step: reissuing without
-                # revoking would quietly leave the leaked link working. With
-                # several links on a role this replaces ALL of them, which is
-                # what "the role is compromised" means - revoking one person is
-                # the per-link action above.
-                for row in access.tokens_for_event(conn, event_id):
-                    if row["role"] == role and not row["revoked"]:
-                        access.revoke(conn, event_id, row["id"])
-                access.create_token(conn, event_id, role)
-            else:
-                raise HTTPException(status_code=400, detail="Unknown action.")
-            # Every role keeps at least one live link: revoking the only NCS
-            # link is a rotation, not a net with no Net Control. Fills in a
-            # missing role and never collapses extras.
-            access.ensure_tokens(conn, event_id)
-            links = admin.list_links(conn, event_id)
-        finally:
-            conn.close()
+        if action == "revoke":
+            # 404, not 400: the id is either not a link at all or is a
+            # link in some other event, and the difference must not be
+            # reported - it would confirm the other event's link exists.
+            if not access.revoke(conn, event_id, token_id()):
+                raise HTTPException(status_code=404, detail="No such link.")
+        elif action == "add":
+            # A second, third, fourth link for one role. Three Net Control
+            # operators can share one link - the token allows any number of
+            # devices - but then no one of them can be cut off alone, and
+            # nothing says which of them is which. A link per person is how
+            # a phone left in a parking lot is revoked without taking the
+            # net off the air.
+            role = str(body.get("role", ""))
+            if role not in access.ROLES:
+                raise HTTPException(status_code=400, detail=f"Unknown role {role!r}")
+            access.create_token(conn, event_id, role,
+                                _link_label(body.get("label")))
+        elif action == "label":
+            # Whose link this is. Free text and never trusted for anything:
+            # it exists so the row to revoke can be found under pressure.
+            if not access.set_label(conn, event_id, token_id(),
+                                    _link_label(body.get("label"))):
+                raise HTTPException(status_code=404, detail="No such link.")
+        elif action == "reissue":
+            role = str(body.get("role", ""))
+            if role not in access.ROLES:
+                raise HTTPException(status_code=400, detail=f"Unknown role {role!r}")
+            # Revoke the old one in the same step: reissuing without
+            # revoking would quietly leave the leaked link working. With
+            # several links on a role this replaces ALL of them, which is
+            # what "the role is compromised" means - revoking one person is
+            # the per-link action above.
+            for row in access.tokens_for_event(conn, event_id):
+                if row["role"] == role and not row["revoked"]:
+                    access.revoke(conn, event_id, row["id"])
+            access.create_token(conn, event_id, role)
+        else:
+            raise HTTPException(status_code=400, detail="Unknown action.")
+        # Every role keeps at least one live link: revoking the only NCS
+        # link is a rotation, not a net with no Net Control. Fills in a
+        # missing role and never collapses extras.
+        access.ensure_tokens(conn, event_id)
+        links = admin.list_links(conn, event_id)
         return JSONResponse({"links": links})
 
     # --- setup: organizations -----------------------------------------------
 
     @app.get("/api/setup/organizations")
-    async def setup_organizations(request: Request) -> JSONResponse:
-        conn, user = require_user(request)
-        try:
-            organizations = users.list_organizations(conn)
-            if not user.is_system_admin:
-                organizations = [o for o in organizations
-                                 if o["id"] == user.organization_id]
-        finally:
-            conn.close()
+    async def setup_organizations(auth: SignedIn) -> JSONResponse:
+        conn, user = auth
+        organizations = users.list_organizations(conn)
+        if not user.is_system_admin:
+            organizations = [o for o in organizations
+                             if o["id"] == user.organization_id]
         return JSONResponse({"organizations": organizations})
 
     @app.post("/api/setup/organizations")
-    async def setup_create_organization(request: Request) -> JSONResponse:
+    async def setup_create_organization(
+        auth: SystemAdmin, request: Request
+    ) -> JSONResponse:
         # Only the host adds clubs: this is the tenancy boundary itself.
-        conn, user = require_system_admin(request)
-        body = await _json_body(request, conn)
-        try:
-            organization = _guard(
-                users.create_organization, conn,
-                body.get("slug", ""), body.get("name", ""), body.get("contact"),
-            )
-        finally:
-            conn.close()
+        conn = auth.conn
+        body = await json_body(request)
+        organization = _guard(
+            users.create_organization, conn,
+            body.get("slug", ""), body.get("name", ""), body.get("contact"),
+        )
         return JSONResponse(organization, status_code=201)
 
     @app.post("/api/setup/organizations/{organization_id}")
     async def setup_update_organization(
-        organization_id: int, request: Request
+        organization_id: int, auth: SystemAdmin, request: Request
     ) -> JSONResponse:
-        conn, user = require_system_admin(request)
-        body = await _json_body(request, conn)
-        try:
-            organization = _guard(
-                users.update_organization, conn, organization_id, body
-            )
-        finally:
-            conn.close()
+        conn = auth.conn
+        body = await json_body(request)
+        organization = _guard(
+            users.update_organization, conn, organization_id, body
+        )
         return JSONResponse(organization)
 
     @app.post("/api/setup/organizations/{organization_id}/delete")
     async def setup_delete_organization(
-        organization_id: int, request: Request
+        organization_id: int, auth: SystemAdmin
     ) -> JSONResponse:
-        conn, user = require_system_admin(request)
-        try:
-            # Cascades through the organization's events, so their feeds go
-            # the same way an event's own delete takes its feed with it.
-            gone = conn.execute(
-                "SELECT id, slug FROM event WHERE organization_id = ?",
-                (organization_id,)).fetchall()
-            conn.execute("DELETE FROM organization WHERE id = ?", (organization_id,))
-        finally:
-            conn.close()
+        conn = auth.conn
+        # Cascades through the organization's events, so their feeds go
+        # the same way an event's own delete takes its feed with it.
+        gone = conn.execute(
+            "SELECT id, slug FROM event WHERE organization_id = ?",
+            (organization_id,)).fetchall()
+        conn.execute("DELETE FROM organization WHERE id = ?", (organization_id,))
         for event in gone:
             await app.state.forget_ingest(event["slug"], event["id"])
         return JSONResponse({"deleted": organization_id})
@@ -1588,45 +1383,41 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     # --- setup: users -------------------------------------------------------
 
     @app.get("/api/setup/users")
-    async def setup_users(request: Request) -> JSONResponse:
-        conn, user = require_user_manager(request)
-        try:
-            people = users.list_users(conn)
-            roles = list(users.ROLES)
-            if not user.is_system_admin:
-                # An org admin sees and creates only within their own club, and
-                # cannot mint system administrators.
-                people = [p for p in people
-                          if p["organization_id"] == user.organization_id]
-                roles = [r for r in roles if r != users.ROLE_SYSTEM_ADMIN]
-            return JSONResponse({
-                "users": people,
-                "roles": [{"value": r, "label": users.ROLE_LABELS[r]} for r in roles],
-                "organizations": (users.list_organizations(conn)
-                                  if user.is_system_admin else []),
-            })
-        finally:
-            conn.close()
+    async def setup_users(auth: UserManager) -> JSONResponse:
+        conn, user = auth
+        people = users.list_users(conn)
+        roles = list(users.ROLES)
+        if not user.is_system_admin:
+            # An org admin sees and creates only within their own club, and
+            # cannot mint system administrators.
+            people = [p for p in people
+                      if p["organization_id"] == user.organization_id]
+            roles = [r for r in roles if r != users.ROLE_SYSTEM_ADMIN]
+        return JSONResponse({
+            "users": people,
+            "roles": [{"value": r, "label": users.ROLE_LABELS[r]} for r in roles],
+            "organizations": (users.list_organizations(conn)
+                              if user.is_system_admin else []),
+        })
 
     @app.post("/api/setup/users")
-    async def setup_create_user(request: Request) -> JSONResponse:
-        conn, actor = require_user_manager(request)
-        body = await _json_body(request, conn)
+    async def setup_create_user(
+        auth: UserManager, request: Request
+    ) -> JSONResponse:
+        conn, actor = auth
+        body = await json_body(request)
         role = body.get("role", "")
-        try:
-            if actor.is_system_admin:
-                organization_id = body.get("organization_id")
-            else:
-                # Their own club, always - and never a system administrator.
-                organization_id = actor.organization_id
-                if role == users.ROLE_SYSTEM_ADMIN:
-                    raise HTTPException(
-                        status_code=403,
-                        detail="Only a system administrator can create one.",
-                    )
-            created = _guard(_create_user, conn, body, role, organization_id)
-        finally:
-            conn.close()
+        if actor.is_system_admin:
+            organization_id = body.get("organization_id")
+        else:
+            # Their own club, always - and never a system administrator.
+            organization_id = actor.organization_id
+            if role == users.ROLE_SYSTEM_ADMIN:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Only a system administrator can create one.",
+                )
+        created = _guard(_create_user, conn, body, role, organization_id)
         return JSONResponse(created.as_dict(), status_code=201)
 
     def _create_user(conn, body: dict, role, organization_id) -> users.User:
@@ -1662,31 +1453,30 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         return ids
 
     @app.post("/api/setup/users/{user_id}")
-    async def setup_update_user(user_id: int, request: Request) -> JSONResponse:
-        conn, actor = require_user_manager(request)
-        body = await _json_body(request, conn)
-        try:
-            target = _get_user(conn, user_id)
-            if not users.may_manage_user(conn, actor, target):
-                raise HTTPException(status_code=403, detail="Not your administrator.")
-            if "password" in body:
-                _guard(users.set_password, conn, user_id, body["password"])
-            if "is_active" in body:
-                active = bool(body["is_active"])
-                # Refuse to deactivate the last system admin: it would lock
-                # everyone out of the system with no way back in.
-                if not active and users.count_system_admins(conn, user_id) == 0:
-                    raise HTTPException(
-                        status_code=400,
-                        detail="This is the only system administrator.",
-                    )
-                users.set_active(conn, user_id, active)
-            if "event_ids" in body:
-                users.set_events(conn, user_id, _guard(
-                    _event_ids, conn, body["event_ids"], target.organization_id))
-            result = users.get_user(conn, user_id).as_dict()
-        finally:
-            conn.close()
+    async def setup_update_user(
+        user_id: int, auth: UserManager, request: Request
+    ) -> JSONResponse:
+        conn, actor = auth
+        body = await json_body(request)
+        target = _get_user(conn, user_id)
+        if not users.may_manage_user(conn, actor, target):
+            raise HTTPException(status_code=403, detail="Not your administrator.")
+        if "password" in body:
+            _guard(users.set_password, conn, user_id, body["password"])
+        if "is_active" in body:
+            active = bool(body["is_active"])
+            # Refuse to deactivate the last system admin: it would lock
+            # everyone out of the system with no way back in.
+            if not active and users.count_system_admins(conn, user_id) == 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail="This is the only system administrator.",
+                )
+            users.set_active(conn, user_id, active)
+        if "event_ids" in body:
+            users.set_events(conn, user_id, _guard(
+                _event_ids, conn, body["event_ids"], target.organization_id))
+        result = users.get_user(conn, user_id).as_dict()
         return JSONResponse(result)
 
     def _get_user(conn, user_id: int) -> users.User:
@@ -1698,24 +1488,23 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
             raise HTTPException(status_code=404, detail="No such administrator.")
 
     @app.post("/api/setup/users/{user_id}/delete")
-    async def setup_delete_user(user_id: int, request: Request) -> JSONResponse:
-        conn, actor = require_user_manager(request)
-        try:
-            target = _get_user(conn, user_id)
-            if not users.may_manage_user(conn, actor, target):
-                raise HTTPException(status_code=403, detail="Not your administrator.")
-            if user_id == actor.id:
-                raise HTTPException(
-                    status_code=400, detail="You cannot delete your own account."
-                )
-            if users.count_system_admins(conn, user_id) == 0:
-                raise HTTPException(
-                    status_code=400,
-                    detail="This is the only system administrator.",
-                )
-            users.delete_user(conn, user_id)
-        finally:
-            conn.close()
+    async def setup_delete_user(
+        user_id: int, auth: UserManager
+    ) -> JSONResponse:
+        conn, actor = auth
+        target = _get_user(conn, user_id)
+        if not users.may_manage_user(conn, actor, target):
+            raise HTTPException(status_code=403, detail="Not your administrator.")
+        if user_id == actor.id:
+            raise HTTPException(
+                status_code=400, detail="You cannot delete your own account."
+            )
+        if users.count_system_admins(conn, user_id) == 0:
+            raise HTTPException(
+                status_code=400,
+                detail="This is the only system administrator.",
+            )
+        users.delete_user(conn, user_id)
         return JSONResponse({"deleted": user_id})
 
     # --- pages -------------------------------------------------------------
@@ -1729,9 +1518,9 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         return RedirectResponse("/setup", status_code=302)
 
     @app.get("/e/{event_slug}/{token}")
-    async def map_page(event_slug: str, token: str) -> HTMLResponse:
-        conn, _ = require_access(event_slug, token)
-        conn.close()
+    async def map_page(
+        event_slug: str, token: str, auth: FieldAccess
+    ) -> HTMLResponse:
         # The manifest URL carries the token, because the app has no
         # tokenless entry point - a static start_url would install a shortcut
         # to a 404.
@@ -1740,7 +1529,9 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         return _page(html.replace("__MANIFEST_URL__", manifest))
 
     @app.get("/api/{event_slug}/{token}/manifest.webmanifest")
-    async def manifest(event_slug: str, token: str) -> JSONResponse:
+    async def manifest(
+        event_slug: str, token: str, auth: FieldAccess
+    ) -> JSONResponse:
         """Per-event, per-role manifest.
 
         `start_url` points back at this exact role link, so "Add to Home Screen"
@@ -1748,11 +1539,10 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         bearer token is saved onto the phone's home screen, which is consistent
         with the link model but worth knowing - see docs/RUNBOOK.md.
         """
-        conn, granted = require_access(event_slug, token)
+        conn, granted = auth
         event = conn.execute(
             "SELECT name FROM event WHERE id = ?", (granted.event_id,)
         ).fetchone()
-        conn.close()
 
         start = f"/e/{event_slug}/{token}"
         return JSONResponse(
@@ -1785,40 +1575,39 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     # --- api ---------------------------------------------------------------
 
     @app.get("/api/{event_slug}/{token}/state")
-    async def state(event_slug: str, token: str) -> JSONResponse:
-        conn, granted = require_access(event_slug, token)
-        try:
-            # Off the loop. The snapshot is the one heavy read in the live
-            # app - 90 ms on the demo event, seconds on the real course - and
-            # while it was being built on the loop nothing else moved: no
-            # WebSocket send, no ingest, no other phone. A setup save resyncs
-            # every phone at once, so twelve phones were twelve builds in a
-            # row with positions frozen for the sum of them.
-            payload = await asyncio.to_thread(
-                snapshot.build_state, conn, granted.event_id)
-            # The public, heard near the course. Only for a role that can
-            # match or dismiss them; nobody else needs a list of who is
-            # driving past. Same connection: opening one is not free, and
-            # this route used to open three.
-            if granted.can(access.CAP_SSID):
-                # Callsigns on an SSID the roster does not name. Surfaced
-                # in the UI rather than left to a command someone has to
-                # remember: the failure it catches is silent, and a check
-                # that must be remembered will be forgotten. Only NCS
-                # renders it, and the field links do not need a list of
-                # which roster callsigns own which digipeaters.
-                payload["ssid_alerts"] = snapshot.ssid_alerts(conn, granted.event_id)
-                payload["nearby"] = snapshot.nearby_for(
-                    conn, granted.event_id, app.state.nearby)
-                # What has been ignored, so a mis-tap on Ignore can be
-                # undone. An ignored station is silent in every other list,
-                # which is the point of ignoring it and also what makes the
-                # mistake invisible.
-                payload["ignored"] = [
-                    dict(row) for row in db.exclusions(conn, granted.event_id)
-                ]
-        finally:
-            conn.close()
+    async def state(
+        event_slug: str, token: str, auth: FieldAccess
+    ) -> JSONResponse:
+        conn, granted = auth
+        # Off the loop. The snapshot is the one heavy read in the live
+        # app - 90 ms on the demo event, seconds on the real course - and
+        # while it was being built on the loop nothing else moved: no
+        # WebSocket send, no ingest, no other phone. A setup save resyncs
+        # every phone at once, so twelve phones were twelve builds in a
+        # row with positions frozen for the sum of them.
+        payload = await asyncio.to_thread(
+            snapshot.build_state, conn, granted.event_id)
+        # The public, heard near the course. Only for a role that can
+        # match or dismiss them; nobody else needs a list of who is
+        # driving past. Same connection: opening one is not free, and
+        # this route used to open three.
+        if granted.can(access.CAP_SSID):
+            # Callsigns on an SSID the roster does not name. Surfaced
+            # in the UI rather than left to a command someone has to
+            # remember: the failure it catches is silent, and a check
+            # that must be remembered will be forgotten. Only NCS
+            # renders it, and the field links do not need a list of
+            # which roster callsigns own which digipeaters.
+            payload["ssid_alerts"] = snapshot.ssid_alerts(conn, granted.event_id)
+            payload["nearby"] = snapshot.nearby_for(
+                conn, granted.event_id, app.state.nearby)
+            # What has been ignored, so a mis-tap on Ignore can be
+            # undone. An ignored station is silent in every other list,
+            # which is the point of ignoring it and also what makes the
+            # mistake invisible.
+            payload["ignored"] = [
+                dict(row) for row in db.exclusions(conn, granted.event_id)
+            ]
         payload["role"] = granted.role
         payload["role_label"] = granted.role_label
         payload["can_write"] = granted.can_write
@@ -1836,59 +1625,19 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
 
     # --- writes ------------------------------------------------------------
     #
-    # Every mutation names the capability it needs and goes through one check,
-    # so widening a role is a change to access.ROLE_CAPABILITIES rather than a
-    # rewrite of each endpoint. It used to be a single yes/no; SAG needs to work
-    # its pickup queue without being able to revoke a link or edit the roster.
-
-    async def _json_body(request: Request, conn=None) -> dict:
-        # Read in chunks and counted, so a chunked body with no
-        # Content-Length - which the middleware cannot size - is still cut
-        # off at the cap rather than buffered whole.
-        chunks: list[bytes] = []
-        size = 0
-        try:
-            async for chunk in request.stream():
-                size += len(chunk)
-                if size > MAX_JSON_BYTES:
-                    raise HTTPException(status_code=413,
-                                        detail="Request body too large.")
-                chunks.append(chunk)
-            body = json.loads(b"".join(chunks))
-        except HTTPException:
-            if conn is not None:
-                conn.close()
-            raise
-        except Exception:
-            if conn is not None:
-                conn.close()
-            raise HTTPException(status_code=400, detail="Expected a JSON body.")
-        if not isinstance(body, dict):
-            if conn is not None:
-                conn.close()
-            raise HTTPException(status_code=400, detail="Expected a JSON object.")
-        return body
-
-    def require_capability(event_slug: str, token: str, capability: str):
-        conn, granted = require_access(event_slug, token)
-        if not granted.can(capability):
-            conn.close()
-            # 403 here, not 404: the token is valid and its holder knows the
-            # event exists. Hiding the reason would just be confusing.
-            detail = (
-                f"{granted.role_label} is read-only."
-                if not granted.can_write
-                else f"{granted.role_label} cannot change that."
-            )
-            raise HTTPException(status_code=403, detail=detail)
-        return conn, granted
+    # Every mutation names the capability it needs (`Depends(needs(...))`)
+    # and goes through one check, so widening a role is a change to
+    # access.ROLE_CAPABILITIES rather than a rewrite of each endpoint. It
+    # used to be a single yes/no; SAG needs to work its pickup queue without
+    # being able to revoke a link or edit the roster.
 
     @app.post("/api/{event_slug}/{token}/station/{station_key}/status")
     async def set_station_status(
-        event_slug: str, token: str, station_key: str, request: Request
+        event_slug: str, token: str, station_key: str, request: Request,
+        auth: Grant = Depends(needs(access.CAP_STATIONS))
     ) -> JSONResponse:
-        conn, granted = require_capability(event_slug, token, access.CAP_STATIONS)
-        body = await _json_body(request, conn)
+        conn, granted = auth
+        body = await json_body(request)
 
         try:
             op_status = (db.clean_text(body.get("op_status")) or "").lower()
@@ -1904,7 +1653,6 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
                 conn, granted.event_id, station_key, op_status, changed_by
             )
         except ValueError as exc:
-            conn.close()
             raise HTTPException(status_code=400, detail=str(exc))
 
         payload = {
@@ -1920,7 +1668,6 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
             "op_status_by": row["op_status_by"],
             "op_status_label": db.op_status_label(row["category"], row["op_status"]),
         }
-        conn.close()
         # Everyone watching sees it immediately, including the read-only roles.
         await app.state.hub.publish(granted.event_id, payload)
         return JSONResponse(payload)
@@ -1935,7 +1682,7 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         await app.state.hub.publish(event_id, {"type": "resync"})
 
     async def _publish_incident(event_id: int, row, kind: str) -> None:
-        conn = get_conn()
+        conn = db.connect(settings.db_path)
         try:
             index = progress.CourseIndex.for_event(conn, event_id)
         finally:
@@ -1955,10 +1702,11 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
     # describe it; only NCS and SAG may move it along or take it off the board.
     @app.post("/api/{event_slug}/{token}/incidents")
     async def create_incident(
-        event_slug: str, token: str, request: Request
+        event_slug: str, token: str, request: Request,
+        auth: Grant = Depends(needs(access.CAP_INCIDENT_REPORT))
     ) -> JSONResponse:
-        conn, granted = require_capability(event_slug, token, access.CAP_INCIDENT_REPORT)
-        body = await _json_body(request, conn)
+        conn, granted = auth
+        body = await json_body(request)
         try:
             row = incidents.create(
                 conn, granted.event_id,
@@ -1968,18 +1716,17 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
                 kind=(body.get("kind") or incidents.KIND_PICKUP),
             )
         except (incidents.IncidentError, TypeError, ValueError) as exc:
-            conn.close()
             raise HTTPException(status_code=400, detail=str(exc))
-        conn.close()
         await _publish_incident(granted.event_id, row, "created")
         return JSONResponse(incidents.Incident(row).as_dict(), status_code=201)
 
     @app.post("/api/{event_slug}/{token}/incidents/{incident_id}/status")
     async def set_incident_status(
-        event_slug: str, token: str, incident_id: int, request: Request
+        event_slug: str, token: str, incident_id: int, request: Request,
+        auth: Grant = Depends(needs(access.CAP_INCIDENTS))
     ) -> JSONResponse:
-        conn, granted = require_capability(event_slug, token, access.CAP_INCIDENTS)
-        body = await _json_body(request, conn)
+        conn, granted = auth
+        body = await json_body(request)
         try:
             row = incidents.set_status(
                 conn, granted.event_id, incident_id,
@@ -1987,24 +1734,21 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
                 by=body.get("changed_by"),
             )
         except incidents.IncidentError as exc:
-            conn.close()
             raise HTTPException(status_code=400, detail=str(exc))
-        conn.close()
         await _publish_incident(granted.event_id, row, "status")
         return JSONResponse(incidents.Incident(row).as_dict())
 
     @app.post("/api/{event_slug}/{token}/incidents/{incident_id}/delete")
     async def delete_incident(
-        event_slug: str, token: str, incident_id: int, request: Request
+        event_slug: str, token: str, incident_id: int,
+        auth: Grant = Depends(needs(access.CAP_INCIDENTS))
     ) -> JSONResponse:
         """Remove a pickup or a course note that should never have existed."""
-        conn, granted = require_capability(event_slug, token, access.CAP_INCIDENTS)
+        conn, granted = auth
         try:
             row = incidents.delete(conn, granted.event_id, incident_id)
         except incidents.IncidentError as exc:
-            conn.close()
             raise HTTPException(status_code=404, detail=str(exc))
-        conn.close()
         # Every other browser has this in its list and on its map, and
         # nothing else will ever mention it again.
         await _publish_incident(granted.event_id, row, "deleted")
@@ -2012,10 +1756,11 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
 
     @app.post("/api/{event_slug}/{token}/incidents/{incident_id}")
     async def update_incident(
-        event_slug: str, token: str, incident_id: int, request: Request
+        event_slug: str, token: str, incident_id: int, request: Request,
+        auth: Grant = Depends(needs(access.CAP_INCIDENT_REPORT))
     ) -> JSONResponse:
-        conn, granted = require_capability(event_slug, token, access.CAP_INCIDENT_REPORT)
-        body = await _json_body(request, conn)
+        conn, granted = auth
+        body = await json_body(request)
         fields = {k: v for k, v in body.items()
                   if k in {"bib", "note", "assigned_to", "lat", "lon"}}
         try:
@@ -2024,17 +1769,18 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
                 by=body.get("changed_by"), **fields,
             )
         except (incidents.IncidentError, TypeError, ValueError) as exc:
-            conn.close()
             raise HTTPException(status_code=400, detail=str(exc))
-        conn.close()
         await _publish_incident(granted.event_id, row, "edited")
         return JSONResponse(incidents.Incident(row).as_dict())
 
     @app.post("/api/{event_slug}/{token}/ssid/adopt")
-    async def adopt_ssid(event_slug: str, token: str, request: Request) -> JSONResponse:
+    async def adopt_ssid(
+        event_slug: str, token: str, request: Request,
+        auth: Grant = Depends(needs(access.CAP_SSID))
+    ) -> JSONResponse:
         """Point a roster entry at the SSID its operator is actually using."""
-        conn, granted = require_capability(event_slug, token, access.CAP_SSID)
-        body = await _json_body(request, conn)
+        conn, granted = auth
+        body = await json_body(request)
         try:
             row = db.change_station_key(
                 conn, granted.event_id,
@@ -2042,67 +1788,67 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
                 str(body.get("to_station_key", "")),
             )
         except ValueError as exc:
-            conn.close()
             raise HTTPException(status_code=400, detail=str(exc))
         payload = {"station_key": row["station_key"],
                    "display_label": row["display_label"]}
-        conn.close()
         app.state.nearby.get(granted.event_id, {}).pop(
             str(body.get("to_station_key", "")).strip().upper(), None)
         await _publish_state_hint(granted.event_id)
         return JSONResponse(payload)
 
     @app.post("/api/{event_slug}/{token}/ssid/unbind")
-    async def unbind_ssid(event_slug: str, token: str, request: Request) -> JSONResponse:
+    async def unbind_ssid(
+        event_slug: str, token: str, request: Request,
+        auth: Grant = Depends(needs(access.CAP_SSID))
+    ) -> JSONResponse:
         """Undo a match: the roster entry goes back to waiting for a station."""
-        conn, granted = require_capability(event_slug, token, access.CAP_SSID)
-        body = await _json_body(request, conn)
+        conn, granted = auth
+        body = await json_body(request)
         station_key = str(body.get("station_key", "")).strip().upper()
         row = conn.execute(
             "SELECT * FROM roster WHERE event_id = ? AND station_key = ?",
             (granted.event_id, station_key),
         ).fetchone()
         if row is None:
-            conn.close()
             raise HTTPException(status_code=404, detail=f"{station_key} is not on the roster.")
         db.unbind_station(conn, granted.event_id, station_key)
-        conn.close()
         await _publish_state_hint(granted.event_id)
         return JSONResponse({"station_key": row["station_key"],
                              "display_label": row["display_label"],
                              "was": row["bound_key"]})
 
     @app.post("/api/{event_slug}/{token}/ssid/ignore")
-    async def ignore_ssid(event_slug: str, token: str, request: Request) -> JSONResponse:
+    async def ignore_ssid(
+        event_slug: str, token: str, request: Request,
+        auth: Grant = Depends(needs(access.CAP_SSID))
+    ) -> JSONResponse:
         """Dismiss an SSID: a digipeater, igate or home station."""
-        conn, granted = require_capability(event_slug, token, access.CAP_SSID)
-        body = await _json_body(request, conn)
+        conn, granted = auth
+        body = await json_body(request)
         station_key = str(body.get("station_key", "")).strip()
         if not station_key:
-            conn.close()
             raise HTTPException(status_code=400, detail="A station_key is required.")
         try:
             db.exclude_station(conn, granted.event_id, station_key,
                                body.get("reason") or "dismissed from the map")
         except ValueError as exc:
-            conn.close()
             raise HTTPException(status_code=400, detail=str(exc))
-        conn.close()
         app.state.nearby.get(granted.event_id, {}).pop(station_key.upper(), None)
         await _publish_state_hint(granted.event_id)
         return JSONResponse({"ignored": station_key.upper()})
 
     @app.post("/api/{event_slug}/{token}/ssid/unignore")
-    async def unignore_ssid(event_slug: str, token: str, request: Request) -> JSONResponse:
+    async def unignore_ssid(
+        event_slug: str, token: str, request: Request,
+        auth: Grant = Depends(needs(access.CAP_SSID))
+    ) -> JSONResponse:
         """Undo an Ignore. The station comes back the next time it is heard."""
-        conn, granted = require_capability(event_slug, token, access.CAP_SSID)
-        body = await _json_body(request, conn)
+        conn, granted = auth
+        body = await json_body(request)
         station_key = str(body.get("station_key", "")).strip()
         if not station_key:
-            conn.close()
             raise HTTPException(status_code=400, detail="A station_key is required.")
         removed = db.unexclude_station(conn, granted.event_id, station_key)
-        conn.close()
         if not removed:
             raise HTTPException(status_code=404, detail=f"{station_key.upper()} was not ignored.")
         await _publish_state_hint(granted.event_id)
@@ -2110,7 +1856,8 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
 
     @app.get("/api/{event_slug}/{token}/station-log")
     async def station_log(
-        event_slug: str, token: str, station_key: str | None = None
+        event_slug: str, token: str, auth: FieldAccess,
+        station_key: str | None = None
     ) -> JSONResponse:
         """Operational status history, for shift handover and after-action.
 
@@ -2123,26 +1870,23 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
         view can be added later without rebuilding anything; the tests reach
         it here. Deleting it would leave that log write-only.
         """
-        conn, granted = require_access(event_slug, token)
-        try:
-            entries = [
-                dict(row)
-                for row in db.op_status_log(conn, granted.event_id, station_key)
-            ]
-        finally:
-            conn.close()
+        conn, granted = auth
+        entries = [
+            dict(row)
+            for row in db.op_status_log(conn, granted.event_id, station_key)
+        ]
         return JSONResponse({"entries": entries})
 
     @app.get("/api/{event_slug}/{token}/incidents/{incident_id}/log")
     async def incident_log(
-        event_slug: str, token: str, incident_id: int
+        event_slug: str, token: str, incident_id: int,
+        auth: Grant = Depends(needs(access.CAP_INCIDENT_REPORT))
     ) -> JSONResponse:
         # Readable by every role that sees the queue: the log is what a
         # shift handover reads. API-only for now, like station-log above:
         # the queue shows the current status and its age, and the history
         # behind it is reachable here and from the tests.
-        conn, granted = require_capability(
-            event_slug, token, access.CAP_INCIDENT_REPORT)
+        conn, granted = auth
         try:
             incidents.get(conn, granted.event_id, incident_id)
             entries = [
@@ -2151,12 +1895,10 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
             ]
         except incidents.IncidentError as exc:
             raise HTTPException(status_code=404, detail=str(exc))
-        finally:
-            conn.close()
         return JSONResponse({"entries": entries})
 
     async def _publish_leaders(event_id: int) -> None:
-        conn = get_conn()
+        conn = db.connect(settings.db_path)
         try:
             index = progress.CourseIndex.for_event(conn, event_id)
             payload = {
@@ -2169,15 +1911,16 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
 
     @app.post("/api/{event_slug}/{token}/leaders/sighting")
     async def record_leader(
-        event_slug: str, token: str, request: Request
+        event_slug: str, token: str, request: Request,
+        auth: Grant = Depends(needs(access.CAP_LEADERS))
     ) -> JSONResponse:
         """Log that a division's leader passed an aid station.
 
         This only ever comes from an operator reporting on the net - there is no
         tracker on the front runner - so it is a report, not a measurement.
         """
-        conn, granted = require_capability(event_slug, token, access.CAP_LEADERS)
-        body = await _json_body(request, conn)
+        conn, granted = auth
+        body = await json_body(request)
         try:
             leaders.record_sighting(
                 conn, granted.event_id,
@@ -2188,48 +1931,48 @@ def create_app(settings: Settings, ingest_events: list[str] | None = None) -> Fa
                 by=body.get("changed_by"),
             )
         except (ValueError, TypeError) as exc:
-            conn.close()
             raise HTTPException(status_code=400, detail=str(exc))
-        conn.close()
         await _publish_leaders(granted.event_id)
         return JSONResponse({"ok": True}, status_code=201)
 
     @app.post("/api/{event_slug}/{token}/leaders/undo")
-    async def undo_leader(event_slug: str, token: str, request: Request) -> JSONResponse:
+    async def undo_leader(
+        event_slug: str, token: str, request: Request,
+        auth: Grant = Depends(needs(access.CAP_LEADERS))
+    ) -> JSONResponse:
         """Remove the most recent sighting. Mis-taps happen on race day."""
-        conn, granted = require_capability(event_slug, token, access.CAP_LEADERS)
-        body = await _json_body(request, conn)
+        conn, granted = auth
+        body = await json_body(request)
         try:
             removed = leaders.undo_last_sighting(
                 conn, granted.event_id,
                 int(body.get("course_id")), str(body.get("division", "")),
             )
         except (ValueError, TypeError) as exc:
-            conn.close()
             raise HTTPException(status_code=400, detail=str(exc))
-        conn.close()
         if removed:
             await _publish_leaders(granted.event_id)
         return JSONResponse({"removed": removed})
 
     @app.post("/api/{event_slug}/{token}/leaders/reset")
-    async def reset_leader(event_slug: str, token: str, request: Request) -> JSONResponse:
+    async def reset_leader(
+        event_slug: str, token: str, request: Request,
+        auth: Grant = Depends(needs(access.CAP_LEADERS))
+    ) -> JSONResponse:
         """Clear every sighting for one race and division.
 
         Undo walks back one report at a time, which is no use to a club that
         rehearsed the panel the week before and wants a clean start.
         """
-        conn, granted = require_capability(event_slug, token, access.CAP_LEADERS)
-        body = await _json_body(request, conn)
+        conn, granted = auth
+        body = await json_body(request)
         try:
             removed = leaders.clear_sightings(
                 conn, granted.event_id,
                 int(body.get("course_id")), str(body.get("division", "")),
             )
         except (ValueError, TypeError) as exc:
-            conn.close()
             raise HTTPException(status_code=400, detail=str(exc))
-        conn.close()
         if removed:
             await _publish_leaders(granted.event_id)
         return JSONResponse({"removed": removed})
