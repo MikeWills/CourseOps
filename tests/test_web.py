@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from courseops import access, aprsis, db, importer, web
+from courseops import access, aprsis, db, field_api, importer, web
 from courseops.config import Settings
 from courseops.parser import parse_packet
 from courseops.web import create_app
@@ -302,7 +302,7 @@ def test_a_quiet_socket_still_carries_a_heartbeat(setup, monkeypatch):
     a dead socket, and the badge reads "Live" either way. The server says
     something on its own every so often so the client can give up on a
     socket that has gone silent for longer than that."""
-    monkeypatch.setattr(web, "HEARTBEAT_SECONDS", 0.05)
+    monkeypatch.setattr(field_api, "HEARTBEAT_SECONDS", 0.05)
     app, tokens, _, _ = setup
     with TestClient(app) as client:
         with client.websocket_connect(f"/ws/m2026/{tokens['staff']}") as ws:
