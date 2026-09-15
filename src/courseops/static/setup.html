@@ -102,9 +102,21 @@
 
 <!-- Setup application ---------------------------------------------------- -->
 <main id="app" hidden>
+  <!-- Two levels, never both. Outside an event: the installation's tabs.
+       Inside one (Configure on the Events list, or a #events/slug/tab
+       link): the event's name as the heading, a way back, and the nine tabs
+       that belong to it. body.in-event says which level is showing, so a
+       tab that needs an event cannot be reached without one. -->
   <nav id="tabs">
     <button class="tab" data-tab="orgs" type="button" hidden>Organizations</button>
     <button class="tab is-on" data-tab="events" type="button">Events</button>
+    <button class="tab" data-tab="users" type="button" hidden>Users</button>
+  </nav>
+  <header id="event-head" hidden>
+    <a id="event-back" href="#events">&lsaquo; All events</a>
+    <h1 id="event-title"></h1>
+  </header>
+  <nav id="event-tabs" hidden>
     <button class="tab" data-tab="course" type="button">Import</button>
     <button class="tab" data-tab="courses" type="button">Courses</button>
     <button class="tab" data-tab="stations" type="button">Places</button>
@@ -114,7 +126,6 @@
     <button class="tab" data-tab="tracking" type="button">Tracking</button>
     <button class="tab" data-tab="roster" type="button">Roster</button>
     <button class="tab" data-tab="links" type="button">Links</button>
-    <button class="tab" data-tab="users" type="button" hidden>Users</button>
   </nav>
 
   <!-- Opened by the Password button in the bar. The server re-checks the
@@ -137,7 +148,6 @@
     </div>
   </form>
 
-  <p id="event-context" class="muted" hidden></p>
   <p id="banner" class="banner" hidden></p>
 
   <section class="panel" data-panel="orgs" hidden>
@@ -212,10 +222,7 @@
     </form>
   </section>
 
-  <section class="panel" data-panel="course" data-needs-event hidden>
-    <p class="needs-event" hidden>Pick an event first — everything on this
-      tab belongs to one event.
-      <button data-goto="events" type="button">Go to Events</button></p>
+  <section class="panel" data-panel="course" hidden>
     <h2>Course files</h2>
     <p class="muted">
       Upload the organizer's KML, KMZ or GPX. Import is additive — the full course,
@@ -265,10 +272,7 @@
        in, Courses the routes, Places the points. The courses table used to
        sit at the top of Places, which put the bib colour - an event-day
        setting NCS revisits - under a tab named for something else. -->
-  <section class="panel" data-panel="courses" data-needs-event hidden>
-    <p class="needs-event" hidden>Pick an event first — everything on this
-      tab belongs to one event.
-      <button data-goto="events" type="button">Go to Events</button></p>
+  <section class="panel" data-panel="courses" hidden>
     <h2>Courses</h2>
     <p class="muted">
       Each race as a line on the map. The bib colour is how an operator
@@ -284,10 +288,7 @@
     <div id="course-table"></div>
   </section>
 
-  <section class="panel" data-panel="stations" data-needs-event hidden>
-    <p class="needs-event" hidden>Pick an event first — everything on this
-      tab belongs to one event.
-      <button data-goto="events" type="button">Go to Events</button></p>
+  <section class="panel" data-panel="stations" hidden>
     <h2>Places <span class="muted">in course order</span></h2>
     <p class="muted">
       Organizer KML is usually one flat list, so everything arrives in a single
@@ -374,10 +375,7 @@
     </form>
   </section>
 
-  <section class="panel" data-panel="layers" data-needs-event hidden>
-    <p class="needs-event" hidden>Pick an event first — everything on this
-      tab belongs to one event.
-      <button data-goto="events" type="button">Go to Events</button></p>
+  <section class="panel" data-panel="layers" hidden>
     <h2>Place layers</h2>
     <p class="muted">
       Whatever kinds of place this event has. Organizers draw different things —
@@ -415,10 +413,7 @@
 
   </section>
 
-  <section class="panel" data-panel="roles" data-needs-event hidden>
-    <p class="needs-event" hidden>Pick an event first — everything on this
-      tab belongs to one event.
-      <button data-goto="events" type="button">Go to Events</button></p>
+  <section class="panel" data-panel="roles" hidden>
     <h2>Station roles</h2>
     <p class="muted">
       The kinds of job a person does at this event. Rename these to your own
@@ -451,10 +446,7 @@
        race, which is what makes it event-scoped rather than a course setting -
        the row-per-race grid on the NCS panel is a consequence of that, not a
        reason to file it under the races. -->
-  <section class="panel" data-panel="leaders" data-needs-event hidden>
-    <p class="needs-event" hidden>Pick an event first — everything on this
-      tab belongs to one event.
-      <button data-goto="events" type="button">Go to Events</button></p>
+  <section class="panel" data-panel="leaders" hidden>
     <h2>Leaders we track</h2>
     <p class="muted">
       A way to follow particular types of racer round the course. Most events
@@ -484,10 +476,7 @@
     </form>
   </section>
 
-  <section class="panel" data-panel="tracking" data-needs-event hidden>
-    <p class="needs-event" hidden>Pick an event first — everything on this
-      tab belongs to one event.
-      <button data-goto="events" type="button">Go to Events</button></p>
+  <section class="panel" data-panel="tracking" hidden>
     <h2>Live tracking</h2>
     <p class="muted">
       Whether this event is connected to APRS-IS and storing positions. Turn it
@@ -518,10 +507,7 @@
     </div>
   </section>
 
-  <section class="panel" data-panel="roster" data-needs-event hidden>
-    <p class="needs-event" hidden>Pick an event first — everything on this
-      tab belongs to one event.
-      <button data-goto="events" type="button">Go to Events</button></p>
+  <section class="panel" data-panel="roster" hidden>
     <h2>Roster</h2>
     <p class="muted">
       Enter the callsign alone. The SSID belongs to whichever radio or app they
@@ -561,10 +547,7 @@
     </form>
   </section>
 
-  <section class="panel" data-panel="links" data-needs-event hidden>
-    <p class="needs-event" hidden>Pick an event first — everything on this
-      tab belongs to one event.
-      <button data-goto="events" type="button">Go to Events</button></p>
+  <section class="panel" data-panel="links" hidden>
     <h2>Access links</h2>
     <p class="muted">
       Anyone holding a link has that role — send each to the right group only.

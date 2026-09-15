@@ -68,9 +68,11 @@ def test_the_layer_cache_is_dropped_when_the_event_changes():
     list, and adding a place in a layer B does not have was refused."""
     select = _block("function selectEvent(", "const TIME_ZONES")
     assert "S.poiCategories = null;" in select
+    # Deleting the open event goes through selectEvent(null), which is what
+    # drops the cache - a second copy of the invalidation here would drift.
     delete = _block("await post(`/api/setup/events/${event.id}/delete`);",
                     "banner(`Deleted ${event.name}.`);")
-    assert "S.poiCategories = null;" in delete
+    assert "selectEvent(null)" in delete
 
 
 def test_every_mutating_handler_reports_a_refusal():
@@ -252,3 +254,45 @@ def test_the_first_run_form_sends_the_setup_code():
     submit = _block("$('gate-form').addEventListener('submit'", "$('version-notice')")
     assert "body.setup_code = $('gate-code').value;" in submit
     assert 'id="gate-code"' in SETUP_HTML
+
+
+SETUP_HTML = (web.STATIC_DIR / "setup.html").read_text(encoding="utf-8")
+
+
+def test_event_tabs_exist_only_inside_an_event():
+    """One tab bar held all twelve tabs, and a tab that needed an event
+    opened on "Pick an event first" - so whether the screen was working on
+    an event at all was a line of small text above the panel. The nine
+    event tabs now live in #event-tabs, which is shown only inside an event
+    (Configure on the Events list), with the event's name as the heading
+    and "All events" as the way back; the three installation tabs are the
+    only ones in #tabs. Both lists are read from the markup, so a tab added
+    to the wrong bar fails here rather than appearing without an event."""
+    def tabs(nav_id: str) -> set[str]:
+        nav = re.search(rf'<nav id="{nav_id}"[^>]*>(.*?)</nav>', SETUP_HTML, re.S).group(1)
+        return set(re.findall(r'data-tab="(\w+)"', nav))
+    assert tabs("tabs") == {"orgs", "events", "users"}
+    assert tabs("event-tabs") == {"course", "courses", "stations", "layers",
+                                  "roles", "leaders", "tracking", "roster",
+                                  "links"}
+    assert "Pick an event first" not in SETUP_HTML
+    assert 'id="event-back"' in SETUP_HTML and 'id="event-title"' in SETUP_HTML
+    # An event tab asked for with no event falls back to the list, never to
+    # a panel whose forms would post to /events/null/...
+    activate = _block("function activateTab(", "function showLevel(")
+    assert "if (inEvent && !S.eventId) name = 'events';" in activate
+
+
+def test_the_hash_names_the_event_by_slug():
+    """A reload or a bookmark lands back inside the same event on the same
+    tab. The slug, not the id: it is what the field links use and it never
+    changes, so a link pasted into the club's notes keeps working."""
+    activate = _block("function activateTab(", "function showLevel(")
+    assert "`#events/${event.slug}/${name}`" in activate
+    go = _block("function goToHash(", "window.addEventListener('hashchange'")
+    assert "e.slug === parts[1]" in go
+    # Entering and leaving are history entries (Back is "out of this
+    # event"); a tab switch within a level is not (Back must not walk
+    # nine tabs first).
+    assert "activateTab(EVENT_TABS.has(tab) ? tab : 'course', true)" in SETUP_JS
+    assert "activateTab('events', true)" in SETUP_JS

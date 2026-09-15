@@ -477,6 +477,21 @@ Only two things stay outside the browser, because they happen before it exists:
 The CLI is kept, not replaced - it is better for repeat or scripted setup, and
 it is how the test suite drives the same code paths.
 
+### Two levels, not one tab bar (2026-09-15)
+
+The setup screen is either at the installation level (Organizations, Events,
+Users) or inside one event (its name as the heading, "All events" as the
+way back, and the nine tabs that belong to it). Configure on the Events list
+is the only way in. The single twelve-tab bar it replaced showed which event
+was open as a line of small text above the panel, and an event tab opened
+with no event on "Pick an event first" - the second event a club set up was
+where that stopped being tolerable. Considered and rejected: an event picker
+in the tab bar (built, looked at, discarded - still all twelve tabs, plus a
+dropdown that read as clutter), and per-event server routes (right for
+multi-tenant hosting, #5, premature for one club). The hash carries the
+place, `#events/<slug>/<tab>`, by slug because the id means nothing to a
+person and the slug is already permanent.
+
 ### Organizations are the tenancy boundary
 
 Added so this can be hosted for several clubs. Every event belongs to exactly

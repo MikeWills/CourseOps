@@ -68,13 +68,39 @@ body.setup #brand img { width: auto; height: 32px; }
 
 #app { max-width: 1100px; margin: 0 auto; padding: 18px 16px 60px; }
 
-#tabs {
+#tabs, #event-tabs {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
   margin-bottom: 14px;
   border-bottom: 1px solid var(--line);
 }
+/* Inside an event the event's name is the heading and the way out sits
+   above it, where every "back" lives. The two levels never show together:
+   showLevel() in setup.js swaps #tabs for #event-head + #event-tabs. */
+#event-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 16px;
+  margin: 2px 0 6px;
+}
+#event-head h1 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--navy-700);
+}
+#event-back {
+  font-weight: 650;
+  color: var(--ink-soft);
+  text-decoration: none;
+  white-space: nowrap;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+#event-back:hover, #event-back:focus-visible { color: var(--navy-700); text-decoration: underline; }
 .tab {
   min-height: 44px;
   padding: 0 14px;
@@ -94,7 +120,6 @@ body.setup #brand img { width: auto; height: 32px; }
 .panel h2:first-child { margin-top: 0; }
 .panel h3 { font-size: 14px; margin: 0 0 10px; }
 
-#event-context { margin: 0 0 12px; font-weight: 650; color: var(--navy-700); }
 
 .banner {
   padding: 10px 12px;
@@ -222,19 +247,6 @@ button:disabled { opacity: 0.65; cursor: progress; }
   color: #fff;
 }
 .layer-glyph { display: inline-grid; place-items: center; }
-
-.needs-event {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px;
-  padding: 16px;
-  border: 1px dashed var(--line);
-  border-radius: var(--radius);
-  background: var(--paper);
-  color: var(--ink-soft);
-  font-size: 14px;
-}
 
 /* --- tables -------------------------------------------------------------- */
 
@@ -503,7 +515,7 @@ a.icon-btn[hidden] { display: none; }
   /* One row, scrolling sideways, bleeding to the screen edges so the last
      tab is visibly cut off rather than looking like the end of the list.
      The active tab is scrolled into view by activateTab(). */
-  #tabs {
+  #tabs, #event-tabs {
     flex-wrap: nowrap;
     overflow-x: auto;
     margin: 0 -16px 12px;
@@ -512,7 +524,9 @@ a.icon-btn[hidden] { display: none; }
     -webkit-overflow-scrolling: touch;
     scroll-padding: 0 16px;
   }
-  #tabs::-webkit-scrollbar { display: none; }
+  #tabs::-webkit-scrollbar, #event-tabs::-webkit-scrollbar { display: none; }
+  #event-head { flex-direction: column; align-items: flex-start; gap: 0; }
+  #event-head h1 { font-size: 19px; }
   .tab { flex: none; padding: 0 12px; }
 
   .row > .field { min-width: 100%; }
