@@ -39,9 +39,11 @@ Tap any station row, pin or marker to fly the map to it and read its detail.
 
 At the bottom of the panel, below the layer switches, is **Event notes**. Type
 anything worth telling the organizer afterwards - *more portable toilets at the
-start*, *the finish-line PA was inaudible* - and press **Add**. It is kept
-with the time, goes into the after-event report without your name, and nobody
-acts on it during the race. Put your name or initials in the **Operator** box
+start*, *the finish-line PA was inaudible* - and press **Add**. The box empties
+and *Note sent* appears; that is the confirmation. It is kept with the time,
+goes to Net Control and into the after-event report without your name, and
+nobody acts on it during the race. You do not see the list of notes - this
+link is handed around, and what the club thinks went wrong is not for it. Put your name or initials in the **Operator** box
 underneath if you want Net Control to know who wrote it; nothing checks it.
 
 ## What you do not get

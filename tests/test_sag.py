@@ -34,7 +34,8 @@ def test_staff_can_add_an_event_note_and_nothing_else():
     """The link that gets forwarded to people the club has never met. It sees
     everything and changes nothing anyone acts on - not even a report. The
     one write is an event note, which is a sentence for the organizer
-    afterwards and never enters the live picture."""
+    afterwards and never enters the live picture - and it never reads
+    those back."""
     assert _access(access.ROLE_STAFF).capabilities == {access.CAP_EVENT_NOTE}
 
 
@@ -68,7 +69,8 @@ def test_the_field_roles_may_report_and_no_more(role):
     assert not granted.can(access.CAP_INCIDENTS)
     assert not any(granted.can(cap) for cap in
                    access.ALL_CAPABILITIES
-                   - {access.CAP_INCIDENT_REPORT, access.CAP_EVENT_NOTE})
+                   - {access.CAP_INCIDENT_REPORT, access.CAP_EVENT_NOTE,
+                      access.CAP_EVENT_NOTE_VIEW})
 
 
 def test_every_role_has_a_capability_entry():

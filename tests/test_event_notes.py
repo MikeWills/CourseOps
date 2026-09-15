@@ -36,6 +36,7 @@ def app(tmp_path):
     event_id = db.create_event(conn, "m2026", "Spring Marathon",
                                center_lat=34.7, center_lon=-86.5)
     importer.stage_file(conn, event_id, FIXTURE)
+    db.upsert_roster_entry(conn, event_id, "N0CALL-7", "Half-back", "sweep")
     tokens = access.ensure_tokens(conn, event_id)
     conn.close()
     settings = Settings(callsign="KI4TST", passcode="-1", host="h", port=1,
@@ -117,6 +118,14 @@ def test_every_role_may_add_an_event_note_staff_included():
         assert grant.can(access.CAP_EVENT_NOTE), role
 
 
+def test_only_the_roles_running_the_event_read_the_list():
+    """Everyone writes into it; NCS, Liaison and Logistics read it. SAG is in
+    a vehicle working the queue, and Staff is the link that travels."""
+    assert {role for role in access.ROLES
+            if access.Access(1, "m2026", role, "t").can(access.CAP_EVENT_NOTE_VIEW)} == {
+        access.ROLE_NCS, access.ROLE_LIAISON, access.ROLE_LOGISTICS}
+
+
 def test_only_ncs_and_sag_may_delete_an_event_note():
     assert {role for role in access.ROLES
             if access.Access(1, "m2026", role, "t").can(access.CAP_INCIDENTS)} == {
@@ -133,7 +142,8 @@ def test_staff_may_add_a_note_and_still_nothing_else(app):
         assert created.status_code == 201, created.text
         assert created.json()["text"] == "More pizza"
         state = client.get(f"/api/m2026/{tokens['staff']}/state").json()
-        assert [n["text"] for n in state["event_notes"]] == ["More pizza"]
+        # Written, never read back: not sent empty, not sent at all.
+        assert "event_notes" not in state
         assert state["capabilities"] == [access.CAP_EVENT_NOTE]
         assert "incidents" not in state and "nearby" not in state
         refused = [
@@ -144,13 +154,16 @@ def test_staff_may_add_a_note_and_still_nothing_else(app):
     assert [r.status_code for r in refused] == [403, 403]
 
 
-def test_every_role_receives_the_notes_in_the_snapshot(app):
+def test_the_list_reaches_the_reading_roles_and_no_others(app):
     app, tokens, _ = app
     with TestClient(app) as client:
-        client.post(notes_url(tokens["logistics"]), json={"text": "Cones short at 5th"})
-        for role in access.ROLES:
+        client.post(notes_url(tokens["sag"]), json={"text": "Cones short at 5th"})
+        for role in ("ncs", "liaison", "logistics"):
             state = client.get(f"/api/m2026/{tokens[role]}/state").json()
             assert [n["text"] for n in state["event_notes"]] == ["Cones short at 5th"], role
+        for role in ("sag", "staff"):
+            assert "event_notes" not in client.get(
+                f"/api/m2026/{tokens[role]}/state").json(), role
 
 
 def test_empty_or_missing_text_is_400(app):
@@ -162,12 +175,13 @@ def test_empty_or_missing_text_is_400(app):
                            json={"text": ["a"]}).status_code == 400
 
 
-def test_the_response_is_the_broadcast_and_everyone_hears_it(app):
-    """One payload: what the route answers with is what the socket carries,
-    and the Staff socket carries it too - this is the one list they hold."""
+def test_the_response_is_the_broadcast_and_the_reading_roles_hear_it(app):
+    """One payload: what the route answers with is what the socket carries.
+    The writer gets its row back in the response even when its own socket
+    is never sent it."""
     app, tokens, _ = app
     with TestClient(app) as client:
-        with client.websocket_connect(f"/ws/m2026/{tokens['staff']}") as ws:
+        with client.websocket_connect(f"/ws/m2026/{tokens['liaison']}") as ws:
             created = client.post(notes_url(tokens["sag"]),
                                   json={"text": "Van 2 needs a spare tyre"}).json()
             heard = ws.receive_json()
@@ -184,6 +198,22 @@ def test_the_response_is_the_broadcast_and_everyone_hears_it(app):
             heard = ws.receive_json()
             assert heard["change"] == "deleted" and heard["id"] == created["id"]
         assert client.get(f"/api/m2026/{tokens['ncs']}/state").json()["event_notes"] == []
+
+
+def test_a_socket_that_cannot_read_the_list_is_not_handed_entries(app):
+    """Staff and SAG add and never hear: the first thing their socket
+    carries after a note is the next thing they ARE told."""
+    app, tokens, _ = app
+    with TestClient(app) as client:
+        with client.websocket_connect(f"/ws/m2026/{tokens['staff']}") as ws:
+            client.post(notes_url(tokens["staff"]), json={"text": "quiet"})
+            client.post(notes_url(tokens["ncs"]), json={"text": "quiet too"})
+            client.post(f"/api/m2026/{tokens['ncs']}/station/N0CALL-7/status",
+                        json={"op_status": "active"})
+            message = ws.receive_json()
+            while message["type"] == "heartbeat":
+                message = ws.receive_json()
+            assert message["type"] == "station_status"
 
 
 def test_a_note_from_another_event_is_404(app):

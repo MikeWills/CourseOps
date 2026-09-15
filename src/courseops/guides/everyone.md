@@ -142,8 +142,13 @@ not matter.
 a different view of the event and this is what the club has forgotten by next
 spring. Nobody acts on these today: they are not pickups, they have no pin and
 no status, and they never enter any count. They go to the organizer in the
-after-event report, without your name. You can correct your own words in the
-box afterwards; Net Control and SAG can delete one.
+after-event report, without your name.
+
+**Who sees the list is narrower.** Net Control, Liaison and Logistics see
+every note under the box and can correct the words in place. SAG and Staff
+get the box alone: press Add, the box empties and *Note sent* appears, and
+that is the whole confirmation - your notes are not listed back to you.
+Net Control and SAG can delete one.
 
 ## On a phone
 

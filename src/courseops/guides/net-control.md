@@ -105,8 +105,9 @@ organizer after the event.
 
 Under *Course notes* in the same panel. Anything for the organizer that is not
 a place on the course - *bring more pizza*, *the start was late*. Type it into
-the box and press **Add**. Every link can add one, Staff included; you and SAG
-are the ones who can delete one (the **x** beside it). See
+the box and press **Add**. Every link can add one, Staff included; only you,
+Liaison and Logistics see the list, and you and SAG are the ones who can
+delete one (the **x** beside it). See
 [the basics](everyone.md) for the rest.
 
 ---

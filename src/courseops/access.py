@@ -79,13 +79,20 @@ CAP_LEADERS = "leaders"       # lead runner sightings
 # the live picture lie - it is not a pin, not a status and not in any
 # count. Deleting one is CAP_INCIDENTS, the same hands that clear the queue.
 CAP_EVENT_NOTE = "event_note"
+# Adding one and READING them are different permissions. The box goes to
+# everyone; the list goes to the roles running the event - NCS, and the two
+# teams embedded where things go wrong. SAG is in a vehicle working the
+# queue, and Staff is the forwarded link: neither needs a running record
+# of what the club thinks went wrong today, and for Staff it must not be a
+# feed anyone at all can read.
+CAP_EVENT_NOTE_VIEW = "event_note_view"
 # There is no capability for bib colours or course styling: those are set in
 # setup, by an administrator, before the race, and a resync carries them to
 # the field. A live-app write for them existed with no control behind it.
 
 ALL_CAPABILITIES = frozenset(
     {CAP_INCIDENT_REPORT, CAP_INCIDENTS, CAP_STATIONS, CAP_SSID, CAP_LEADERS,
-     CAP_EVENT_NOTE}
+     CAP_EVENT_NOTE, CAP_EVENT_NOTE_VIEW}
 )
 
 ROLE_CAPABILITIES = {
@@ -101,16 +108,20 @@ ROLE_CAPABILITIES = {
     # by another route entirely. Liaison is not AT the thing they are
     # reporting, which is why dropping a pin on the map stays the primary way
     # in and locating yourself is only ever the shortcut beside it.
-    ROLE_LIAISON: frozenset({CAP_INCIDENT_REPORT, CAP_EVENT_NOTE}),
-    ROLE_LOGISTICS: frozenset({CAP_INCIDENT_REPORT, CAP_EVENT_NOTE}),
+    ROLE_LIAISON: frozenset({CAP_INCIDENT_REPORT, CAP_EVENT_NOTE,
+                             CAP_EVENT_NOTE_VIEW}),
+    ROLE_LOGISTICS: frozenset({CAP_INCIDENT_REPORT, CAP_EVENT_NOTE,
+                               CAP_EVENT_NOTE_VIEW}),
     # Event notes and nothing else. Staff see everything the field roles see
     # and cannot touch any of it - not even report a pickup - because this is
     # the link that gets forwarded to people the club has never met, and a
     # write that changes the live picture is a link that has to be tracked.
     # An event note changes nothing anyone acts on during the race: it is a
     # sentence for the organizer afterwards, and the people on this link
-    # (race staff, the organizer's own crew) are exactly who has those. NCS
-    # can delete one. It still never receives the queue or the nearby list.
+    # (race staff, the organizer's own crew) are exactly who has those. They
+    # write into the list and never read it back: what the club thinks went
+    # wrong is not for a link that travels. It still never receives the
+    # queue or the nearby list.
     ROLE_STAFF: frozenset({CAP_EVENT_NOTE}),
 }
 

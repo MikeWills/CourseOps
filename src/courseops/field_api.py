@@ -233,6 +233,10 @@ async def state(
     # is where the organizer gets the counts afterwards.
     if not granted.can(access.CAP_INCIDENT_REPORT):
         payload.pop("incidents", None)
+    # Event notes: everyone may add one, only the roles running the event
+    # read the list. Left out rather than sent empty, like the queue.
+    if not granted.can(access.CAP_EVENT_NOTE_VIEW):
+        payload.pop("event_notes", None)
     return JSONResponse(payload)
 
 # --- writes ------------------------------------------------------------
@@ -414,10 +418,13 @@ async def update_incident(
 async def _publish_event_note(app: FastAPI, event_id: int, row, change: str) -> dict:
     """Broadcast one note and return what was sent, minus the framing - the
     route answers with the same dict (the incident rule, for the same reason).
-    No `requires`: every role holds the list, so every socket hears it."""
+    Same audience as the snapshot's list: a role that is not sent the list
+    is not handed its entries one at a time either - the writer still gets
+    its own row back in the response."""
     payload = event_notes.EventNote(row).as_dict()
     await app.state.hub.publish(
-        event_id, {**payload, "type": "event_note", "change": change})
+        event_id, {**payload, "type": "event_note", "change": change},
+        requires=access.CAP_EVENT_NOTE_VIEW)
     return payload
 
 

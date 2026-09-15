@@ -2342,6 +2342,12 @@ function renderEventNotes() {
   document.getElementById('event-note-count').textContent =
     notes.length ? `(${notes.length})` : '';
   document.getElementById('event-note-form').hidden = !can('event_note');
+  // Adding and reading are separate permissions: SAG and Staff get the box
+  // and never the list, so the count would always read zero for them.
+  const sees = can('event_note_view');
+  document.getElementById('event-note-blind').hidden = sees || !can('event_note');
+  host.hidden = !sees;
+  document.getElementById('event-note-count').hidden = !sees;
 
   const editing = captureFieldEdit();
   host.innerHTML = '';
@@ -2394,8 +2400,10 @@ async function addEventNote(text) {
   const created = await post('event-notes',
     { text, changed_by: state.operatorInitials });
   // Our own response, not the broadcast: on a flaky phone that is the
-  // difference between the row appearing and the box looking ignored.
-  state.eventNotes.set(created.id, created);
+  // difference between the row appearing and the box looking ignored. A
+  // role that cannot see the list keeps nothing: the box emptying is its
+  // whole confirmation.
+  if (can('event_note_view')) state.eventNotes.set(created.id, created);
   renderEventNotes();
 }
 
@@ -2429,6 +2437,8 @@ document.getElementById('event-note-form').addEventListener('submit', async (ev)
   try {
     await addEventNote(text);
     input.value = '';
+    // A role that never sees the list gets nothing else back; say so.
+    if (!can('event_note_view')) setLocateStatus('Note sent.');
   } catch (err) {
     // The words stay in the box: retyping them is the failure that makes
     // someone give up on writing the note at all.

@@ -271,8 +271,8 @@ def build_state(conn: sqlite3.Connection, event_id: int) -> dict[str, Any]:
         # `leaders` entry carries its `division` and `division_label`, which
         # is the only form the panel reads (a row per race per leader).
         "incidents": incident_rows,
-        # For every role, Staff included: the one list the forwarded link
-        # both reads and writes. Nothing here is acted on during the race.
+        # Everyone may ADD one; `state()` drops the list for a role
+        # without CAP_EVENT_NOTE_VIEW, like the queue for Staff.
         "event_notes": [event_notes.EventNote(row).as_dict()
                         for row in event_notes.for_event(conn, event_id)],
         "incident_statuses": [

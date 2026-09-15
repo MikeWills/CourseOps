@@ -25,8 +25,13 @@ month, PATCH counting releases in that month from 0. Before that they were
   **Staff included**: `CAP_EVENT_NOTE` is the one capability all five
   roles hold, because it cannot make the live picture lie, and the
   forwarded link is held by exactly the people (race staff, the
-  organizer's crew) whose notes the club wants. Deleting is `CAP_INCIDENTS`.
-  The Staff badge no longer says *view only*.
+  organizer's crew) whose notes the club wants. Reading the list is
+  narrower - `CAP_EVENT_NOTE_VIEW`, Net Control, Liaison and Logistics -
+  because what the club thinks went wrong is not for the link that gets
+  handed around, so SAG and Staff get the box alone and *Note sent* as
+  their confirmation; the list and the socket messages are left out for
+  them, like the queue. Deleting is `CAP_INCIDENTS`. The Staff badge no
+  longer says *view only*.
 
 ### Changed
 

@@ -57,7 +57,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 790 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 792 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -851,8 +851,11 @@ usability, not style preferences.
   lie about where it was. It is also the ONE write every role holds,
   Staff included (`CAP_EVENT_NOTE`), because nothing anyone acts on during
   the race depends on it - which is the test for whether the forwarded
-  link may do something. Deleting is `CAP_INCIDENTS`. The snapshot and the
-  socket carry it to every role, unlike incidents; do not gate it.
+  link may do something. Reading the list is a SECOND capability
+  (`CAP_EVENT_NOTE_VIEW`: NCS, Liaison, Logistics) - SAG and Staff write
+  in and never read back, so the list and its socket messages are left
+  out for them, like the queue, and the client says "Note sent" because
+  the box emptying is all they get. Deleting is `CAP_INCIDENTS`.
 - **A course note is not a pickup.** `incident.kind` separates them. The pickup
   queue and its count are read as "who is still waiting", so a note must never
   appear there. Notes have no status workflow; their audience is the organizer
@@ -1161,7 +1164,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
-- **2026-09-15** Event notes: freeform, location-less notes for the organizer ("bring more pizza next year"), addable from every link including Staff, under Course notes for NCS and at the bottom of the sheet for everyone else, on the after-event report.
+- **2026-09-15** Event notes: freeform, location-less notes for the organizer ("bring more pizza next year"), addable from every link including Staff, readable by NCS, Liaison and Logistics only; under Course notes for NCS, at the bottom of the sheet otherwise; on the after-event report.
 - **2026-09-15** One position per station and no raw payload (#166): a fix replaces the previous one, `raw` is blank, a count is all that survives; existing databases pruned at startup.
 - **2026-09-15** Fixed: the OwnTracks QR was refused on a real iPhone until *Settings → Remote Control → Allow external configuration* is on; it is now the step before the scan on the card and in the guides.
 - **2026-09-15** `/help/phone-tracking`: the guide for the person being tracked - install, permission Always, scan, set Tracker ID, turn it off after.

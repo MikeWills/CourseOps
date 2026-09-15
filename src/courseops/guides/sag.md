@@ -94,6 +94,15 @@ The **X** removes a row for everyone, on every screen. Use it for a report that
 should never have existed - a duplicate, a mis-tap. A runner who was collected
 some other way is **Closed**, not deleted.
 
+## Event notes
+
+At the bottom of the panel, below the layer switches, is a box for anything
+worth telling the organizer afterwards that is not a pickup and not a place -
+*van 2 needs a spare*, *the drop-off point was badly signed*. Type it, press
+**Add**; the box empties and *Note sent* appears. You do not see the list
+back - that is Net Control's - but you can delete a note from there when
+you are on an NCS screen.
+
 ## On the road
 
 - Add the link to your home screen so it opens full screen.
