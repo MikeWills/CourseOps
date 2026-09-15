@@ -172,6 +172,26 @@
     <div id="place-layer-list" class="toggle-list"></div>
   </div>
 
+  <!-- Below the layer switches on purpose, the one exception to "read all
+       day goes above them": nobody reads these during the race. They are
+       written to - a sentence for the organizer afterwards - by anyone on
+       any link, and the box to write in is what the section is for. NCS
+       gets it in the side panel under Course notes instead. -->
+  <div class="sheet-section" id="event-note-section">
+    <h2>Event notes <span id="event-note-count" class="muted"></span></h2>
+    <p class="muted">For the organizer afterwards: anything worth remembering
+      that happened nowhere in particular. Nobody acts on these today.</p>
+    <p id="event-note-blind" class="muted" hidden>Goes to Net Control and the
+      after-event report. Your own notes are not listed here.</p>
+    <form id="event-note-form" class="event-note-form" hidden>
+      <input id="event-note-text" type="text" maxlength="500" autocomplete="off"
+             placeholder="e.g. Bring more pizza next year"
+             aria-label="New event note">
+      <button type="submit">Add</button>
+    </form>
+    <div id="event-note-list"></div>
+  </div>
+
   <div id="operator-box" class="sheet-section" hidden>
     <h2>Operator</h2>
     <label class="operator-row">

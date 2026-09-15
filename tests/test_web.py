@@ -133,9 +133,11 @@ def test_roles_differ_on_write_permission(setup):
         liaison = client.get(f"/api/m2026/{tokens['liaison']}/state").json()
 
     assert ncs["role"] == "ncs" and ncs["can_write"] is True
-    # Liaison writes exactly one thing: a report of what came in to the EOC.
+    # Liaison writes a report of what came in to the EOC, and an event note
+    # like everyone else.
     assert liaison["role"] == "liaison"
-    assert liaison["capabilities"] == ["incident_report"]
+    assert liaison["capabilities"] == ["event_note", "event_note_view",
+                                       "incident_report"]
     assert set(ncs["capabilities"]) > set(liaison["capabilities"])
 
 
@@ -383,7 +385,8 @@ def test_logistics_may_report_and_nothing_else(setup):
         data = client.get(f"/api/m2026/{tokens['logistics']}/state").json()
     assert data["role"] == "logistics"
     assert data["role_label"] == "Logistics"
-    assert data["capabilities"] == ["incident_report"]
+    assert data["capabilities"] == ["event_note", "event_note_view",
+                                    "incident_report"]
 
 
 def test_revoking_one_field_role_leaves_the_other_working(setup):
@@ -1566,9 +1569,10 @@ def test_the_state_payload_names_the_capabilities(setup):
         sag = client.get(f"/api/m2026/{tokens['sag']}/state").json()
         liaison = client.get(f"/api/m2026/{tokens['liaison']}/state").json()
 
-    assert sag["capabilities"] == ["incident_report", "incidents"]
+    assert sag["capabilities"] == ["event_note", "incident_report", "incidents"]
     assert sag["can_write"] is True
-    assert liaison["capabilities"] == ["incident_report"]
+    assert liaison["capabilities"] == ["event_note", "event_note_view",
+                                       "incident_report"]
 
 
 def test_an_invalid_sag_token_is_still_a_404(setup):

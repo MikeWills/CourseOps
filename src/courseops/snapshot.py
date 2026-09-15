@@ -13,7 +13,7 @@ import json
 import sqlite3
 from typing import Any
 
-from . import (access, categories, db, hub as hub_module, incidents,
+from . import (access, categories, db, event_notes, hub as hub_module, incidents,
                labels as poi_labels, leaders, progress, symbols)
 
 # How long without a packet before a station is styled as going stale / silent.
@@ -271,6 +271,10 @@ def build_state(conn: sqlite3.Connection, event_id: int) -> dict[str, Any]:
         # `leaders` entry carries its `division` and `division_label`, which
         # is the only form the panel reads (a row per race per leader).
         "incidents": incident_rows,
+        # Everyone may ADD one; `state()` drops the list for a role
+        # without CAP_EVENT_NOTE_VIEW, like the queue for Staff.
+        "event_notes": [event_notes.EventNote(row).as_dict()
+                        for row in event_notes.for_event(conn, event_id)],
         "incident_statuses": [
             {"value": value, "label": incidents.STATUS_LABELS[value]}
             for value in incidents.STATUSES

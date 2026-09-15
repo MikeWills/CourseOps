@@ -19,7 +19,7 @@ of your screen.
 | **SAG** | [SAG](sag.md) | Work the pickup queue - en route, picked up, dropped off - and fill in the bib |
 | **Liaison** | [Liaison](liaison.md) | Report a pickup or a course note. Everything else is read-only |
 | **Logistics** | [Logistics](logistics.md) | Report a pickup or a course note, and watch the sweep. Everything else is read-only |
-| **Staff - view only** | [Staff](staff.md) | See the map, the stations and the lead runners. Change nothing |
+| **Staff** | [Staff](staff.md) | See the map, the stations and the lead runners. Add an event note; change nothing else |
 
 Everyone should also read **[The basics, whichever link you hold](everyone.md)**:
 the map, the colours, the panels, and how it behaves on a phone.

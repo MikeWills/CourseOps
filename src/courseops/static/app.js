@@ -67,6 +67,7 @@ const state = {
   opStatuses: ['pending', 'active', 'closed'],
   incidents: new Map(),       // id -> incident
   incidentMarkers: new Map(), // id -> L.Marker
+  eventNotes: new Map(),      // id -> event note; text and a time, no place
   incidentStatuses: [
     {value: 'reported', label: 'Reported'},
     {value: 'en_route', label: 'En route'},
@@ -431,7 +432,8 @@ const SIDE_PANEL_BY_ROLE = {
      people waiting on it is at the top of the column NCS watches rather than
      halfway down a sheet below the lead runners. */
   ncs:       { title: 'Pickups & stations',
-               sections: ['incident-section', 'note-section', 'station-section'] },
+               sections: ['incident-section', 'note-section',
+                          'event-note-section', 'station-section'] },
   logistics: { title: 'Stations', sections: ['station-section'] },
   liaison:   { title: 'Pickups',  sections: ['incident-section', 'note-section'] },
   // Staff read where everyone is; they are never sent pickups or notes.
@@ -2069,7 +2071,7 @@ async function deleteIncident(incident) {
 
 /* A small x, matching the setup screens. Icon-only, so it carries both a title
    and an aria-label, and the label names the row rather than only the verb. */
-function deleteButton(incident, label) {
+function deleteButton(label, onClick) {
   const button = document.createElement('button');
   button.type = 'button';
   button.className = 'incident-delete';
@@ -2079,7 +2081,7 @@ function deleteButton(incident, label) {
     '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" '
     + 'fill="none" stroke="currentColor" stroke-width="1.6" '
     + 'stroke-linecap="round"><path d="M4.2 4.2l7.6 7.6M11.8 4.2l-7.6 7.6"/></svg>';
-  button.addEventListener('click', () => deleteIncident(incident));
+  button.addEventListener('click', onClick);
   return button;
 }
 
@@ -2217,8 +2219,8 @@ function renderPickups(pickups) {
       fields.append(bib, note);
       if (can('incidents')) {
         fields.appendChild(deleteButton(
-          incident,
-          incident.bib ? `the pickup for bib ${incident.bib}` : 'this pickup'));
+          incident.bib ? `the pickup for bib ${incident.bib}` : 'this pickup',
+          () => deleteIncident(incident)));
       }
       row.appendChild(fields);
     } else if (incident.note) {
@@ -2315,7 +2317,8 @@ function renderNotes(notes) {
       fields.appendChild(field);
       if (can('incidents')) {
         fields.appendChild(
-          deleteButton(incident, incident.note || 'this course note'));
+          deleteButton(incident.note || 'this course note',
+                       () => deleteIncident(incident)));
       }
       row.appendChild(fields);
     }
@@ -2323,6 +2326,128 @@ function renderNotes(notes) {
     host.appendChild(row);
   });
 }
+
+/* ---------- event notes -------------------------------------------------- */
+
+/* A sentence for the organizer that happened nowhere in particular: "bring
+   more pizza next year". Not an incident - no pin, no status, no count - and
+   the one list every role holds and may add to, Staff included. Newest
+   first, like course notes, and the clock rather than an age: nothing here
+   is acted on today, so "how long ago" is the wrong question. */
+function renderEventNotes() {
+  const host = document.getElementById('event-note-list');
+  const notes = [...state.eventNotes.values()].sort(
+    (a, b) => String(b.created_at).localeCompare(String(a.created_at))
+      || (b.id - a.id));
+  document.getElementById('event-note-count').textContent =
+    notes.length ? `(${notes.length})` : '';
+  document.getElementById('event-note-form').hidden = !can('event_note');
+  // Adding and reading are separate permissions: SAG and Staff get the box
+  // and never the list, so the count would always read zero for them.
+  const sees = can('event_note_view');
+  document.getElementById('event-note-blind').hidden = sees || !can('event_note');
+  host.hidden = !sees;
+  document.getElementById('event-note-count').hidden = !sees;
+
+  const editing = captureFieldEdit();
+  host.innerHTML = '';
+  notes.forEach((note) => {
+    const row = document.createElement('div');
+    row.className = 'incident event-note';
+    const when = document.createElement('span');
+    when.className = 'event-note-when data';
+    when.textContent = clockTime(note.created_at);
+    row.appendChild(when);
+
+    if (can('event_note')) {
+      // Edited in place, like a course note, so a typo is fixed where it
+      // was made rather than deleted and retyped. Commits on change.
+      const field = document.createElement('input');
+      field.type = 'text';
+      field.className = 'incident-note';
+      field.maxLength = 500;
+      field.value = note.text || '';
+      field.setAttribute('aria-label', `Event note from ${clockTime(note.created_at)}`);
+      field.dataset.editKey = `event-note:${note.id}`;
+      field.addEventListener('change', () => {
+        const value = field.value.trim();
+        if (!value || value === note.text) { field.value = note.text; return; }
+        editEventNote(note, value);
+      });
+      field.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter') field.blur();
+      });
+      const fields = document.createElement('div');
+      fields.className = 'incident-fields event-note-fields';
+      fields.appendChild(field);
+      if (can('incidents')) {
+        fields.appendChild(deleteButton(
+          `the note "${note.text}"`, () => deleteEventNote(note)));
+      }
+      row.appendChild(fields);
+    } else {
+      const text = document.createElement('p');
+      text.className = 'event-note-text';
+      text.textContent = note.text || '';
+      row.appendChild(text);
+    }
+    host.appendChild(row);
+  });
+  restoreFieldEdit(editing);
+}
+
+async function addEventNote(text) {
+  const created = await post('event-notes',
+    { text, changed_by: state.operatorInitials });
+  // Our own response, not the broadcast: on a flaky phone that is the
+  // difference between the row appearing and the box looking ignored. A
+  // role that cannot see the list keeps nothing: the box emptying is its
+  // whole confirmation.
+  if (can('event_note_view')) state.eventNotes.set(created.id, created);
+  renderEventNotes();
+}
+
+async function editEventNote(note, text) {
+  try {
+    const edited = await post(`event-notes/${note.id}`, { text });
+    state.eventNotes.set(edited.id, edited);
+  } catch (err) {
+    setLocateStatus(`Could not save the note - ${err.message}`);
+  }
+  renderEventNotes();
+}
+
+async function deleteEventNote(note) {
+  if (!confirm(`Delete the note "${note.text}"?\n\nThis cannot be undone.`)) return;
+  try {
+    await post(`event-notes/${note.id}/delete`, {});
+    state.eventNotes.delete(note.id);
+    renderEventNotes();
+  } catch (err) {
+    setLocateStatus(`Could not delete - ${err.message}`);
+  }
+}
+
+document.getElementById('event-note-form').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const input = document.getElementById('event-note-text');
+  const text = input.value.trim();
+  if (!text) return;
+  input.disabled = true;
+  try {
+    await addEventNote(text);
+    input.value = '';
+    // A role that never sees the list gets nothing else back; say so.
+    if (!can('event_note_view')) setLocateStatus('Note sent.');
+  } catch (err) {
+    // The words stay in the box: retyping them is the failure that makes
+    // someone give up on writing the note at all.
+    setLocateStatus(`Could not add the note - ${err.message}`);
+  } finally {
+    input.disabled = false;
+    input.focus();
+  }
+});
 
 function setDroppingPin(on) {
   state.droppingPin = on;
@@ -2577,6 +2702,7 @@ function applyState(data) {
   state.incidentMarkers.clear();
   state.incidents = new Map((data.incidents || []).map((i) => [i.id, i]));
   state.incidents.forEach((incident) => upsertIncidentMarker(incident));
+  state.eventNotes = new Map((data.event_notes || []).map((n) => [n.id, n]));
 
   drawCourses(data.courses);
   drawPois(data.pois);
@@ -2605,6 +2731,7 @@ function applyState(data) {
   renderIgnored();
   renderLeaders();
   renderIncidents();
+  renderEventNotes();
   renderStations();
   if (firstLoad) fitToContent();
 }
@@ -2685,6 +2812,12 @@ function connect() {
       state.incidents.set(message.id, message);
       upsertIncidentMarker(message);
       renderIncidents();
+      return;
+    }
+    if (message.type === 'event_note') {
+      if (message.change === 'deleted') state.eventNotes.delete(message.id);
+      else state.eventNotes.set(message.id, message);
+      renderEventNotes();
       return;
     }
     if (message.type === 'station_status') {

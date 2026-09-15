@@ -18,7 +18,8 @@ from fastapi import (APIRouter, Depends, FastAPI, HTTPException, Request,
                      WebSocket, WebSocketDisconnect)
 from fastapi.responses import JSONResponse
 
-from . import access, db, incidents, leaders, progress, snapshot, tracker
+from . import (access, db, event_notes, incidents, leaders, progress, snapshot,
+               tracker)
 from .deps import Conn, FieldAccess, Grant, json_body, needs, raw_body
 
 log = logging.getLogger(__name__)
@@ -232,6 +233,10 @@ async def state(
     # is where the organizer gets the counts afterwards.
     if not granted.can(access.CAP_INCIDENT_REPORT):
         payload.pop("incidents", None)
+    # Event notes: everyone may add one, only the roles running the event
+    # read the list. Left out rather than sent empty, like the queue.
+    if not granted.can(access.CAP_EVENT_NOTE_VIEW):
+        payload.pop("event_notes", None)
     return JSONResponse(payload)
 
 # --- writes ------------------------------------------------------------
@@ -400,6 +405,77 @@ async def update_incident(
         raise HTTPException(status_code=400, detail=str(exc))
     return JSONResponse(
         await _publish_incident(request.app, granted.event_id, row, "edited"))
+
+
+# --- event notes -------------------------------------------------------
+#
+# A sentence for the organizer, tied to no place: "bring more pizza next
+# year". Every role may add one, Staff included - it is the one write the
+# forwarded link has, because it cannot make the live picture lie. Deleting
+# is CAP_INCIDENTS, the same hands that clear the queue.
+
+
+async def _publish_event_note(app: FastAPI, event_id: int, row, change: str) -> dict:
+    """Broadcast one note and return what was sent, minus the framing - the
+    route answers with the same dict (the incident rule, for the same reason).
+    Same audience as the snapshot's list: a role that is not sent the list
+    is not handed its entries one at a time either - the writer still gets
+    its own row back in the response."""
+    payload = event_notes.EventNote(row).as_dict()
+    await app.state.hub.publish(
+        event_id, {**payload, "type": "event_note", "change": change},
+        requires=access.CAP_EVENT_NOTE_VIEW)
+    return payload
+
+
+@router.post("/api/{event_slug}/{token}/event-notes")
+async def create_event_note(
+    event_slug: str, token: str, request: Request,
+    auth: Grant = Depends(needs(access.CAP_EVENT_NOTE))
+) -> JSONResponse:
+    conn, granted = auth
+    body = await json_body(request)
+    try:
+        row = event_notes.create(
+            conn, granted.event_id, body.get("text"), by=body.get("changed_by"))
+    except (event_notes.EventNoteError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    payload = await _publish_event_note(
+        request.app, granted.event_id, row, "created")
+    return JSONResponse(payload, status_code=201)
+
+
+@router.post("/api/{event_slug}/{token}/event-notes/{note_id}/delete")
+async def delete_event_note(
+    event_slug: str, token: str, note_id: int, request: Request,
+    auth: Grant = Depends(needs(access.CAP_INCIDENTS))
+) -> JSONResponse:
+    conn, granted = auth
+    try:
+        row = event_notes.delete(conn, granted.event_id, note_id)
+    except event_notes.EventNoteError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    await _publish_event_note(request.app, granted.event_id, row, "deleted")
+    return JSONResponse({"deleted": note_id})
+
+
+@router.post("/api/{event_slug}/{token}/event-notes/{note_id}")
+async def update_event_note(
+    event_slug: str, token: str, note_id: int, request: Request,
+    auth: Grant = Depends(needs(access.CAP_EVENT_NOTE))
+) -> JSONResponse:
+    conn, granted = auth
+    body = await json_body(request)
+    try:
+        row = event_notes.update(conn, granted.event_id, note_id, body.get("text"))
+    except event_notes.EventNoteError as exc:
+        # Not ours is 404; empty words is 400. The message tells them apart.
+        missing = str(exc).startswith("No event note")
+        raise HTTPException(status_code=404 if missing else 400, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return JSONResponse(
+        await _publish_event_note(request.app, granted.event_id, row, "edited"))
 
 
 @router.post("/api/{event_slug}/{token}/ssid/adopt")
