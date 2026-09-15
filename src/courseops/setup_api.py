@@ -16,7 +16,9 @@ import logging
 import sqlite3
 import tempfile
 import zipfile
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable
 
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse
@@ -702,155 +704,117 @@ async def setup_categories(
     return JSONResponse(payload)
 
 
-@router.post("/api/setup/events/{event_id}/categories")
-async def setup_add_category(
-    event_id: int, auth: EventAdmin, request: Request
-) -> JSONResponse:
-    conn = auth.conn
-    body = await json_body(request)
-    row = _guard(
-        categories.add_poi_category, conn, event_id,
-        body.get("name", ""), bool(body.get("staffed")),
-        body.get("icon") or "pin", body.get("color"),
-    )
-    return JSONResponse(dict(row), status_code=201)
+# --- setup: the taxonomies -----------------------------------------------
+#
+# Place layers, station roles and leaders are the same kind of thing: a
+# list the club owns, keyed once and named freely, with add / reorder /
+# rename / delete - and "delete" refused with a count while something
+# still uses the key. Three copies of those four routes had already
+# drifted once (one refused with 409, two with 400, until the audit
+# unified them), and the rule that a fourth taxonomy "goes the same way"
+# was sixty more lines of copy. One table now; the routes are made from
+# it, four per taxonomy, each with its LITERAL path - never `/{kind}/...`,
+# which would swallow /roster, /tracking and /links behind it.
+
+@dataclass(frozen=True)
+class Taxonomy:
+    """One club-owned list and the domain functions behind its routes."""
+    segment: str
+    add: Callable[[sqlite3.Connection, int, dict], sqlite3.Row]
+    update: Callable[[sqlite3.Connection, int, str, dict], sqlite3.Row]
+    delete: Callable[[sqlite3.Connection, int, str], int]   # -> still in use
+    in_use: Callable[[int], str]                             # the 409 detail
+    reorder: Callable[[sqlite3.Connection, int, list], int] | None = None
 
 
-# Literal before parameterised, or "reorder" is taken as a layer key.
-@router.post("/api/setup/events/{event_id}/categories/reorder")
-async def setup_reorder_categories(
-    event_id: int, auth: EventAdmin, request: Request
-) -> JSONResponse:
-    conn = auth.conn
-    body = await json_body(request)
-    count = _guard(
-        categories.reorder_poi_categories, conn, event_id,
-        body.get("keys") or [])
-    return JSONResponse({"ordered": count})
-
-
-@router.post("/api/setup/events/{event_id}/categories/{key}")
-async def setup_update_category(
-    event_id: int, key: str, auth: EventAdmin, request: Request
-) -> JSONResponse:
-    conn = auth.conn
-    body = await json_body(request)
-    row = _guard(
-        categories.update_poi_category, conn, event_id, key, body
-    )
-    return JSONResponse(dict(row))
-
-
-@router.post("/api/setup/events/{event_id}/categories/{key}/delete")
-async def setup_delete_category(
-    event_id: int, key: str, auth: EventAdmin
-) -> JSONResponse:
-    conn = auth.conn
-    in_use = _guard(categories.delete_poi_category, conn, event_id, key)
-    if in_use:
+TAXONOMIES = (
+    Taxonomy(
+        segment="categories",
+        add=lambda conn, event_id, body: categories.add_poi_category(
+            conn, event_id, body.get("name", ""), bool(body.get("staffed")),
+            body.get("icon") or "pin", body.get("color")),
+        update=categories.update_poi_category,
+        reorder=categories.reorder_poi_categories,
+        delete=categories.delete_poi_category,
         # Deleting the layer would leave its places drawn in no layer at
         # all - present in the database, invisible on the map, no error.
-        raise HTTPException(
-            status_code=409,
-            detail=f"{in_use} place(s) still use this layer. "
-                   "Move or delete them first.",
-        )
-    return JSONResponse({"deleted": key})
-
-
-@router.post("/api/setup/events/{event_id}/roles")
-async def setup_add_role(
-    event_id: int, auth: EventAdmin, request: Request
-) -> JSONResponse:
-    conn = auth.conn
-    body = await json_body(request)
-    row = _guard(categories.add_roster_role, conn, event_id,
-                 body.get("name") or "")
-    return JSONResponse(dict(row), status_code=201)
-
-
-# Literal before parameterised: "/roles/{key}" would swallow this.
-@router.post("/api/setup/events/{event_id}/roles/{key}/delete")
-async def setup_delete_role(
-    event_id: int, key: str, auth: EventAdmin, request: Request
-) -> JSONResponse:
-    conn = auth.conn
-    in_use = _guard(categories.delete_roster_role, conn, event_id, key)
-    if in_use:
-        # 409 like the other in-use refusals: the request was well
-        # formed, it is the data that is in the way.
-        raise HTTPException(
-            status_code=409,
-            detail=f"{in_use} roster entr{'y' if in_use == 1 else 'ies'} "
-                   "still use this role. Move them first.")
-    return JSONResponse({"deleted": key})
-
-
-@router.post("/api/setup/events/{event_id}/roles/{key}")
-async def setup_rename_role(
-    event_id: int, key: str, auth: EventAdmin, request: Request
-) -> JSONResponse:
-    conn = auth.conn
-    body = await json_body(request)
-    row = _guard(
-        categories.rename_roster_role, conn, event_id, key,
-        body.get("name", ""),
-    )
-    return JSONResponse(dict(row))
-
-
-# The leaders this event tracks - "First male", "First wheelchair". Called
-# leaders on screen and in these routes; the key stored on a sighting is
-# still `division`, which is internal and in databases that already exist.
-@router.post("/api/setup/events/{event_id}/leaders")
-async def setup_add_leader(
-    event_id: int, auth: EventAdmin, request: Request
-) -> JSONResponse:
-    conn = auth.conn
-    body = await json_body(request)
-    row = _guard(categories.add_lead_division, conn, event_id,
-                 body.get("name") or "")
-    return JSONResponse(dict(row), status_code=201)
-
-
-# Literal before parameterised, or "reorder" parses as a leader key and the
-# drag handle silently does nothing.
-@router.post("/api/setup/events/{event_id}/leaders/reorder")
-async def setup_reorder_leaders(
-    event_id: int, auth: EventAdmin, request: Request
-) -> JSONResponse:
-    conn = auth.conn
-    body = await json_body(request)
-    count = _guard(categories.reorder_lead_divisions, conn, event_id,
-                   body.get("keys") or [])
-    return JSONResponse({"ordered": count})
-
-
-@router.post("/api/setup/events/{event_id}/leaders/{key}/delete")
-async def setup_delete_leader(
-    event_id: int, key: str, auth: EventAdmin
-) -> JSONResponse:
-    conn = auth.conn
-    in_use = _guard(categories.delete_lead_division, conn, event_id, key)
-    if in_use:
+        in_use=lambda n: (f"{n} place(s) still use this layer. "
+                          "Move or delete them first."),
+    ),
+    Taxonomy(
+        segment="roles",
+        add=lambda conn, event_id, body: categories.add_roster_role(
+            conn, event_id, body.get("name") or ""),
+        update=lambda conn, event_id, key, body: categories.rename_roster_role(
+            conn, event_id, key, body.get("name", "")),
+        delete=categories.delete_roster_role,
+        in_use=lambda n: (f"{n} roster entr{'y' if n == 1 else 'ies'} "
+                          "still use this role. Move them first."),
+    ),
+    # The leaders this event tracks - "First male", "First wheelchair".
+    # Called leaders on screen and in these routes; the key stored on a
+    # sighting is still `division`, which is internal and in databases
+    # that already exist.
+    Taxonomy(
+        segment="leaders",
+        add=lambda conn, event_id, body: categories.add_lead_division(
+            conn, event_id, body.get("name") or ""),
+        update=lambda conn, event_id, key, body: categories.rename_lead_division(
+            conn, event_id, key, body.get("name", "")),
+        reorder=categories.reorder_lead_divisions,
+        delete=categories.delete_lead_division,
         # The sightings would stay in the database and vanish from the
         # panel, with nothing on screen to say where they went.
-        raise HTTPException(
-            status_code=409,
-            detail=f"{in_use} sighting{'' if in_use == 1 else 's'} "
-                   "recorded against this leader. Clear them first.")
-    return JSONResponse({"deleted": key})
+        in_use=lambda n: (f"{n} sighting{'' if n == 1 else 's'} "
+                          "recorded against this leader. Clear them first."),
+    ),
+)
 
 
-@router.post("/api/setup/events/{event_id}/leaders/{key}")
-async def setup_rename_leader(
-    event_id: int, key: str, auth: EventAdmin, request: Request
-) -> JSONResponse:
-    conn = auth.conn
-    body = await json_body(request)
-    row = _guard(categories.rename_lead_division, conn, event_id, key,
-                 body.get("name", ""))
-    return JSONResponse(dict(row))
+def _taxonomy_routes(taxonomy: Taxonomy) -> None:
+    """Register add / reorder / delete / rename for one taxonomy.
+
+    Declared in this order on purpose: "reorder" is a literal and would
+    otherwise parse as a key.
+    """
+    base = f"/api/setup/events/{{event_id}}/{taxonomy.segment}"
+
+    @router.post(base, name=f"setup_add_{taxonomy.segment}")
+    async def add(event_id: int, auth: EventAdmin,
+                  request: Request) -> JSONResponse:
+        body = await json_body(request)
+        row = _guard(taxonomy.add, auth.conn, event_id, body)
+        return JSONResponse(dict(row), status_code=201)
+
+    if taxonomy.reorder is not None:
+        @router.post(base + "/reorder", name=f"setup_reorder_{taxonomy.segment}")
+        async def reorder(event_id: int, auth: EventAdmin,
+                          request: Request) -> JSONResponse:
+            body = await json_body(request)
+            count = _guard(taxonomy.reorder, auth.conn, event_id,
+                           body.get("keys") or [])
+            return JSONResponse({"ordered": count})
+
+    @router.post(base + "/{key}/delete", name=f"setup_delete_{taxonomy.segment}")
+    async def delete(event_id: int, key: str, auth: EventAdmin) -> JSONResponse:
+        in_use = _guard(taxonomy.delete, auth.conn, event_id, key)
+        if in_use:
+            # 409, not 400: the request was well formed, it is the data
+            # that is in the way - and the count says how much of it.
+            raise HTTPException(status_code=409, detail=taxonomy.in_use(in_use))
+        return JSONResponse({"deleted": key})
+
+    @router.post(base + "/{key}", name=f"setup_update_{taxonomy.segment}")
+    async def update(event_id: int, key: str, auth: EventAdmin,
+                     request: Request) -> JSONResponse:
+        body = await json_body(request)
+        row = _guard(taxonomy.update, auth.conn, event_id, key, body)
+        return JSONResponse(dict(row))
+
+
+for _taxonomy in TAXONOMIES:
+    _taxonomy_routes(_taxonomy)
+
 
 
 @router.post("/api/setup/events/{event_id}/roster")
