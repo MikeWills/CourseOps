@@ -14,7 +14,7 @@ Brand, palette and logo decisions: `docs/DESIGN.md`.
 Complete history with the reasoning behind each fix: `CHANGELOG.md`.
 Open work is tracked as GitHub issues:
 #3 map tiles, #4 archive an event off the live server, #5 multi-tenant hosting,
-#6 tracking non-ham volunteers (future: decided, not for the first event),
+#6 tracking non-ham volunteers (built 2026-09-15; unverified on a real phone),
 #110 custom views and role names (future: planned, waiting on a second club).
 Issues #3-#5 are triggered by hosting a SECOND organization, not the first.
 
@@ -57,7 +57,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 738 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 768 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -130,7 +130,9 @@ src/courseops/
   field_api.py    /api/{slug}/{token}/... and the WebSocket, by role link
   snapshot.py     build_state (what a client draws from) and the feed callbacks
   feed.py         the one APRS-IS task: start, stop, displace, forget; the
-                  tracking panel's view of it
+                  tracking panel's view of it, phone tracking included
+  tracker.py      phone tracking (#6): OwnTracks/Traccar payloads, designator
+                  normalisation, the roster match, buffered-fix rules, the QR
   static/         Leaflet client, no build step, plus the icon set
   static/icons.js shared glyph set, inline SVG, used by map and setup
   static/util.js  shared helpers (escapeHtml), loaded before app.js and setup.js
@@ -196,6 +198,25 @@ usability, not style preferences.
 - **The roster is not the APRS feed.** Three separate things: the aid station (a
   location from KML), the operator assigned to it (a callsign), and a position
   report (only if they beacon). **Most aid station operators never beacon.**
+- **A phone-tracked entry is a DESIGNATOR, not a callsign, and never enters
+  the APRS filter.** `roster.tracked_by = 'phone'` (#6): `M1` is what the
+  person types into OwnTracks' Tracker ID, `tracked_station_keys` and
+  `rostered_base_callsigns` skip it, and `expects_aprs` stays on because
+  silence from a medic IS the alarm. Designators are normalised on both
+  sides of the match (`tracker.normalise_designator`: upper-case, drop
+  spaces/`-`/`_`) and the roster stores that spelling - `Medic 1` and `M1`
+  are different people, and the card must show what matches. An unknown
+  designator goes to the nearby list, never to disk. One token per event
+  (`event.tracker_token`; NULL is off and the endpoint 404s), one QR, and
+  the person identifies themself: the reasoning is `docs/phone-tracking.md`.
+- **A phone fix carries its OWN time, and the newest by that time wins.**
+  Both apps buffer through a dead zone and deliver the backlog in whatever
+  order they kept it, so `position.received_at` holds the reported
+  timestamp for a phone row, `latest_position_per_station` ranks by
+  `received_at` rather than `MAX(id)`, the endpoint publishes only a fix
+  newer than what it holds, and `app.js` refuses to replace a held position
+  with an older one. Break any one of those and a medic returning to
+  coverage is drawn where they were ten minutes ago, freshly.
 - **`expects_aprs=0` means "do not alert when silent", not "discard".** It gates
   staleness alerting and filter construction only. Use `tracked_station_keys` to
   build the filter and `all_station_keys` to decide whether to store. Getting this
@@ -1108,8 +1129,9 @@ Rules that keep this honest:
 
 - Python 3.11+, `from __future__ import annotations`, dataclasses for value types.
 - Dependencies stay minimal — every added package is one more thing a club has to
-  install. Four runtime dependencies today (`aprslib`, `defusedxml`, `fastapi`,
-  `uvicorn`), each with a stated reason; justify any addition. The frontend has
+  install. Six runtime dependencies today (`aprslib`, `defusedxml`, `fastapi`,
+  `uvicorn`, `python-multipart`, `segno`), each with a stated reason in
+  `pyproject.toml`; justify any addition. The frontend has
   no build step on purpose - no npm in a club's deployment.
 - Comments explain *why*, especially where a choice looks arbitrary but is
   protecting against a real event-day failure.
@@ -1121,6 +1143,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-15** Phone tracking (#6): a roster entry can be tracked by a phone app under a designator; one URL and one QR per event on the Tracking tab, the roster as the allowlist, reported time stored rather than arrival. `docs/phone-tracking.md`.
 - **2026-09-15** Setup is two levels: Configure on the Events list opens an event (name as heading, ‹ All events back, hash-addressed); the twelve-tab bar and "Pick an event first" are gone.
 - **2026-09-15** Fixed: deleting the last leader (or layer, or role) brought the defaults back; `event.defaults_seeded` makes seeding once-per-event, and the field app hides Lead runners when an event tracks none.
 - **2026-09-14** Audit (`docs/audit/`): eight reviews, nine PRs (#143-#151). Highlights below; the rest is in `CHANGELOG.md`.
@@ -1130,4 +1153,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-14** Fixed: correcting a callsign on the Roster tab made a second roster row; a setup edit is a RENAME (status log follows), binding stays NCS's.
 - **2026-09-14** Sign-in hashes off the event loop with a per-username/IP limiter; the first account needs the setup code printed at startup.
 - **2026-09-14** The feed no longer writes the public's packets to disk (`raw_packet` retired); Ignore takes effect on the next packet.
-- **2026-09-14** Snapshot off the loop, `locate` memoised, no writes on read: `/state` 178 -> 89 ms, 12 concurrent snapshots 2.2 -> 0.97 s.

@@ -629,7 +629,7 @@ function stationPopup(stationKey) {
   const status = radioStatus(stationKey);
   const rows = [];
 
-  if (entry) rows.push(['Callsign', stationKey]);
+  if (entry) rows.push([entry.tracked_by === 'phone' ? 'Designator' : 'Callsign', stationKey]);
   // Directly under the callsign, because the two are read out together.
   if (entry && entry.operator_name) rows.push(['Operator', entry.operator_name]);
   if (status === 'no_aprs') {
@@ -1376,7 +1376,9 @@ function renderSsidAlerts() {
       ? (item.looks_like_infrastructure
         ? 'A rostered callsign, but this looks like fixed equipment.'
         : 'A rostered callsign on an SSID the roster does not name.')
-      : (item.looks_like_infrastructure
+      : (item.source === 'phone'
+        ? `A phone app reporting as ${item.station_key}, which is not on the roster - a designator typed differently?${where ? ' ' + where + '.' : ''}`
+        : item.looks_like_infrastructure
         ? `Heard near the course; looks like fixed equipment.${where ? ' ' + where + '.' : ''}`
         : `Heard near the course, not on the roster.${where ? ' ' + where + '.' : ''}`);
     box.appendChild(why);
@@ -2701,6 +2703,14 @@ function connect() {
       return;
     }
     if (message.type === 'position') {
+      // Newest by REPORTED time. A phone app delivering a buffered backlog
+      // sends fixes in whatever order it kept them, and the server publishes
+      // only the ones newer than it holds - but a snapshot fetched in
+      // between can be newer still. Never let an older fix replace a newer
+      // one, whichever way round they arrive.
+      const held = state.positions.get(message.station_key);
+      if (held && held.received_at && message.received_at
+          && message.received_at < held.received_at) return;
       state.positions.set(message.station_key, message);
       upsertStationMarker(message.station_key);
       renderStations();

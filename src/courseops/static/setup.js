@@ -1771,7 +1771,77 @@ async function loadTracking() {
     err.hidden = !state.error;
 
     $('tracking-filter').textContent = state.filter || '(empty)';
+    renderPhone(state.phone || {enabled: false, designators: []});
   }
+
+  /* The phone half: one URL, one QR, and the designators to print beside
+     it - the whole scheme depends on the string a person types matching
+     the roster, so the card carries the exact list. */
+  function renderPhone(phone) {
+    const box = $('phone-on');
+    box.checked = phone.enabled;
+    box.disabled = false;
+    $('phone-label').textContent = phone.enabled
+      ? 'Phone tracking on' : 'Phone tracking off';
+    $('phone-card').hidden = !phone.enabled;
+    if (!phone.enabled) return;
+    // The SVG is drawn by the server from the link it encodes; nothing in
+    // it came from a user, so it is the one innerHTML here that is not
+    // escaped.
+    $('phone-qr').innerHTML = phone.qr_svg || '';
+    $('phone-url').textContent = phone.url || '';
+    const list = phone.designators || [];
+    $('phone-none').hidden = list.length > 0;
+    $('phone-designators').hidden = list.length === 0;
+    $('phone-designators').innerHTML = '<thead><tr><th>Designator</th>'
+      + '<th>Who</th></tr></thead><tbody>'
+      + list.map((d) => `<tr><td><strong class="data">${esc(d.station_key)}</strong></td>`
+        + `<td>${esc(d.display_label)}</td></tr>`).join('')
+      + '</tbody>';
+    labelTableCells($('phone-card'));
+  }
+
+  async function setPhone(action, doing) {
+    const box = $('phone-on');
+    box.disabled = true;
+    try {
+      render(await post(`/api/setup/events/${S.eventId}/tracking/phone`,
+                        { action }));
+      banner(doing);
+    } catch (err) {
+      banner(err.message, true);
+      box.checked = !box.checked;
+    } finally {
+      box.disabled = false;
+    }
+  }
+
+  $('phone-on').onchange = (ev) => {
+    if (ev.target.checked) {
+      setPhone('on', 'Phone tracking on.');
+      return;
+    }
+    if (!confirm('Turn phone tracking off? Every phone stops being '
+                 + 'stored until it is turned on again and rescanned.')) {
+      ev.target.checked = true;
+      return;
+    }
+    setPhone('off', 'Phone tracking off.');
+  };
+  $('phone-reset').onclick = () => {
+    if (!confirm('Reset the link? Every phone is cut off until it scans '
+                 + 'the new code.')) return;
+    setPhone('reset', 'Link reset. Print the new card.');
+  };
+  /* Print only the card: the class hides everything else under @media
+     print, so the code, the steps and the designators come out on one
+     sheet for the briefing table. */
+  $('phone-print').onclick = () => {
+    document.body.classList.add('print-phone-card');
+    window.addEventListener('afterprint',
+      () => document.body.classList.remove('print-phone-card'), {once: true});
+    window.print();
+  };
 
   $('tracking-on').onchange = async (ev) => {
     const wanted = ev.target.checked;
@@ -2406,16 +2476,14 @@ async function loadRoster() {
 
   $('roster-table').innerHTML = S.roster.length ? `
     <table class="grid"><thead><tr><th>Callsign</th><th>Label</th><th>Operator</th>
-      <th>Role</th><th>APRS</th><th>Posted at</th><th></th></tr></thead><tbody>` +
+      <th>Role</th><th>Tracked by</th><th>Posted at</th><th></th></tr></thead><tbody>` +
     S.roster.map((r) => `<tr>
       <td><strong class="data">${esc(r.station_key)}</strong>${r.bound_key
         ? `<br><span class="muted">heard as <span class="data">${esc(r.bound_key)}</span></span>` : ''}</td>
       <td>${esc(r.display_label)}</td>
       <td>${esc(r.operator_name || '')}</td>
       <td>${esc((S.roleNames || {})[r.category] || r.category)}</td>
-      <td>${r.expects_aprs
-        ? '<span class="pill">tracked</span>'
-        : '<span class="pill is-off">no APRS</span>'}</td>
+      <td>${trackingPill(r)}</td>
       <td>${esc(r.poi_name || '')}</td>
       <td class="actions">${iconBtn('edit', {'data-edit': r.station_key},
           `Edit ${r.station_key}`)
@@ -2437,6 +2505,36 @@ async function loadRoster() {
     }));
 }
 
+/* One control for three states, because "expects APRS" and "phone app" are
+   not independent: a phone entry has no callsign to ask APRS-IS for, and a
+   non-tracked one has nothing to go quiet. */
+function trackingPill(r) {
+  if (r.tracked_by === 'phone') return '<span class="pill">phone app</span>';
+  return r.expects_aprs
+    ? '<span class="pill">APRS</span>'
+    : '<span class="pill is-off">not tracked</span>';
+}
+
+function trackingValue(entry) {
+  if (entry.tracked_by === 'phone') return 'phone';
+  return entry.expects_aprs ? 'aprs' : 'none';
+}
+
+const TRACKING_HINTS = {
+  aprs: 'APRS: the callsign is asked for on APRS-IS and silence is an alert.',
+  phone: 'A designator they type into the tracking app - M1, BIKE2. Letters '
+    + 'and digits; it is what gets said on the air.',
+  none: 'For operators who do not transmit - keeps them out of the '
+    + '\u201cgone quiet\u201d alerts.',
+};
+
+function renderTrackingHint() {
+  const value = $('rs-tracking').value;
+  $('rs-tracking-hint').textContent = TRACKING_HINTS[value];
+  $('rs-call').placeholder = value === 'phone' ? 'M1' : 'N0CALL';
+}
+$('rs-tracking').addEventListener('change', renderTrackingHint);
+
 function editRoster(key) {
   const entry = S.roster.find((r) => r.station_key === key);
   if (!entry) return;
@@ -2447,7 +2545,8 @@ function editRoster(key) {
   $('rs-category').value = entry.category;
   $('rs-operator').value = entry.operator_name || '';
   $('rs-poi').value = entry.poi_id || '';
-  $('rs-aprs').checked = !!entry.expects_aprs;
+  $('rs-tracking').value = trackingValue(entry);
+  renderTrackingHint();
   $('roster-cancel').hidden = false;
   $('rs-call').focus();
 }
@@ -2457,7 +2556,8 @@ $('roster-cancel').addEventListener('click', () => resetRosterForm());
 function resetRosterForm() {
   S.editing = null;
   $('roster-form').reset();
-  $('rs-aprs').checked = true;
+  $('rs-tracking').value = 'aprs';
+  renderTrackingHint();
   $('roster-form-title').textContent = 'Add a station';
   $('roster-cancel').hidden = true;
 }
@@ -2472,7 +2572,8 @@ $('roster-form').addEventListener('submit', async (ev) => {
       display_label: $('rs-label').value,
       category: $('rs-category').value,
       operator_name: $('rs-operator').value,
-      expects_aprs: $('rs-aprs').checked,
+      expects_aprs: $('rs-tracking').value !== 'none',
+      tracked_by: $('rs-tracking').value === 'phone' ? 'phone' : 'aprs',
       poi_id: $('rs-poi').value ? Number($('rs-poi').value) : null,
     });
     banner('Station saved.');

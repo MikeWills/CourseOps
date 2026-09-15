@@ -39,6 +39,58 @@ for one event turns it off for any other - a rehearsal event left on, say. The
 other event's tab says which event took the connection. Deleting an event
 stops its feed.
 
+## Phone tracking
+
+![The phone tracking card: the QR code, three steps, the link, and the designators to type](images/setup-phone-tracking.png)
+
+For people without a callsign - bike medics, race staff, drivers. They run a
+free tracking app on their own phone and it posts their position to the event.
+A web page cannot do this: the moment a phone is pocketed the page stops, and
+stops silently, leaving a dot that looks live. A tracking app holds real
+background-location permission and keeps going.
+
+**This collects a person's location from their own phone.** Ask before adding
+someone to the roster, tell them when to turn the app off, and turn the switch
+off after the event.
+
+1. On the [Roster tab](setup-people.md#the-roster), add each person with
+   **Tracked by: Phone app** and a short designator - `M1`, `M2`, `BIKE1`.
+2. On the Tracking tab, switch **Phone tracking** on. The card appears: one
+   QR code for the whole event, the three steps, and the exact designators.
+3. **Print this card** and put it on the briefing table.
+
+Each person then:
+
+1. Installs **OwnTracks** (free, iOS and Android) *before* the event - a
+   scanned code does nothing on a phone without the app.
+2. Scans the code with the phone camera and opens the link. That configures
+   the app with the event's address.
+3. Opens the app's settings and sets **Tracker ID** to their designator,
+   exactly as printed.
+
+**Traccar Client** works too: set the server URL from the card and the *Device
+identifier* to the designator. Its QR step is not something we can promise, so
+they type the URL.
+
+**Why one code for everybody?** The alternative is a code per person: no
+typing, but fifteen squares that have to reach the right hands at 6am - and
+hand Medic 2 the wrong square and they are Medic 1 on the map, silently. One
+code, printed once, and each person types who they are.
+
+**A designator typed differently** (`Medic 1` instead of `M1`) is not lost:
+it shows up in Net Control's **Needs attention** list as *a phone app reporting
+as MEDIC1*, and Net Control matches it to the right person in one tap. Case,
+spaces, dashes and underscores never matter - `m-1` and `M1` are the same.
+
+**Reset the link** cuts off every phone at once until they rescan. It is the
+only revocation there is, which is the trade for one code: if a phone with the
+app is lost, reset, reprint, and everyone scans again.
+
+Positions arrive late from a phone that lost signal - the app keeps them and
+sends them when coverage returns. The map shows each fix at the time it was
+taken, never the time it arrived, so a medic coming back into coverage is not
+drawn as freshly located somewhere they left ten minutes ago.
+
 ## A check-in rehearsal is worth an hour
 
 Turn tracking on a week out and ask everyone who will beacon to do so. What it
@@ -46,6 +98,8 @@ finds:
 
 - **Who is on a different SSID than the roster says.** Net Control matches them
   in one tap, and it is far easier to do on a Tuesday than at 06:30.
+- **Whose phone app is set up** - the phone-tracked people show a fresh time
+  in the stations list once the app is posting, and *never* until it is.
 - **Who cannot get into the network at all** from where they will be standing.
 - **Whether your filter is right** - see above.
 

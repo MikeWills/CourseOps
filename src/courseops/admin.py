@@ -19,7 +19,7 @@ import re
 import sqlite3
 from typing import Any
 
-from . import (access, categories, db, importer, labels, leaders,
+from . import (access, categories, db, importer, labels, leaders, tracker,
                progress, what3words)
 
 
@@ -27,6 +27,10 @@ from . import (access, categories, db, importer, labels, leaders,
 # name, not an attempt to validate every callsign format in the world. Special
 # event and foreign calls take shapes a strict pattern would reject.
 _CALLSIGN = re.compile(r"^[A-Z0-9]{3,10}(-[A-Z0-9]{1,2})?$")
+# A phone designator after tracker.normalise_designator: letters and digits.
+# Two characters is OwnTracks' convention ("M1"); the ceiling is the
+# endpoint's.
+_DESIGNATOR = re.compile(r"^[A-Z0-9]+$")
 
 
 # --- events -----------------------------------------------------------------
@@ -682,14 +686,28 @@ def list_roster(conn: sqlite3.Connection, event_id: int) -> list[dict]:
 
 @db.transactional
 def save_roster_entry(conn: sqlite3.Connection, event_id: int, payload: dict) -> dict:
+    tracked_by = _text(payload, "tracked_by") or db.TRACKED_BY_APRS
+    if tracked_by not in db.TRACKED_BY:
+        raise ValueError(f"{tracked_by} is not a way of tracking someone.")
     station_key = (_text(payload, "station_key") or "").upper()
     label = _text(payload, "display_label", 80) or ""
+    if tracked_by == db.TRACKED_BY_PHONE:
+        # A designator, not a callsign: what the person types into the
+        # tracking app. Stored in the same normalised spelling the endpoint
+        # matches on, so "m-1" here and "M 1" on the phone are one person.
+        station_key = tracker.normalise_designator(station_key)
+        if station_key and not _DESIGNATOR.match(station_key):
+            raise ValueError(
+                f"{station_key} is not usable as a designator. Letters and "
+                "digits only - M1, BIKE2 - and short enough to say on the air."
+            )
     if not station_key or not label:
         raise ValueError("A roster entry needs a callsign and a label.")
-    if not _CALLSIGN.match(station_key):
+    if tracked_by == db.TRACKED_BY_APRS and not _CALLSIGN.match(station_key):
         raise ValueError(
             f"{station_key} does not look like a callsign. Use the callsign "
-            "alone, such as N0CALL, or with its SSID, such as N0CALL-9."
+            "alone, such as N0CALL, or with its SSID, such as N0CALL-9. For "
+            "someone tracked by a phone app, choose Phone app instead."
         )
     # A bare callsign is deliberately allowed, and is the better answer.
     # Volunteers know their callsign; the SSID belongs to whichever radio or
@@ -713,6 +731,7 @@ def save_roster_entry(conn: sqlite3.Connection, event_id: int, payload: dict) ->
         category=_text(payload, "category") or "rover",
         expects_aprs=bool(payload.get("expects_aprs", True)),
         operator_name=_text(payload, "operator_name", 80),
+        tracked_by=tracked_by,
     )
     if "poi_id" in payload:
         poi_id = payload.get("poi_id") or None

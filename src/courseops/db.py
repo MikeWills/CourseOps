@@ -100,6 +100,15 @@ def transactional(fn):
     return wrapper
 
 
+# Where a roster entry's positions come from. APRS entries are callsigns and
+# build the APRS-IS filter; phone entries are designators (M1, BIKE 2) typed
+# into a tracking app that posts to the event's tracker URL. The two never
+# mix: a designator in the APRS filter matches nothing, and a callsign is
+# not what a phone app is told to send.
+TRACKED_BY_APRS = "aprs"
+TRACKED_BY_PHONE = "phone"
+TRACKED_BY = (TRACKED_BY_APRS, TRACKED_BY_PHONE)
+
 # Columns added after a database may already exist in the wild. `CREATE TABLE
 # IF NOT EXISTS` silently skips an existing table, so new columns would never
 # appear without this. Each entry is applied only if missing, which makes
@@ -123,6 +132,8 @@ _ADDED_COLUMNS: list[tuple[str, str, str]] = [
     ("event", "ingest_enabled", "INTEGER NOT NULL DEFAULT 0"),
     ("poi_category", "show_labels", "INTEGER NOT NULL DEFAULT 0"),
     ("event", "defaults_seeded", "INTEGER NOT NULL DEFAULT 0"),
+    ("roster", "tracked_by", "TEXT NOT NULL DEFAULT 'aprs'"),
+    ("event", "tracker_token", "TEXT"),
 ]
 
 # Columns whose sensible starting value comes from data already in the table.
@@ -352,20 +363,25 @@ def upsert_roster_entry(
     category: str = "rover",
     expects_aprs: bool = True,
     operator_name: str | None = None,
+    tracked_by: str = TRACKED_BY_APRS,
 ) -> None:
+    if tracked_by not in TRACKED_BY:
+        raise ValueError(f"{tracked_by!r} is not a tracking source.")
     conn.execute(
         """
         INSERT INTO roster
-            (event_id, station_key, display_label, category, expects_aprs, operator_name)
-        VALUES (?, ?, ?, ?, ?, ?)
+            (event_id, station_key, display_label, category, expects_aprs,
+             operator_name, tracked_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT (event_id, station_key) DO UPDATE SET
             display_label = excluded.display_label,
             category      = excluded.category,
             expects_aprs  = excluded.expects_aprs,
-            operator_name = excluded.operator_name
+            operator_name = excluded.operator_name,
+            tracked_by    = excluded.tracked_by
         """,
         (event_id, station_key.upper(), display_label, category,
-         int(expects_aprs), operator_name),
+         int(expects_aprs), operator_name, tracked_by),
     )
 
 
@@ -481,11 +497,15 @@ def roster_for_event(conn: sqlite3.Connection, event_id: int) -> list[sqlite3.Ro
 
 
 def tracked_station_keys(conn: sqlite3.Connection, event_id: int) -> list[str]:
-    """Roster entries we actually expect packets from — these build the filter."""
+    """Roster entries we actually expect APRS packets from - these build the filter.
+
+    Phone-tracked entries are left out: their designator is not a callsign
+    and would only pad the filter with clauses that never match.
+    """
     rows = conn.execute(
         "SELECT station_key FROM roster WHERE event_id = ? AND expects_aprs = 1"
-        " ORDER BY station_key",
-        (event_id,),
+        " AND tracked_by = ? ORDER BY station_key",
+        (event_id, TRACKED_BY_APRS),
     ).fetchall()
     return [r["station_key"] for r in rows]
 
@@ -523,15 +543,21 @@ def recent_positions(
 def latest_position_per_station(
     conn: sqlite3.Connection, event_id: int
 ) -> list[sqlite3.Row]:
+    # Newest by REPORTED time, not by insertion order. A phone app that
+    # buffered through a dead zone delivers ten minutes of fixes in one
+    # burst, oldest last as often as not; the last row inserted is then a
+    # position from ten minutes ago, and a medic who just came back into
+    # coverage would be drawn where they left. APRS rows carry receive time
+    # in the same column, so for them the two orders agree.
     return conn.execute(
         """
-        SELECT p.*
-        FROM position p
-        JOIN (
-            SELECT station_key, MAX(id) AS max_id
-            FROM position WHERE event_id = ? GROUP BY station_key
-        ) newest ON newest.max_id = p.id
-        ORDER BY p.received_at DESC
+        SELECT * FROM (
+            SELECT p.*, ROW_NUMBER() OVER (
+                PARTITION BY station_key ORDER BY received_at DESC, id DESC
+            ) AS rank
+            FROM position p WHERE event_id = ?
+        ) WHERE rank = 1
+        ORDER BY received_at DESC
         """,
         (event_id,),
     ).fetchall()
@@ -556,6 +582,23 @@ OP_STATUS_LABELS = {
 DEFAULT_OP_STATUS_LABELS = {
     "pending": "Not started", "active": "Active", "closed": "Closed",
 }
+
+
+def tracker_token(conn: sqlite3.Connection, event_id: int) -> str | None:
+    """The event's phone tracking token, or None while phone tracking is off."""
+    row = conn.execute(
+        "SELECT tracker_token FROM event WHERE id = ?", (event_id,)
+    ).fetchone()
+    return row["tracker_token"] if row else None
+
+
+def set_tracker_token(
+    conn: sqlite3.Connection, event_id: int, token: str | None
+) -> None:
+    """Set or clear the phone tracking token. NULL turns the endpoint off."""
+    conn.execute(
+        "UPDATE event SET tracker_token = ? WHERE id = ?", (token, event_id)
+    )
 
 
 def set_ingest_enabled(conn: sqlite3.Connection, slug: str, enabled: bool) -> None:
@@ -715,10 +758,11 @@ def rostered_base_callsigns(conn: sqlite3.Connection, event_id: int) -> set[str]
     kept even though the roster names -1, so a wrong SSID at signup does not
     make someone invisible.
     """
-    return {
-        key.split("-", 1)[0]
-        for key in all_station_keys(conn, event_id)
-    }
+    rows = conn.execute(
+        "SELECT station_key FROM roster WHERE event_id = ? AND tracked_by = ?",
+        (event_id, TRACKED_BY_APRS),
+    ).fetchall()
+    return {row["station_key"].split("-", 1)[0] for row in rows}
 
 
 def unexpected_ssids(conn: sqlite3.Connection, event_id: int) -> list[sqlite3.Row]:

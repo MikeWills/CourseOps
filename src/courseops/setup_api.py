@@ -618,7 +618,38 @@ async def setup_tracking(
 ) -> JSONResponse:
     conn = auth.conn
     return JSONResponse(
-        _guard(feed.tracking_state, request.app, conn, event_id))
+        _guard(feed.tracking_state, request.app, conn, event_id,
+               str(request.base_url)))
+
+
+@router.post("/api/setup/events/{event_id}/tracking/phone")
+async def setup_set_phone_tracking(
+    event_id: int, auth: EventAdmin, request: Request
+) -> JSONResponse:
+    """Turn phone tracking on, reset its URL, or turn it off.
+
+    One token for the whole event, so "reset" and "off" cut off every
+    phone at once - the accepted trade for a one-day event, recorded in
+    docs/phone-tracking.md. "on" is a no-op while a token exists: a
+    double press must not silently change the URL on the printed card.
+    """
+    conn = auth.conn
+    body = await json_body(request)
+    action = str(body.get("action", ""))
+    current = db.tracker_token(conn, event_id)
+    if action == "on":
+        if not current:
+            db.set_tracker_token(conn, event_id, access.generate_token())
+    elif action == "reset":
+        db.set_tracker_token(conn, event_id, access.generate_token())
+    elif action == "off":
+        db.set_tracker_token(conn, event_id, None)
+    else:
+        raise HTTPException(status_code=400,
+                            detail="action must be on, reset or off.")
+    return JSONResponse(
+        _guard(feed.tracking_state, request.app, conn, event_id,
+               str(request.base_url)))
 
 
 @router.post("/api/setup/events/{event_id}/tracking")
@@ -671,7 +702,8 @@ async def setup_set_tracking(
                 or "The feed stopped before it connected.")
         db.set_ingest_enabled(conn, slug, True)
 
-    return JSONResponse(feed.tracking_state(request.app, conn, event_id))
+    return JSONResponse(feed.tracking_state(request.app, conn, event_id,
+                                            str(request.base_url)))
 
 
 @router.get("/api/setup/events/{event_id}/categories")

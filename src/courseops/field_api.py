@@ -11,13 +11,15 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import secrets
+from urllib.parse import parse_qsl
 
 from fastapi import (APIRouter, Depends, FastAPI, HTTPException, Request,
                      WebSocket, WebSocketDisconnect)
 from fastapi.responses import JSONResponse
 
-from . import access, db, incidents, leaders, progress, snapshot
-from .deps import FieldAccess, Grant, json_body, needs
+from . import access, db, incidents, leaders, progress, snapshot, tracker
+from .deps import Conn, FieldAccess, Grant, json_body, needs, raw_body
 
 log = logging.getLogger(__name__)
 
@@ -76,6 +78,109 @@ async def manifest(
         },
         media_type="application/manifest+json",
     )
+
+# --- phone tracking ----------------------------------------------------
+#
+# Not a role link. /track/{slug}/{token} is the one URL a tracking app on a
+# non-ham's phone posts to; the token is the event's `tracker_token`, shared
+# by everyone the event tracks by phone, and each person identifies
+# themselves by the designator they typed into the app. The roster is the
+# allowlist: a known designator is stored and fanned out like an APRS
+# packet, an unknown one goes to the nearby list for NCS to match, and the
+# app is told 200 either way - it has nothing to act on, and an app that
+# gets errors may stop sending. See docs/phone-tracking.md.
+
+def _tracked_event(conn, event_slug: str, token: str):
+    """The event this tracker URL belongs to, or 404 - never 403."""
+    row = conn.execute(
+        "SELECT id, tracker_token FROM event WHERE slug = ?", (event_slug,)
+    ).fetchone()
+    if (row is None or not row["tracker_token"] or not token
+            or not secrets.compare_digest(row["tracker_token"], token)):
+        raise HTTPException(status_code=404)
+    return row["id"]
+
+
+def _file_tracker_report(conn, event_id: int, designator: str, report):
+    """The SQLite half of receiving a report, off the loop.
+
+    Returns (index, what, report): `what` is "nearby" for a designator the
+    roster does not know, "position" for a stored fix worth publishing, or
+    None for a duplicate or an out-of-order fix from a buffered backlog -
+    stored, because the track is real, but not drawn, because the marker
+    would walk backwards.
+    """
+    entry = tracker.match_roster(conn, event_id, designator)
+    index = progress.CourseIndex.for_event(conn, event_id)
+    if entry is None:
+        return index, "nearby", report
+    report = tracker.attribute(report, entry)
+    newest = tracker.is_newest(conn, event_id, report)
+    stored = tracker.store(conn, event_id, report)
+    if stored is None or not newest:
+        return index, None, report
+    return index, "position", report
+
+
+async def _receive_tracker_report(request: Request, conn, event_id: int,
+                                  designator: str, report) -> None:
+    """Store or hold one report and tell the browsers, like the feed does."""
+    app = request.app
+    index, what, report = await asyncio.to_thread(
+        _file_tracker_report, conn, event_id, designator, report)
+    if what == "nearby":
+        # Held in memory for NCS, never written. Same handler as an
+        # unknown APRS station, so the Match button works unchanged.
+        on_nearby = snapshot.make_nearby_handler(
+            app.state.hub, app.state.nearby, index)
+        await on_nearby(event_id, report)
+    elif what == "position":
+        await app.state.hub.publish(
+            event_id, snapshot.position_message_for(report, index))
+
+
+@router.get("/track/{event_slug}/{token}")
+async def track_get(event_slug: str, token: str, request: Request,
+                    conn: Conn) -> JSONResponse:
+    """Traccar Client / OsmAnd protocol: the fix is in the query string."""
+    event_id = _tracked_event(conn, event_slug, token)
+    try:
+        designator, report = tracker.parse_osmand(
+            request.query_params, raw=str(request.url.query))
+    except tracker.Rejected as why:
+        log.debug("Tracker report rejected: %s", why)
+        return JSONResponse([])
+    await _receive_tracker_report(request, conn, event_id, designator, report)
+    return JSONResponse([])
+
+
+@router.post("/track/{event_slug}/{token}")
+async def track_post(event_slug: str, token: str, request: Request,
+                     conn: Conn) -> JSONResponse:
+    """OwnTracks (JSON) or Traccar Client (form-encoded) posting the fix.
+
+    Answers an empty JSON array, which is what OwnTracks expects back
+    (a list of messages for the app; we have none) and Traccar ignores.
+    """
+    event_id = _tracked_event(conn, event_slug, token)
+    body = await raw_body(request)
+    content_type = request.headers.get("content-type", "").lower()
+    try:
+        if "json" in content_type or body.lstrip().startswith(b"{"):
+            parsed = tracker.parse_owntracks(body)
+            if parsed is None:
+                return JSONResponse([])
+            designator, report = parsed
+        else:
+            params = dict(parse_qsl(body.decode("utf-8", "replace")))
+            params = {**dict(request.query_params), **params}
+            designator, report = tracker.parse_osmand(params, raw=body.decode("utf-8", "replace"))
+    except tracker.Rejected as why:
+        log.debug("Tracker report rejected: %s", why)
+        return JSONResponse([])
+    await _receive_tracker_report(request, conn, event_id, designator, report)
+    return JSONResponse([])
+
 
 # --- api ---------------------------------------------------------------
 

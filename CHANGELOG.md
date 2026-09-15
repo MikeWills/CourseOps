@@ -11,6 +11,37 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Added
+
+- **Phone tracking for people without a callsign** (issue #6, designed
+  2026-09-05, built now because a demonstration is the moment someone asks
+  for it). Bike medics, race staff and non-licensed drivers run a free
+  tracking app on their own phone - OwnTracks by default, Traccar Client
+  accepted - and it posts to one URL per event, `/track/<slug>/<token>`.
+  A roster entry is now **Tracked by** APRS radio, Phone app or Not
+  tracked (`roster.tracked_by`; the one control replaces the "expected to
+  beacon" checkbox, because the two flags were never independent); a phone
+  entry's key is a short **designator** (`M1`, `BIKE2`) that the person
+  types into the app. The Tracking tab grew a **Phone tracking** card: the
+  switch, one QR code that configures OwnTracks (`segno` draws it on the
+  server - a sixth dependency, pure Python, no dependencies of its own,
+  instead of a 56 KB encoder vendored into `static/`), the three steps, the
+  URL for Traccar users, the designators to print beside it, **Print this
+  card** and **Reset the link**. The decisions, all from the issue: one
+  code for the whole event rather than fifteen to hand to the right people
+  at 6am; the roster is the allowlist, so an unknown designator goes to Net
+  Control's nearby list as *a phone app reporting as MEDIC1* and is matched
+  there, never stored before; designators are normalised (case, spaces,
+  `-`, `_`) on both sides because a typo is the real failure mode, not an
+  attacker; and the **reported** timestamp is what is stored, never
+  arrival time, because both apps buffer through a dead zone and a medic
+  coming back into coverage must not be drawn as freshly located somewhere
+  they left ten minutes ago. `db.latest_position_per_station` therefore
+  ranks by time rather than `MAX(id)`, the endpoint publishes only a fix
+  newer than what it holds, the client refuses to replace a held position
+  with an older one, and a resent fix is not a second row. Full design and
+  what is still unverified on a real phone: `docs/phone-tracking.md`.
+
 ## [2026.9.6] - 2026-09-15
 
 ### Changed

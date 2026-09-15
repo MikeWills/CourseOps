@@ -769,72 +769,18 @@ Things discovered but not yet acted on. Each is a real constraint, not a wish.
   NCS to press "This is <label>" on the new SSID, which rebinds. There is no UI
   for unbinding without a new SSID to point at; `db.unbind_station` exists for
   when that turns out to be needed.
-- **Non-ham volunteers cannot be tracked today** - issue #6, **a future
-  feature: decided 2026-09-05 that it is not being built for the first event.**
-  The design below stands for when it is. Bike medics, race
-  staff and non-licensed drivers have no callsign, and APRS is the only tracking
-  mechanism. The medic is often the person NCS most wants to locate.
-
-  The finding that decides the design: **a web page cannot track a phone
-  reliably in the background.** iOS suspends JavaScript when the tab is
-  not foreground or the phone locks, and Android Chrome throttles it hard. So
-  "open this link and we will track you" stops the moment the phone is pocketed,
-  and stops *silently* - leaving a dot that looks live. That is the same failure
-  this project already refuses elsewhere: a stale position someone will act on
-  is worse than none. A dedicated app holding real background-location
-  permission (OwnTracks, Traccar Client - both free and open source) posting to
-  an ingest endpoint is the reliable route; a browser link is only reliable in a
-  mounted, charged vehicle.
-
-  Privacy posture differs from a ham's: an APRS beacon is already public and we
-  only receive it, whereas a medic's phone position is private data we would be
-  actively collecting. Needs explicit, time-bounded, event-scoped consent and
-  deletion afterwards. Identity would be a synthetic roster key (`MEDIC-1`)
-  rather than a callsign - sayable on the net, unlike a UUID.
-
-  Both candidate apps take a custom endpoint (verified, see issue #6): Traccar
-  Client sends OsmAnd-protocol HTTP GET parameters, OwnTracks POSTs JSON and can
-  be provisioned by a QR code carrying its whole config.
-
-  **Decided (parked, not built): one URL and one QR code for the whole event,
-  and each person types their own designator** - `Medic 1`, `Medic 2` - into the
-  app's device-identifier field. One code printed once on a card or a sign,
-  prepared ahead of the event; nothing to collate and nothing to hand to the
-  wrong person. The alternative, a QR per person, needs no typing and is
-  separately revocable, but means fifteen squares that must reach the right
-  hands - and giving Medic 2 the wrong one makes them Medic 1 on the map,
-  silently.
-
-  One code rather than fifteen is the point: distributing per-person codes is a
-  sorting problem at 6am whose failure is silent - hand Medic 2 the wrong square
-  and they are Medic 1 on the map, confidently.
-
-  **OwnTracks is the default for the QR step.** Its
-  `owntracks:///config?inline=<base64>` is a documented, supported provisioning
-  mechanism. Traccar Client's equivalent deep link exists but is not a public
-  contract - the maintainer's guidance is to generate it from the Traccar server
-  web app, which is the server we are deliberately not running, and there are
-  unresolved iOS reports against it. The cost is that OwnTracks' `tid` is
-  conventionally two characters, so designators are `M1`, `B2` rather than
-  `Medic 1`; short is better radio practice anyway, and the roster row still
-  carries the full label. Traccar Client is still worth accepting as a second
-  option - its OsmAnd GET parameters are the easiest thing to receive and its
-  free-text *Device identifier* takes `Medic 1` verbatim - it just cannot be the
-  one a club is told to scan.
-
-  Two consequences of the shared token, both handled the way this app already
-  handles the equivalent APRS problems: **the roster is the allowlist** (only
-  known designators are stored, unknown ones surface in the UI like
-  `ssid_alerts` rather than vanishing), and **designators must be normalised**
-  for case and for `_`/`-` before matching, or `Medic1` and `Medic 1` are two
-  people and one of them is invisible while transmitting happily. Revocation
-  becomes all-or-nothing, which is an acceptable trade for a one-day event.
-
-  **Offline buffering brings its own trap:** a buffered burst arriving ten minutes late is a set of
-  real positions from ten minutes ago, so staleness must key off the reported
-  timestamp and never arrival time - or a medic returning to coverage looks
-  freshly located somewhere they left. Out-of-order and duplicate points come
-  from the same mechanism.
+- ~~**Non-ham volunteers cannot be tracked.**~~ Built 2026-09-15, issue
+  #6; the design and its reasoning are in `docs/phone-tracking.md`. A
+  roster entry can be **tracked by phone app**: a designator (`M1`) instead
+  of a callsign, and a tracking app on the person's own phone (OwnTracks by
+  QR, Traccar Client by typed URL) posting to one per-event URL. The roster
+  is the allowlist, designators are normalised on both sides, the unknown
+  ones go to Net Control's nearby list, and the reported timestamp - never
+  arrival - is what is stored, because both apps buffer through dead zones.
+  **Still a gap: nobody has scanned the printed card on a real phone yet.**
+  The OwnTracks field (`tid`) and the config link are verified against the
+  documentation only; the first event to use this rehearses it a week out,
+  on an iPhone and an Android, and watches a fix arrive.
 - ~~**Course notes have no export**~~ - done 2026-09-05, issue #7. The report
   page (`report.py`) is one printable page for the race lead: pickup counts by
   stop and window, and every course note with a small map, no names.

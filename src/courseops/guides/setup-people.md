@@ -12,7 +12,7 @@ Who is out on the course, and how each of them gets into the app.
 
 ## The roster
 
-![The Roster tab: callsign, label, operator, role, whether APRS is expected](images/setup-roster.png)
+![The Roster tab: callsign, label, operator, role, how each is tracked](images/setup-roster.png)
 
 On a phone the same table is a stack of cards, one per station, with the
 pencil and the X at the bottom right of each.
@@ -24,10 +24,23 @@ Three separate things, and confusing them is the most common mistake:
 3. **A position report** - only if they beacon APRS. **Most aid station
    operators never will**, and that is normal.
 
-So mark **no APRS** for anyone not beaconing. It is not "ignore them" - they
-still appear, still get a status, still get posted at a place and drawn there.
-It means "do not warn me that they are quiet", which is what keeps the quiet
-list worth reading at all.
+So set **Tracked by** to *Not tracked* for anyone not beaconing. It is not
+"ignore them" - they still appear, still get a status, still get posted at a
+place and drawn there. It means "do not warn me that they are quiet", which is
+what keeps the quiet list worth reading at all.
+
+**Tracked by** has three settings:
+
+| Setting | Who | What goes in the callsign box |
+|---|---|---|
+| **APRS radio** | A ham who will beacon | Their callsign |
+| **Phone app** | Someone with no callsign - a bike medic, race staff, a driver - running a tracking app on their phone | A short **designator** you choose: `M1`, `BIKE2`. Letters and digits, short enough to say on the air |
+| **Not tracked** | An operator who will not transmit | Their callsign |
+
+A phone entry is never asked for on APRS-IS; instead the app on their phone
+posts to a link you turn on under [Tracking](setup-race-week.md#phone-tracking).
+Silence still counts as an alert for them, because the whole point of tracking a
+medic is knowing where they are.
 
 **Enter the callsign alone.** The SSID belongs to whichever radio or phone app
 they bring on the day; ask a coordinator to collect it in advance and you will be
