@@ -11,6 +11,8 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+## [2026.9.10] - 2026-09-15
+
 ### Added
 
 - **Event notes: a sentence for the organizer, tied to nowhere.** *Bring
