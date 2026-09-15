@@ -120,3 +120,25 @@ def test_a_hand_written_description_is_kept_as_text(description, expected):
 
 def test_notes_are_capped():
     assert len(kml.description_notes("x" * 2000)) == kml.MAX_NOTES_LENGTH
+
+
+def test_a_pathological_description_is_read_only_up_to_the_cap():
+    """KML is third-party input and a description can be as long as the
+    file. A real attribute table is a few hundred bytes; the regex that
+    reads it is applied to the whole blob, so a hostile one - megabytes of
+    half-open table cells, or simply a 60 MB description - was scanned end
+    to end inside the import. The first `MAX_DESCRIPTION_CHARS` are read
+    and the rest is ignored: a row inside the cap is found, one past it is
+    not, and the time spent is bounded by the cap rather than the file."""
+    filler = "<td>x</td><td>" * (kml.MAX_DESCRIPTION_CHARS // 14 + 1)
+    assert len(filler) > kml.MAX_DESCRIPTION_CHARS
+    inside = "<tr><td>Type</td><td>WATER</td></tr>"
+    beyond = "<tr><td>Race</td><td>10K</td></tr>"
+
+    found = kml.attributes_from_description(inside + filler + beyond)
+    assert found["Type"] == "WATER"
+    assert "Race" not in found
+
+    # A real table is nowhere near the cap and is read whole.
+    assert len(ESRI) < kml.MAX_DESCRIPTION_CHARS // 100
+    assert kml.attributes_from_description(ESRI)["NUM"] == ""

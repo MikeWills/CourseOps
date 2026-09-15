@@ -189,6 +189,14 @@ _ATTR_ROW = re.compile(
 )
 _NULLISH = {"", "<null>", "&lt;null&gt;", "null", "none"}
 
+# How much of a description the table regex is allowed to see. The file is
+# third-party input and a single description can be as long as the file's
+# 64 MB limit; a real exporter's table is a few hundred bytes. The regex is
+# linear on anything tried so far, but linear over 64 MB inside the import
+# is still the wrong place to spend it, and the cell pattern's backtracking
+# is not something to bet the event on. Everything past the cap is ignored.
+MAX_DESCRIPTION_CHARS = 64 * 1024
+
 
 # An exporter's word for something we already have a layer for. Without this,
 # a file saying Type=END suggests a layer key "end" while the event has one
@@ -216,7 +224,10 @@ def attributes_from_description(description: str | None) -> dict[str, str]:
     Returns {} for anything that is not one, which includes every hand-written
     description and every file from an exporter that uses ExtendedData properly.
     """
-    if not description or "<td" not in description.lower():
+    if not description:
+        return {}
+    description = description[:MAX_DESCRIPTION_CHARS]
+    if "<td" not in description.lower():
         return {}
 
     found: dict[str, str] = {}
