@@ -217,6 +217,15 @@ layer - fixed in eight workstream pull requests (#143-#149, and the
   A5.)
 
 ### Fixed
+- **An incident's HTTP response is now the socket message.** The 201
+  from `POST /incidents` (and the status and edit responses) was the bare
+  row, while the `incident` broadcast carried `course_position` - so the
+  pickup a browser put up from its own response had no mile until its
+  own broadcast came back round and overwrote it, and the client had a
+  workaround for the two shapes disagreeing. `_publish_incident` builds
+  one payload, sends it framed with `type`/`change`, and returns it for
+  the route to answer with. A test holds the three responses to the
+  three messages, key for key. (Audit follow-up.)
 - **Adding an administrator, or resetting one's password, still hashed
   on the event loop.** The audit moved sign-in, the first account and
   "change my password" into a worker thread (C1) and left the manager's

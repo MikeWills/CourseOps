@@ -190,7 +190,15 @@ async def _publish_state_hint(app: FastAPI, event_id: int) -> None:
     await app.state.hub.publish(event_id, {"type": "resync"})
 
 
-async def _publish_incident(app: FastAPI, event_id: int, row, kind: str) -> None:
+async def _publish_incident(app: FastAPI, event_id: int, row, kind: str) -> dict:
+    """Broadcast one incident and return what was sent, minus the framing.
+
+    The route answers with that same dict. The 201 from a create used to be
+    the bare row while the socket message carried `course_position`, so a
+    browser that put its own response up had a pickup with no mile until
+    its own broadcast came back round and overwrote it - two shapes for one
+    thing, and the client had grown a workaround for their disagreeing.
+    """
     conn = db.connect(app.state.settings.db_path)
     try:
         index = progress.CourseIndex.for_event(conn, event_id)
@@ -199,12 +207,12 @@ async def _publish_incident(app: FastAPI, event_id: int, row, kind: str) -> None
     payload = incidents.Incident(row).as_dict()
     payload["course_position"] = snapshot.course_position(
         index, row["lat"], row["lon"])
-    payload["type"] = "incident"
-    payload["change"] = kind
     # Same audience as the snapshot: a role that never receives the list
     # must not be handed its entries one at a time either.
-    await app.state.hub.publish(event_id, payload,
-                                requires=access.CAP_INCIDENT_REPORT)
+    await app.state.hub.publish(
+        event_id, {**payload, "type": "incident", "change": kind},
+        requires=access.CAP_INCIDENT_REPORT)
+    return payload
 
 
 # Reporting one is not the same permission as working the queue. Every role
@@ -227,8 +235,8 @@ async def create_incident(
         )
     except (incidents.IncidentError, TypeError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc))
-    await _publish_incident(request.app, granted.event_id, row, "created")
-    return JSONResponse(incidents.Incident(row).as_dict(), status_code=201)
+    payload = await _publish_incident(request.app, granted.event_id, row, "created")
+    return JSONResponse(payload, status_code=201)
 
 
 @router.post("/api/{event_slug}/{token}/incidents/{incident_id}/status")
@@ -246,8 +254,8 @@ async def set_incident_status(
         )
     except incidents.IncidentError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
-    await _publish_incident(request.app, granted.event_id, row, "status")
-    return JSONResponse(incidents.Incident(row).as_dict())
+    return JSONResponse(
+        await _publish_incident(request.app, granted.event_id, row, "status"))
 
 
 @router.post("/api/{event_slug}/{token}/incidents/{incident_id}/delete")
@@ -283,8 +291,8 @@ async def update_incident(
         )
     except (incidents.IncidentError, TypeError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc))
-    await _publish_incident(request.app, granted.event_id, row, "edited")
-    return JSONResponse(incidents.Incident(row).as_dict())
+    return JSONResponse(
+        await _publish_incident(request.app, granted.event_id, row, "edited"))
 
 
 @router.post("/api/{event_slug}/{token}/ssid/adopt")

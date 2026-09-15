@@ -750,6 +750,43 @@ def test_status_change_is_broadcast(setup):
     assert message["status"] == "en_route"
 
 
+def test_incident_responses_are_the_socket_payload(setup):
+    """The 201 from POST /incidents used to lack `course_position` while the
+    socket's `incident` message carried it, so the row a browser put up
+    from its own response had no mile until the broadcast overwrote it -
+    and the client grew a workaround for the two shapes disagreeing. One
+    payload builds both: the HTTP body is the socket message minus `type`
+    and `change`, for create, status and edit alike."""
+    app, tokens, _, _ = setup
+    with TestClient(app) as client:
+        with client.websocket_connect(f"/ws/m2026/{tokens['liaison']}") as ws:
+            created = client.post(incidents_url(tokens["ncs"]), json={
+                "lat": 34.732, "lon": -86.575, "bib": "1432"})
+            assert created.status_code == 201
+            created_message = ws.receive_json()
+
+            incident_id = created.json()["id"]
+            status = client.post(
+                f"{incidents_url(tokens['ncs'])}/{incident_id}/status",
+                json={"status": "en_route", "changed_by": "MW"})
+            status_message = ws.receive_json()
+
+            edited = client.post(
+                f"{incidents_url(tokens['ncs'])}/{incident_id}",
+                json={"note": "north side"})
+            edited_message = ws.receive_json()
+
+    for response, message in [(created, created_message),
+                              (status, status_message),
+                              (edited, edited_message)]:
+        body = response.json()
+        assert body["course_position"]["course_name"] == "Half"
+        assert message["type"] == "incident"
+        expected = {k: v for k, v in message.items()
+                    if k not in ("type", "change")}
+        assert body == expected
+
+
 def test_staff_are_never_sent_pickups_or_notes(setup):
     """Race staff and the organizer read where everyone is. A queue of
     runners who could not continue is the club's business during the race;

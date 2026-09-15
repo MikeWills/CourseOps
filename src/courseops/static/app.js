@@ -1914,10 +1914,9 @@ async function createIncident(latlng) {
     // Put the row up NOW rather than wait for our own broadcast to come
     // back round: on a slow link the socket message can land after the
     // focus below fires, and the field would not exist yet. The server
-    // publishes before it responds, so the message may already have arrived
-    // - and it carries the course position this response lacks - in which
-    // case the row is left alone; otherwise the message overwrites this
-    // copy when it does arrive.
+    // publishes before it responds, so the message may already have
+    // arrived, in which case the row is left alone - it is the same
+    // payload as this response, so nothing is lost either way.
     if (!state.incidents.has(created.id)) {
       state.incidents.set(created.id, created);
       upsertIncidentMarker(created);
