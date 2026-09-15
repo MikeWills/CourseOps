@@ -145,7 +145,9 @@ no status, and they never enter any count. They go to the organizer in the
 after-event report, without your name.
 
 **Who sees the list is narrower.** Net Control, Liaison and Logistics see
-every note under the box and can correct the words in place. SAG and Staff
+every note under the box. The pencil beside a note opens it for editing -
+tick saves, x cancels - so a thumb landing on the list while scrolling
+changes nothing. SAG and Staff
 get the box alone: press Add, the box empties and *Note sent* appears, and
 that is the whole confirmation - your notes are not listed back to you.
 Net Control and SAG can delete one.

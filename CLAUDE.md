@@ -1164,6 +1164,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-15** Event notes edit behind a pencil (Save / Cancel) instead of a live box: on a phone, a thumb on the list while scrolling was an edit.
 - **2026-09-15** Event notes: freeform, location-less notes for the organizer ("bring more pizza next year"), addable from every link including Staff, readable by NCS, Liaison and Logistics only; under Course notes for NCS, at the bottom of the sheet otherwise; on the after-event report.
 - **2026-09-15** One position per station and no raw payload (#166): a fix replaces the previous one, `raw` is blank, a count is all that survives; existing databases pruned at startup.
 - **2026-09-15** Fixed: the OwnTracks QR was refused on a real iPhone until *Settings → Remote Control → Allow external configuration* is on; it is now the step before the scan on the card and in the guides.
@@ -1173,4 +1174,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-15** Fixed: deleting the last leader (or layer, or role) brought the defaults back; `event.defaults_seeded` makes seeding once-per-event, and the field app hides Lead runners when an event tracks none.
 - **2026-09-14** Audit (`docs/audit/`): eight reviews, nine PRs (#143-#151). Highlights below; the rest is in `CHANGELOG.md`.
 - **2026-09-14** `web.py` split: routers in `setup_api.py`/`field_api.py`/`pages.py`, auth as `Depends` in `deps.py`, snapshot and feed lifecycle in their own modules; `/openapi.json` off.
-- **2026-09-14** Fixed: turning Tracking on for an event with nothing to listen for exited the server and boot-looped; the switch now refuses, and persists only after the feed starts.
