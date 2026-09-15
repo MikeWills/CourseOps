@@ -254,9 +254,13 @@ def list_courses(conn: sqlite3.Connection, event_id: int) -> list[dict]:
 def update_course(conn: sqlite3.Connection, event_id: int, course_id: int,
                   payload: dict) -> dict:
     if "bib_color" in payload or "bib_color_name" in payload:
+        # Only what the payload names. The form sends the pair, but the API
+        # is the API: a name on its own must not reset the colour.
         leaders.set_bib_color(
             conn, event_id, course_id,
-            _text(payload, "bib_color"), _text(payload, "bib_color_name"),
+            _text(payload, "bib_color") if "bib_color" in payload else leaders.KEEP,
+            _text(payload, "bib_color_name") if "bib_color_name" in payload
+            else leaders.KEEP,
         )
     style_fields: dict[str, Any] = {}
     if "color" in payload:

@@ -217,6 +217,15 @@ layer - fixed in eight workstream pull requests (#143-#149, and the
   A5.)
 
 ### Fixed
+- **Renaming a bib colour on its own put the bibs back to the line
+  colour.** `set_bib_color` always wrote both columns, and a payload that
+  named only `bib_color_name` fell through to "no colour given, default to
+  the route colour" - so `PUT .../courses/{id}` with `{"bib_color_name":
+  "Gold"}` silently changed what an aid station would be told to look for.
+  The setup form had been working around it by always sending the pair
+  (and still does; it is harmless). A field the payload does not name is
+  now left alone (`leaders.KEEP`); an empty colour still means "back to
+  the line colour", because that is a real request. (Audit follow-up.)
 - **A KML description is read only up to 64 KB.** A placemark's
   `<description>` is third-party input and can be as long as the file's
   64 MB limit, and the regex that pulls an exporter's attribute table out
