@@ -53,6 +53,18 @@ layer - fixed in eight workstream pull requests (#143-#149, and the
   earlier file chose. `setup-events.png` predates the field.
 
 ### Changed
+- **The course geometry is scaled to metres once per index, not once per
+  vertex per lookup.** Every `locate` walks every vertex of every course
+  in pure Python, and `project_onto_line` was rebuilding the planar
+  segment maths (`ax, ay, bx, by, dx, dy, seg_sq`) on each of those
+  steps. `geo.PlanarLine` does it once when `CourseIndex` is built, at
+  the course centroid's metres-per-degree (a 0.1 % difference from
+  scaling at each target over a marathon, acting on a few hundred
+  metres: well under a metre, and a test holds it to 0.5 m against the
+  original), and the memo from E2 stays. On the demo event, 20 runs of
+  `build_state` on one connection: median 55 ms -> 26 ms, min 47 -> 23
+  ms; the 12 cold place lookups 25 ms -> 9.5 ms; building the index
+  3.4 ms -> 4.1 ms. (OPT-3, second step; audit follow-up.)
 - **`/openapi.json` is off, with `/docs` and `/redoc`.** The schema listed
   every route to anyone who asked, for the same reason `/healthz` keeps to
   liveness and a version. Noticed during the `web.py` split.

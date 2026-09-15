@@ -77,6 +77,66 @@ def test_every_vertex_of_the_course_snaps_cleanly(course_file):
         assert located.distance_along_m == pytest.approx(course.totals[i], abs=1.0)
 
 
+def _reference_projection(coords, target, totals):
+    """The projection as it was first written: metres per degree taken at
+    the TARGET, and the segment geometry rebuilt on every call. Kept here
+    as the yardstick for the precomputed version, which scales the whole
+    course at its centroid instead."""
+    import math
+    lat_rad = math.radians(target[1])
+    mx, my = 111320.0 * math.cos(lat_rad), 110574.0
+    tx, ty = target[0] * mx, target[1] * my
+    best = None
+    for i in range(len(coords) - 1):
+        ax, ay = coords[i][0] * mx, coords[i][1] * my
+        bx, by = coords[i + 1][0] * mx, coords[i + 1][1] * my
+        dx, dy = bx - ax, by - ay
+        seg_sq = dx * dx + dy * dy
+        if seg_sq == 0:
+            continue
+        t = ((tx - ax) * dx + (ty - ay) * dy) / seg_sq
+        t = 0.0 if t < 0.0 else (1.0 if t > 1.0 else t)
+        px, py = ax + t * dx, ay + t * dy
+        offset = math.hypot(tx - px, ty - py)
+        if best is not None and offset >= best[1]:
+            continue
+        best = (totals[i] + t * (totals[i + 1] - totals[i]), offset)
+    return best
+
+
+def test_the_precomputed_projection_agrees_with_the_original(course_file):
+    """The planar precompute scales the course once, at its centroid, where
+    the original scaled at each target. Over a marathon the difference in
+    metres-per-degree is a tenth of a percent, so mile figures must agree
+    to well under a metre - a figure someone acts on must not move
+    because of an optimisation."""
+    conn, event_id = course_file
+    index = progress.CourseIndex.for_event(conn, event_id)
+    course = index._courses[0]
+    coords, totals = course.coords, course.totals
+
+    # Every 25th vertex, nudged off the line a little (so the offset is
+    # not trivially zero), plus a few well off it.
+    targets = []
+    for i in range(0, len(coords), 25):
+        lon, lat = coords[i]
+        targets.append((lon + 0.0004, lat - 0.0003))
+    targets += [(-93.99, 44.15), (-93.95, 44.17), (-94.02, 44.12)]
+
+    checked = 0
+    for lon, lat in targets:
+        expected = _reference_projection(coords, (lon, lat), totals)
+        located = index.locate(lat, lon)
+        if expected is None or expected[1] > index.max_offset_m:
+            assert located is None
+            continue
+        assert located is not None
+        assert located.distance_along_m == pytest.approx(expected[0], abs=0.5)
+        assert located.offset_m == pytest.approx(expected[1], abs=0.5)
+        checked += 1
+    assert checked > 40
+
+
 def test_start_and_finish_of_the_course(course_file):
     conn, event_id = course_file
     index = progress.CourseIndex.for_event(conn, event_id)
@@ -400,13 +460,13 @@ def test_locate_projects_each_point_once(course_file, monkeypatch):
     conn, event_id = course_file
     index = progress.CourseIndex.for_event(conn, event_id)
     calls = []
-    real = geo.project_onto_line
+    real = geo.PlanarLine.project
 
-    def counting(coords, target, totals=None):
+    def counting(self, target):
         calls.append(target)
-        return real(coords, target, totals)
+        return real(self, target)
 
-    monkeypatch.setattr(progress.geo, "project_onto_line", counting)
+    monkeypatch.setattr(geo.PlanarLine, "project", counting)
 
     first = index.locate(44.15, -93.99)
     again = index.locate(44.15, -93.99)
