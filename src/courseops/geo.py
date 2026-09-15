@@ -211,51 +211,96 @@ def _local_metres(origin: LonLat) -> tuple[float, float]:
     return 111320.0 * math.cos(lat_rad), 110574.0
 
 
+class PlanarLine:
+    """A polyline scaled to local metres once, for many projections.
+
+    Every vertex of every course is walked in pure Python for each point
+    located, and one snapshot locates every place and position. Rebuilding
+    the planar geometry (`ax, ay, bx, by, dx, dy, seg_sq`) per vertex per
+    call was most of that walk; here it is done once, when the course
+    index is built, and `project` is left with a dot product, a clamp and a
+    hypot per segment.
+
+    The scale is taken at the course's centroid rather than at each target.
+    Metres per degree of longitude vary with cos(latitude): across the
+    0.2 degrees of latitude a marathon can span at 44 N, that is about
+    0.1 %, and it acts on the few hundred metres between a station and the
+    line - well under a metre in both the offset and the mile figure. The
+    reference test in test_progress.py holds the two to 0.5 m.
+    """
+
+    __slots__ = ("coords", "totals", "_mx", "_my", "_segments")
+
+    def __init__(self, coords: list[LonLat], totals: list[float] | None = None) -> None:
+        self.coords = coords
+        self.totals = cumulative_lengths(coords) if totals is None else totals
+        if len(coords) < 2:
+            self._mx = self._my = 1.0
+            self._segments: list[tuple] = []
+            return
+        mean_lat = sum(c[1] for c in coords) / len(coords)
+        self._mx, self._my = _local_metres((0.0, mean_lat))
+        mx, my, totals = self._mx, self._my, self.totals
+        xs = [c[0] * mx for c in coords]
+        ys = [c[1] * my for c in coords]
+        segments = []
+        for i in range(len(coords) - 1):
+            ax, ay, bx, by = xs[i], ys[i], xs[i + 1], ys[i + 1]
+            dx, dy = bx - ax, by - ay
+            seg_sq = dx * dx + dy * dy
+            if seg_sq == 0:
+                continue   # a duplicate vertex: nothing to project onto
+            # 1 / seg_sq so the inner loop multiplies instead of divides;
+            # the segment's own length in metres along the course, so the
+            # loop need not index `totals` twice.
+            segments.append((i, ax, ay, dx, dy, 1.0 / seg_sq,
+                             totals[i], totals[i + 1] - totals[i]))
+        self._segments = segments
+
+    def project(self, target: LonLat) -> Projection | None:
+        """Snap `target` to the nearest point on the polyline.
+
+        Returns None for a degenerate line. Distance along is measured with
+        haversine (via `totals`) so it agrees with `line_length_m`, while
+        the perpendicular projection uses local planar maths.
+        """
+        if not self._segments:
+            return None
+        mx, my = self._mx, self._my
+        tx, ty = target[0] * mx, target[1] * my
+        hypot = math.hypot
+
+        best_offset = math.inf
+        best = None
+        for i, ax, ay, dx, dy, inv_seg_sq, total, length in self._segments:
+            # Clamped so the nearest point never runs past either end of the
+            # segment - without the clamp a station beside the course would
+            # snap to an imaginary extension of the nearest segment.
+            t = ((tx - ax) * dx + (ty - ay) * dy) * inv_seg_sq
+            t = 0.0 if t < 0.0 else (1.0 if t > 1.0 else t)
+            px, py = ax + t * dx, ay + t * dy
+            offset = hypot(tx - px, ty - py)
+            if offset >= best_offset:
+                continue
+            best_offset = offset
+            best = (i, t, px, py, total, length)
+
+        i, t, px, py, total, length = best
+        return Projection(
+            distance_along_m=total + t * length,
+            offset_m=best_offset,
+            index=i,
+            point=(px / mx, py / my),
+        )
+
+
 def project_onto_line(
     coords: list[LonLat],
     target: LonLat,
     totals: list[float] | None = None,
 ) -> Projection | None:
-    """Snap `target` to the nearest point on the polyline.
+    """Snap `target` to the nearest point on the polyline: one-off form.
 
-    Returns None for a degenerate line. Distance along is measured with
-    haversine so it agrees with `line_length_m`, while the perpendicular
-    projection uses local planar maths.
+    Anything projecting many points onto one line keeps a `PlanarLine`.
     """
-    if len(coords) < 2:
-        return None
-    if totals is None:
-        totals = cumulative_lengths(coords)
-
-    mx, my = _local_metres(target)
-    tx, ty = target[0] * mx, target[1] * my
-
-    best: Projection | None = None
-    for i in range(len(coords) - 1):
-        ax, ay = coords[i][0] * mx, coords[i][1] * my
-        bx, by = coords[i + 1][0] * mx, coords[i + 1][1] * my
-        dx, dy = bx - ax, by - ay
-        seg_sq = dx * dx + dy * dy
-        if seg_sq == 0:
-            continue
-
-        # Clamped so the nearest point never runs past either end of the
-        # segment - without the clamp a station beside the course would snap to
-        # an imaginary extension of the nearest segment.
-        t = ((tx - ax) * dx + (ty - ay) * dy) / seg_sq
-        t = 0.0 if t < 0.0 else (1.0 if t > 1.0 else t)
-
-        px, py = ax + t * dx, ay + t * dy
-        offset = math.hypot(tx - px, ty - py)
-        if best is not None and offset >= best.offset_m:
-            continue
-
-        segment_length = totals[i + 1] - totals[i]
-        best = Projection(
-            distance_along_m=totals[i] + t * segment_length,
-            offset_m=offset,
-            index=i,
-            point=(px / mx, py / my),
-        )
-
-    return best
+    return PlanarLine(coords, totals).project(target)

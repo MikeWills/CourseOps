@@ -19,6 +19,7 @@ from __future__ import annotations
 import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from typing import Any
 
 from . import categories, db
 
@@ -129,14 +130,26 @@ def _parse(iso: str | None) -> datetime | None:
         return None
 
 
+# "Leave this field as it is." Distinct from None, which for the colour
+# means "back to the line colour" and for the name means "no name" - both
+# real requests a person can make from the form or the CLI.
+KEEP: Any = object()
+
+
 def set_bib_color(
     conn: sqlite3.Connection,
     event_id: int,
     course_id: int,
-    color: str | None,
-    name: str | None = None,
+    color: str | None = KEEP,
+    name: str | None = KEEP,
 ) -> sqlite3.Row:
-    """Set the bib colour for a race. Defaults to the course line colour."""
+    """Set the bib colour and/or its name for a race.
+
+    A colour of None defaults to the course line colour. A field passed as
+    KEEP is not touched: the setup form sends only what changed, and when
+    the two fields were always written together, renaming "Yellow" to
+    "Gold" put the bibs silently back to the route colour.
+    """
     row = conn.execute(
         "SELECT * FROM course WHERE id = ? AND event_id = ?", (course_id, event_id)
     ).fetchone()
@@ -145,14 +158,22 @@ def set_bib_color(
 
     from . import styling
 
-    resolved = color or row["color"]
-    if resolved is not None and not styling.is_valid_color(resolved):
-        raise ValueError(f"{resolved!r} is not a hex colour like #ffcc00.")
-
-    conn.execute(
-        "UPDATE course SET bib_color = ?, bib_color_name = ? WHERE id = ?",
-        (styling.normalize_color(resolved), db.clean_text(name, 40), course_id),
-    )
+    sets: list[str] = []
+    values: list[object] = []
+    if color is not KEEP:
+        resolved = color or row["color"]
+        if resolved is not None and not styling.is_valid_color(resolved):
+            raise ValueError(f"{resolved!r} is not a hex colour like #ffcc00.")
+        sets.append("bib_color = ?")
+        values.append(styling.normalize_color(resolved))
+    if name is not KEEP:
+        sets.append("bib_color_name = ?")
+        values.append(db.clean_text(name, 40))
+    if sets:
+        conn.execute(
+            f"UPDATE course SET {', '.join(sets)} WHERE id = ?",
+            (*values, course_id),
+        )
     return conn.execute("SELECT * FROM course WHERE id = ?", (course_id,)).fetchone()
 
 

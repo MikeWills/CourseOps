@@ -72,6 +72,10 @@ class _Course:
     name: str
     coords: list[LonLat]
     totals: list[float]
+    # The planar geometry, built once with the index: every locate walks
+    # every vertex, and rebuilding the segment maths per call was most of
+    # the walk.
+    line: geo.PlanarLine
 
     @property
     def length_m(self) -> float:
@@ -117,9 +121,9 @@ class CourseIndex:
             coords = geo.from_geojson_linestring(json.loads(row["geojson"]))
             if len(coords) < 2:
                 continue
-            courses.append(
-                _Course(row["id"], row["name"], coords, geo.cumulative_lengths(coords))
-            )
+            totals = geo.cumulative_lengths(coords)
+            courses.append(_Course(row["id"], row["name"], coords, totals,
+                                   geo.PlanarLine(coords, totals)))
         return cls(courses, max_offset_m)
 
     def area(self, margin_m: float) -> tuple[float, float, float] | None:
@@ -186,7 +190,7 @@ class CourseIndex:
             pass
         best: CoursePosition | None = None
         for course in self._courses:
-            projection = geo.project_onto_line(course.coords, (lon, lat), course.totals)
+            projection = course.line.project((lon, lat))
             if projection is None or projection.offset_m > self.max_offset_m:
                 continue
             if best is not None and projection.offset_m >= best.offset_m:

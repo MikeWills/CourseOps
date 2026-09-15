@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from courseops import categories, db, importer, leaders, progress
+from courseops import admin, categories, db, importer, leaders, progress
 
 COURSE = Path(__file__).parent / "fixtures" / "consumer_export_course.kml"
 MILE = 1609.344
@@ -84,6 +84,34 @@ def test_the_leader_carries_the_bib_colour(race):
     entry = leader(conn, event_id, index)
     assert entry.bib_color == "#ffcc00"
     assert entry.bib_color_name == "Yellow"
+
+
+def test_renaming_the_bib_colour_alone_keeps_the_colour(race):
+    """The setup form saves only what changed. Sending the name on its own
+    used to fall through to "default to the line colour", so retyping
+    "Yellow" as "Gold" silently put the bibs back to the route colour."""
+    conn, event_id, course_id, index = race
+    leaders.set_bib_color(conn, event_id, course_id, "#ffcc00", "Yellow")
+    row = admin.update_course(conn, event_id, course_id, {"bib_color_name": "Gold"})
+    assert row["bib_color"] == "#ffcc00"
+    assert row["bib_color_name"] == "Gold"
+
+
+def test_changing_the_bib_colour_alone_keeps_the_name(race):
+    conn, event_id, course_id, index = race
+    leaders.set_bib_color(conn, event_id, course_id, "#ffcc00", "Yellow")
+    row = admin.update_course(conn, event_id, course_id, {"bib_color": "#00cc00"})
+    assert row["bib_color"] == "#00cc00"
+    assert row["bib_color_name"] == "Yellow"
+
+
+def test_an_empty_bib_colour_still_means_the_line_colour(race):
+    """Clearing the colour box is a real request: back to the route colour."""
+    conn, event_id, course_id, index = race
+    leaders.set_bib_color(conn, event_id, course_id, "#ffcc00", "Yellow")
+    row = admin.update_course(conn, event_id, course_id, {"bib_color": ""})
+    assert row["bib_color"] == row["color"]
+    assert row["bib_color_name"] == "Yellow"
 
 
 # --- before anything is reported --------------------------------------------

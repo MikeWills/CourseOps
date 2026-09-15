@@ -53,6 +53,18 @@ layer - fixed in eight workstream pull requests (#143-#149, and the
   earlier file chose. `setup-events.png` predates the field.
 
 ### Changed
+- **The course geometry is scaled to metres once per index, not once per
+  vertex per lookup.** Every `locate` walks every vertex of every course
+  in pure Python, and `project_onto_line` was rebuilding the planar
+  segment maths (`ax, ay, bx, by, dx, dy, seg_sq`) on each of those
+  steps. `geo.PlanarLine` does it once when `CourseIndex` is built, at
+  the course centroid's metres-per-degree (a 0.1 % difference from
+  scaling at each target over a marathon, acting on a few hundred
+  metres: well under a metre, and a test holds it to 0.5 m against the
+  original), and the memo from E2 stays. On the demo event, 20 runs of
+  `build_state` on one connection: median 55 ms -> 26 ms, min 47 -> 23
+  ms; the 12 cold place lookups 25 ms -> 9.5 ms; building the index
+  3.4 ms -> 4.1 ms. (OPT-3, second step; audit follow-up.)
 - **`/openapi.json` is off, with `/docs` and `/redoc`.** The schema listed
   every route to anyone who asked, for the same reason `/healthz` keeps to
   liveness and a version. Noticed during the `web.py` split.
@@ -217,6 +229,52 @@ layer - fixed in eight workstream pull requests (#143-#149, and the
   A5.)
 
 ### Fixed
+- **`tests/test_deploy_script.py` passes on a Windows machine again.**
+  The tests that run `ssh-deploy-command.sh` and `backup.sh` called
+  `bash` off PATH, which from PowerShell on Windows is the WSL launcher
+  in `WindowsApps` - it answers in UTF-16 (or "RPC call contains a
+  handle" with no distro) and fourteen tests failed on the developer's
+  own machine while CI was green, so the file was being left out of the
+  local run. The tests now look for Git for Windows' `bash.exe` (under
+  `Program Files`, then beside `git --exec-path`) before PATH, prove the
+  candidate answers `echo ok` in plain text, and skip with a reason
+  naming the cause when nothing usable is found. CI is unchanged: on
+  Linux the first candidate is `/usr/bin/bash` as before. (Audit
+  follow-up.)
+- **Incident text fields go through the one cleaner.** `incidents.py`
+  kept a private `_clean` that `str()`ed whatever arrived, so a bib sent
+  as an object landed as `"{'x': 1}"` and a list for `changed_by` went
+  into the log as `"[5]"` - while every other field in the app refuses
+  those with a message via `db.clean_text` (audit D). Same helper now;
+  the status route turns its refusal into a 400 like create and edit
+  already did. The length caps stay where they were. (Audit follow-up.)
+- **An incident's HTTP response is now the socket message.** The 201
+  from `POST /incidents` (and the status and edit responses) was the bare
+  row, while the `incident` broadcast carried `course_position` - so the
+  pickup a browser put up from its own response had no mile until its
+  own broadcast came back round and overwrote it, and the client had a
+  workaround for the two shapes disagreeing. `_publish_incident` builds
+  one payload, sends it framed with `type`/`change`, and returns it for
+  the route to answer with. A test holds the three responses to the
+  three messages, key for key. (Audit follow-up.)
+- **Adding an administrator, or resetting one's password, still hashed
+  on the event loop.** The audit moved sign-in, the first account and
+  "change my password" into a worker thread (C1) and left the manager's
+  two routes behind - the same scrypt, a third of a second during which
+  no snapshot, socket frame or incident post moved for anyone. Behind the
+  login, so not the open door sign-in was, but a manager adding a helper
+  on race morning was stalling every phone for it. Both run in a thread
+  now, on a connection opened there, exactly as sign-in does; the tests
+  are the same shape as C1's. (Audit follow-up.)
+- **Renaming a bib colour on its own put the bibs back to the line
+  colour.** `set_bib_color` always wrote both columns, and a payload that
+  named only `bib_color_name` fell through to "no colour given, default to
+  the route colour" - so `PUT .../courses/{id}` with `{"bib_color_name":
+  "Gold"}` silently changed what an aid station would be told to look for.
+  The setup form had been working around it by always sending the pair
+  (and still does; it is harmless). A field the payload does not name is
+  now left alone (`leaders.KEEP`); an empty colour still means "back to
+  the line colour", because that is a real request. (Audit follow-up.)
 - **A KML description is read only up to 64 KB.** A placemark's
   `<description>` is third-party input and can be as long as the file's
   64 MB limit, and the regex that pulls an exporter's attribute table out

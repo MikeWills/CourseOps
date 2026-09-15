@@ -750,6 +750,43 @@ def test_status_change_is_broadcast(setup):
     assert message["status"] == "en_route"
 
 
+def test_incident_responses_are_the_socket_payload(setup):
+    """The 201 from POST /incidents used to lack `course_position` while the
+    socket's `incident` message carried it, so the row a browser put up
+    from its own response had no mile until the broadcast overwrote it -
+    and the client grew a workaround for the two shapes disagreeing. One
+    payload builds both: the HTTP body is the socket message minus `type`
+    and `change`, for create, status and edit alike."""
+    app, tokens, _, _ = setup
+    with TestClient(app) as client:
+        with client.websocket_connect(f"/ws/m2026/{tokens['liaison']}") as ws:
+            created = client.post(incidents_url(tokens["ncs"]), json={
+                "lat": 34.732, "lon": -86.575, "bib": "1432"})
+            assert created.status_code == 201
+            created_message = ws.receive_json()
+
+            incident_id = created.json()["id"]
+            status = client.post(
+                f"{incidents_url(tokens['ncs'])}/{incident_id}/status",
+                json={"status": "en_route", "changed_by": "MW"})
+            status_message = ws.receive_json()
+
+            edited = client.post(
+                f"{incidents_url(tokens['ncs'])}/{incident_id}",
+                json={"note": "north side"})
+            edited_message = ws.receive_json()
+
+    for response, message in [(created, created_message),
+                              (status, status_message),
+                              (edited, edited_message)]:
+        body = response.json()
+        assert body["course_position"]["course_name"] == "Half"
+        assert message["type"] == "incident"
+        expected = {k: v for k, v in message.items()
+                    if k not in ("type", "change")}
+        assert body == expected
+
+
 def test_staff_are_never_sent_pickups_or_notes(setup):
     """Race staff and the organizer read where everyone is. A queue of
     runners who could not continue is the club's business during the race;
@@ -1804,6 +1841,57 @@ def test_login_does_not_block_the_event_loop(setup):
     asyncio.run(race())
 
 
+def _answered_while_hashing(app, slow, expected_status):
+    """Start `slow` (a request that hashes a password), then check that a
+    trivial request on the same loop is answered before it finishes."""
+    import asyncio
+    import httpx
+
+    async def race():
+        transport = httpx.ASGITransport(app=app)
+        async with app.router.lifespan_context(app):
+            async with httpx.AsyncClient(transport=transport,
+                                         base_url="http://t") as client:
+                await client.post(
+                    "/api/setup/login",
+                    json={"username": "mike",
+                          "password": "a-long-enough-password"})
+                task = asyncio.create_task(slow(client))
+                await asyncio.sleep(0.02)
+                ping = await asyncio.wait_for(client.get("/healthz"), 0.2)
+                assert ping.status_code == 200
+                assert not task.done()
+                assert (await task).status_code == expected_status
+
+    asyncio.run(race())
+
+
+def test_creating_an_administrator_does_not_block_the_event_loop(setup):
+    """Same hash, same loop, behind the login this time: a manager adding
+    an account on race morning stalled every phone for as long as scrypt
+    took, and login had been moved off the loop while this had not."""
+    app, _, db_path, _ = setup
+    _make_admin(db_path)
+
+    def create(client):
+        return client.post("/api/setup/users", json={
+            "username": "new", "password": "another-long-password",
+            "role": "system_admin", "display_name": "New"})
+
+    _answered_while_hashing(app, create, 201)
+
+
+def test_resetting_a_password_does_not_block_the_event_loop(setup):
+    app, _, db_path, _ = setup
+    user = _make_admin(db_path)
+
+    def reset(client):
+        return client.post(f"/api/setup/users/{user.id}",
+                           json={"password": "another-long-password"})
+
+    _answered_while_hashing(app, reset, 200)
+
+
 # --- request body caps ------------------------------------------------------
 #
 # Nothing limited a request body. The login route needs no credential, so a
@@ -2646,6 +2734,39 @@ def test_wrong_type_field_payloads_are_400_not_500(setup):
             assert response.status_code == 400, (path, body, response.text)
             listed = client.post(path, json=[1, 2])
             assert listed.status_code in (400, 404), (path, listed.text)
+
+
+def test_wrong_type_incident_fields_are_400_not_stored(setup):
+    """Incidents had a private cleaner that `str()`ed whatever arrived, so
+    a bib sent as an object was stored as "{'x': 1}" and a list for
+    `changed_by` on a status change went in as "[5]". They share
+    `db.clean_text` now, which refuses a list or an object with a message -
+    and the status route has to turn that into a 400 like the others."""
+    app, tokens, _, _ = setup
+    ncs = f"/api/m2026/{tokens['ncs']}"
+    with TestClient(app) as client:
+        created = client.post(f"{ncs}/incidents",
+                              json={"lat": 34.732, "lon": -86.575}).json()
+        incident_id = created["id"]
+        cases = [
+            (f"{ncs}/incidents", {"lat": 34.732, "lon": -86.575,
+                                  "bib": {"x": 1}}),
+            (f"{ncs}/incidents", {"lat": 34.732, "lon": -86.575,
+                                  "changed_by": [5]}),
+            (f"{ncs}/incidents/{incident_id}/status",
+             {"status": "en_route", "changed_by": [5]}),
+            (f"{ncs}/incidents/{incident_id}", {"note": ["x"]}),
+            (f"{ncs}/incidents/{incident_id}", {"bib": "1", "changed_by": {}}),
+        ]
+        for path, body in cases:
+            response = client.post(path, json=body)
+            assert response.status_code == 400, (path, body, response.text)
+            assert response.json().get("detail"), (path, body, response.text)
+        # Nothing above landed.
+        data = client.get(f"{ncs}/state").json()
+        assert len(data["incidents"]) == 1
+        assert data["incidents"][0]["status"] == "reported"
+        assert data["incidents"][0]["note"] is None
 
 
 def test_a_missing_event_is_a_404_for_a_system_admin_too(setup):

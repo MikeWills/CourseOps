@@ -1021,6 +1021,21 @@ usability, not style preferences.
   at the wiki-only `Home`.
 - **CLI output stays ASCII.** Em dashes become mojibake in the Windows console,
   and a club laptop is the target environment.
+- **What a route answers and what it broadcasts are ONE payload.** The
+  incident create response was the bare row while the socket message
+  carried `course_position`, and the client grew a workaround for the two
+  disagreeing. `_publish_incident` builds the dict once, sends it framed
+  with `type`/`change`, and returns it for the route to answer with; a
+  test holds the three responses to the three messages key for key.
+  Anything new that both answers and publishes goes the same way.
+- **On Windows, `bash` on PATH from PowerShell is the WSL launcher, not a
+  shell.** `%LOCALAPPDATA%\Microsoft\WindowsApps\bash.exe` answers in
+  UTF-16 (or "RPC call contains a handle" with no distro), so the deploy
+  script tests failed locally while CI was green and the file was being
+  left out of the local run. `tests/test_deploy_script.py` looks for Git
+  for Windows' `bash.exe` first and proves the candidate answers `echo ok`
+  in text; anything else that shells out to bash from a test needs the
+  same resolver, not `"bash"`.
 
 ## Working method
 
