@@ -16,7 +16,7 @@ import asyncio
 
 import pytest
 
-from courseops import db, ingest, web
+from courseops import db, feed, ingest, web
 from courseops.config import Settings
 
 
@@ -41,7 +41,7 @@ def app_with_events(tmp_path, monkeypatch):
         finally:
             running.discard(slug)
 
-    monkeypatch.setattr(web, "run_ingest", fake_feed)
+    monkeypatch.setattr(feed, "run_ingest", fake_feed)
 
     settings = Settings(callsign="KI4TST", passcode="-1", host="h", port=1,
                         db_path=db_path, log_level="WARNING")
@@ -130,7 +130,7 @@ def test_a_feed_that_dies_records_why(app_with_events, monkeypatch):
                        on_nearby=None):
         raise RuntimeError("no callsign configured")
 
-    monkeypatch.setattr(web, "run_ingest", explodes)
+    monkeypatch.setattr(feed, "run_ingest", explodes)
 
     async def scenario():
         started = await app.state.start_ingest("alpha")
@@ -157,7 +157,7 @@ def test_a_feed_that_exits_the_interpreter_is_recorded_not_obeyed(
                     on_nearby=None):
         raise SystemExit("Event 'alpha' has no APRS-expecting roster entries")
 
-    monkeypatch.setattr(web, "run_ingest", exits)
+    monkeypatch.setattr(feed, "run_ingest", exits)
 
     async def scenario():
         started = await app.state.start_ingest("alpha")
@@ -289,7 +289,7 @@ def test_the_flag_is_persisted_only_after_the_feed_started(
                    on_nearby=None):
         raise ingest.IngestError("APRS-IS refused the login")
 
-    monkeypatch.setattr(web, "run_ingest", dies)
+    monkeypatch.setattr(feed, "run_ingest", dies)
     client = _admin_client(app, db_path)
     try:
         conn = db.connect(db_path)
@@ -380,7 +380,7 @@ def test_the_event_named_on_the_command_line_wins_at_boot(tmp_path, monkeypatch)
         started.append(slug)
         await asyncio.Event().wait()
 
-    monkeypatch.setattr(web, "run_ingest", fake_feed)
+    monkeypatch.setattr(feed, "run_ingest", fake_feed)
     settings = Settings(callsign="KI4TST", passcode="-1", host="h", port=1,
                         db_path=db_path, log_level="WARNING")
     app = web.create_app(settings, ingest_events=["alpha"])

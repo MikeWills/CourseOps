@@ -754,7 +754,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
     # until the process restarts. These are uvicorn's defaults with the
     # `websockets` backend that uvicorn[standard] installs; stated here so
     # a change of backend or of defaults cannot quietly switch them off.
-    # The client's own liveness check is web.HEARTBEAT_SECONDS.
+    # The client's own liveness check is field_api.HEARTBEAT_SECONDS.
     options = dict(
         host=args.host, port=args.port, log_level="warning",
         ws_ping_interval=20.0, ws_ping_timeout=20.0,
