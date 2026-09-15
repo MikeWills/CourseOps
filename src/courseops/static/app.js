@@ -1587,6 +1587,14 @@ function renderLeaders() {
   // A sighting recorded by any operator republishes every leader, which
   // rebuilds this list under whoever is typing a bib into it.
   const editing = captureFieldEdit();
+  /* The server sends a row per race per leader, so an empty list means one
+     of two things. No courses: say so, the panel will fill in once one is
+     imported. Courses but no leaders: the club deleted every leader in setup
+     because this event is not a race - a bike festival, a parade - and the
+     section is not a feature of this event. Hidden rather than "none", since
+     an empty panel about lead runners on a parade reads as something broken. */
+  const section = document.getElementById('leader-section');
+  section.hidden = !state.leaders.length && state.courses.length > 0;
   if (!state.leaders.length) {
     host.innerHTML = '<p class="muted">No courses imported yet.</p>';
     return;

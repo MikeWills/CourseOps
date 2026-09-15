@@ -122,6 +122,7 @@ _ADDED_COLUMNS: list[tuple[str, str, str]] = [
     ("roster_role", "sort_order", "INTEGER NOT NULL DEFAULT 0"),
     ("event", "ingest_enabled", "INTEGER NOT NULL DEFAULT 0"),
     ("poi_category", "show_labels", "INTEGER NOT NULL DEFAULT 0"),
+    ("event", "defaults_seeded", "INTEGER NOT NULL DEFAULT 0"),
 ]
 
 # Columns whose sensible starting value comes from data already in the table.
@@ -134,6 +135,13 @@ _BACKFILL: dict[tuple[str, str], str] = {
     # for a new event, applied to events that already exist.
     ("poi_category", "show_labels"):
         "UPDATE poi_category SET show_labels = 1 WHERE staffed = 1",
+    # An event that already has its leaders has been seeded; one without is
+    # from before leaders existed and gets them once at startup. Leaders are
+    # the test because they were the one taxonomy seeded lazily, on read -
+    # layers and roles have been seeded at startup since they arrived.
+    ("event", "defaults_seeded"):
+        "UPDATE event SET defaults_seeded = 1 WHERE EXISTS"
+        " (SELECT 1 FROM lead_division WHERE event_id = event.id)",
 }
 
 
@@ -213,8 +221,7 @@ def _seed_categories(conn: sqlite3.Connection) -> None:
     from . import categories  # local: categories has no other db dependency
 
     for row in conn.execute("SELECT id FROM event").fetchall():
-        categories.seed_poi_categories(conn, row["id"])
-        categories.seed_roster_roles(conn, row["id"])
+        categories.seed_event_defaults(conn, row["id"])
         # A place or a sighting under a key nothing names is invisible, with
         # no error to say so. Repaired here, once, at startup - it used to be
         # done on every read of the list, which made every snapshot a writer.
@@ -268,8 +275,7 @@ def create_event(conn: sqlite3.Connection, slug: str, name: str, **fields) -> in
         # the same transaction, so an event never exists without them.
         from . import categories
 
-        categories.seed_poi_categories(conn, event_id)
-        categories.seed_roster_roles(conn, event_id)
+        categories.seed_event_defaults(conn, event_id)
     return event_id
 
 

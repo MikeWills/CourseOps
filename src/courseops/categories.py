@@ -138,6 +138,35 @@ def slugify(name: str) -> str:
     return key[:40]
 
 
+# --- seeding ----------------------------------------------------------------
+
+def seed_event_defaults(conn: sqlite3.Connection, event_id: int) -> None:
+    """Give an event the usual layers, roles and leaders, ONCE.
+
+    Once means once per event, recorded in `event.defaults_seeded` - not
+    "whenever the table is empty". Those were the same thing right up until a
+    club deleted the last row on purpose: a bike festival is not a race and
+    wants no leaders at all, and "seed into an event with none" put both
+    defaults straight back. An empty table is now a state the club chose;
+    only an event the flag says was never seeded gets the defaults.
+
+    Also called lazily, from every read and write of the three taxonomies,
+    for events from before the flag existed - the migration marks those that
+    already have their leaders, so this is one SELECT on the way through.
+    """
+    row = conn.execute(
+        "SELECT defaults_seeded FROM event WHERE id = ?", (event_id,)
+    ).fetchone()
+    if row is None or row["defaults_seeded"]:
+        return
+    seed_poi_categories(conn, event_id)
+    seed_roster_roles(conn, event_id)
+    seed_lead_divisions(conn, event_id)
+    conn.execute(
+        "UPDATE event SET defaults_seeded = 1 WHERE id = ?", (event_id,)
+    )
+
+
 # --- POI categories ---------------------------------------------------------
 
 def seed_poi_categories(conn: sqlite3.Connection, event_id: int) -> None:
@@ -212,7 +241,7 @@ def adopt_orphan_poi_types(conn: sqlite3.Connection, event_id: int) -> list[str]
 def poi_categories(conn: sqlite3.Connection, event_id: int) -> list[sqlite3.Row]:
     # Only the defaults, and only into an event with none: a SELECT that finds
     # a row. Nothing else here may write - see adopt_orphan_poi_types.
-    seed_poi_categories(conn, event_id)
+    seed_event_defaults(conn, event_id)
     return conn.execute(
         "SELECT * FROM poi_category WHERE event_id = ?"
         " ORDER BY sort_order, name",
@@ -432,7 +461,7 @@ def roster_roles(conn: sqlite3.Connection, event_id: int) -> list[sqlite3.Row]:
     operator embedded with Public Safety is a person on the roster, not just a
     link role.
     """
-    seed_roster_roles(conn, event_id)
+    seed_event_defaults(conn, event_id)
     return conn.execute(
         "SELECT * FROM roster_role WHERE event_id = ?"
         " ORDER BY sort_order, name",
@@ -454,7 +483,7 @@ def add_roster_role(
     trade: the alternative was a fixed list, which meant editing Python to
     accept a club that fields a Liaison.
     """
-    seed_roster_roles(conn, event_id)
+    seed_event_defaults(conn, event_id)
     name = (name or "").strip()
     if not name:
         raise CategoryError("A role needs a name.")
@@ -489,7 +518,7 @@ def delete_roster_role(conn: sqlite3.Connection, event_id: int, key: str) -> int
     leave them in the database with a role nothing can name, and no error to
     say why. Returns the count that blocked it, or 0 on success.
     """
-    seed_roster_roles(conn, event_id)
+    seed_event_defaults(conn, event_id)
     # The same existence check as the other two: without it a stale client
     # row "deleted" and the list reloaded unchanged.
     known = conn.execute(
@@ -515,7 +544,7 @@ def rename_roster_role(
     name = (name or "").strip()
     if not name:
         raise CategoryError("A role needs a name.")
-    seed_roster_roles(conn, event_id)
+    seed_event_defaults(conn, event_id)
     known = conn.execute(
         "SELECT 1 FROM roster_role WHERE event_id = ? AND key = ?",
         (event_id, key),
@@ -595,7 +624,7 @@ def lead_divisions(conn: sqlite3.Connection, event_id: int) -> list[sqlite3.Row]
     """Every leader this event tracks, in the club's order."""
     # Only the defaults, and only into an event with none. Nothing else here
     # may write - see adopt_orphan_divisions.
-    seed_lead_divisions(conn, event_id)
+    seed_event_defaults(conn, event_id)
     return conn.execute(
         "SELECT * FROM lead_division WHERE event_id = ?"
         " ORDER BY sort_order, name",
@@ -615,7 +644,7 @@ def add_lead_division(
     Costs one row per race on the NCS panel, which is why deleting is as
     ordinary an action as adding.
     """
-    seed_lead_divisions(conn, event_id)
+    seed_event_defaults(conn, event_id)
     name = (name or "").strip()
     if not name:
         raise CategoryError("A leader needs a name.")
@@ -650,7 +679,7 @@ def rename_lead_division(
     name = (name or "").strip()
     if not name:
         raise CategoryError("A leader needs a name.")
-    seed_lead_divisions(conn, event_id)
+    seed_event_defaults(conn, event_id)
     known = conn.execute(
         "SELECT 1 FROM lead_division WHERE event_id = ? AND key = ?",
         (event_id, key),
@@ -675,7 +704,7 @@ def delete_lead_division(conn: sqlite3.Connection, event_id: int, key: str) -> i
     Clearing a leader's sightings is `leaders.clear_sightings`, which is a
     deliberate separate act. Returns the count that blocked it, or 0.
     """
-    seed_lead_divisions(conn, event_id)
+    seed_event_defaults(conn, event_id)
     known = conn.execute(
         "SELECT 1 FROM lead_division WHERE event_id = ? AND key = ?",
         (event_id, key),
@@ -707,7 +736,7 @@ def reorder_lead_divisions(
     is also why this seeds first: against a table that has never been read the
     defaults do not exist yet, and every list would look partial.
     """
-    seed_lead_divisions(conn, event_id)
+    seed_event_defaults(conn, event_id)
     try:
         return db.reorder(conn, "lead_division", "key", event_id,
                           [str(k) for k in keys or []])
