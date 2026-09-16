@@ -11,6 +11,19 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Fixed
+
+- **Deleting a roster entry left its pin on the map.** `delete_roster_entry`
+  removed the roster row and nothing else, and the snapshot draws every
+  stored position whether or not the roster knows it - so a test entry
+  deleted before race day stayed on every screen, with "Not started"
+  buttons under it, until someone thought to Ignore it. Deleting now takes
+  the entry's stored position and status history with it: its own key, the
+  SSID it was bound to, and for an APRS entry every SSID of that callsign
+  the wildcard filter dragged in - unless another roster row still claims
+  the callsign. The setup middleware already publishes a resync, so open
+  maps drop the pin without a reload.
+
 ## [2026.9.11] - 2026-09-15
 
 ### Changed
