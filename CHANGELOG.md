@@ -11,6 +11,8 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+## [2026.9.12] - 2026-09-15
+
 ### Fixed
 
 - **Deleting a roster entry left its pin on the map.** `delete_roster_entry`
