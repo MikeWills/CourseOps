@@ -17,6 +17,10 @@ Who is out on the course, and how each of them gets into the app.
 On a phone the same table is a stack of cards, one per station, with the
 pencil and the X at the bottom right of each.
 
+The X removes the station and everything the map held for it - its last
+position and its status history. Use it for a test entry once you are done
+testing; the pin goes from every open screen on its own.
+
 Three separate things, and confusing them is the most common mistake:
 
 1. **The place** - an aid station, from the course file.

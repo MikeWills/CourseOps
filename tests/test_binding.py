@@ -362,3 +362,67 @@ def test_editing_an_entry_that_does_not_exist_is_refused(tmp_path):
     with pytest.raises(ValueError, match="not on this event's roster"):
         _edit(conn, event_id, "N0CALL-1", "N0CALL-2")
     assert len(_rows(conn, event_id)) == 1
+
+
+# --- deleting an entry takes its positions with it ---------------------------
+#
+# A roster row deleted from setup used to leave the station's stored position
+# behind, and the snapshot draws every position it has - so a test entry
+# deleted before race day stayed on every map, with "Not started" buttons
+# under it, until someone thought to Ignore it.
+
+def _positions(conn, event_id):
+    return {r["station_key"] for r in db.latest_position_per_station(conn, event_id)}
+
+
+def test_deleting_an_entry_removes_its_position_and_history(tmp_path):
+    from courseops import admin
+    conn, event_id = _event(tmp_path, "K0JZP-9")
+    _feed(conn, event_id, _packet("K0JZP-9"))
+    db.set_op_status(conn, event_id, "K0JZP-9", "active")
+    assert _positions(conn, event_id) == {"K0JZP-9"}
+
+    admin.delete_roster_entry(conn, event_id, "K0JZP-9")
+
+    assert _positions(conn, event_id) == set()
+    assert db.op_status_log(conn, event_id) == []
+
+
+def test_deleting_a_bare_entry_removes_what_it_was_heard_as(tmp_path):
+    from courseops import admin
+    conn, event_id = _event(tmp_path)
+    _feed(conn, event_id, _packet("K0JZP-9"), _packet("K0JZP-7", DIGI))
+    assert _positions(conn, event_id) == {"K0JZP-9", "K0JZP-7"}
+
+    admin.delete_roster_entry(conn, event_id, "K0JZP")
+
+    # The bound SSID and the digipeater the wildcard dragged in both go: with
+    # the entry gone nothing on the roster claims that callsign.
+    assert _positions(conn, event_id) == set()
+
+
+def test_deleting_one_entry_leaves_a_sibling_callsign_alone(tmp_path):
+    from courseops import admin
+    conn, event_id = _event(tmp_path, "K0JZP-9")
+    db.upsert_roster_entry(conn, event_id, "K0JZP-7", "Sweep", "sweep")
+    _feed(conn, event_id, _packet("K0JZP-9"), _packet("K0JZP-7"))
+
+    admin.delete_roster_entry(conn, event_id, "K0JZP-9")
+
+    assert _positions(conn, event_id) == {"K0JZP-7"}
+
+
+def test_deleting_a_phone_tracked_entry_removes_its_fix(tmp_path):
+    from courseops import admin, tracker
+    conn, event_id = _event(tmp_path)
+    db.upsert_roster_entry(conn, event_id, "M1", "Medic", "shadow",
+                           tracked_by=db.TRACKED_BY_PHONE)
+    import json
+    _, report = tracker.parse_owntracks(json.dumps(
+        {"_type": "location", "tid": "M1", "lat": 44.1, "lon": -93.9, "tst": 1_800_000_000}))
+    tracker.store(conn, event_id, report)
+    assert "M1" in _positions(conn, event_id)
+
+    admin.delete_roster_entry(conn, event_id, "M1")
+
+    assert "M1" not in _positions(conn, event_id)

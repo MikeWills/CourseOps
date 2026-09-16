@@ -19,8 +19,8 @@ import re
 import sqlite3
 from typing import Any
 
-from . import (access, categories, db, importer, labels, leaders, tracker,
-               progress, what3words)
+from . import (access, categories, db, discovery, importer, labels, leaders,
+               progress, tracker, what3words)
 
 
 # Loose on purpose: this is a sanity check against a typed label or a pasted
@@ -747,13 +747,46 @@ def save_roster_entry(conn: sqlite3.Connection, event_id: int, payload: dict) ->
     ).fetchone())
 
 
+@db.transactional
 def delete_roster_entry(conn: sqlite3.Connection, event_id: int,
                         station_key: object) -> None:
+    """Remove a roster entry AND what was heard for it.
+
+    The snapshot draws every stored position, rostered or not, so deleting
+    only the roster row left the pin on every map - a test entry removed
+    before race day stayed there, with "Not started" buttons under it,
+    until someone thought to Ignore it. The positions to drop are the ones
+    the entry accounted for: its own key, the SSID it was bound to, and -
+    for an APRS entry - every SSID of that callsign the wildcard filter
+    dragged in, unless another roster row still claims the callsign.
+    """
     key = (db.clean_text(station_key) or "").upper()
     if not key:
         raise ValueError("Which station?")
+    row = conn.execute(
+        "SELECT * FROM roster WHERE event_id = ? AND station_key = ?",
+        (event_id, key),
+    ).fetchone()
+    if row is None:
+        return
+    keys = {key, db.tracking_key(row)}
     conn.execute("DELETE FROM roster WHERE event_id = ? AND station_key = ?",
                  (event_id, key))
+    base = discovery.base_callsign(key)
+    if (row["tracked_by"] == db.TRACKED_BY_APRS
+            and base not in db.rostered_base_callsigns(conn, event_id)):
+        conn.execute(
+            "DELETE FROM position WHERE event_id = ?"
+            " AND (station_key = ? OR station_key LIKE ?)",
+            (event_id, base, base + "-%"),
+        )
+    for k in keys:
+        conn.execute(
+            "DELETE FROM position WHERE event_id = ? AND station_key = ?",
+            (event_id, k))
+        conn.execute(
+            "DELETE FROM roster_status_log WHERE event_id = ? AND station_key = ?",
+            (event_id, k))
 
 
 # --- access links -----------------------------------------------------------
