@@ -11,6 +11,8 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+## [2026.9.14] - 2026-09-21
+
 ### Changed
 
 - **GitHub Actions moved to the Node 24 majors** (checkout v7, setup-python
