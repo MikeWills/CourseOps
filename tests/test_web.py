@@ -2995,3 +2995,17 @@ def test_the_role_page_titles_itself_with_the_event():
 
     script = (resources.package_file("static") / "app.js").read_text(encoding="utf-8")
     assert "document.title = `${data.event.name} | Course Ops`" in script
+
+
+def test_the_setup_page_title_uses_the_same_separator():
+    """One shape across the app's tabs: "<event> | Course Ops Setup"
+    beside "<event> | Course Ops", so the two are told apart by the last
+    word rather than by a dash against a bar."""
+    from courseops import resources
+
+    static = resources.package_file("static")
+    script = (static / "setup.js").read_text(encoding="utf-8")
+    assert "`${event.name} | Course Ops Setup`" in script
+    assert "'Course Ops | Setup'" in script
+    html = (static / "setup.html").read_text(encoding="utf-8")
+    assert "<title>Course Ops | Setup</title>" in html

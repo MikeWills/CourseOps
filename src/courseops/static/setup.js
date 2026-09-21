@@ -710,7 +710,7 @@ async function loadEvents() {
 function showEventContext() {
   const event = S.events.find((e) => e.id === S.eventId);
   $('event-title').textContent = event ? event.name : '';
-  document.title = event ? `${event.name} - Course Ops Setup` : 'Course Ops - Setup';
+  document.title = event ? `${event.name} | Course Ops Setup` : 'Course Ops | Setup';
 }
 
 function selectEvent(id) {

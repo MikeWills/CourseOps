@@ -18,7 +18,9 @@ month, PATCH counting releases in that month from 0. Before that they were
   a guide open at once, and every tab said the same thing. `app.js` sets
   `document.title` from the snapshot's event name, beside the heading it
   already fills, so the two cannot disagree. Event first because a narrow
-  tab truncates the end.
+  tab truncates the end. The setup page follows the same shape,
+  "<event> | Course Ops Setup", so the two tabs differ by their last word
+  and not by a dash against a bar.
 
 ## [2026.9.12] - 2026-09-15
 
