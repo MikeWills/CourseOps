@@ -2984,3 +2984,14 @@ def test_the_openapi_schema_is_not_served(setup):
     with TestClient(app) as client:
         for path in ("/openapi.json", "/docs", "/redoc"):
             assert client.get(path).status_code == 404, path
+
+
+def test_the_role_page_titles_itself_with_the_event():
+    """A volunteer on the day has several tabs open and the tab strip is
+    where they tell them apart; five links to one event all read
+    "Course Ops" before this. The title is set beside the event name
+    heading, from the same snapshot field, so the two cannot disagree."""
+    from courseops import resources
+
+    script = (resources.package_file("static") / "app.js").read_text(encoding="utf-8")
+    assert "document.title = `${data.event.name} | Course Ops`" in script

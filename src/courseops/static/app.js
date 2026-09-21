@@ -2725,6 +2725,10 @@ function applyState(data) {
   }
 
   document.getElementById('event-name').textContent = data.event.name;
+  // The tab strip is where someone with the map, the setup screen and a
+  // guide open tells them apart; five role links to one event all read
+  // "Course Ops" before this. Event first: a narrow tab truncates the end.
+  document.title = `${data.event.name} | Course Ops`;
 
   // Keyed by what we actually hear, not by what the roster says: a bare
   // callsign entry bound to WX0MIK-5 must meet its own packets, or it shows as
