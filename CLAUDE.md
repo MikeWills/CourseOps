@@ -57,7 +57,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 796 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 798 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -1164,6 +1164,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-20** The role page's browser tab reads "<event> | Course Ops" and setup "<event> | Course Ops Setup", set beside the heading.
 - **2026-09-15** Fixed: deleting a roster entry left its pin on the map; the delete now takes the stored position and status history with it.
 - **2026-09-15** Event notes edit behind a pencil (Save / Cancel) instead of a live box: on a phone, a thumb on the list while scrolling was an edit.
 - **2026-09-15** Event notes: freeform, location-less notes for the organizer ("bring more pizza next year"), addable from every link including Staff, readable by NCS, Liaison and Logistics only; under Course notes for NCS, at the bottom of the sheet otherwise; on the after-event report.
@@ -1173,4 +1174,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-15** Phone tracking (#6): a roster entry can be tracked by a phone app under a designator; one URL and one QR per event on the Tracking tab, the roster as the allowlist, reported time stored rather than arrival. `docs/phone-tracking.md`.
 - **2026-09-15** Setup is two levels: Configure on the Events list opens an event (name as heading, ‹ All events back, hash-addressed); the twelve-tab bar and "Pick an event first" are gone.
 - **2026-09-15** Fixed: deleting the last leader (or layer, or role) brought the defaults back; `event.defaults_seeded` makes seeding once-per-event, and the field app hides Lead runners when an event tracks none.
-- **2026-09-14** Audit (`docs/audit/`): eight reviews, nine PRs (#143-#151). Highlights below; the rest is in `CHANGELOG.md`.
