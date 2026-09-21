@@ -11,6 +11,8 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+## [2026.9.13] - 2026-09-20
+
 ### Changed
 
 - **The role page's tab reads "Mankato Marathon | Course Ops", not
