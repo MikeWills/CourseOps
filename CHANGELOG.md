@@ -11,6 +11,14 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Changed
+
+- **GitHub Actions moved to the Node 24 majors** (checkout v7, setup-python
+  v7, upload-artifact v7, download-artifact v8, action-gh-release v3).
+  Every run was warning that Node 20 is deprecated and the old versions
+  were being forced onto 24 anyway. `download-artifact` still runs without
+  a name, so the two artifacts keep landing in their own folders.
+
 ## [2026.9.13] - 2026-09-20
 
 ### Changed
