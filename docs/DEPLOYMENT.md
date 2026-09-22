@@ -294,6 +294,43 @@ reload apache2`. The lines, and why each is there:
   link ever used: delete them, or `logrotate --force` and delete the
   rotated copies.
 
+The lines themselves, so nobody has to reconstruct them from the template.
+Inside the `<VirtualHost>`, anywhere:
+
+```apache
+LimitRequestBody 70000000
+```
+
+Directly after `RewriteEngine On` and BEFORE the WebSocket `RewriteCond
+%{HTTP:Upgrade}` lines - a `RewriteCond` binds to the next `RewriteRule`
+only, so putting these between the WebSocket conditions and its rule makes
+the final `ws://` rule proxy every request as a WebSocket:
+
+```apache
+RewriteCond %{REQUEST_URI} ^/(e|api|ws)/(?!setup/)([^/]+)/[^/]+(.*)$
+RewriteRule ^ - [E=LOGPATH:/%1/%2/-token-%3]
+RewriteCond %{REQUEST_URI} !^/(e|api|ws)/(?!setup/)[^/]+/[^/]+
+RewriteRule ^ - [E=LOGPATH:%{REQUEST_URI}]
+```
+
+In place of the `CustomLog ... combined` line:
+
+```apache
+LogFormat "%h %l %u %t \"%m %{LOGPATH}e %H\" %>s %O \"%{User-Agent}i\"" courseops
+CustomLog ${APACHE_LOG_DIR}/courseops-access.log courseops
+```
+
+Then:
+
+```bash
+sudo apache2ctl configtest && sudo systemctl reload apache2
+sudo rm /var/log/apache2/courseops-access.log*
+sudo journalctl --rotate && sudo journalctl --vacuum-time=1s
+curl -sI https://courseops.wx0mik.radio/e/x/y >/dev/null; sudo tail -1 /var/log/apache2/courseops-access.log
+```
+
+The last line must show `/e/x/-token-`, not `/e/x/y`.
+
 The journal is the other log. `courseops serve <event>` used to print the
 five role links on every start, which under systemd is every restart and
 every deploy, into `journalctl` for anyone in `systemd-journal`. It now
