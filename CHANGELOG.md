@@ -11,6 +11,12 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Changed
+
+- **Tests use `httpx2` instead of `httpx`.** Starlette's TestClient warned on
+  every run that `httpx` is deprecated and to install `httpx2`, its successor
+  from the same author. Dev dependency only; nothing at runtime changes.
+
 ## [2026.9.14] - 2026-09-21
 
 ### Changed

@@ -201,7 +201,7 @@ def test_the_snapshot_is_built_off_the_event_loop(setup, monkeypatch):
     import asyncio
     import time
 
-    import httpx
+    import httpx2 as httpx
 
     from courseops import snapshot as snapshot_module
 
@@ -1829,7 +1829,7 @@ def test_login_does_not_block_the_event_loop(setup):
     the same loop must be answered - which it was not when scrypt ran
     inline, and the whole map waited on whoever was signing in."""
     import asyncio
-    import httpx
+    import httpx2 as httpx
     app, _, db_path, _ = setup
     _make_admin(db_path)
 
@@ -1856,7 +1856,7 @@ def _answered_while_hashing(app, slow, expected_status):
     """Start `slow` (a request that hashes a password), then check that a
     trivial request on the same loop is answered before it finishes."""
     import asyncio
-    import httpx
+    import httpx2 as httpx
 
     async def race():
         transport = httpx.ASGITransport(app=app)
