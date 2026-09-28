@@ -11,6 +11,19 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Added
+
+- **Runbook: what to check when one station's age keeps climbing.** At the
+  2026-09-27 bike event a phone at an aid station read 4h44 old while its
+  operator believed it was beaconing every 10 minutes. The server log showed
+  the feed connected all day and no packets from that SSID for 4h45m; the
+  phone app had "Beacon your position" on with both send paths (APRS-IS and
+  TNC) off, which still counts "time since transmit". The first packet landed
+  one second after APRS-IS was switched on. No code changed: the app stores
+  every packet, moving or not. The runbook now gives the order to check -
+  phone send path, aprs.fi raw, the server log - so the next one takes minutes
+  rather than an afternoon.
+
 ### Changed
 
 - **Tests use `httpx2` instead of `httpx`.** Starlette's TestClient warned on
