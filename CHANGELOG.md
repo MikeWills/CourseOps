@@ -11,6 +11,14 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Changed
+
+- **Runbook and plan: the pre-event beacon check-in is optional.** Most of the
+  marathon's operators are not local enough for a club-meeting test a week
+  out. Race morning covers it instead: Needs attention for wrong SSIDs, and a
+  glance at each row during net check-in. `docs/PLAN.md` also records the
+  first real event (2026-09-27) under Live verification.
+
 ## [2026.9.16] - 2026-09-29
 
 ### Added
