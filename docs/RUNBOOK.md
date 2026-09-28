@@ -787,27 +787,35 @@ event. One page: how many pickups and when, how many near each water stop, and
 every course note with where and when. Print it or screenshot it. It carries
 no names, so it can go straight to the organizer.
 
-**Turn tracking off** - both switches on the Tracking tab. The APRS filter
-follows each callsign wherever it goes, and the phone link keeps accepting
-positions from any app still running.
+**Archive the event** once the organizer has the report. Setup -> Events ->
+the box button on the event's row. One press, confirmed:
+
+- tracking off - the APRS-IS feed and phone tracking both
+- every stored position for the event deleted. The database keeps one per
+  station (#166), and after the event that one is wherever each volunteer
+  went next, usually home
+- every role link answers 404, so a link forwarded later shows nothing
+- the event leaves the Events list
+
+The report, incidents, notes, sightings, courses, places and roster stay.
+**Show archived** under the list brings it back into view; **Unarchive**
+reopens it with the SAME links, tracking still off.
+
+To keep a copy off the server, **Download** on the archived row saves the
+event as a SQLite file with no accounts, links or positions. From a shell:
 
 ```bash
-# Ctrl-C to stop the server
+courseops export mankato2026 mankato2026.sqlite3
+courseops serve --db mankato2026.sqlite3 --no-ingest --port 8020
 ```
 
-The SQLite database keeps ONE position per station - the latest - and no
-raw packets, so it holds where everyone ended the day and nothing about the
-route they took (#166). The incidents, notes and lead runner sightings are
-the event's record; the after-event report is how the organizer gets them.
-Back up the database file.
+The second command opens the copy as its own server: it asks for a first
+administrator (the setup code is printed), then the report is on the Events
+list as usual.
 
-**[CLUB]** _Where do backups go? Who keeps them and for how long?_
-
-Consider revoking all links after the event:
-
-```bash
-courseops list-links mankato2026
-```
+Nightly backups (`deploy/backup.sh`, from cron) already cover the live
+database. **[CLUB]** _Where do downloaded event files go? Who keeps them and
+for how long?_
 
 ---
 

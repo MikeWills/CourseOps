@@ -149,6 +149,32 @@ The small maps on it are drawn by the browser from the same tiles as the live
 map, so nothing about an incident is sent anywhere the live map does not already
 send it.
 
+### Archive the event when you are done
+
+Once the organizer has the report, press the box button (**Archive**) on the
+event's row. It asks first, then:
+
+- turns tracking off, both the radio feed and phone tracking,
+- deletes every stored volunteer position, which is where each person was
+  when the feed stopped - often their home,
+- makes every role link answer "Access denied", so a link forwarded next
+  month shows nothing,
+- hides the event from the Events list.
+
+The report, the pickups, the notes, the courses, the places and the roster
+are all kept.
+
+To see an archived event again, press **Show archived** under the list. Its
+row comes back greyed, with four buttons: **Unarchive** (the arrow going
+round), the report, **Download**, and delete. Unarchive brings back the same
+links you sent out. Tracking stays off until you turn it on again, and the
+deleted positions do not come back.
+
+**Download** saves the event as one database file, with no accounts, no
+links and no positions in it. Keep it somewhere safe if your club wants a
+copy off the server. Whoever looks after the server can open it with
+`courseops serve --db` and the file name.
+
 ---
 
 ## Two rules worth carrying

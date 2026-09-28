@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import dataclasses
 import logging
 import sys
+from pathlib import Path
 
-from . import (access, aprsis, categories, db, discovery, importer, kml,
+from . import (access, admin, aprsis, categories, db, discovery, importer, kml,
                leaders, styling, units, users, what3words)
 from .config import ConfigError, Settings, load_dotenv
 
@@ -304,6 +306,25 @@ def _event_or_exit(conn, slug: str):
         print(f"No event with slug {slug!r}", file=sys.stderr)
         raise SystemExit(1)
     return event
+
+
+def cmd_export(args: argparse.Namespace) -> int:
+    """One event to its own SQLite file (#4). Read it back with
+    `courseops serve --db FILE`."""
+    out = Path(args.file)
+    if out.exists():
+        print(f"{out} already exists; choose a new file name.", file=sys.stderr)
+        return 1
+    settings = _settings()
+    conn = db.connect(settings.db_path)
+    try:
+        event = _event_or_exit(conn, args.event)
+        admin.export_event(conn, event["id"], out)
+    finally:
+        conn.close()
+    print(f"Exported {event['name']} to {out}")
+    print(f"Open it with:  courseops serve --db {out} --no-ingest")
+    return 0
 
 
 def cmd_import(args: argparse.Namespace) -> int:
@@ -661,6 +682,10 @@ def cmd_serve(args: argparse.Namespace) -> int:
     from .web import create_app
 
     settings = _settings()
+    if args.db:
+        # An exported event (#4) is a whole database, so reading one is
+        # this server pointed at it. Nothing else changes.
+        settings = dataclasses.replace(settings, db_path=Path(args.db))
     logging.basicConfig(
         level=getattr(logging, settings.log_level, logging.INFO),
         format="%(asctime)s %(levelname)-7s %(name)s: %(message)s",
@@ -983,7 +1008,19 @@ def build_parser() -> argparse.ArgumentParser:
         "--trusted-proxy", default="127.0.0.1",
         help="which address may set forwarded headers (default: 127.0.0.1)",
     )
+    p.add_argument(
+        "--db",
+        help="serve this database file instead of the configured one - "
+             "for reading an exported event",
+    )
     p.set_defaults(func=cmd_serve)
+
+    p = sub.add_parser(
+        "export", help="write one event to its own SQLite file, without "
+                       "accounts, links or positions")
+    p.add_argument("event")
+    p.add_argument("file")
+    p.set_defaults(func=cmd_export)
 
     p = sub.add_parser("tail", help="show stored positions")
     p.add_argument("event")

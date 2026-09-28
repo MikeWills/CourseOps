@@ -21,7 +21,8 @@ from pathlib import Path
 from typing import Callable
 
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from starlette.background import BackgroundTask
 
 from . import access, admin, build, categories, db, deps, feed, importer, kml, users
 from . import ingest as ingest_module
@@ -404,6 +405,66 @@ async def setup_delete_event(
         await request.app.state.forget_ingest(row["slug"], event_id)
     return JSONResponse({"deleted": event_id})
 
+def _require_event_creator(user, verb: str) -> None:
+    if not user.may_create_events:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Only an organization or system administrator can {verb} an event.",
+        )
+
+
+@router.post("/api/setup/events/{event_id}/archive")
+async def setup_archive_event(
+    event_id: int, auth: EventAdmin, request: Request
+) -> JSONResponse:
+    """End the event (#4): tracking off, positions deleted, links dead,
+    hidden from the list. The same rights as deleting, because it ends every
+    link and hides the event from everyone."""
+    conn, user = auth
+    _require_event_creator(user, "archive")
+    event = _guard(admin.archive_event, conn, event_id)
+    # The flag is off in the database; the running task and anything held
+    # in memory about the public near the course go with it.
+    await request.app.state.forget_ingest(event["slug"], event_id)
+    return JSONResponse(event)
+
+
+@router.post("/api/setup/events/{event_id}/unarchive")
+async def setup_unarchive_event(
+    event_id: int, auth: EventAdmin
+) -> JSONResponse:
+    conn, user = auth
+    _require_event_creator(user, "unarchive")
+    return JSONResponse(_guard(admin.unarchive_event, conn, event_id))
+
+
+@router.get("/api/setup/events/{event_id}/export")
+async def setup_export_event(event_id: int, auth: EventAdmin) -> FileResponse:
+    """One event as a SQLite file, for keeping off the server (#4).
+
+    A GET, and it writes nothing to the live database - the copy goes to a
+    temporary file that is removed once it has been sent. Built in a thread:
+    the copy is table to table inside SQLite, but it is still the whole
+    event, and nothing else on the loop moves while it runs.
+    """
+    conn = auth.conn
+    event = conn.execute(
+        "SELECT slug, event_date FROM event WHERE id = ?", (event_id,)).fetchone()
+    if event is None:
+        raise HTTPException(status_code=404, detail="No such event.")
+    folder = tempfile.TemporaryDirectory(prefix="courseops-export-")
+    name = f"{event['slug']}-{event['event_date'] or 'undated'}.sqlite3"
+    path = Path(folder.name) / name
+    try:
+        await asyncio.to_thread(admin.export_event, conn, event_id, path)
+    except BaseException:
+        folder.cleanup()
+        raise
+    return FileResponse(path, filename=name,
+                        media_type="application/vnd.sqlite3",
+                        background=BackgroundTask(folder.cleanup))
+
+
 # --- setup: course import ----------------------------------------------
 
 
@@ -622,6 +683,15 @@ async def setup_tracking(
                str(request.base_url)))
 
 
+def _refuse_if_archived(conn, event_id: int) -> None:
+    # A feed for an event whose links answer 404 records volunteers for no
+    # one to see. Switching OFF is always allowed.
+    if admin.is_archived(conn, event_id):
+        raise HTTPException(
+            status_code=400,
+            detail="This event is archived. Unarchive it on the Events list first.")
+
+
 @router.post("/api/setup/events/{event_id}/tracking/phone")
 async def setup_set_phone_tracking(
     event_id: int, auth: EventAdmin, request: Request
@@ -636,6 +706,8 @@ async def setup_set_phone_tracking(
     conn = auth.conn
     body = await json_body(request)
     action = str(body.get("action", ""))
+    if action in ("on", "reset"):
+        _refuse_if_archived(conn, event_id)
     current = db.tracker_token(conn, event_id)
     if action == "on":
         if not current:
@@ -666,6 +738,8 @@ async def setup_set_tracking(
     conn = auth.conn
     body = await json_body(request)
     wanted = bool(body.get("enabled"))
+    if wanted:
+        _refuse_if_archived(conn, event_id)
     state = _guard(feed.tracking_state, request.app, conn, event_id)
     event = conn.execute(
         "SELECT slug, aprs_filter_extra FROM event WHERE id = ?",

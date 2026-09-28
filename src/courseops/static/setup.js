@@ -331,6 +331,14 @@ function goToHash() {
   const parts = location.hash.replace(/^#/, '').split('/');
   if (parts[0] === 'events' && parts[1]) {
     const event = S.events.find((e) => e.slug === parts[1]);
+    if (event && event.archived_at) {
+      // Its links answer 404 and its tracking is off; configuring it would
+      // be editing an event nobody can see. Unarchive is on the list.
+      banner(`${event.name} is archived. Unarchive it on the Events list to change it.`, true);
+      S.showArchived = true;
+      leaveEvent();
+      return;
+    }
     if (event) { enterEvent(event.id, parts[2]); return; }
     banner(`No event called "${parts[1]}" here.`, true);
     leaveEvent();
@@ -419,6 +427,16 @@ const ICONS = {
   // A page with lines on it: the after-event report.
   report: ['<path d="M4.2 2.6h5.2l3 3v7.8H4.2z M9.4 2.6v3h3"/>'
          + '<path d="M6.2 8.4h3.6M6.2 10.8h3.6"/>', 'After-event report'],
+  // A lidded box: put away, not thrown away. Archive (#4).
+  archive: ['<rect x="2.4" y="3" width="11.2" height="3" rx=".8"/>'
+          + '<path d="M3.4 6v6.2a1 1 0 0 0 1 1h7.2a1 1 0 0 0 1-1V6M6.4 8.8h3.2"/>',
+            'Archive'],
+  // An arrow curling back: bring it back out.
+  unarchive: ['<path d="M3.2 8a4.8 4.8 0 1 0 1.4-3.4M3.2 2.6v2.6h2.6"/>',
+              'Unarchive'],
+  // An arrow down onto a line: save a file.
+  download: ['<path d="M8 2.6v7.6M4.8 7.2L8 10.4l3.2-3.2M3 13.2h10"/>',
+             'Download'],
 };
 
 /* The documented what3words URL: the three words after the host. The form
@@ -658,24 +676,54 @@ async function loadEvents() {
       + (S.user.may_create_events ? ' Create one below.' : '') + '</p>';
     return;
   }
-  host.innerHTML = '<table class="grid"><thead><tr><th>Event</th><th>Date</th>'
-    + '<th>Courses</th><th>Places</th><th>Roster</th><th></th></tr></thead><tbody>'
-    + S.events.map((e) => `<tr>
-        <td><strong>${esc(e.name)}</strong><br><span class="muted">${esc(e.slug)}</span></td>
+  /* Archived events (#4) are hidden, not gone: the toggle under the table
+     puts them back in it, greyed, with the actions an archived event has.
+     Kept for the session, so unarchiving one does not snap the list shut. */
+  const archived = S.events.filter((e) => e.archived_at);
+  const shown = S.events.filter((e) => !e.archived_at || S.showArchived);
+  const mayManage = S.user.may_create_events;
+  const actions = (e) => (e.archived_at
+    ? (mayManage ? iconBtn('unarchive', {'data-unarchive': e.id},
+                           `Unarchive ${e.name}`) : '')
+      + iconLink('report', {href: `/setup/events/${e.id}/report`},
+                 `After-event report for ${e.name}`)
+      + iconLink('download', {href: `/api/setup/events/${e.id}/export`,
+                              download: ''},
+                 `Download ${e.name} as a database file`)
+    : iconBtn('configure', {'data-pick': e.id},
+              `Configure ${e.name}: course, places, roster, links`)
+      + iconLink('report', {href: `/setup/events/${e.id}/report`},
+                 `After-event report for ${e.name}`)
+      + iconBtn('edit', {'data-edite': e.id}, `Edit ${e.name}`)
+      + (mayManage ? iconBtn('archive', {'data-archive': e.id},
+                             `Archive ${e.name}`) : ''))
+    + (mayManage ? iconBtn('remove', {'data-del': e.id}, `Delete ${e.name}`) : '');
+
+  const table = shown.length
+    ? '<table class="grid"><thead><tr><th>Event</th><th>Date</th>'
+      + '<th>Courses</th><th>Places</th><th>Roster</th><th></th></tr></thead><tbody>'
+      + shown.map((e) => `<tr${e.archived_at ? ' class="archived"' : ''}>
+        <td><strong>${esc(e.name)}</strong><br><span class="muted">${esc(e.slug)}${
+          e.archived_at ? ' · archived' : ''}</span></td>
         <td>${esc(e.event_date || '')}<br>
           <span class="muted">${esc(e.timezone || '')}</span></td>
         <td>${e.counts.courses}</td>
         <td>${e.counts.pois}</td>
         <td>${e.counts.roster}</td>
-        <td class="actions">
-          ${iconBtn('configure', {'data-pick': e.id},
-                    `Configure ${e.name}: course, places, roster, links`)}
-          ${iconLink('report', {href: `/setup/events/${e.id}/report`},
-                     `After-event report for ${e.name}`)}
-          ${iconBtn('edit', {'data-edite': e.id}, `Edit ${e.name}`)}
-          ${S.user.may_create_events
-            ? iconBtn('remove', {'data-del': e.id}, `Delete ${e.name}`) : ''}
-        </td></tr>`).join('') + '</tbody></table>';
+        <td class="actions">${actions(e)}</td></tr>`).join('') + '</tbody></table>'
+    : '<p class="muted">Every event is archived.</p>';
+  const toggle = archived.length
+    ? `<p><button type="button" id="toggle-archived">${
+        S.showArchived ? 'Hide archived' : `Show archived (${archived.length})`
+      }</button></p>`
+    : '';
+  host.innerHTML = table + toggle;
+
+  const toggleBtn = $('toggle-archived');
+  if (toggleBtn) toggleBtn.addEventListener('click', () => {
+    S.showArchived = !S.showArchived;
+    loadEvents();
+  });
 
   host.querySelectorAll('[data-pick]').forEach((b) => b.addEventListener('click', () => {
     enterEvent(Number(b.dataset.pick));
@@ -684,6 +732,30 @@ async function loadEvents() {
 
   host.querySelectorAll('[data-edite]').forEach((b) => b.addEventListener('click', () => {
     editEvent(S.events.find((e) => e.id === Number(b.dataset.edite)));
+  }));
+  host.querySelectorAll('[data-archive]').forEach((b) => b.addEventListener('click', async () => {
+    const event = S.events.find((e) => e.id === Number(b.dataset.archive));
+    // Says what goes and what stays: the positions are the point of it, and
+    // the links dying is the part someone would otherwise discover by phone.
+    if (!confirm(`Archive "${event.name}"?\n\n`
+      + 'Tracking is turned off, every stored volunteer position is deleted, '
+      + 'and its role links stop working. The report, pickups, notes, courses '
+      + 'and roster are kept.\n\nUnarchive brings the same links back; the '
+      + 'positions do not come back.')) return;
+    try {
+      await post(`/api/setup/events/${event.id}/archive`);
+      if (S.eventId === event.id) selectEvent(null);
+      banner(`Archived ${event.name}.`);
+      loadEvents();
+    } catch (err) { banner(err.message, true); }
+  }));
+  host.querySelectorAll('[data-unarchive]').forEach((b) => b.addEventListener('click', async () => {
+    const event = S.events.find((e) => e.id === Number(b.dataset.unarchive));
+    try {
+      await post(`/api/setup/events/${event.id}/unarchive`);
+      banner(`${event.name} is back. Its links work again; tracking is still off.`);
+      loadEvents();
+    } catch (err) { banner(err.message, true); }
   }));
   host.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', async () => {
     const event = S.events.find((e) => e.id === Number(b.dataset.del));

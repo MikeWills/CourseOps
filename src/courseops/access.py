@@ -245,7 +245,8 @@ def resolve(
 
     Both must match: a token is meaningless against another event even if it is
     otherwise valid, which keeps events isolated once this is hosted for more
-    than one club.
+    than one club. An archived event resolves nothing, so a link forwarded
+    after the event shows nothing; unarchiving brings the same links back.
     """
     if not token:
         return None
@@ -255,6 +256,7 @@ def resolve(
         FROM access_token t
         JOIN event e ON e.id = t.event_id
         WHERE t.token = ? AND e.slug = ? AND t.revoked = 0
+          AND e.archived_at IS NULL
         """,
         (token, event_slug),
     ).fetchone()

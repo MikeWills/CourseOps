@@ -13,10 +13,10 @@ Deployment behind Apache with TLS: `docs/DEPLOYMENT.md`.
 Brand, palette and logo decisions: `docs/DESIGN.md`.
 Complete history with the reasoning behind each fix: `CHANGELOG.md`.
 Open work is tracked as GitHub issues:
-#3 map tiles, #4 archive an event off the live server, #5 multi-tenant hosting,
+#3 map tiles, #5 multi-tenant hosting,
 #6 tracking non-ham volunteers (built and verified on iOS 2026-09-15; Android untried),
 #110 custom views and role names (future: planned, waiting on a second club).
-Issues #3-#5 are triggered by hosting a SECOND organization, not the first.
+Issues #3 and #5 are triggered by hosting a SECOND organization, not the first.
 
 **Starting a fresh session?** Read `docs/PLAN.md` first - it carries the
 decisions and the constraints discovered so far. The "Domain rules" section
@@ -57,7 +57,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 798 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 813 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -81,6 +81,8 @@ courseops links marathon2026           # the role URLs to send out
 courseops links marathon2026 --new ncs # a second link for one role
 courseops serve marathon2026 --port 8020   # web server + live APRS-IS ingest
 courseops serve --no-ingest --port 8020    # map only, no APRS-IS connection
+courseops export marathon2026 marathon2026.sqlite3   # one event, no accounts/links/positions
+courseops serve --db marathon2026.sqlite3 --no-ingest --port 8020   # read it back
 courseops list-links marathon2026 / courseops revoke-link marathon2026 <id>
 ```
 
@@ -340,6 +342,16 @@ usability, not style preferences.
   is under 30 seconds old - a stale fix pins someone where they were, not
   where they are.
 - **Everything is event-scoped**, even with one event. `event_id` on every table.
+- **Archiving is what ends an event (#4), and it is reversible on purpose.**
+  `event.archived_at`: both tracking switches off, the event's positions
+  deleted, `access.resolve` returns nothing so every role link 404s, and
+  setup hides the row behind Show archived. The record stays; unarchive
+  brings back the SAME links with tracking still off, and the tracking
+  routes refuse to switch ON for an archived event. A new event-scoped table
+  must go in `admin.EXPORTED_TABLES` or `NOT_EXPORTED` - a test fails
+  otherwise, because a table in neither is silently missing from every
+  exported file. Positions, raw packets, links and account assignments are
+  never exported.
 - **No What3Words API.** Paid service, deliberately not integrated. Manual entry,
   shape validation only, KML lat/lon stays authoritative.
 - **A human may create a place; a FILE may not.** `admin.create_poi` exists
@@ -1164,6 +1176,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-27** Archive an event (#4): tracking off, positions deleted, links 404, hidden behind Show archived; Download / `courseops export` writes one event to a SQLite file, `serve --db` reads it.
 - **2026-09-27** Runbook: a station whose age keeps climbing - check the phone app's send path (APRS-IS/TNC switches), aprs.fi raw, then the server log.
 - **2026-09-20** The role page's browser tab reads "<event> | Course Ops" and setup "<event> | Course Ops Setup", set beside the heading.
 - **2026-09-15** Fixed: deleting a roster entry left its pin on the map; the delete now takes the stored position and status history with it.
@@ -1173,4 +1186,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-15** Fixed: the OwnTracks QR was refused on a real iPhone until *Settings → Remote Control → Allow external configuration* is on; it is now the step before the scan on the card and in the guides.
 - **2026-09-15** `/help/phone-tracking`: the guide for the person being tracked - install, permission Always, scan, set Tracker ID, turn it off after.
 - **2026-09-15** Phone tracking (#6): a roster entry can be tracked by a phone app under a designator; one URL and one QR per event on the Tracking tab, the roster as the allowlist, reported time stored rather than arrival. `docs/phone-tracking.md`.
-- **2026-09-15** Setup is two levels: Configure on the Events list opens an event (name as heading, ‹ All events back, hash-addressed); the twelve-tab bar and "Pick an event first" are gone.
