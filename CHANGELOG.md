@@ -11,6 +11,8 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+## [2026.9.15] - 2026-09-27
+
 ### Added
 
 - **Archive a finished event (#4).** The box button on the Events list turns
