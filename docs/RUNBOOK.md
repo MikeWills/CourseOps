@@ -624,6 +624,31 @@ where they are? If the roster names an exact SSID, check it is the one they are
 really using - `N0CALL-9` and `N0CALL-7` are different radios. Removing the SSID
 from the roster entry lets the app find it on its own.
 
+**One station's age keeps climbing, but they say they are beaconing.**
+The app stores every packet that reaches it - a station standing still
+still gets a fresh time - so the packets are not arriving. Check, in order:
+
+1. **The phone app's send path.** A phone APRS app can have "Beacon your
+   position" on with both "via APRS-IS" and "via TNC" off. It still counts
+   "time since transmit" and "Beacon now!" still looks like it worked, but
+   nothing leaves the phone. Turn on **via APRS-IS**, press **Beacon now!**,
+   and the station's row should drop to seconds within a minute.
+2. **aprs.fi raw packets** (`https://aprs.fi/?c=raw&call=N0CALL-5`). No
+   packets there in the gap means the phone was not sending.
+3. **The server log**, if aprs.fi has packets Course Ops did not show. The
+   server logs in UTC; CDT is UTC-5.
+
+```bash
+sudo journalctl -u courseops --since "2026-09-27 12:00 UTC" --no-pager | grep -E "N0CALL|APRS-IS|Reconnecting"
+```
+
+A line per packet, within a second of aprs.fi's time, means the server had
+it. No lines and no "connection lost" means it never reached APRS-IS.
+
+This happened for real on 2026-09-27: 4h45m with no packets from a phone
+at an aid station, the feed connected throughout, and the first packet
+arrived one second after the app's APRS-IS switch was turned on.
+
 **Everyone goes silent at once.** That is the server's connection, not the
 field. Check the status badge; if it says Reconnecting, the app is already
 retrying with backoff. Do not restart it repeatedly — APRS-IS bans clients that
