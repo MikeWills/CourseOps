@@ -13,6 +13,22 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ### Added
 
+- **Archive a finished event (#4).** The box button on the Events list turns
+  both tracking switches off, deletes the event's stored positions, makes
+  every role link answer 404, and hides the event. The report, incidents,
+  notes, courses, places and roster stay. **Show archived** under the list
+  brings archived events back into view, greyed, with Unarchive, Report,
+  Download and Delete; Unarchive restores the same links with tracking still
+  off. Why it mattered: after the first real event (2026-09-27) the feed was
+  still running that night, storing where volunteers had gone home to, and
+  the only ways to stop that were to remember two switches or delete the
+  event and its record with it.
+- **One event as its own database file.** **Download** on an archived row, or
+  `courseops export <event> <file>`, writes a SQLite file in the same schema
+  holding that event alone: no accounts, sessions, role links or positions.
+  `courseops serve --db <file>` opens it. Every event-scoped table is either
+  exported or deliberately left out, and a test fails if a new one is
+  neither - otherwise it would be silently missing from every archive.
 - **Runbook: what to check when one station's age keeps climbing.** At the
   2026-09-27 bike event a phone at an aid station read 4h44 old while its
   operator believed it was beaconing every 10 minutes. The server log showed

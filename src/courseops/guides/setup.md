@@ -20,7 +20,7 @@ labelled - so a callsign can be fixed from the car park on race morning.
 > 3. [Race week and after](setup-race-week.md) - tracking, the rehearsal, the report
 > 4. [Making it yours](setup-ideas.md) - layers, roles, and what else this can do
 
-![The Events tab: one row per event, with courses, places and roster counts, and four icon buttons](images/setup-events.png)
+![The Events tab: one row per event, with courses, places and roster counts, five icon buttons, and Show archived below](images/setup-events.png)
 
 The setup screen has two levels. **Outside an event** there are three tabs -
 Organizations, Events and Users - which belong to the installation. **Inside

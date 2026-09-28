@@ -151,9 +151,25 @@ def test_the_delete_event_button_matches_the_servers_rule():
     """The route lets anyone who may create events delete one - a club must
     be able to remove its own rehearsal event - and the client offered the
     button to the host only."""
-    row = _block("host.innerHTML = '<table class=\"grid\">", "host.querySelectorAll('[data-pick]')")
-    assert "S.user.may_create_events\n            ? iconBtn('remove', {'data-del'" in row
+    row = _block("const mayManage =", "host.querySelectorAll('[data-pick]')")
+    assert "const mayManage = S.user.may_create_events;" in row
+    # Delete, archive and unarchive all follow that one rule (#4).
+    for kind in ("remove', {'data-del'", "archive', {'data-archive'",
+                 "unarchive', {'data-unarchive'"):
+        assert f"mayManage ? iconBtn('{kind}" in row, kind
     assert "is_system_admin" not in row
+
+
+def test_archived_events_are_hidden_until_asked_for():
+    """#4: an archived event leaves the list, and a toggle puts it back -
+    otherwise it is either clutter forever or lost for good."""
+    listing = _block("const archived = S.events.filter", "host.querySelectorAll('[data-pick]')")
+    assert "!e.archived_at || S.showArchived" in listing
+    assert "Show archived (${archived.length})" in listing
+    # An archived row cannot be configured: its links answer 404.
+    archived_actions = _block("const actions = (e) => (e.archived_at", "    : iconBtn('configure'")
+    assert "configure" not in archived_actions
+    assert "/export" in archived_actions
 
 
 def test_a_links_last_use_is_shown_in_the_events_zone():

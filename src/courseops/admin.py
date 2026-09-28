@@ -21,6 +21,7 @@ from typing import Any
 
 from . import (access, categories, db, discovery, importer, labels, leaders,
                progress, tracker, what3words)
+from .clock import utc_now_iso
 
 
 # Loose on purpose: this is a sanity check against a typed label or a pasted
@@ -190,6 +191,115 @@ def delete_event(conn: sqlite3.Connection, event_id: int) -> None:
     # Foreign keys cascade, so this removes courses, roster, positions and the
     # whole history with it. The UI asks first.
     conn.execute("DELETE FROM event WHERE id = ?", (event_id,))
+
+
+# --- archive (#4) -------------------------------------------------------------
+
+def is_archived(conn: sqlite3.Connection, event_id: int) -> bool:
+    row = conn.execute(
+        "SELECT archived_at FROM event WHERE id = ?", (event_id,)).fetchone()
+    return bool(row and row["archived_at"])
+
+
+@db.transactional
+def archive_event(conn: sqlite3.Connection, event_id: int) -> dict[str, Any]:
+    """End an event: nothing about where the volunteers are survives it.
+
+    The feed follows each callsign wherever it goes, so after the event the
+    one position per station is where they went home to. Both switches go
+    off and the positions go; the report, incidents, notes and roster are
+    the event's record and stay. Role links stop resolving (access.resolve
+    checks `archived_at`), so a link forwarded next month shows nothing.
+    The running feed task is the caller's to stop - it lives on the app.
+    """
+    cur = conn.execute(
+        "UPDATE event SET archived_at = COALESCE(archived_at, ?),"
+        " ingest_enabled = 0, tracker_token = NULL WHERE id = ?",
+        (utc_now_iso(), event_id))
+    if cur.rowcount == 0:
+        raise ValueError("No such event.")
+    conn.execute("DELETE FROM position WHERE event_id = ?", (event_id,))
+    conn.execute("DELETE FROM raw_packet WHERE event_id = ?", (event_id,))
+    return dict(conn.execute(
+        "SELECT * FROM event WHERE id = ?", (event_id,)).fetchone())
+
+
+def unarchive_event(conn: sqlite3.Connection, event_id: int) -> dict[str, Any]:
+    """Reopen it: the same links work again. Tracking stays off - turning it
+    back on is its own deliberate press, on the Tracking tab."""
+    cur = conn.execute(
+        "UPDATE event SET archived_at = NULL WHERE id = ?", (event_id,))
+    if cur.rowcount == 0:
+        raise ValueError("No such event.")
+    return dict(conn.execute(
+        "SELECT * FROM event WHERE id = ?", (event_id,)).fetchone())
+
+
+# Copied into an export, parents before children so every foreign key finds
+# its row. `organization` and `event` are handled first, by id.
+EXPORTED_TABLES = (
+    "poi_category", "roster_role", "lead_division", "course", "poi",
+    "poi_course", "roster", "import_batch", "import_feature", "incident",
+    "incident_log", "event_note", "lead_sighting", "roster_status_log",
+    "station_exclusion",
+)
+
+# Event-scoped, and left out on purpose. Positions and raw packets are where
+# people were - the thing archiving exists to delete. Role links and account
+# assignments belong to this install: a revived event issues fresh links
+# rather than reviving ones that may have been circulated.
+# tests/test_archive.py fails if a new event-scoped table is in neither list.
+NOT_EXPORTED = ("position", "raw_packet", "access_token", "user_event")
+
+
+def export_event(conn: sqlite3.Connection, event_id: int, path) -> None:
+    """Write one event to a new SQLite file in the same schema (#4).
+
+    Viewing it is running the app against it (`courseops serve --db`), so
+    there is no importer and no id remapping - the ids are copied as they
+    are into a file that holds nothing else. Columns are named rather than
+    `SELECT *`: a migrated database has its added columns at the end, a
+    fresh schema has them where schema.sql puts them.
+    """
+    out = db.connect(path)
+    try:
+        db.init_schema(out)
+    finally:
+        out.close()
+
+    conn.execute("ATTACH DATABASE ? AS out", (str(path),))
+    try:
+        def copy(table: str, where: str, params: tuple) -> None:
+            columns = ", ".join(
+                f'"{r[1]}"' for r in conn.execute(f"PRAGMA out.table_info({table})"))
+            conn.execute(
+                f"INSERT INTO out.{table} ({columns})"
+                f" SELECT {columns} FROM main.{table} WHERE {where}", params)
+
+        with db.transaction(conn):
+            copy("organization",
+                 "id = (SELECT organization_id FROM main.event WHERE id = ?)",
+                 (event_id,))
+            copy("event", "id = ?", (event_id,))
+            conn.execute("UPDATE out.event SET tracker_token = NULL,"
+                         " ingest_enabled = 0")
+            for table in EXPORTED_TABLES:
+                if table == "incident_log":
+                    copy(table, "incident_id IN (SELECT id FROM main.incident"
+                                " WHERE event_id = ?)", (event_id,))
+                else:
+                    copy(table, "event_id = ?", (event_id,))
+    finally:
+        conn.execute("DETACH DATABASE out")
+
+    # One self-contained file. init_schema put it in WAL mode, which keeps
+    # recent writes in a -wal beside it - a download of the main file alone
+    # could be missing them.
+    out = db.connect(path)
+    try:
+        out.execute("PRAGMA journal_mode = DELETE")
+    finally:
+        out.close()
 
 
 # --- course import ----------------------------------------------------------

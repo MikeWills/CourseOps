@@ -39,6 +39,12 @@ CREATE TABLE IF NOT EXISTS event (
     -- endpoint answers 404. Resetting it cuts off every phone at once, which
     -- is the accepted trade for a one-day event - see docs/phone-tracking.md.
     tracker_token     TEXT,
+    -- When the event was archived; NULL while it is live. Archiving is what
+    -- ends an event (#4): tracking off, positions deleted, role links answer
+    -- 404, and the setup list hides it until someone asks to see it.
+    -- Reversible - the record stays - which is why it is a time, not a
+    -- delete. `is_active` above predates this and nothing reads it.
+    archived_at       TEXT,
     created_at        TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
 );
 

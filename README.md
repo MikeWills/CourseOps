@@ -415,6 +415,16 @@ courseops tail marathon2026 --latest              # newest position per station
 Categories: `net_control`, `aid_station`, `sweep`, `sag`, `shadow`, `rover`,
 `start_finish`.
 
+After the event, **Archive** on the Events list turns tracking off, deletes
+the stored volunteer positions, ends the role links and hides the event;
+**Show archived** brings it back into view. To keep one event as its own
+file - no accounts, links or positions - and read it later:
+
+```bash
+courseops export marathon2026 marathon2026.sqlite3
+courseops serve --db marathon2026.sqlite3 --no-ingest --port 8020
+```
+
 ## Development
 
 ```bash

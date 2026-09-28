@@ -708,14 +708,21 @@ Things discovered but not yet acted on. Each is a real constraint, not a wish.
   A club running on a LAN without TLS still loses it.
 - **OpenStreetMap tile policy** — issue #3. Fine for one club; not for a hosted
   multi-club service.
-- **No way to archive a finished event off the live server** — issue #4,
-  reframed 2026-09-05. The feed records where volunteers live and work, and
-  after an event those positions sit in the live database indefinitely. The
-  fix is a per-event archive - a SQLite file in the same schema holding one
-  event, viewable by running the app against it - followed by a separate,
-  confirmed delete. Nothing install-scoped (users, sessions, tokens) travels.
-  The organization-level export and restore that #4 used to be is now part
-  of #5, because it needs a second club to design against.
+- ~~**No way to archive a finished event off the live server**~~ — issue #4,
+  built 2026-09-27 after the first real event. **Archive** on the Events list
+  ends an event in place: both tracking switches off, the event's positions
+  deleted, role links answer 404 (`access.resolve` checks
+  `event.archived_at`), and the list hides it behind **Show archived**.
+  Unarchive restores the same links with tracking still off. Archiving in
+  place rather than export-then-delete was the user's choice: the record
+  (report, incidents, notes, roster) stays viewable in setup, and what #4
+  was about - where volunteers are - is gone either way. The planned file
+  export shipped alongside it: **Download** / `courseops export` writes one
+  event to a SQLite file in the same schema without accounts, links or
+  positions, and `courseops serve --db FILE` reads it. No importer, no id
+  remapping. `admin.EXPORTED_TABLES` and `NOT_EXPORTED` must between them
+  name every event-scoped table; a test fails otherwise. Organization-level
+  export and restore stays with #5.
 - **Multi-tenant rough edges** — issue #5. Resource limits, a signup path with
   password reset, and static asset caching.
 - ~~**An open page is not told a new version is running.**~~ Issue #112, closed
