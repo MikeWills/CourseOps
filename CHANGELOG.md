@@ -11,6 +11,19 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Fixed
+
+- **The NCS stations list is in the club's place order.** It sorted posted
+  stations by mile, and each mile is measured on whichever race its place
+  snaps to - so on the Mankato roster it read F (10K mile 1.7), A (Full 2.2),
+  B (Full 4.2), I (Half 4.4), while the Places tab, the roster and the printed
+  sheet read A, B, C in the order the club had arranged. Posted stations now
+  rank by `poi.sort_order` as sent in the snapshot; people who move (sweeps,
+  SAG) follow, grouped by race in `courseStack()` order and by mile within a
+  race. Status still leads, as before. The fallback for two races had been
+  the label, which made the comparison inconsistent - the order depended on
+  which pairs the sort compared.
+
 ## [2026.9.17] - 2026-09-29
 
 ### Added
