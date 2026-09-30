@@ -11,6 +11,8 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+## [2026.9.20] - 2026-09-29
+
 ### Added
 
 - **Replace a race's line or a place's position from an updated file.** The
