@@ -368,7 +368,12 @@ That means nothing has to be remembered on race morning. The check below is
 still worth running beforehand, because it is better to fix this at a club
 meeting than while the net is live.
 
-**Do this at a club meeting a week out, not on race morning.**
+**Do this at a club meeting a week out, not on race morning** - if your
+operators can get there. When most are not local (the case for the 2026
+Mankato Marathon), skip it and rely on race morning: **Needs attention**
+catches a wrong SSID on the first beacon, and as each operator checks in
+on the net, glance at their row. "never" or an old age means ask whether
+their app's APRS-IS switch is on.
 
 **Collect callsigns, not SSIDs.** Enter `WX0MIK` on the roster and leave the
 SSID off. The app binds the entry to the first SSID it hears that looks like a

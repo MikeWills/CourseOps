@@ -1178,6 +1178,7 @@ Last 10 entries; full record in `CHANGELOG.md`.
 
 - **2026-09-29** Race start times: a Start column on the Courses tab, shown beside the bib colour in each race's lead runners heading; `course.start_time`, 'HH:MM' in the event's zone, never converted.
 - **2026-09-29** Net info: the net's repeaters and tones as free text on the event form, shown to every role at the top of the panel (on a phone, above the lifted role sections).
+- **2026-09-27** Pre-event beacon check-in is optional when operators are not local; race morning's Needs attention and a glance per row at net check-in cover it. First real event recorded in `docs/PLAN.md`.
 - **2026-09-27** Archive an event (#4): tracking off, positions deleted, links 404, hidden behind Show archived; Download / `courseops export` writes one event to a SQLite file, `serve --db` reads it.
 - **2026-09-27** Runbook: a station whose age keeps climbing - check the phone app's send path (APRS-IS/TNC switches), aprs.fi raw, then the server log.
 - **2026-09-20** The role page's browser tab reads "<event> | Course Ops" and setup "<event> | Course Ops Setup", set beside the heading.
@@ -1185,4 +1186,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-15** Event notes edit behind a pencil (Save / Cancel) instead of a live box: on a phone, a thumb on the list while scrolling was an edit.
 - **2026-09-15** Event notes: freeform, location-less notes for the organizer ("bring more pizza next year"), addable from every link including Staff, readable by NCS, Liaison and Logistics only; under Course notes for NCS, at the bottom of the sheet otherwise; on the after-event report.
 - **2026-09-15** One position per station and no raw payload (#166): a fix replaces the previous one, `raw` is blank, a count is all that survives; existing databases pruned at startup.
-- **2026-09-15** Fixed: the OwnTracks QR was refused on a real iPhone until *Settings → Remote Control → Allow external configuration* is on; it is now the step before the scan on the card and in the guides.

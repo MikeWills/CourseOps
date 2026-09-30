@@ -636,6 +636,21 @@ the NCS view on an iPad (Chrome on iOS):
 - The tracking switch survived four deploys in one day.
 - Returning to the app from the background no longer scrolls the header away.
 
+**First real event, 2026-09-27** (a bike ride, `2026katobike`, six on the
+roster). The feed ran all day on the production server with no reconnects,
+and NCS matched stations to roster entries. A phone that stopped sending
+showed its age climbing in red (4h44). The server log proved the cause was
+the phone app's send switches, not the app (runbook, "One station's age
+keeps climbing"). Afterwards the event was archived (#4, built that night).
+
+**Decided 2026-09-27: no pre-event beacon check-in for this club.** Runbook
+step 6a suggests one at a club meeting a week out, but most of the
+marathon's operators are not local enough to attend. The race-morning
+safeguards stand in for it: **Needs attention** surfaces a wrong SSID on the
+first beacon, a bare roster callsign binds itself, and NCS glances at each
+operator's row as they check in on the net. A row reading "never" or an old
+age gets one question: is the app's APRS-IS switch on?
+
 Exercised only in tests or on a scratch event, not yet reported from a live
 feed: a rostered station going stale/silent; the pickup workflow across two
 devices; lead runner sightings; a phone through a dead zone; the after-event
