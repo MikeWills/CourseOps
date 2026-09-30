@@ -115,6 +115,15 @@ courseops discard    mankato2026 8 9        # parking, porta-johns, junk
 13, segments are missing or one belongs to a different route. If `assign-course`
 warns about a gap, look at the course on the map before the event.
 
+**A revised file from the organizer** (a changed route, a moved stop): upload
+it in `/setup` and use **Replace** in the assign box, not a plain assign. A
+line replaces a race's line and keeps everything set on the race; ONE point
+moves an existing place (listed nearest first) and keeps everything set on
+it. A plain assign makes a second "Half" or a second "A" with none of the
+settings. After a moved stop, re-check its What3Words - the app says how far
+it moved. After a replaced line, check the miles on the Places tab. The CLI
+has no replace; this is browser-only.
+
 ### 4. Set colours and draw order
 
 `/setup` -> Courses: each race's name and line colour, and the draw order.
