@@ -734,6 +734,26 @@ half-typed bib - is fixed (`captureFieldEdit` in `app.js`).
 
 Things discovered but not yet acted on. Each is a real constraint, not a wish.
 
+- **A stop more than 250 m from a race's line has no mile on that race.**
+  (2026-09-29, Mankato.) Water stop A serves the Half, but the organizer's
+  Half line never comes within 284 m of it - a drawing issue in the file, not
+  a wrong tick. The Half leader can still be reported at A; there is simply
+  no pace or ETA for the Half's first leg until E and G are reported.
+  Deliberately NOT fixed by raising `progress.DEFAULT_MAX_OFFSET_M`: that
+  limit is what stops a stop on a neighbouring road getting a confident wrong
+  mile. The fix is a corrected file from the organizer, applied with
+  **Replace** on the Import tab. There is no line editor in the app.
+- **A loop cannot be given a direction by its start and finish.** Starts at /
+  Finishes at refuse a line whose ends are within 150 m. None of the races so
+  far is a loop; a club with one would need a Reverse control.
+- **Checking miles against the real organizer files.** They are never in the
+  repo (third-party data). Import them into a scratch database, set the
+  start, tick the stops as in live setup, and read
+  `CourseIndex.place_positions` / `progression` per race: each race's stops
+  must read in rising order down the club's order. That is how the stop I
+  double-pass (Full 16.3 vs 20.6) was found; a synthetic fixture would not
+  have had it.
+
 - ~~**GPX import**~~ - done 2026-09-05, issue #1. `gpx.py` reads tracks,
   routes and waypoints into the same features KML produces; dispatch is on the
   root element, so the extension does not matter. Point density is warned
