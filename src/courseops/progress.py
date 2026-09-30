@@ -102,6 +102,7 @@ class CourseIndex:
         # course. The index is built per request, so the memo needs no
         # invalidation: it dies with the request.
         self._located: dict[tuple[float, float], CoursePosition | None] = {}
+        self._located_on: dict[tuple[float, float, int], CoursePosition | None] = {}
 
     def __len__(self) -> int:
         return len(self._courses)
@@ -175,6 +176,136 @@ class CourseIndex:
 
         return sorted(rows, key=key)
 
+    def locate_on(self, lat: float, lon: float,
+                  course_id: int) -> CoursePosition | None:
+        """The nearest point on ONE course, or None if it is not near it.
+
+        What a distance along a particular race needs. `locate` answers
+        "which line is this nearest", and on shared road that is a coin flip
+        between races whose miles have nothing to do with each other.
+        """
+        key = (lat, lon, course_id)
+        try:
+            return self._located_on[key]
+        except KeyError:
+            pass
+        answer = None
+        course = next((c for c in self._courses if c.id == course_id), None)
+        if course is not None:
+            projection = course.line.project((lon, lat))
+            if projection is not None and projection.offset_m <= self.max_offset_m:
+                answer = CoursePosition(
+                    course_id=course.id,
+                    course_name=course.name,
+                    distance_along_m=projection.distance_along_m,
+                    remaining_m=max(0.0, course.length_m - projection.distance_along_m),
+                    course_length_m=course.length_m,
+                    offset_m=projection.offset_m,
+                )
+        self._located_on[key] = answer
+        return answer
+
+    def _position(self, course: _Course, projection) -> CoursePosition:
+        return CoursePosition(
+            course_id=course.id,
+            course_name=course.name,
+            distance_along_m=projection.distance_along_m,
+            remaining_m=max(0.0, course.length_m - projection.distance_along_m),
+            course_length_m=course.length_m,
+            offset_m=projection.offset_m,
+        )
+
+    def progression(self, course_id: int,
+                    stops: list) -> dict[int, CoursePosition | None]:
+        """Each stop's position on ONE race, the stops in the club's order.
+
+        Where the race goes by a stop more than once, which pass is meant
+        is chosen for the whole race at once: one pass per stop such that
+        the miles never run backwards in the club's order, and of those the
+        choice that puts the stops nearest the line in total. Nearest-pass
+        alone put the Mankato Full's water stop I at mile 20.6 (54 m off)
+        instead of 16.3 (80 m off), behind J at 16.8; "first pass after the
+        previous stop" alone took a pass 200 m away over one the stop sits
+        on. Together they are right in both cases.
+
+        A stop that fits nowhere in order (an order that runs against the
+        route) is left out of the ordering and given its nearest pass, so it
+        cannot drag the stops after it. A stop no pass comes near is None.
+        """
+        course = next((c for c in self._courses if c.id == course_id), None)
+        if course is None:
+            return {row["id"]: None for row in stops}
+        # A stop beside another on the same spot projects a few metres
+        # "before" it; this much backwards is still in order.
+        slack = 50.0
+        skip = 1e6            # far above any sum of offsets
+        options = [course.line.passes((row["lon"], row["lat"]), self.max_offset_m)
+                   for row in stops]
+        placeable = [j for j, found in enumerate(options) if found]
+
+        # best[(j, k)] = (cost, previous (j, k) or None) for stop j at pass k,
+        # every placeable stop before it either placed in order or skipped.
+        best: dict[tuple[int, int], tuple[float, tuple[int, int] | None]] = {}
+        for n, j in enumerate(placeable):
+            for k, here in enumerate(options[j]):
+                cost, back = skip * n, None           # everything before skipped
+                for m, i in enumerate(placeable[:n]):
+                    for kk, there in enumerate(options[i]):
+                        if there.distance_along_m > here.distance_along_m + slack:
+                            continue
+                        candidate = best[(i, kk)][0] + skip * (n - m - 1)
+                        if candidate < cost:
+                            cost, back = candidate, (i, kk)
+                best[(j, k)] = (cost + here.offset_m, back)
+
+        chosen: dict[int, int] = {}
+        if best:
+            last = len(placeable) - 1
+            end = min(best, key=lambda key: best[key][0]
+                      + skip * (last - placeable.index(key[0])))
+            node: tuple[int, int] | None = end
+            while node is not None:
+                chosen[node[0]] = node[1]
+                node = best[node][1]
+
+        out: dict[int, CoursePosition | None] = {}
+        for j, row in enumerate(stops):
+            if not options[j]:
+                out[row["id"]] = None
+            elif j in chosen:
+                out[row["id"]] = self._position(course, options[j][chosen[j]])
+            else:
+                nearest = min(options[j], key=lambda p: p.offset_m)
+                out[row["id"]] = self._position(course, nearest)
+        return out
+
+    def place_positions(self, ordered_rows: list,
+                        served: dict[int, set[int]]) -> dict[int, CoursePosition | None]:
+        """Every place's mile, as the club reads it.
+
+        On a race it serves - the one highest on the Courses tab - at the
+        pass its place in the club's order says. A place serving no stated
+        race, or none within reach, keeps the nearest line as before.
+        `ordered_rows` must already be in club order (`order_along_course`).
+        """
+        per_course: dict[int, dict[int, CoursePosition | None]] = {}
+        for course in self._courses:
+            on_it = [row for row in ordered_rows
+                     if course.id in served.get(row["id"], ())]
+            if on_it:
+                per_course[course.id] = self.progression(course.id, on_it)
+        out: dict[int, CoursePosition | None] = {}
+        for row in ordered_rows:
+            found = None
+            ticked = served.get(row["id"]) or set()
+            for course in reversed(self._courses):        # top of the stack first
+                if course.id in ticked:
+                    found = per_course.get(course.id, {}).get(row["id"])
+                    if found is not None:
+                        break
+            out[row["id"]] = found or self.locate(row["lat"], row["lon"])
+        return out
+
     def locate(self, lat: float, lon: float) -> CoursePosition | None:
         """Nearest point on the nearest course, or None if not near any.
 
@@ -205,3 +336,17 @@ class CourseIndex:
             )
         self._located[key] = best
         return best
+
+
+def served_courses(conn: sqlite3.Connection, event_id: int) -> dict[int, set[int]]:
+    """poi id -> the races the club ticked for it (`poi_course`).
+
+    Stated, never guessed. A place with no entry serves nothing stated, and
+    `place_positions` measures it on the nearest line as before.
+    """
+    served: dict[int, set[int]] = {}
+    for row in conn.execute(
+        "SELECT poi_id, course_id FROM poi_course WHERE event_id = ?", (event_id,)
+    ).fetchall():
+        served.setdefault(row["poi_id"], set()).add(row["course_id"])
+    return served

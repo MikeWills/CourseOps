@@ -356,11 +356,9 @@ def for_event(
         serves = stated.get(row["id"])
         if not serves:
             serves = {located.course_id} if located else set()
-        known[row["id"]] = (
-            row["name"],
-            located.distance_along_m if located else None,
-            serves,
-        )
+        # Where the stop is, not a distance: a distance belongs to one race,
+        # and `_leader_for` measures it on the race whose leader it is.
+        known[row["id"]] = (row["name"], None, serves, row["lat"], row["lon"])
 
     # Ordered the way the club reads them: their own order where they set one,
     # distance along the course otherwise. This is what "the next station"
@@ -375,13 +373,13 @@ def for_event(
         for division in divisions:
             results.append(
                 _leader_for(conn, event_id, course, division, on_course, known,
-                            division_label(division, labels))
+                            index, division_label(division, labels))
             )
     return results
 
 
 def _leader_for(
-    conn, event_id, course, division, stations, known, division_name=None
+    conn, event_id, course, division, stations, known, index, division_name=None
 ) -> Leader:
     base = dict(
         course_id=course["id"],
@@ -396,8 +394,25 @@ def _leader_for(
     reports = sightings(conn, event_id, course["id"], division)
     # `known` covers every staffed place in the event, so a sighting recorded
     # at a station that snapped to another course is still named.
-    distance_by_poi = {poi_id: d for poi_id, (_, d, _) in known.items()}
-    name_by_poi = {poi_id: n for poi_id, (n, _, _) in known.items()}
+    #
+    # Distances are measured on THIS race. Each stop used to carry one
+    # distance, from whichever line was nearest, shared by every race it
+    # serves - so a Half leader's pace between two stops on shared road could
+    # come from Full miles, or run backwards and come out as nothing. A stop
+    # too far from this race's line has no distance on it, and no pace or ETA
+    # is built from it.
+    #
+    # And at the right pass: this race's stops, walked in the club's order,
+    # each measured at the first pass after the stop before it - a looped
+    # route goes by a water stop twice. A sighting at a stop this race does
+    # not serve is measured at its nearest pass.
+    along = index.progression(course["id"], stations)
+    distance_by_poi = {}
+    for poi_id, (_, _, _, lat, lon) in known.items():
+        located = (along[poi_id] if poi_id in along
+                   else index.locate_on(lat, lon, course["id"]))
+        distance_by_poi[poi_id] = located.distance_along_m if located else None
+    name_by_poi = {poi_id: entry[0] for poi_id, entry in known.items()}
     positions = [
         (distance_by_poi.get(row["id"]), row) for row in stations
     ]

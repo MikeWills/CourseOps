@@ -293,6 +293,45 @@ class PlanarLine:
             point=(px / mx, py / my),
         )
 
+    def passes(self, target: LonLat, within_m: float) -> list[Projection]:
+        """Every separate time the line goes by `target`, in course order.
+
+        A pass is a run of consecutive segments within `within_m`; its
+        answer is the nearest point in that run. An out-and-back or a lap
+        goes by the same water stop twice, and `project` alone returns
+        whichever pass is a few metres nearer - on the Mankato Full, mile
+        20.6 for a stop the club means at 16.3.
+        """
+        if not self._segments:
+            return []
+        mx, my = self._mx, self._my
+        tx, ty = target[0] * mx, target[1] * my
+        hypot = math.hypot
+        found: list[Projection] = []
+        run = None           # (offset, distance, index, point) of this run's best
+        last_i = None
+        for i, ax, ay, dx, dy, inv_seg_sq, total, length in self._segments:
+            t = ((tx - ax) * dx + (ty - ay) * dy) * inv_seg_sq
+            t = 0.0 if t < 0.0 else (1.0 if t > 1.0 else t)
+            px, py = ax + t * dx, ay + t * dy
+            offset = hypot(tx - px, ty - py)
+            if offset > within_m:
+                if run is not None:
+                    found.append(run)
+                    run = None
+                continue
+            # A skipped duplicate vertex does not break a run.
+            if run is not None and last_i is not None and i > last_i + 2:
+                found.append(run)
+                run = None
+            last_i = i
+            here = Projection(total + t * length, offset, i, (px / mx, py / my))
+            if run is None or offset < run.offset_m:
+                run = here
+        if run is not None:
+            found.append(run)
+        return found
+
 
 def project_onto_line(
     coords: list[LonLat],

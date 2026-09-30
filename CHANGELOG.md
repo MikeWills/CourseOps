@@ -11,6 +11,30 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Fixed
+
+- **A place's mile is measured on a race it serves, at the right pass.** The
+  mile shown beside a place (Places tab, and the NCS row of whoever is posted
+  there) came from whichever course line was nearest, ignoring the races the
+  club had ticked: on the Mankato roster WE read Half 2.4, WF 10K 4.6 and WC
+  Full 6.5, and nothing a club could tick changed it. It is now measured on a
+  ticked race - the highest on the Courses tab if several - and falls back to
+  the nearest line only for a place with no ticks, or ticks for races nowhere
+  near it.
+- **Lead runner pace and ETA are measured on the leader's own race.** Each stop
+  carried ONE distance, from the nearest line, shared by every race it serves,
+  so a Half leader's pace between two stops on shared road could be computed
+  from Full miles - or run backwards and come out as nothing. Every stop is now
+  measured on the race whose leader it is.
+- **A stop passed twice is measured at the pass the club's order means.** The
+  Mankato Full goes by water stop I at mile 16.3 and 20.6; the nearer pass was
+  the later one, so I read 20.6, behind J at 16.8, and a Full leader's I -> J
+  leg had no pace or ETA. Per race, one pass is chosen per stop so the miles
+  never run backwards in the club's order, and of those the choice with the
+  stops nearest the line (`CourseIndex.progression`). Checked on the real
+  files: every race's stops now read in rising order; a snapshot builds in
+  0.06 s.
+
 ## [2026.9.18] - 2026-09-29
 
 ### Added

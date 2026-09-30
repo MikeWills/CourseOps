@@ -164,6 +164,14 @@ nearest course line. That guess picks exactly ONE race, so a stop serving three
 gets dropped from two of them and the lead runner panel skips it: the "Passed
 X" button jumps from D to I with four stops missing. Tick the boxes.
 
+The ticks also set the mile shown for the stop (on the Places tab and beside
+whoever is posted there on the NCS panel): measured on a race it serves, the
+highest on the Courses tab if it serves several. **Check the miles after
+ticking:** each race's stops should read in rising order down the Places
+table. One that jumps backwards or far ahead usually means the race runs the
+wrong way (set *Starts at* on the Courses tab), the running order is wrong,
+or the stop is ticked for a race whose line is nowhere near it.
+
 ### 4b. Check the labels on the pins
 
 Each pin on a labelled layer carries one or two characters taken from its name,
