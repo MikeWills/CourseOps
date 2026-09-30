@@ -113,6 +113,12 @@ Each race gets a line colour and a **bib colour**, which are two different
 things: the line colour is a map choice, the bib colour is how an aid station
 operator says *"first yellow male just came through"*.
 
+**Start** is the race's start time, on a 24-hour clock in the event's time
+zone (07:00, not 7:00 AM). It appears beside the bib colour at the top of each
+race's lead runners - *Full - Purple bibs, Start 07:00* - so a leader's time
+can be read against the wave they started in. Leave it empty and nothing is
+shown.
+
 Where routes share pavement, the course nearest the top of this list draws on
 top. Drag the grip to change it. That is the order everyone starts with; any
 viewer can re-stack their own screen without affecting anybody else.

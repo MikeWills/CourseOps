@@ -68,6 +68,11 @@ CREATE TABLE IF NOT EXISTS course (
     -- them and says "first yellow male just went through".
     bib_color    TEXT,
     bib_color_name TEXT,
+    -- When this race starts, 'HH:MM' on a 24-hour clock in the event's own
+    -- zone - a time on the day as the club typed it, not an instant, so
+    -- nothing converts it and a phone in another zone cannot shift it.
+    -- Shown beside the bib colour on the lead runners.
+    start_time TEXT,
     geojson    TEXT    NOT NULL,
     distance_m REAL,
     sort_order INTEGER NOT NULL DEFAULT 0

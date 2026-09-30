@@ -13,6 +13,17 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ### Added
 
+- **Race start times beside the bib colour.** The Courses tab in setup has a
+  **Start** column (a time box) per race, saved with the rest of the table,
+  and each race's heading on the lead runners reads *Full - Purple bibs,
+  Start 07:00*. Stored as `course.start_time`, 'HH:MM' on a 24-hour clock in
+  the event's zone - a time on the day as the club typed it, not an instant,
+  so no phone converts it. Anything that is not a clock time, "7:00 AM"
+  included, is refused with a message rather than guessed at, because it is
+  read against a leader's time on race morning. The demo seed carries start
+  times and the NCS lead runners screenshot is re-shot. Why it mattered:
+  waves start apart, and a leader's clock time means little without the
+  start it is read against.
 - **Net info: the net's frequencies on every link.** A box on the event
   form in setup takes the repeaters, tones and backup frequencies as free
   text, one channel a line, and every role link shows it under **Net info**

@@ -1288,7 +1288,7 @@ async function loadCourses() {
   const stacked = [...data.courses].reverse();
   $('course-table').innerHTML = data.courses.length ? `
     <table class="grid"><thead><tr><th></th><th>Course</th><th>Distance</th>
-      <th>Line</th><th>Bib colour</th><th></th></tr></thead><tbody>` +
+      <th>Line</th><th>Bib colour</th><th>Start</th><th></th></tr></thead><tbody>` +
     stacked.map((c) => `<tr data-row="${c.id}">
       <td class="grip-cell">${iconBtn('grip', {'data-grip': c.id},
         `Reorder ${c.name} - drag, or use the arrow keys; the top course draws on top`)}</td>
@@ -1299,6 +1299,8 @@ async function loadCourses() {
             data-bib="${c.id}">
           <input placeholder="Yellow" value="${esc(c.bib_color_name || '')}"
             data-bibname="${c.id}" style="width:90px"></td>
+      <td><input type="time" value="${esc(c.start_time || '')}" data-start="${c.id}"
+            aria-label="Start time of ${esc(c.name)}"></td>
       <td class="actions">${iconBtn('remove', {'data-delc': c.id}, `Delete ${c.name}`)}</td>
     </tr>`).join('') + '</tbody></table>'
     : '<p class="muted">No courses yet — upload a KML on the Import tab.</p>';
@@ -1327,6 +1329,7 @@ async function loadCourses() {
       { attr: 'color', name: 'color' },
       { attr: 'bib', name: 'bib_color' },
       { attr: 'bibname', name: 'bib_color_name' },
+      { attr: 'start', name: 'start_time' },
     ],
     save: (id, payload) => {
       // The two bib fields are one setting on the server (set_bib_color

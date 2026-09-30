@@ -355,6 +355,12 @@ UI for moving a marker yet. Today the fix is for NCS or SAG to delete it.
 
 ## Resolved questions
 
+- *How is a race's start time stored?* (2026-09-29) - `course.start_time`,
+  'HH:MM' 24-hour in the event's zone, as typed, never converted: it is a
+  time on the day, and the lead runners heading prints it as it stands. Not
+  yet used for pace - a first sighting could give a pace from the start,
+  but gun time vs. the leader crossing the mat is a question for the club
+  before it is a number anyone acts on.
 - *Where do the net's frequencies live?* (2026-09-29) - `event.net_info`,
   free text edited on the event form, shown to every role under Net info.
   Free text over a channel table: a table has no place for "switch to the

@@ -1023,6 +1023,16 @@ body {
   font-weight: 700;
 }
 .leader-course:first-child { margin-top: 0; }
+.leader-course { flex-wrap: wrap; }
+/* Pushed to the right edge, and onto its own line under the name on a
+   narrow phone rather than squeezing the race name. The time inside takes
+   the data face (.data); the word "Start" does not. */
+.leader-start {
+  margin-left: auto;
+  font-weight: 600;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
 /* The bib colour, not the map line colour: an operator identifies a runner by
    the bib in front of them. */
 .leader-swatch {

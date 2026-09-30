@@ -394,6 +394,27 @@ def list_courses(conn: sqlite3.Connection, event_id: int) -> list[dict]:
     return [dict(row) for row in importer.courses_for_event(conn, event_id)]
 
 
+_CLOCK = re.compile(r"^(\d{1,2}):(\d{2})$")
+
+
+def _start_time(payload: dict) -> str | None:
+    """A race's start as 'HH:MM', 24-hour, or None when the box is empty.
+
+    The setup form's time input always sends 'HH:MM'; a hand-typed '7:00'
+    is padded. Anything else is refused rather than guessed at - "7:00 AM"
+    included - because this is read against a leader's time on race
+    morning, and a wrong start is worse than none.
+    """
+    text = _text(payload, "start_time")
+    if text is None:
+        return None
+    match = _CLOCK.match(text)
+    if not match or int(match.group(1)) > 23 or int(match.group(2)) > 59:
+        raise ValueError(
+            f"{text!r} is not a start time. Use a 24-hour time, such as 07:00.")
+    return f"{int(match.group(1)):02d}:{match.group(2)}"
+
+
 @db.transactional
 def update_course(conn: sqlite3.Connection, event_id: int, course_id: int,
                   payload: dict) -> dict:
@@ -406,6 +427,10 @@ def update_course(conn: sqlite3.Connection, event_id: int, course_id: int,
             _text(payload, "bib_color_name") if "bib_color_name" in payload
             else leaders.KEEP,
         )
+    if "start_time" in payload:
+        conn.execute(
+            "UPDATE course SET start_time = ? WHERE id = ? AND event_id = ?",
+            (_start_time(payload), course_id, event_id))
     style_fields: dict[str, Any] = {}
     if "color" in payload:
         style_fields["color"] = _text(payload, "color") or ""
