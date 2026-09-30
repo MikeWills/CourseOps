@@ -62,6 +62,20 @@ place always wins over it. Type it when there is nothing to import (a parade, a
 5K with no file), or the Places map opens on the whole country. Paste both
 numbers into the first box and they split themselves.
 
+**Net info** is optional too: the repeaters, tones and backup frequencies, one
+per line, the way you would write them on the briefing sheet -
+
+```
+Race RX 147.330 (136.5) TX 147.930 (136.5)
+Logistics RX 443.650 (114.8) TX 448.650 (114.8)
+Note: Backup Frequency RX 147.240 (136.5) TX 147.840 (136.5)
+```
+
+Every link shows it, exactly as typed, at the top of the panel - Staff
+included, because everyone on the net needs the backup frequency. Change it
+on race morning and it reaches phones already open without a reload. Empty
+the box and the section disappears.
+
 > **The short name is permanent.** It is in `/e/<short-name>/<link>`, which means
 > it is in every link you have handed out. The full name can be changed whenever
 > you like; the short name cannot, because changing it would 404 every volunteer

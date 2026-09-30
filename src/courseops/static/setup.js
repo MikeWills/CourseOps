@@ -864,6 +864,7 @@ function editEvent(event) {
   if (event.timezone) $('ev-tz').value = event.timezone;
   $('ev-lat').value = event.center_lat != null ? String(event.center_lat) : '';
   $('ev-lon').value = event.center_lon != null ? String(event.center_lon) : '';
+  $('ev-net-info').value = event.net_info || '';
   $('ev-org-field').hidden = true;
   $('event-submit').textContent = 'Save changes';
   $('event-cancel').hidden = false;
@@ -915,6 +916,9 @@ $('event-form').addEventListener('submit', async (ev) => {
         name: $('ev-name').value,
         event_date: $('ev-date').value,
         timezone: $('ev-tz').value,
+        // Always sent: unlike the centre, an emptied box here means "there
+        // is none now", and the section leaves every phone.
+        net_info: $('ev-net-info').value,
         ...eventCentre(),
       });
       resetEventForm();
@@ -929,9 +933,10 @@ $('event-form').addEventListener('submit', async (ev) => {
       timezone: $('ev-tz').value,
       organization_id: S.user.is_system_admin
         ? Number($('ev-org').value) : undefined,
+      net_info: $('ev-net-info').value,
       ...eventCentre(),
     });
-    $('ev-slug').value = ''; $('ev-name').value = '';
+    $('ev-slug').value = ''; $('ev-name').value = ''; $('ev-net-info').value = '';
     banner(`Created ${created.name}.`);
     await loadEvents();
     // Straight into it, on Import: a new event's next step is its file.

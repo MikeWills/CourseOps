@@ -214,6 +214,16 @@
         Paste both numbers into the first box and they will split themselves.
         Importing a file sets this for you if it is blank.
       </p>
+      <!-- Shown to every link, Staff included, under "Net info" near the
+           top of the map page. Free text: one channel a line is the layout
+           the club already uses on its briefing sheet. -->
+      <label class="field"><span>Net info <small>(optional)</small></span>
+        <textarea id="ev-net-info" rows="4" maxlength="2000" spellcheck="false"
+          placeholder="Race RX 147.330 (136.5) TX 147.930 (136.5)&#10;Backup RX 147.240 (136.5) TX 147.840 (136.5)"></textarea></label>
+      <p class="muted">
+        Repeaters, tones and backup frequencies, one per line. Every volunteer
+        link shows it exactly as typed.
+      </p>
       <p id="event-error" class="error" hidden></p>
       <div class="row">
         <button id="event-submit" class="primary" type="submit">Create event</button>

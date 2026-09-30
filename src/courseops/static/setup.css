@@ -144,7 +144,7 @@ body.setup #brand img { width: auto; height: 32px; }
 
 .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; flex: 1; }
 .field > span { font-size: 13px; font-weight: 650; }
-.field input, .field select {
+.field input, .field select, .field textarea {
   min-height: 40px;
   padding: 6px 10px;
   border: 1px solid var(--line);
@@ -153,6 +153,13 @@ body.setup #brand img { width: auto; height: 32px; }
   font-size: 15px;
   color: var(--ink);
   background: var(--paper);
+}
+/* The net info box holds frequencies, one channel a line: the data face,
+   so columns of digits line up the way they will on the phones. */
+#ev-net-info {
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+  resize: vertical;
 }
 .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
 .row > .field { min-width: 160px; }
