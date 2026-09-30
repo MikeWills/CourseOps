@@ -50,8 +50,10 @@ of station - an aid station is *Not staffed / On station / Torn down*, a sweep i
 "On station, no APRS" is a healthy aid station. "Rolling, 28m" is a sweep worth
 a call.
 
-Rows sort with the ones that need you at the top: closed stations sink, and
-within a status they run in course order behind the sweep.
+Rows sort with the ones that need you at the top: closed stations sink. Within
+a status, stations posted at a place run in the club's place order - the order
+set on the Places tab in setup, the same as the roster - and people who move
+(sweeps, SAG) are grouped by race, in mile order.
 
 Tap a row to fly the map to that station - to their last position if they
 beacon, to the place they are posted at if they do not.

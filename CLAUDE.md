@@ -57,7 +57,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 856 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 860 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -716,7 +716,11 @@ usability, not style preferences.
   dragging in setup, and it wins. 0 means "never placed by hand" and sorts
   LAST, so an unordered event is unchanged and a later import lands at the end
   where it is visible. The lead runner progression uses the same order, or
-  "the next station" disagrees with the list the club just arranged.
+  "the next station" disagrees with the list the club just arranged. So does
+  the NCS stations list (`placeRankOf` in `app.js`): it sorted posted
+  stations by mile until the first real marathon roster, where that put the
+  10K's mile 1.7 above the Full's mile 2.2. A mile compares two stations only
+  on the SAME race; across races, `courseStack()` order.
 - **Which race a stop serves is stated, not guessed.** `poi_course`, many to
   many, because one water stop routinely serves several races - the organizer's
   file names them "WATER (ALL)". Snapping a stop to the nearest course line
@@ -1176,6 +1180,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-29** Fixed: the NCS stations list sorted posted stations by mile across races (10K mile 1.7 above Full 2.2); it now follows the club's place order, movers grouped by race.
 - **2026-09-29** Print roster (setup, Roster tab): callsign, operator, post, GPS, W3W in course order, unposted last; the browser's Save as PDF is the PDF.
 - **2026-09-29** Race start times: a Start column on the Courses tab, shown beside the bib colour in each race's lead runners heading; `course.start_time`, 'HH:MM' in the event's zone, never converted.
 - **2026-09-29** Net info: the net's repeaters and tones as free text on the event form, shown to every role at the top of the panel (on a phone, above the lifted role sections).
@@ -1185,4 +1190,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-20** The role page's browser tab reads "<event> | Course Ops" and setup "<event> | Course Ops Setup", set beside the heading.
 - **2026-09-15** Fixed: deleting a roster entry left its pin on the map; the delete now takes the stored position and status history with it.
 - **2026-09-15** Event notes edit behind a pencil (Save / Cancel) instead of a live box: on a phone, a thumb on the list while scrolling was an edit.
-- **2026-09-15** Event notes: freeform, location-less notes for the organizer ("bring more pizza next year"), addable from every link including Staff, readable by NCS, Liaison and Logistics only; under Course notes for NCS, at the bottom of the sheet otherwise; on the after-event report.

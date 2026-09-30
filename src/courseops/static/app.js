@@ -87,6 +87,7 @@ const state = {
   // render two rows the event may not have.
   leaders: [],
   aidStations: [],
+  placeOrder: new Map(),     // poi id -> index in the club's place order
   operatorInitials: '',
   following: false,
   meMarker: null,
@@ -241,6 +242,16 @@ function formatMile(meters) {
 function mileHtml(meters) {
   if (meters == null) return '';
   return `mile <span class="data">${(meters / 1609.344).toFixed(1)}</span>`;
+}
+
+/* Where a station's posted place sits in the club's order, or Infinity for
+   someone not posted. The snapshot sends places already ordered
+   (`CourseIndex.order_along_course`: sort_order, then distance). */
+function placeRankOf(stationKey) {
+  const entry = state.roster.get(stationKey);
+  if (!entry || entry.poi_id == null) return Infinity;
+  const rank = state.placeOrder.get(entry.poi_id);
+  return rank == null ? Infinity : rank;
 }
 
 function coursePositionOf(stationKey) {
@@ -757,6 +768,8 @@ function setCourseStack(idsTopFirst) {
   // with it. Two lists of the same races in different orders is a reading
   // error waiting to happen when someone is scanning for one of them.
   renderLeaders();
+  // Sweeps and SAG on different races are listed by race in this order too.
+  renderStations();
   savePrefs();
 }
 
@@ -1164,6 +1177,7 @@ async function setStationStatus(stationKey, opStatus) {
 
 function renderStations() {
   const host = document.getElementById('station-list');
+  const stackAt = new Map(courseStack().map((c, i) => [c.id, i]));
   const keys = [...new Set([...state.roster.keys(), ...state.positions.keys()])]
     .filter(stationVisible)
     .sort((a, b) => {
@@ -1173,12 +1187,28 @@ function renderStations() {
       if (byOp !== 0) return byOp;
       const byStatus = STATUS_RANK[radioStatus(a)] - STATUS_RANK[radioStatus(b)];
       if (byStatus !== 0) return byStatus;
-      // Course order beats alphabetical: "Aid 10" sorts before "Aid 2" by name,
-      // and Greek letters come out Alpha, Beta, Delta, Epsilon, Gamma. Course
-      // order is also how NCS works through them, behind the sweep.
+      /* The club's place order first: the order the Places rows were dragged
+         into, which setup, the roster and the printed sheet already follow.
+         Sorting posted stations by mile interleaved three races - F at 10K
+         mile 1.7 above A at Full mile 2.2 - because each mile is measured
+         on whichever race its place snaps to. Posted stations lead; people
+         who move (sweeps, SAG) follow. */
+      const ra = placeRankOf(a);
+      const rb = placeRankOf(b);
+      if (ra !== rb) return ra - rb;
+      /* A mile orders two stations only on the same race: mile 9 of the Half
+         says nothing about mile 12 of the Full. Across races, the races go
+         in courseStack() order like every other race-grouped list; a label
+         tie-break here instead made the order depend on which pair the sort
+         happened to compare. */
       const pa = coursePositionOf(a);
       const pb = coursePositionOf(b);
-      if (pa && pb) return pa.distance_along_m - pb.distance_along_m;
+      if (pa && pb) {
+        if (pa.course_id === pb.course_id) {
+          return pa.distance_along_m - pb.distance_along_m;
+        }
+        return stackAt.get(pa.course_id) - stackAt.get(pb.course_id);
+      }
       if (pa) return -1;
       if (pb) return 1;
       return labelOf(a).localeCompare(labelOf(b));
@@ -2705,6 +2735,8 @@ function applyState(data) {
   const staffed = new Set(
     (data.poi_categories || []).filter((c) => c.staffed).map((c) => c.key));
   state.aidStations = (data.pois || []).filter((p) => staffed.has(p.poi_type));
+  // The club's place order, as sent: the station list ranks posted people by it.
+  state.placeOrder = new Map((data.pois || []).map((p, i) => [p.id, i]));
 
   if (firstLoad) {
     const prefs = loadPrefs();
