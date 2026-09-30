@@ -57,7 +57,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 860 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 872 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -743,6 +743,14 @@ usability, not style preferences.
 - **Order aid stations by course position, never by name.** Greek letters sort
   Alpha, Beta, Delta, Epsilon, Gamma; "Aid 10" sorts before "Aid 2"; place names
   do not sort at all. `CourseIndex.order_along_course()`.
+- **A race's direction is stated by the club, never inferred.** A file runs
+  whichever way the organizer drew it (the Mankato Half and 10K were drawn
+  finish-first), and `geo.stitch` picks a direction from whichever segment it
+  starts with. `course.start_poi_id` / `finish_poi_id` name the ends, and
+  saving either TURNS THE STORED LINE (`admin._set_course_ends`), so every
+  reader of the geometry - progress, leaders, the report - is right without
+  knowing the feature exists. A place far from both ends, both at one end,
+  or a loop is refused with a message, not guessed at.
 - **The course name always travels with the mile.** Routes share road, so the
   snap is a coin flip there; "mile 14.2" alone would mislead.
 - **Mile figures inherit the course geometry's accuracy, and that is
@@ -1180,6 +1188,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-29** Starts at / Finishes at per race on the Courses tab: naming either turns the stored line to run from the start (the Mankato Half and 10K were drawn finish-first).
 - **2026-09-29** Fixed: the NCS stations list sorted posted stations by mile across races (10K mile 1.7 above Full 2.2); it now follows the club's place order, movers grouped by race.
 - **2026-09-29** Print roster (setup, Roster tab): callsign, operator, post, GPS, W3W in course order, unposted last; the browser's Save as PDF is the PDF.
 - **2026-09-29** Race start times: a Start column on the Courses tab, shown beside the bib colour in each race's lead runners heading; `course.start_time`, 'HH:MM' in the event's zone, never converted.
@@ -1189,4 +1198,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-27** Runbook: a station whose age keeps climbing - check the phone app's send path (APRS-IS/TNC switches), aprs.fi raw, then the server log.
 - **2026-09-20** The role page's browser tab reads "<event> | Course Ops" and setup "<event> | Course Ops Setup", set beside the heading.
 - **2026-09-15** Fixed: deleting a roster entry left its pin on the map; the delete now takes the stored position and status history with it.
-- **2026-09-15** Event notes edit behind a pencil (Save / Cancel) instead of a live box: on a phone, a thumb on the list while scrolling was an edit.
