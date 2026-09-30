@@ -11,6 +11,8 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+## [2026.9.16] - 2026-09-29
+
 ### Added
 
 - **Race start times beside the bib colour.** The Courses tab in setup has a
