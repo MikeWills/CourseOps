@@ -11,6 +11,8 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+## [2026.9.18] - 2026-09-29
+
 ### Added
 
 - **Say where each race starts and finishes.** The Courses tab has *Starts
