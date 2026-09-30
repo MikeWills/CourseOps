@@ -57,7 +57,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 872 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 882 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -728,6 +728,16 @@ usability, not style preferences.
   from this race's progression and the "Passed X" button skipped from D to I.
   Nothing stated falls back to the snap, which is what keeps existing events
   working; never make that fallback the primary path again.
+- **A distance belongs to ONE race, and to one pass of it.** `index.locate`
+  answers "which line is nearest", which on shared road is a coin flip
+  between races whose miles have nothing to do with each other - so a PLACE's
+  mile comes from `place_positions` (a ticked race, highest on the Courses
+  tab) and a leader's distances from `progression` on that leader's race.
+  Where a race passes a stop twice, `progression` picks the passes that keep
+  the club's order non-decreasing with the least total offset; nearest-pass
+  alone put Mankato's stop I at Full 20.6, behind J at 16.8. Anything new
+  that needs "how far along" for a place goes through one of those two,
+  never `locate`.
 - **Undo is not a reset.** `undo_last_sighting` removes one report, for a
   mis-tap mid-race. `clear_sightings` empties a race and division, for the
   morning of the event when the panel is carrying a rehearsal. Both are scoped
@@ -1188,6 +1198,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-29** Fixed: a place's mile is measured on a race it serves (not the nearest line), at the pass the club's order means; lead runner pace/ETA measured on the leader's own race.
 - **2026-09-29** Starts at / Finishes at per race on the Courses tab: naming either turns the stored line to run from the start (the Mankato Half and 10K were drawn finish-first).
 - **2026-09-29** Fixed: the NCS stations list sorted posted stations by mile across races (10K mile 1.7 above Full 2.2); it now follows the club's place order, movers grouped by race.
 - **2026-09-29** Print roster (setup, Roster tab): callsign, operator, post, GPS, W3W in course order, unposted last; the browser's Save as PDF is the PDF.
@@ -1197,4 +1208,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-27** Archive an event (#4): tracking off, positions deleted, links 404, hidden behind Show archived; Download / `courseops export` writes one event to a SQLite file, `serve --db` reads it.
 - **2026-09-27** Runbook: a station whose age keeps climbing - check the phone app's send path (APRS-IS/TNC switches), aprs.fi raw, then the server log.
 - **2026-09-20** The role page's browser tab reads "<event> | Course Ops" and setup "<event> | Course Ops Setup", set beside the heading.
-- **2026-09-15** Fixed: deleting a roster entry left its pin on the map; the delete now takes the stored position and status history with it.

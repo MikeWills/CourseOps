@@ -168,10 +168,18 @@ def build_state(conn: sqlite3.Connection, event_id: int) -> dict[str, Any]:
     poi_rows = conn.execute(
         "SELECT * FROM poi WHERE event_id = ?", (event_id,)
     ).fetchall()
+    ordered_pois = index.order_along_course(poi_rows)
+    # On a race the place serves, where the club ticked one, and at the pass
+    # the club's order says: on shared road the nearest line is a coin flip
+    # between unrelated miles, and a looped route goes by a stop twice. A
+    # posted operator inherits this below, so the NCS row reads it too.
+    place_at = index.place_positions(
+        ordered_pois, progress.served_courses(conn, event_id))
     pois = []
-    for row in index.order_along_course(poi_rows):
+    for row in ordered_pois:
         entry = dict(row)
-        entry["course_position"] = course_position(index, row["lat"], row["lon"])
+        located = place_at.get(row["id"])
+        entry["course_position"] = located.as_dict() if located else None
         # One or two characters for the pin itself. Derived unless the club
         # typed an override; the client never has to guess.
         entry["label_text"] = poi_labels.for_poi(row["name"], row["label"])

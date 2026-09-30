@@ -595,13 +595,19 @@ def list_pois(conn: sqlite3.Connection, event_id: int) -> list[dict]:
     ).fetchall():
         races.setdefault(row["poi_id"], []).append(row["course_id"])
     out = []
-    for row in index.order_along_course(rows):
+    ordered = index.order_along_course(rows)
+    place_at = index.place_positions(
+        ordered, {poi_id: set(ids) for poi_id, ids in races.items()})
+    for row in ordered:
         entry = dict(row)
         layer = layers.get(row["poi_type"])
         entry["layer_name"] = layer["name"] if layer else row["poi_type"]
         entry["layer_icon"] = layer["icon"] if layer else "pin"
         entry["layer_color"] = layer["color"] if layer else None
-        located = index.locate(row["lat"], row["lon"])
+        # Measured on a race it serves (the ticks in this same table), at the
+        # pass the club's order says - the same figure the NCS panel shows
+        # for whoever is posted here.
+        located = place_at.get(row["id"])
         entry["distance_along_m"] = located.distance_along_m if located else None
         # The mile never travels alone. Each place is snapped to whichever
         # course line is nearest, which is a coin flip where routes share

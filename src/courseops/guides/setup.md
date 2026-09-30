@@ -167,7 +167,15 @@ Every point on the map lives here. What each column is for:
 - **Races** - which races this stop serves. State it; do not let it be guessed.
   One water stop routinely serves three races - the organizer's file will
   literally say "WATER (ALL)" - and guessing drops it from every race whose line
-  happens to run further away.
+  happens to run further away. The ticks also decide **the mile** shown beside
+  the place here and on the Net Control panel: it is measured on a race the
+  stop serves - of several, the one highest on the Courses tab - rather than on
+  whichever line happens to be a few metres nearer. Each race's lead runner
+  pace and ETA are measured on that race.
+- **Order and the mile together.** Where a race goes by the same stop twice (an
+  out-and-back, a lap), the running order says which pass is meant: the mile is
+  the one that keeps the stops in order. So if a mile looks wrong, check the
+  order first.
 - **Pin** - the one or two characters drawn on the pin. Derived from the name,
   and only worth typing when the guess comes out wrong.
 - **what3words** - optional, typed in by hand. Aid stations sit at park
