@@ -1638,6 +1638,18 @@ function renderLeaders() {
         ? `${leader.course_name} — ${leader.bib_color_name} bibs`
         : leader.course_name;
       head.append(swatch, name);
+      /* The start is what a leader's clock time is read against, and waves
+         start apart. Printed as stored: 'HH:MM' in the event's zone is
+         already the shape clockTime() gives everything else here. */
+      if (leader.start_time) {
+        const start = document.createElement('span');
+        start.className = 'leader-start';
+        const time = document.createElement('span');
+        time.className = 'data';
+        time.textContent = leader.start_time;
+        start.append('Start ', time);
+        head.append(start);
+      }
       host.appendChild(head);
     }
 

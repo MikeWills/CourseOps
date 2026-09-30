@@ -73,9 +73,11 @@ tmp.write_text('<?xml version="1.0"?><kml xmlns="http://www.opengis.net/kml/2.2"
 importer.stage_file(conn, event_id, tmp)
 feats = {r["name"]: r["id"] for r in importer.pending_features(conn, event_id)}
 course_ids = {}
-for name, color, order in (("Full", "#c8321e", 30), ("Half", "#1a5fa5", 20), ("10K", "#d9a300", 10)):
+for name, color, order, start in (("Full", "#c8321e", 30, "07:00"),
+                                  ("Half", "#1a5fa5", 20, "07:30"),
+                                  ("10K", "#d9a300", 10, "08:15")):
     cid, _, _ = importer.assign_course(conn, event_id, [feats[name]], name=name, color=color)
-    admin.update_course(conn, event_id, cid, {"sort_order": order})
+    admin.update_course(conn, event_id, cid, {"sort_order": order, "start_time": start})
     course_ids[name] = cid
 
 # Places along the Full, by index into the line.

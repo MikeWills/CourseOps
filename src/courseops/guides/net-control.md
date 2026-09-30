@@ -120,6 +120,9 @@ SAG are the ones who can do. See
 There is no tracker on the front runner. This is a log of what aid stations
 report, and the position, pace and estimate are worked out from it.
 
+Each race's heading carries its bib colour and, if the club set one in setup,
+its start time: *Full - Purple bibs, Start 07:00*.
+
 When a station reports the leader through:
 
 1. Type the bib in the box, if you have it.

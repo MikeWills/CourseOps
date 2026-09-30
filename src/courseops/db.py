@@ -137,6 +137,7 @@ _ADDED_COLUMNS: list[tuple[str, str, str]] = [
     ("position", "packets", "INTEGER NOT NULL DEFAULT 1"),
     ("event", "archived_at", "TEXT"),
     ("event", "net_info", "TEXT"),
+    ("course", "start_time", "TEXT"),
 ]
 
 # Columns whose sensible starting value comes from data already in the table.

@@ -80,6 +80,8 @@ class Leader:
     # The club's own wording, carried on the row because it is per event and a
     # constant in this module is exactly what this replaced.
     division_name: str | None = None
+    # 'HH:MM' in the event's zone, as typed in setup; shown beside the bibs.
+    start_time: str | None = None
     last_poi_id: int | None = None
     last_poi_name: str | None = None
     last_distance_m: float | None = None
@@ -102,6 +104,7 @@ class Leader:
             "course_name": self.course_name,
             "bib_color": self.bib_color,
             "bib_color_name": self.bib_color_name,
+            "start_time": self.start_time,
             "division": self.division,
             "division_label": self.division_label,
             "last_poi_id": self.last_poi_id,
@@ -385,6 +388,7 @@ def _leader_for(
         course_name=course["name"],
         bib_color=course["bib_color"] or course["color"],
         bib_color_name=course["bib_color_name"],
+        start_time=course["start_time"],
         division=division,
         division_name=division_name,
     )
