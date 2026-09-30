@@ -11,6 +11,8 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+## [2026.9.19] - 2026-09-29
+
 ### Fixed
 
 - **A place's mile is measured on a race it serves, at the right pass.** The
