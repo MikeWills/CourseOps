@@ -355,6 +355,13 @@ UI for moving a marker yet. Today the fix is for NCS or SAG to delete it.
 
 ## Resolved questions
 
+- *How does the app know which end of a race is the start?* (2026-09-29) -
+  The club says so: *Starts at* / *Finishes at* on the Courses tab, which
+  turns the stored line. Chosen over a Reverse button with S/F markers,
+  which is a check someone has to remember to look at. Nothing infers
+  direction from the file or the event's start/finish layer. A loop cannot
+  be given a direction this way; none of the races so far is one.
+
 - *How is a race's start time stored?* (2026-09-29) - `course.start_time`,
   'HH:MM' 24-hour in the event's zone, as typed, never converted: it is a
   time on the day, and the lead runners heading prints it as it stands. Not

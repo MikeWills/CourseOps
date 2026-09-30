@@ -19,8 +19,8 @@ import re
 import sqlite3
 from typing import Any
 
-from . import (access, categories, db, discovery, importer, labels, leaders,
-               progress, tracker, what3words)
+from . import (access, categories, db, discovery, geo, importer, labels,
+               leaders, progress, tracker, what3words)
 from .clock import utc_now_iso
 
 
@@ -415,6 +415,81 @@ def _start_time(payload: dict) -> str | None:
     return f"{int(match.group(1)):02d}:{match.group(2)}"
 
 
+# How close a named start or finish must be to an end of the line. A start
+# flag sits beside the line, not on it; a place further than this from both
+# ends is the wrong place chosen, and turning the line on it would move
+# every mile on the race with nothing on screen to say so.
+COURSE_END_NEAR_M = 1000.0
+# Ends closer together than this make a loop, whose direction no place at
+# its ends can tell.
+COURSE_LOOP_M = 150.0
+
+
+def _course_place(conn, event_id: int, value: object) -> sqlite3.Row | None:
+    if value is None or value == "":
+        return None
+    try:
+        poi_id = int(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{value!r} is not a place.") from None
+    row = conn.execute("SELECT * FROM poi WHERE id = ? AND event_id = ?",
+                       (poi_id, event_id)).fetchone()
+    if row is None:
+        raise ValueError(f"No place with id {poi_id} in this event.")
+    return row
+
+
+def _set_course_ends(conn, event_id: int, course: sqlite3.Row,
+                     payload: dict) -> None:
+    """Store the named start and finish, and turn the line to run from the start.
+
+    Direction is never inferred: a line that is a loop, a place far from
+    both ends, or a start and finish at the same end are all refused with a
+    message, because each would otherwise be a guess at which way several
+    thousand runners are going.
+    """
+    start = (_course_place(conn, event_id, payload["start_poi_id"])
+             if "start_poi_id" in payload
+             else _course_place(conn, event_id, course["start_poi_id"]))
+    finish = (_course_place(conn, event_id, payload["finish_poi_id"])
+              if "finish_poi_id" in payload
+              else _course_place(conn, event_id, course["finish_poi_id"]))
+
+    coords = geo.from_geojson_linestring(json.loads(course["geojson"]))
+    first, last = coords[0], coords[-1]
+    named = [(place, wanted) for place, wanted in ((start, "first"), (finish, "last"))
+             if place is not None]
+    if named and geo.haversine_m(first, last) < COURSE_LOOP_M:
+        raise ValueError(
+            f"{course['name']} starts and finishes in the same spot, so the "
+            "direction cannot be set from its start and finish places.")
+
+    reverse = set()
+    for place, wanted in named:
+        here = (place["lon"], place["lat"])
+        to_first, to_last = geo.haversine_m(here, first), geo.haversine_m(here, last)
+        if min(to_first, to_last) > COURSE_END_NEAR_M:
+            raise ValueError(
+                f"{place['name']} is {min(to_first, to_last) / 1000:.1f} km from "
+                f"either end of {course['name']}. Pick the place where the "
+                "race actually starts or finishes.")
+        at = "first" if to_first < to_last else "last"
+        reverse.add(at != wanted)
+    if len(reverse) > 1:
+        raise ValueError(
+            f"The start and finish of {course['name']} are both at the same "
+            "end of its line. Check which place is which.")
+
+    if reverse == {True}:
+        coords.reverse()
+        conn.execute("UPDATE course SET geojson = ? WHERE id = ?",
+                     (json.dumps(geo.to_geojson_linestring(coords)), course["id"]))
+    conn.execute(
+        "UPDATE course SET start_poi_id = ?, finish_poi_id = ? WHERE id = ?",
+        (start["id"] if start else None, finish["id"] if finish else None,
+         course["id"]))
+
+
 @db.transactional
 def update_course(conn: sqlite3.Connection, event_id: int, course_id: int,
                   payload: dict) -> dict:
@@ -427,6 +502,13 @@ def update_course(conn: sqlite3.Connection, event_id: int, course_id: int,
             _text(payload, "bib_color_name") if "bib_color_name" in payload
             else leaders.KEEP,
         )
+    if "start_poi_id" in payload or "finish_poi_id" in payload:
+        course = conn.execute(
+            "SELECT * FROM course WHERE id = ? AND event_id = ?",
+            (course_id, event_id)).fetchone()
+        if course is None:
+            raise ValueError(f"No course with id {course_id} in this event.")
+        _set_course_ends(conn, event_id, course, payload)
     if "start_time" in payload:
         conn.execute(
             "UPDATE course SET start_time = ? WHERE id = ? AND event_id = ?",

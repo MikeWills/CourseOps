@@ -73,6 +73,14 @@ CREATE TABLE IF NOT EXISTS course (
     -- nothing converts it and a phone in another zone cannot shift it.
     -- Shown beside the bib colour on the lead runners.
     start_time TEXT,
+    -- Where this race starts and finishes, named by the club. The line is
+    -- stored turned to run from the start, because a file runs whichever
+    -- way the organizer drew it: the Mankato Half and 10K were drawn from
+    -- the finish, and every mile on them was measured from there. Naming a
+    -- place is the whole instruction; nothing infers direction. SET NULL on
+    -- delete: the line keeps the way it was turned.
+    start_poi_id  INTEGER REFERENCES poi(id) ON DELETE SET NULL,
+    finish_poi_id INTEGER REFERENCES poi(id) ON DELETE SET NULL,
     geojson    TEXT    NOT NULL,
     distance_m REAL,
     sort_order INTEGER NOT NULL DEFAULT 0

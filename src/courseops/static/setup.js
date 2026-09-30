@@ -1270,6 +1270,18 @@ $('assign-discard').addEventListener('click', async () => {
 
 /* ---------- courses and aid stations ------------------------------------- */
 
+/* The choices for a race's start or finish: every place, the ones whose
+   layer says start or finish first, because that is nearly always the
+   answer and an event can have seventy mile markers under it. Choosing one
+   is what turns the line; the server refuses a place near neither end. */
+function endOptions(selected) {
+  const ends = (p) => /start|finish/i.test(`${p.layer_name} ${p.name}`);
+  const places = [...(S.pois || [])].sort((a, b) => ends(b) - ends(a));
+  return '<option value="">As drawn</option>' + places.map((p) =>
+    `<option value="${p.id}"${p.id === selected ? ' selected' : ''}>` +
+    `${esc(p.name)} (${esc(p.layer_name)})</option>`).join('');
+}
+
 async function loadCourses() {
   // The layer list drives the per-row dropdown and the bulk target.
   if (!S.poiCategories) {
@@ -1288,7 +1300,8 @@ async function loadCourses() {
   const stacked = [...data.courses].reverse();
   $('course-table').innerHTML = data.courses.length ? `
     <table class="grid"><thead><tr><th></th><th>Course</th><th>Distance</th>
-      <th>Line</th><th>Bib colour</th><th>Start</th><th></th></tr></thead><tbody>` +
+      <th>Line</th><th>Bib colour</th><th>Start</th><th>Starts at</th>
+      <th>Finishes at</th><th></th></tr></thead><tbody>` +
     stacked.map((c) => `<tr data-row="${c.id}">
       <td class="grip-cell">${iconBtn('grip', {'data-grip': c.id},
         `Reorder ${c.name} - drag, or use the arrow keys; the top course draws on top`)}</td>
@@ -1301,6 +1314,10 @@ async function loadCourses() {
             data-bibname="${c.id}" style="width:90px"></td>
       <td><input type="time" value="${esc(c.start_time || '')}" data-start="${c.id}"
             aria-label="Start time of ${esc(c.name)}"></td>
+      <td><select data-startpoi="${c.id}" aria-label="Where ${esc(c.name)} starts">
+            ${endOptions(c.start_poi_id)}</select></td>
+      <td><select data-finishpoi="${c.id}" aria-label="Where ${esc(c.name)} finishes">
+            ${endOptions(c.finish_poi_id)}</select></td>
       <td class="actions">${iconBtn('remove', {'data-delc': c.id}, `Delete ${c.name}`)}</td>
     </tr>`).join('') + '</tbody></table>'
     : '<p class="muted">No courses yet — upload a KML on the Import tab.</p>';
@@ -1330,6 +1347,8 @@ async function loadCourses() {
       { attr: 'bib', name: 'bib_color' },
       { attr: 'bibname', name: 'bib_color_name' },
       { attr: 'start', name: 'start_time' },
+      { attr: 'startpoi', name: 'start_poi_id' },
+      { attr: 'finishpoi', name: 'finish_poi_id' },
     ],
     save: (id, payload) => {
       // The two bib fields are one setting on the server (set_bib_color

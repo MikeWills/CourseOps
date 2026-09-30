@@ -11,6 +11,24 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Added
+
+- **Say where each race starts and finishes.** The Courses tab has *Starts
+  at* and *Finishes at* dropdowns per race (places whose layer says start or
+  finish listed first). Choosing one turns the stored line to run from the
+  start, so every mile, the lead runner progression and "remaining" measure
+  from the right end. Stored as `course.start_poi_id` / `finish_poi_id`,
+  cleared (not the course) if the place is deleted; the line keeps the way it
+  was turned. Refused with a message: a place over 1 km from both ends, a
+  start and finish at the same end, and a loop (ends within 150 m), whose
+  direction no end can tell. Why it mattered: at the 2026 Mankato Marathon
+  every race starts at the stadium and finishes downtown, and the organizer
+  drew the Half and 10K from the finish - water stop F read "10K mile 1.7"
+  when it is the third stop, at 4.6, and every Half mile was measured
+  backwards. The Full came out right only because its eight segments
+  happened to stitch in that order. Checked against the real files: F moves
+  to 10K 4.60, E from Half 10.69 to 2.36.
+
 ### Fixed
 
 - **The NCS stations list is in the club's place order.** It sorted posted

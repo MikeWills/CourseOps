@@ -119,6 +119,20 @@ race's lead runners - *Full - Purple bibs, Start 07:00* - so a leader's time
 can be read against the wave they started in. Leave it empty and nothing is
 shown.
 
+**Starts at** and **Finishes at** say which end of the line is which. A file
+runs whichever way the organizer drew it, and every mile on a race is
+measured from the end the line begins at - so a race drawn from the finish
+reads its first water stop as its last. Pick the race's start place (and its
+finish place, if you like; either one is enough) and the line is turned to
+run from the start. The places whose layer says start or finish are at the
+top of the list. Check the **Places** tab afterwards: the mile beside each
+place is measured from the start you picked.
+
+The app refuses a place more than a kilometre from both ends of the line
+(the wrong place was picked), a start and finish at the same end, and a race
+that starts and finishes in the same spot - a loop has no end to tell its
+direction by. **As drawn** leaves the line the way the file has it.
+
 Where routes share pavement, the course nearest the top of this list draws on
 top. Drag the grip to change it. That is the order everyone starts with; any
 viewer can re-stack their own screen without affecting anybody else.
