@@ -673,6 +673,13 @@ async def setup_roster(event_id: int, auth: EventAdmin) -> JSONResponse:
     })
 
 
+@router.get("/api/setup/events/{event_id}/roster/sheet")
+async def setup_roster_sheet(event_id: int, auth: EventAdmin) -> JSONResponse:
+    # What the Roster tab's Print button lays out. A GET that only reads,
+    # like every setup GET must be.
+    return JSONResponse(_guard(admin.roster_sheet, auth.conn, event_id))
+
+
 @router.get("/api/setup/events/{event_id}/tracking")
 async def setup_tracking(
     event_id: int, auth: EventAdmin, request: Request

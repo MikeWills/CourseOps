@@ -11,6 +11,24 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Added
+
+- **Print roster.** A button on the setup Roster tab prints a sheet of
+  callsign, operator, posted place, that place's GPS coordinates (five
+  decimals, about a metre) and its What3Words address; the print dialog's
+  *Save as PDF* makes the file, named after the event. Posted stations come
+  in the club's own place order, the unposted after them by callsign with no
+  position - a sweep or a SAG moves all day, and a position from earlier is
+  worse than a blank. The callsign is the SSID heard on the air once one has
+  been learned. Places are named the way the live map names them ("Water
+  stop A"), through a Python copy of `placeName()`'s rule,
+  `categories.place_name`. The server builds the rows
+  (`GET /api/setup/events/{id}/roster/sheet`) so the order is tested; the
+  browser prints them, so no PDF library joins the dependencies. Why it
+  mattered: the post, coordinates and W3W for each operator were only on a
+  screen, and a binder at net control or a sheet handed to public safety is
+  what gets read when the screen is not an option.
+
 ### Changed
 
 - **Runbook and plan: the pre-event beacon check-in is optional.** Most of the

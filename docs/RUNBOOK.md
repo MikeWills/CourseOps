@@ -326,6 +326,12 @@ Confirm the roster and the filter it produces:
 courseops roster mankato2026
 ```
 
+**Print the roster for the binder.** Setup -> the event -> Roster -> **Print
+roster**: callsign, operator, post, GPS and What3Words, in course order, with
+the unposted at the end. Choose *Save as PDF* in the print dialog for a file
+to send to the organizer or public safety. Print it after the What3Words are
+in (step 5) and the operators are posted, or those columns come out blank.
+
 ### 5a. Name your layers before importing
 
 Setup -> **Layers**. Whatever kinds of place this event has: mile markers,
