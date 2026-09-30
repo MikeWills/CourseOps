@@ -951,6 +951,28 @@ body {
   color: var(--ink-soft);
 }
 
+/* --- net info ------------------------------------------------------------ */
+
+/* Frequencies are values read off the screen and repeated on the air, so
+   the data face. A channel wraps on a phone, and the continuation hangs
+   indented so it cannot be read as the next channel. pre-wrap keeps the
+   club's own spacing; an empty line keeps its height as a gap. */
+.net-info {
+  margin: 0;
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+  font-size: 14px;
+  line-height: 1.45;
+}
+.net-info-line {
+  padding-left: 1.5em;
+  text-indent: -1.5em;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  min-height: 1.45em;
+}
+.net-info-line + .net-info-line { margin-top: 4px; }
+
 /* --- event notes --------------------------------------------------------- */
 
 /* A sentence and a clock time. The row reuses .incident for its rule and

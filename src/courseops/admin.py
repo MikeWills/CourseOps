@@ -107,6 +107,29 @@ def _zoom(value: object) -> int:
     return zoom
 
 
+# Room for a dozen channels with a note each. Refused past it rather than
+# cut: truncating drops the LAST line, which is where the backup frequency
+# usually goes.
+NET_INFO_MAX = 2000
+
+
+def _net_info(payload: dict) -> str | None:
+    """The net info box: stripped, CRLF made plain, None when blank.
+
+    Lines are kept - one channel a line is the whole layout - so this is not
+    `_text` with a limit, which would cut the end off silently.
+    """
+    text = _text(payload, "net_info")
+    if text is None:
+        return None
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    if len(text) > NET_INFO_MAX:
+        raise ValueError(
+            f"Net info is limited to {NET_INFO_MAX} characters; "
+            f"this is {len(text)}.")
+    return text
+
+
 @db.transactional
 def create_event(conn: sqlite3.Connection, payload: dict,
                  organization_id: int | None = None) -> dict[str, Any]:
@@ -142,6 +165,10 @@ def create_event(conn: sqlite3.Connection, payload: dict,
         center_lat=center.get("center_lat"),
         center_lon=center.get("center_lon"),
     )
+    net_info = _net_info(payload)
+    if net_info is not None:
+        conn.execute("UPDATE event SET net_info = ? WHERE id = ?",
+                     (net_info, event_id))
     # Role links exist from the moment the event does, so there is never a state
     # where an event has been made but cannot be opened.
     access.ensure_tokens(conn, event_id)
@@ -173,6 +200,9 @@ def update_event(conn: sqlite3.Connection, event_id: int, payload: dict) -> dict
         if axis in payload and payload[axis] is not None:
             fields.append(f"{axis} = ?")
             values.append(_coordinate(payload[axis], column))
+    if "net_info" in payload:
+        fields.append("net_info = ?")
+        values.append(_net_info(payload))
     if "zoom" in payload and payload["zoom"] is not None:
         fields.append("zoom = ?")
         values.append(_zoom(payload["zoom"]))

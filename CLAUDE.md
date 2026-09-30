@@ -57,7 +57,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 813 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 825 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -1176,6 +1176,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-29** Net info: the net's repeaters and tones as free text on the event form, shown to every role at the top of the panel (on a phone, above the lifted role sections).
 - **2026-09-27** Archive an event (#4): tracking off, positions deleted, links 404, hidden behind Show archived; Download / `courseops export` writes one event to a SQLite file, `serve --db` reads it.
 - **2026-09-27** Runbook: a station whose age keeps climbing - check the phone app's send path (APRS-IS/TNC switches), aprs.fi raw, then the server log.
 - **2026-09-20** The role page's browser tab reads "<event> | Course Ops" and setup "<event> | Course Ops Setup", set beside the heading.
@@ -1185,4 +1186,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-15** One position per station and no raw payload (#166): a fix replaces the previous one, `raw` is blank, a count is all that survives; existing databases pruned at startup.
 - **2026-09-15** Fixed: the OwnTracks QR was refused on a real iPhone until *Settings → Remote Control → Allow external configuration* is on; it is now the step before the scan on the card and in the guides.
 - **2026-09-15** `/help/phone-tracking`: the guide for the person being tracked - install, permission Always, scan, set Tracker ID, turn it off after.
-- **2026-09-15** Phone tracking (#6): a roster entry can be tracked by a phone app under a designator; one URL and one QR per event on the Tracking tab, the roster as the allowlist, reported time stored rather than arrival. `docs/phone-tracking.md`.

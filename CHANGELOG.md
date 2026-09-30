@@ -11,6 +11,24 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Added
+
+- **Net info: the net's frequencies on every link.** A box on the event
+  form in setup takes the repeaters, tones and backup frequencies as free
+  text, one channel a line, and every role link shows it under **Net info**
+  at the top of the panel - Staff included, since repeater frequencies are
+  published and everyone on the net needs the backup. On a phone it sits
+  above the stations and pickups a role lifts to the top, beside the
+  alerts, because it is three lines and folds to one heading. A wrapped
+  channel hangs indented, so "(136.5)" at the margin is not read as a
+  channel of its own. Saving it reaches open phones through the usual
+  resync; emptying the box removes the section. Over 2000 characters is
+  refused rather than cut, because cutting drops the last line, which is
+  where the backup frequency goes. Why it mattered: there was nowhere in
+  the app to look up which repeater the net was on, and the event notes -
+  the nearest thing - are written during the race for the organizer and
+  unreadable from SAG and Staff links.
+
 ## [2026.9.15] - 2026-09-27
 
 ### Added

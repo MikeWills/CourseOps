@@ -45,6 +45,12 @@ CREATE TABLE IF NOT EXISTS event (
     -- Reversible - the record stays - which is why it is a time, not a
     -- delete. `is_active` above predates this and nothing reads it.
     archived_at       TEXT,
+    -- The net's standing information: repeaters, tones, the backup
+    -- frequency. Free text, one line a channel, set once in setup and sent
+    -- to every role - Staff included, because repeater frequencies are
+    -- published anyway and a volunteer who cannot find the backup is the
+    -- failure this exists to prevent. NULL when the club has written none.
+    net_info          TEXT,
     created_at        TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
 );
 

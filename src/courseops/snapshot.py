@@ -238,6 +238,9 @@ def build_state(conn: sqlite3.Connection, event_id: int) -> dict[str, Any]:
             "center_lat": event["center_lat"],
             "center_lon": event["center_lon"],
             "zoom": event["zoom"],
+            # Repeaters and tones, as the club typed them. Every role: the
+            # forwarded Staff link needs the frequencies as much as NCS does.
+            "net_info": event["net_info"],
         },
         "courses": courses,
         # A club's own wording for the station roles. The keys are fixed

@@ -477,7 +477,10 @@ function rememberSheetOrder() {
    lead runners to reach the pickup queue, Logistics scrolling past both to
    find the sweep.
 
-   Alerts stay first regardless. They are alerts.
+   Alerts stay first regardless. They are alerts. Net info rides with them:
+   three lines of frequencies, and lifted stations put it below seventeen
+   rows on a Staff phone - the frequencies are what someone opened the
+   sheet for when the repeater went quiet. Folded, it is one heading.
 
    `wide` is a parameter rather than read straight from the media query so the
    phone ordering can be checked without a phone. */
@@ -486,7 +489,8 @@ function desiredSheetOrder(wide = WIDE.matches) {
   const promoted = plan.sections.filter((id) => sheetOrder.includes(id));
   if (wide) return sheetOrder.filter((id) => !promoted.includes(id));
 
-  const alerts = ['ssid-section'].filter((id) => sheetOrder.includes(id));
+  const alerts = ['ssid-section', 'net-info-section']
+    .filter((id) => sheetOrder.includes(id));
   const lifted = promoted.filter((id) => !alerts.includes(id));
   const rest = sheetOrder.filter(
     (id) => !alerts.includes(id) && !lifted.includes(id));
@@ -2648,6 +2652,24 @@ async function fetchStateOnce() {
   }
 }
 
+/* The club's repeaters and tones, exactly as typed. One element per line,
+   each set by textContent: it is free text from a person, shown on every
+   phone. A line each rather than one pre-wrapped block because a channel
+   is longer than a phone is wide, and a wrapped "(136.5)" alone at the
+   left margin reads as a channel of its own - the stylesheet hangs the
+   continuation under the first word instead. */
+function renderNetInfo() {
+  const text = (state.event && state.event.net_info) || '';
+  const lines = text.split('\n').map((line) => {
+    const el = document.createElement('div');
+    el.className = 'net-info-line';
+    el.textContent = line;
+    return el;
+  });
+  document.getElementById('net-info').replaceChildren(...lines);
+  document.getElementById('net-info-section').hidden = !text;
+}
+
 function applyState(data) {
   const firstLoad = state.event === null;
   state.event = data.event;
@@ -2767,6 +2789,7 @@ function applyState(data) {
   document.getElementById('incident-section').hidden = !can('incident_report');
   renderSsidAlerts();
   renderIgnored();
+  renderNetInfo();
   renderLeaders();
   renderIncidents();
   renderEventNotes();

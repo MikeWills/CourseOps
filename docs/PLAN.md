@@ -355,6 +355,13 @@ UI for moving a marker yet. Today the fix is for NCS or SAG to delete it.
 
 ## Resolved questions
 
+- *Where do the net's frequencies live?* (2026-09-29) - `event.net_info`,
+  free text edited on the event form, shown to every role under Net info.
+  Free text over a channel table: a table has no place for "switch to the
+  backup at mile 13" or a phone number, and the club already writes them
+  one channel a line. At the top of the panel rather than behind a top-bar
+  button, which is one more thing to remember is there on race morning.
+
 - *Does the Liaison need a subset of the station roster?* - Full set, with layer
   toggles defaulting aid station operators off.
 - *Incidents across events?* - No. Event-scoped only.

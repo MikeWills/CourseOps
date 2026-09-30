@@ -110,6 +110,11 @@ would act on.
 On a wide screen there are two panels, one either side of the map. Which
 sections you get depends on your role.
 
+- **Net info** - the repeaters, tones and backup frequencies for the net,
+  exactly as the club typed them, at the top of the panel on every link. It
+  only appears if the club has filled it in. If the repeater goes quiet,
+  this is where the backup frequency is.
+
 ![Courses, People and Places sections](images/shared-courses-layers.png)
 
 - **Courses** - one switch per race, and its distance. **Top** puts a race's
