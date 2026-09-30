@@ -65,6 +65,15 @@ That is the only way a handheld-only operator appears in the right place.
 The role list is the club's own - rename or add to it on the
 [Roles tab](setup-ideas.md).
 
+**Print roster** (above the table) prints a sheet for the briefing table or a
+binder: callsign, operator, where they are posted, that place's GPS coordinates
+and its What3Words address. Posted stations come in course order - the order
+you set on the Places tab - and everyone not posted (sweeps, SAG, rovers)
+follows with no position, because they move all day. To get a PDF, choose
+**Save as PDF** as the printer in the print dialog; the file is named after the
+event. The callsign printed is the one heard on the air once the app has
+learned an SSID.
+
 ---
 
 ## Links

@@ -717,3 +717,33 @@ td.races { line-height: 1.35; }
   body.print-phone-card #phone-box { border: 0; padding: 0; }
   body.print-phone-card [data-panel="tracking"] { display: block !important; }
 }
+
+/* "Print roster" prints only the sheet: the setup screen around it, the
+   editable table and the form stay on the screen. */
+.print-only { display: none; }
+.roster-actions { align-items: center; margin-bottom: 10px; }
+@media print {
+  body.print-roster > :not(main),
+  body.print-roster main > :not([data-panel="roster"]),
+  body.print-roster [data-panel="roster"] > :not(#roster-sheet) {
+    display: none !important;
+  }
+  body.print-roster [data-panel="roster"] { display: block !important; }
+  body.print-roster #roster-sheet { display: block; }
+}
+#roster-sheet { color: #000; font-size: 11pt; }
+#roster-sheet h1 { font-size: 16pt; margin: 0 0 2pt; }
+#roster-sheet .sheet-date { margin: 0 0 10pt; }
+#roster-sheet table { width: 100%; border-collapse: collapse; }
+#roster-sheet th, #roster-sheet td {
+  text-align: left;
+  vertical-align: top;
+  padding: 4pt 6pt;
+  border-bottom: 0.5pt solid #999;
+}
+#roster-sheet th { border-bottom: 1pt solid #000; font-size: 9pt; }
+/* A row split across two pages loses its callsign from the second half. */
+#roster-sheet tr { break-inside: avoid; }
+/* Values someone reads aloud or types into a map app: the data face. */
+#roster-sheet .data { font-family: var(--font-data); font-variant-numeric: tabular-nums; }
+#roster-sheet .unposted td { color: #444; }

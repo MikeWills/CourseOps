@@ -2585,6 +2585,51 @@ async function loadRoster() {
     }));
 }
 
+/* The printed roster. The server orders it (course order, then the
+   unposted) so this only lays it out; the browser's print dialog is the
+   PDF, which keeps a PDF library off a club laptop. The date is a calendar
+   date with no time, so it is formatted in UTC - in the viewer's own zone
+   a midnight-UTC date shows as the day before west of Greenwich. */
+function renderRosterSheet(sheet) {
+  const date = sheet.event_date
+    ? new Intl.DateTimeFormat(undefined, { dateStyle: 'full', timeZone: 'UTC' })
+        .format(new Date(`${sheet.event_date}T00:00:00Z`))
+    : '';
+  $('roster-sheet').innerHTML = `
+    <h1>${esc(sheet.event_name)} - Roster</h1>
+    <p class="sheet-date">${esc(date)}</p>
+    <table><thead><tr><th>Callsign</th><th>Operator</th><th>Posted at</th>
+      <th>GPS</th><th>What3Words</th></tr></thead><tbody>` +
+    sheet.rows.map((r) => {
+      const rowClass = r.posted_at ? '' : 'unposted';
+      return `<tr class="${rowClass}">
+      <td class="data"><strong>${esc(r.callsign)}</strong></td>
+      <td>${esc(r.operator)}</td>
+      <td>${esc(r.posted_at || 'Not posted')}</td>
+      <td class="data">${esc(r.coordinates || '')}</td>
+      <td class="data">${esc(r.what3words ? '///' + r.what3words : '')}</td>
+    </tr>`;
+    }).join('') + '</tbody></table>';
+}
+
+$('roster-print').addEventListener('click', async () => {
+  if (!needEvent()) return;
+  try {
+    const sheet = await api(`/api/setup/events/${S.eventId}/roster/sheet`);
+    if (!sheet.rows.length) { banner('Nobody on the roster yet.', true); return; }
+    renderRosterSheet(sheet);
+    // The title is what "Save as PDF" names the file.
+    const title = document.title;
+    document.title = `${sheet.event_name} roster`;
+    document.body.classList.add('print-roster');
+    window.addEventListener('afterprint', () => {
+      document.body.classList.remove('print-roster');
+      document.title = title;
+    }, { once: true });
+    window.print();
+  } catch (err) { banner(err.message, true); }
+});
+
 /* One control for three states, because "expects APRS" and "phone app" are
    not independent: a phone entry has no callsign to ask APRS-IS for, and a
    non-tracked one has nothing to go quiet. */

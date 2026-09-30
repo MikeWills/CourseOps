@@ -578,7 +578,16 @@
       bring on the day, so the app works it out from the first position it hears
       and shows it here. Add one yourself only if you know it and want to pin it.
     </p>
+    <div class="row roster-actions">
+      <button id="roster-print" type="button">Print roster</button>
+      <span class="muted">Callsign, operator, post, coordinates and What3Words,
+        in course order. Choose <em>Save as PDF</em> in the print dialog for a
+        file.</span>
+    </div>
     <div id="roster-table"></div>
+    <!-- Filled when Print roster is pressed and shown only on paper. Not
+         [hidden]: that is !important, and the print rules could not undo it. -->
+    <div id="roster-sheet" class="print-only"></div>
     <form id="roster-form" class="card">
       <h3 id="roster-form-title">Add a station</h3>
       <div class="row">

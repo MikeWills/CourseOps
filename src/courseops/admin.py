@@ -849,6 +849,58 @@ def list_roster(conn: sqlite3.Connection, event_id: int) -> list[dict]:
     return out
 
 
+def roster_sheet(conn: sqlite3.Connection, event_id: int) -> dict[str, Any]:
+    """The printed roster: callsign, operator, post, coordinates, W3W.
+
+    Posted stations in the club's own place order - the order the Places tab
+    sets and the lead runners follow - so the sheet reads along the course.
+    Everyone not posted comes after, by callsign, with no position: a sweep
+    or a SAG moves all day, and printing where they once were is worse than
+    a blank. The callsign is the one heard on the air where the app has
+    learned an SSID, because that is what a scanner or aprs.fi shows.
+    """
+    event = conn.execute(
+        "SELECT name, event_date FROM event WHERE id = ?", (event_id,)
+    ).fetchone()
+    if event is None:
+        raise ValueError("No such event.")
+    layers = {row["key"]: row["name"]
+              for row in categories.poi_categories(conn, event_id)}
+    index = progress.CourseIndex.for_event(conn, event_id)
+    places = index.order_along_course(conn.execute(
+        "SELECT * FROM poi WHERE event_id = ?", (event_id,)).fetchall())
+    rank = {row["id"]: i for i, row in enumerate(places)}
+    by_id = {row["id"]: row for row in places}
+
+    posted, unposted = [], []
+    for entry in db.roster_for_event(conn, event_id):
+        place = by_id.get(entry["poi_id"])
+        row = {
+            "callsign": db.tracking_key(entry),
+            "operator": entry["operator_name"] or "",
+            "posted_at": None,
+            "coordinates": None,
+            "what3words": None,
+        }
+        if place is None:
+            unposted.append(row)
+            continue
+        row["posted_at"] = categories.place_name(
+            layers.get(place["poi_type"]), place["name"])
+        # Five decimals is about a metre: all a map app or a dispatcher can use.
+        row["coordinates"] = f"{place['lat']:.5f}, {place['lon']:.5f}"
+        row["what3words"] = place["what3words"]
+        posted.append((rank[place["id"]], row))
+
+    posted.sort(key=lambda pair: (pair[0], pair[1]["callsign"]))
+    unposted.sort(key=lambda row: row["callsign"])
+    return {
+        "event_name": event["name"],
+        "event_date": event["event_date"],
+        "rows": [row for _, row in posted] + unposted,
+    }
+
+
 @db.transactional
 def save_roster_entry(conn: sqlite3.Connection, event_id: int, payload: dict) -> dict:
     tracked_by = _text(payload, "tracked_by") or db.TRACKED_BY_APRS

@@ -283,6 +283,23 @@ def sighting_counts(conn: sqlite3.Connection, event_id: int) -> dict[str, int]:
     return _counts(conn, "lead_sighting", "division", event_id)
 
 
+def place_name(layer_name: str | None, name: str) -> str:
+    """A place as a person says it: the layer, singular, then the name.
+
+    Clubs name places within a layer - the water stops are A, B, C - so the
+    name alone does not say what kind of place it is. The same rule as
+    `placeName()` in app.js, so paper and screen agree: strip one trailing
+    "s" (never after another, or "Access" loses one), never re-case, and
+    skip the layer when the name already starts with it.
+    """
+    layer = (layer_name or "").strip()
+    if layer.lower().endswith("s") and not layer.lower().endswith("ss"):
+        layer = layer[:-1]
+    if not layer or name.lower().startswith(layer.lower()):
+        return name
+    return f"{layer} {name}"
+
+
 def staffed_keys(conn: sqlite3.Connection, event_id: int) -> set[str]:
     """The categories where a person stands.
 
