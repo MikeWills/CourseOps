@@ -11,6 +11,8 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+## [2026.9.17] - 2026-09-29
+
 ### Added
 
 - **Print roster.** A button on the setup Roster tab prints a sheet of
