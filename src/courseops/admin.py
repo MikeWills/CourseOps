@@ -357,6 +357,28 @@ def assign_features(conn: sqlite3.Connection, event_id: int, payload: dict) -> d
     if not ids:
         raise ValueError("Select at least one feature.")
 
+    if kind == "course" and payload.get("replace_course_id") not in (None, ""):
+        course_id = _ids([payload["replace_course_id"]], "course")[0]
+        distance_m, warnings = importer.replace_course_line(
+            conn, event_id, course_id, ids,
+            reverse=bool(payload.get("reverse")))
+        # Turned to the race's stated start, like a Starts at save: the
+        # revision is drawn whichever way the organizer drew it this time.
+        # Refused here rolls the whole replacement back.
+        course = conn.execute("SELECT * FROM course WHERE id = ?",
+                              (course_id,)).fetchone()
+        if course["start_poi_id"] or course["finish_poi_id"]:
+            _set_course_ends(conn, event_id, course, {})
+        return {"course_id": course_id, "distance_m": distance_m,
+                "warnings": warnings, "replaced": True}
+
+    if kind == "poi" and payload.get("replace_poi_id") not in (None, ""):
+        poi_id = _ids([payload["replace_poi_id"]], "place")[0]
+        if len(ids) != 1:
+            raise ValueError("Select one point to move a place to.")
+        moved_m = importer.replace_poi_position(conn, event_id, poi_id, ids[0])
+        return {"poi_ids": [poi_id], "moved_m": moved_m, "replaced": True}
+
     if kind == "course":
         name = _text(payload, "name")
         if not name:

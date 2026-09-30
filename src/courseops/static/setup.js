@@ -1068,6 +1068,12 @@ async function fillAssignTypes() {
 
 async function loadStaged() {
   await fillAssignTypes();
+  // What a revised line or point can replace. Kept apart from S.courses and
+  // S.pois, which other tabs load with their own filters (the roster's are
+  // staffed places only).
+  const existing = await api(`/api/setup/events/${S.eventId}/courses`);
+  S.reviewCourses = [...existing.courses].reverse();     // Courses tab order
+  S.reviewPois = existing.pois;
   const data = await api(`/api/setup/events/${S.eventId}/staged`);
   renderReview(data.features);
 }
@@ -1235,19 +1241,89 @@ function togglePick(id) {
   if (picked.length === 1 && !$('assign-name').value) {
     $('assign-name').value = picked[0].name.replace(/\s*\[\d+\]$/, '');
   }
+  fillReplace(picked, allLines);
+}
+
+/* What an updated file's line or point can go INTO. Lines: the races.
+   One point: the places, nearest first with the distance, because the
+   question being answered is "which of our stops is this" and an
+   organizer's revised file names them "WATER (ALL)" as often as "A". */
+function fillReplace(picked, allLines) {
+  const onePoint = picked.length === 1 && picked[0].geom_type === 'point';
+  const field = $('assign-replace-field');
+  field.hidden = !(allLines || onePoint);
+  if (field.hidden) { $('assign-replace').value = ''; syncReplace(); return; }
+  if (allLines) {
+    $('assign-replace-hint').textContent =
+      'keeps its name, colours, start, stops and sightings';
+    $('assign-replace').innerHTML = '<option value="">No - make a new course</option>' +
+      (S.reviewCourses || []).map((c) =>
+        `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+  } else {
+    const [lon, lat] = picked[0].geojson.coordinates;
+    const away = (p) => metresBetween(lat, lon, p.lat, p.lon);
+    const places = [...(S.reviewPois || [])].sort((a, b) => away(a) - away(b));
+    $('assign-replace-hint').textContent =
+      'moves it here; keeps its name, order, races, W3W and who is posted';
+    $('assign-replace').innerHTML = '<option value="">No - make a new place</option>' +
+      places.map((p) => `<option value="${p.id}">${esc(p.name)} (` +
+        `${esc(p.layer_name)}) - ${esc(distanceText(away(p)))}</option>`).join('');
+  }
+  $('assign-replace').value = '';
+  syncReplace();
+}
+
+// Replacing keeps the existing name and layer, so those boxes say nothing.
+function syncReplace() {
+  const replacing = !!$('assign-replace').value;
+  $('assign-name').disabled = replacing;
+  $('assign-type').disabled = replacing;
+}
+$('assign-replace').addEventListener('change', syncReplace);
+
+function metresBetween(lat1, lon1, lat2, lon2) {
+  const rad = Math.PI / 180;
+  const x = (lon2 - lon1) * rad * Math.cos(((lat1 + lat2) / 2) * rad);
+  const y = (lat2 - lat1) * rad;
+  return Math.hypot(x, y) * 6371000;
+}
+
+function distanceText(m) {
+  return m < 1000 ? `${Math.round(m)} m` : `${(m / 1609.344).toFixed(1)} mi`;
 }
 
 $('assign-go').addEventListener('click', async () => {
   const type = $('assign-type').value;
   const ids = [...S.picked];
+  const replace = $('assign-replace-field').hidden ? '' : $('assign-replace').value;
+  const lines = S.staged.filter((f) => S.picked.has(f.id))
+    .every((f) => f.geom_type !== 'point');
   try {
-    const body = type === 'course'
-      ? {kind: 'course', ids, name: $('assign-name').value,
-         reverse: $('assign-reverse').checked}
-      : {kind: 'poi', ids, poi_type: type, name: $('assign-name').value};
+    let body;
+    if (replace && lines) {
+      body = {kind: 'course', ids, replace_course_id: Number(replace),
+              reverse: $('assign-reverse').checked};
+    } else if (replace) {
+      body = {kind: 'poi', ids, replace_poi_id: Number(replace)};
+    } else {
+      body = type === 'course'
+        ? {kind: 'course', ids, name: $('assign-name').value,
+           reverse: $('assign-reverse').checked}
+        : {kind: 'poi', ids, poi_type: type, name: $('assign-name').value};
+    }
     const result = await post(`/api/setup/events/${S.eventId}/assign`, body);
     if (result.warnings && result.warnings.length) {
       banner(result.warnings.join(' '), true);
+    } else if (result.replaced && result.moved_m != null) {
+      // The What3Words square is where the place WAS: say so when it moved
+      // far enough to be a different square.
+      banner(result.moved_m >= 3
+        ? `Place moved ${distanceText(result.moved_m)}. Check its What3Words - `
+          + 'it still names the old spot.'
+        : 'Place position updated (moved less than 3 m).', result.moved_m >= 3);
+    } else if (result.replaced) {
+      banner(`Course line replaced (${miles(result.distance_m)}). Check the miles `
+        + 'on the Places tab.');
     } else {
       banner(type === 'course'
         ? `Course created (${miles(result.distance_m)}).`

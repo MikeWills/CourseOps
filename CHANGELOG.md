@@ -11,6 +11,28 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Added
+
+- **Replace a race's line or a place's position from an updated file.** The
+  Import review's assign box has a **Replace** choice. Lines: pick a race, and
+  its geometry is replaced while its id, name, colours, start time, *Starts
+  at* / *Finishes at*, the races ticked on its stops and its lead runner
+  reports stay; the new line is re-turned to the stated start, and a line
+  whose ends miss that start is refused with nothing changed. One point: the
+  places are listed nearest first with the distance, and the chosen place
+  moves there, keeping its name, layer, order, races, pin label, notes,
+  What3Words and posted operator - the screen then says how far it moved,
+  because the What3Words square still names the old spot. The replaced
+  features are discarded rather than left assigned, so deleting the course
+  later does not put both versions back in review. Why it mattered: import
+  only ever added, so an organizer's revised Half became a second "Half" with
+  none of the first one's settings, a moved stop a second "A" with no ticks,
+  order, What3Words or operator - and the originals could not be deleted once
+  anything referred to them. Two weeks before the Mankato Marathon a revised
+  file is expected. Checked in the browser by replacing the demo Half with the
+  real organizer Half (same course id, start time kept, 14.6 -> 13.1 mi) and
+  moving a stop 72 m.
+
 ## [2026.9.19] - 2026-09-29
 
 ### Fixed

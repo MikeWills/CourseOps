@@ -57,7 +57,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 882 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 892 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -383,6 +383,13 @@ usability, not style preferences.
 - **Import never writes directly to `course` or `poi`.** Files stage as `pending`
   in `import_feature`; a human assigns each one. `suggest()` is advisory and must
   stay conservative — better unassigned than a parking lot filed as an aid station.
+  A human may also assign a staged line or point to REPLACE an existing course's
+  line or place's position (`importer.replace_course_line` /
+  `replace_poi_position`): the row keeps its id and everything the club set,
+  only geometry changes, and a replaced line is re-turned to its stated start.
+  Never match an updated feature to an existing one automatically - a revised
+  file names stops "WATER (ALL)" as often as "A"; the UI lists places nearest
+  first and a person picks.
 - **KML is untrusted third-party input.** It comes from the race organizer and
   will arrive by web upload. Parse with `defusedxml`, keep the KMZ decompression
   and size guards, and never swap back to stdlib `ElementTree.fromstring`.
@@ -1198,6 +1205,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-09-29** Replace from an updated file: Import's assign box can put a staged line INTO an existing race or ONE point INTO an existing place (nearest first); only geometry changes, the line is re-turned to its start.
 - **2026-09-29** Fixed: a place's mile is measured on a race it serves (not the nearest line), at the pass the club's order means; lead runner pace/ETA measured on the leader's own race.
 - **2026-09-29** Starts at / Finishes at per race on the Courses tab: naming either turns the stored line to run from the start (the Mankato Half and 10K were drawn finish-first).
 - **2026-09-29** Fixed: the NCS stations list sorted posted stations by mile across races (10K mile 1.7 above Full 2.2); it now follows the club's place order, movers grouped by race.
@@ -1207,4 +1215,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-27** Pre-event beacon check-in is optional when operators are not local; race morning's Needs attention and a glance per row at net check-in cover it. First real event recorded in `docs/PLAN.md`.
 - **2026-09-27** Archive an event (#4): tracking off, positions deleted, links 404, hidden behind Show archived; Download / `courseops export` writes one event to a SQLite file, `serve --db` reads it.
 - **2026-09-27** Runbook: a station whose age keeps climbing - check the phone app's send path (APRS-IS/TNC switches), aprs.fi raw, then the server log.
-- **2026-09-20** The role page's browser tab reads "<event> | Course Ops" and setup "<event> | Course Ops Setup", set beside the heading.

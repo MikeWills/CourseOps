@@ -105,6 +105,28 @@ The screenshot above is a real export's defects: three placemarks, all named
 segments, a stray line miles from the route, or a start marker in the wrong car
 park is obvious there and invisible in a list of names.
 
+### An updated file from the organizer
+
+Routes and stops get revised in the weeks before a race. Upload the new file the
+same way, then use **Replace** in the assign box rather than making something
+new - otherwise you get a second "Half" and a second "A" with none of your
+settings on them.
+
+- **A revised route:** select its line (or all its segments) and pick the race
+  under **Replace**. The race keeps its name, colours, start time, *Starts at* /
+  *Finishes at*, the races ticked on its stops and any lead runner reports; only
+  the line changes, and it is turned to run from the race's start again. If the
+  new line's ends are nowhere near the start you chose, it is refused and
+  nothing changes. Check the miles on the Places tab afterwards.
+- **A moved stop:** select ONE point. **Replace** lists your places nearest
+  first, with the distance - a point a few metres from "A" is almost certainly
+  A. The place keeps its name, layer, order, races, pin label, What3Words and
+  whoever is posted there; only its position moves. **Its What3Words still
+  names the old spot**, so the app tells you how far it moved: re-check the
+  address if it moved more than a few metres.
+- A point that matches none of your places (a new stop) is assigned the
+  ordinary way, and anything unchanged can simply be discarded.
+
 ## 3. Courses: colours and draw order
 
 ![The Courses tab: name, distance, line colour, bib colour, drag to reorder](images/setup-courses.png)

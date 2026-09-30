@@ -276,20 +276,9 @@ def set_course_style(
 
 
 @db.transactional
-def assign_course(
-    conn: sqlite3.Connection,
-    event_id: int,
-    feature_ids: list[int],
-    name: str,
-    color: str | None = None,
-    reverse: bool = False,
-    dash: str | None = None,
-) -> tuple[int, float, list[str]]:
-    """Build one course from one or more staged line features.
-
-    Several features are stitched end-to-end, since a course routinely arrives
-    split across segments. Returns (course_id, distance_m, warnings).
-    """
+def _stitched(conn: sqlite3.Connection, event_id: int, feature_ids: list[int],
+              reverse: bool = False) -> tuple[list[LonLat], list[str]]:
+    """One line from one or more staged line features, and any warnings."""
     rows = [get_feature(conn, event_id, fid) for fid in feature_ids]
     missing = [fid for fid, row in zip(feature_ids, rows) if row is None]
     if missing:
@@ -312,7 +301,97 @@ def assign_course(
         coords = geo.reverse(coords)
     if len(coords) < 2:
         raise ValueError("Result has fewer than two points; nothing to draw.")
+    return coords, warnings
 
+
+def replace_course_line(
+    conn: sqlite3.Connection,
+    event_id: int,
+    course_id: int,
+    feature_ids: list[int],
+    reverse: bool = False,
+) -> tuple[float, list[str]]:
+    """Give an existing course a new line; everything else about it stays.
+
+    An organizer's revised route used to arrive as a SECOND course with
+    none of the first one's settings, and the first could not be deleted
+    once a leader had been reported on it. Here the row, and so its id, name,
+    colours, start time, start and finish, the races ticked on its stops and
+    its sightings, stay put. The features it was built from are discarded
+    rather than left `assigned`: deleting the course later would otherwise
+    put both versions back in review. The caller re-turns the line to its
+    stated start (`admin._set_course_ends`). Returns (distance_m, warnings).
+    """
+    exists = conn.execute(
+        "SELECT 1 FROM course WHERE id = ? AND event_id = ?", (course_id, event_id)
+    ).fetchone()
+    if exists is None:
+        raise ValueError(f"No course with id {course_id} in this event.")
+    coords, warnings = _stitched(conn, event_id, feature_ids, reverse)
+    distance_m = geo.line_length_m(coords)
+    conn.execute(
+        "UPDATE course SET geojson = ?, distance_m = ? WHERE id = ?",
+        (json.dumps(geo.to_geojson_linestring(coords)), distance_m, course_id))
+    conn.execute(
+        "UPDATE import_feature SET status = 'discarded'"
+        " WHERE event_id = ? AND course_id = ?", (event_id, course_id))
+    conn.executemany(
+        "UPDATE import_feature SET status = 'assigned', course_id = ?"
+        " WHERE id = ? AND event_id = ?",
+        [(course_id, fid, event_id) for fid in feature_ids],
+    )
+    return distance_m, warnings
+
+
+def replace_poi_position(
+    conn: sqlite3.Connection,
+    event_id: int,
+    poi_id: int,
+    feature_id: int,
+) -> float:
+    """Move an existing place to a staged point; everything else stays.
+
+    Name, layer, order, races, pin label, notes, What3Words and whoever is
+    posted there are the club's and stay. Only the position is the file's.
+    Returns how far it moved, because the What3Words square is where the
+    place USED to be and someone has to look at it.
+    """
+    place = conn.execute(
+        "SELECT lat, lon FROM poi WHERE id = ? AND event_id = ?", (poi_id, event_id)
+    ).fetchone()
+    if place is None:
+        raise ValueError(f"No place with id {poi_id} in this event.")
+    row = get_feature(conn, event_id, feature_id)
+    if row is None:
+        raise ValueError(f"No staged feature with id {feature_id} in this event.")
+    if row["geom_type"] != "point":
+        raise ValueError("A place can only be moved to a point, not a line.")
+    lon, lat = _coords_of(row)[0]
+    conn.execute("UPDATE poi SET lat = ?, lon = ? WHERE id = ?", (lat, lon, poi_id))
+    conn.execute(
+        "UPDATE import_feature SET status = 'discarded'"
+        " WHERE event_id = ? AND poi_id = ?", (event_id, poi_id))
+    conn.execute(
+        "UPDATE import_feature SET status = 'assigned', poi_id = ?"
+        " WHERE id = ? AND event_id = ?", (poi_id, feature_id, event_id))
+    return geo.haversine_m((place["lon"], place["lat"]), (lon, lat))
+
+
+def assign_course(
+    conn: sqlite3.Connection,
+    event_id: int,
+    feature_ids: list[int],
+    name: str,
+    color: str | None = None,
+    reverse: bool = False,
+    dash: str | None = None,
+) -> tuple[int, float, list[str]]:
+    """Build one course from one or more staged line features.
+
+    Several features are stitched end-to-end, since a course routinely arrives
+    split across segments. Returns (course_id, distance_m, warnings).
+    """
+    coords, warnings = _stitched(conn, event_id, feature_ids, reverse)
     distance_m = geo.line_length_m(coords)
 
     # A new course takes the next unused palette color. Lines are solid unless a
