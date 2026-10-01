@@ -11,6 +11,8 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+## [2026.10.0] - 2026-10-01
+
 ### Changed
 
 - **A stop ticked for a race reaches 500 m from that race's line, not 250 m.**
