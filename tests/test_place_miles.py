@@ -243,3 +243,52 @@ def test_a_leader_across_a_twice_passed_stop_has_a_pace(out_and_back):
     assert entry.last_distance_m == pytest.approx(2500, abs=10)
     assert entry.pace_mps == pytest.approx(500 / 180, rel=0.02)
     assert entry.next_poi_name == "K"
+
+
+# The organizer spaced the Mankato lines apart ON PURPOSE so each race shows
+# on the map: stop A sits 284 m from the Half's line. A tick is the club
+# saying it is on that route, so a ticked stop gets a wider reach on that
+# race; an unticked one keeps the strict limit.
+def _place_east(conn, event_id, name, metres_from_south, metres_east, serves, order):
+    lon = -94.00005 + metres_east / (111_195 * 0.7193)    # cos(44.1 deg)
+    poi_id = conn.execute(
+        "INSERT INTO poi (event_id, name, poi_type, lat, lon, sort_order)"
+        " VALUES (?, ?, 'aid_station', ?, ?, ?)",
+        (event_id, name, _lat_at(metres_from_south), lon, order)).lastrowid
+    for course_id in serves:
+        conn.execute("INSERT INTO poi_course (event_id, poi_id, course_id)"
+                     " VALUES (?, ?, ?)", (event_id, poi_id, course_id))
+    return poi_id
+
+
+def test_a_ticked_stop_beyond_the_strict_limit_still_gets_its_races_mile(event):
+    conn, _, event_id, _, half = event
+    poi = _place_east(conn, event_id, "A", 1000, 284, [half], 1)
+    pos = _position(conn, event_id, poi)
+    assert pos.course_name == "Half"
+    assert pos.distance_along_m == pytest.approx(2000, abs=5)
+    assert pos.offset_m == pytest.approx(284, abs=10)
+
+
+def test_an_unticked_stop_that_far_still_has_no_mile(event):
+    conn, _, event_id, _, _ = event
+    poi = _place_east(conn, event_id, "A", 1000, 284, [], 1)
+    assert _position(conn, event_id, poi) is None
+
+
+def test_even_a_ticked_stop_has_a_limit(event):
+    conn, _, event_id, _, half = event
+    poi = _place_east(conn, event_id, "A", 1000, 900, [half], 1)
+    assert _position(conn, event_id, poi) is None
+
+
+def test_the_leader_progression_measures_a_ticked_far_stop(event):
+    conn, _, event_id, _, half = event
+    near = _place(conn, event_id, "B", 500, [half], 2)
+    far = _place_east(conn, event_id, "A", 1000, 284, [half], 1)
+    index = progress.CourseIndex.for_event(conn, event_id)
+    rows = conn.execute("SELECT * FROM poi WHERE event_id = ? ORDER BY sort_order",
+                        (event_id,)).fetchall()
+    along = index.progression(half, rows, stated={near, far})
+    assert along[far] is not None
+    assert along[far].distance_along_m < along[near].distance_along_m

@@ -11,6 +11,18 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Changed
+
+- **A stop ticked for a race reaches 500 m from that race's line, not 250 m.**
+  The Mankato organizer spaced the Full, Half and 10K lines apart on purpose
+  so each shows on the map, which put water stop A 284 m from the Half's
+  line: no Half mile, so no pace or ETA for the Half's first leg. It was not
+  a drawing error and no corrected file exists. A tick is the club saying the
+  stop is on that route, so `progression` (place miles and lead runner
+  distances) now lets ticked stops reach `progress.STATED_MAX_OFFSET_M`. A
+  stop that is only snapped, or ticked for no race, keeps the 250 m limit, so
+  a stop on a neighbouring road still gets no confident wrong mile.
+
 ## [2026.9.20] - 2026-09-29
 
 ### Added

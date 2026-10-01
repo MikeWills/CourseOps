@@ -57,7 +57,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 892 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 896 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -1205,6 +1205,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-10-01** A stop ticked for a race reaches 500 m from that race's line (`progress.STATED_MAX_OFFSET_M`), not 250: the organizer spaced the Mankato lines apart on purpose, so stop A is 284 m off the Half. Unticked stops keep 250.
 - **2026-09-29** Replace from an updated file: Import's assign box can put a staged line INTO an existing race or ONE point INTO an existing place (nearest first); only geometry changes, the line is re-turned to its start.
 - **2026-09-29** Fixed: a place's mile is measured on a race it serves (not the nearest line), at the pass the club's order means; lead runner pace/ETA measured on the leader's own race.
 - **2026-09-29** Starts at / Finishes at per race on the Courses tab: naming either turns the stored line to run from the start (the Mankato Half and 10K were drawn finish-first).
@@ -1214,4 +1215,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-29** Net info: the net's repeaters and tones as free text on the event form, shown to every role at the top of the panel (on a phone, above the lifted role sections).
 - **2026-09-27** Pre-event beacon check-in is optional when operators are not local; race morning's Needs attention and a glance per row at net check-in cover it. First real event recorded in `docs/PLAN.md`.
 - **2026-09-27** Archive an event (#4): tracking off, positions deleted, links 404, hidden behind Show archived; Download / `courseops export` writes one event to a SQLite file, `serve --db` reads it.
-- **2026-09-27** Runbook: a station whose age keeps climbing - check the phone app's send path (APRS-IS/TNC switches), aprs.fi raw, then the server log.
