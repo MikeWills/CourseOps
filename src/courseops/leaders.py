@@ -406,7 +406,13 @@ def _leader_for(
     # each measured at the first pass after the stop before it - a looped
     # route goes by a water stop twice. A sighting at a stop this race does
     # not serve is measured at its nearest pass.
-    along = index.progression(course["id"], stations)
+    #
+    # A stop the club ticked for this race reaches further than one only
+    # snapped to it: the organizer's lines are spaced apart on purpose.
+    ticked = {row["poi_id"] for row in conn.execute(
+        "SELECT poi_id FROM poi_course WHERE event_id = ? AND course_id = ?",
+        (event_id, course["id"])).fetchall()}
+    along = index.progression(course["id"], stations, ticked)
     distance_by_poi = {}
     for poi_id, (_, _, _, lat, lon) in known.items():
         located = (along[poi_id] if poi_id in along

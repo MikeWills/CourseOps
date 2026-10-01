@@ -736,13 +736,17 @@ Things discovered but not yet acted on. Each is a real constraint, not a wish.
 
 - **A stop more than 250 m from a race's line has no mile on that race.**
   (2026-09-29, Mankato.) Water stop A serves the Half, but the organizer's
-  Half line never comes within 284 m of it - a drawing issue in the file, not
-  a wrong tick. The Half leader can still be reported at A; there is simply
-  no pace or ETA for the Half's first leg until E and G are reported.
-  Deliberately NOT fixed by raising `progress.DEFAULT_MAX_OFFSET_M`: that
-  limit is what stops a stop on a neighbouring road getting a confident wrong
-  mile. The fix is a corrected file from the organizer, applied with
-  **Replace** on the Import tab. There is no line editor in the app.
+  Half line never comes within 284 m of it. NOT a drawing error: the
+  organizer (a professional job) deliberately spaced the lines apart so each
+  race is visible on the map where they share road. So do not ask them for a
+  "corrected" file - the offset is the design, and the line is a picture of
+  the route, not the road's centreline. The Half leader can still be reported
+  at A; there is simply no pace or ETA for the Half's first leg until E and G
+  are reported. RESOLVED 2026-10-01: a stop ticked for a race (`poi_course`)
+  reaches `progress.STATED_MAX_OFFSET_M` (500 m) on that race, because the club
+  has already said it is on that route; everything else keeps
+  `DEFAULT_MAX_OFFSET_M` (250 m), which is what stops a stop on a neighbouring
+  road getting a confident wrong mile. The mile is as good as the offset line.
 - **A loop cannot be given a direction by its start and finish.** Starts at /
   Finishes at refuse a line whose ends are within 150 m. None of the races so
   far is a loop; a club with one would need a Reverse control.

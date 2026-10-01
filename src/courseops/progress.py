@@ -38,6 +38,14 @@ UNPLACED = 1_000_000_000
 # that should be revisited against a GIS-produced course.
 DEFAULT_MAX_OFFSET_M = 250.0
 
+# The reach for a stop the club TICKED for a race (`poi_course`). A tick is
+# the club saying the stop is on that route, so the guard against a stop on a
+# neighbouring road does not apply. And a line can sit well off the road by
+# design: the Mankato organizer spaced the three races apart so each shows on
+# the map, which put water stop A 284 m from the Half. The mile is then only
+# as good as the line, which is accepted (see "Mile figures inherit...").
+STATED_MAX_OFFSET_M = 500.0
+
 
 @dataclass(frozen=True)
 class CoursePosition:
@@ -215,8 +223,8 @@ class CourseIndex:
             offset_m=projection.offset_m,
         )
 
-    def progression(self, course_id: int,
-                    stops: list) -> dict[int, CoursePosition | None]:
+    def progression(self, course_id: int, stops: list,
+                    stated: set[int] | None = None) -> dict[int, CoursePosition | None]:
         """Each stop's position on ONE race, the stops in the club's order.
 
         Where the race goes by a stop more than once, which pass is meant
@@ -231,7 +239,11 @@ class CourseIndex:
         A stop that fits nowhere in order (an order that runs against the
         route) is left out of the ordering and given its nearest pass, so it
         cannot drag the stops after it. A stop no pass comes near is None.
+
+        `stated` names the stops (poi ids) the club ticked for this race;
+        they reach `STATED_MAX_OFFSET_M`, the rest `max_offset_m`.
         """
+        stated = stated or set()
         course = next((c for c in self._courses if c.id == course_id), None)
         if course is None:
             return {row["id"]: None for row in stops}
@@ -239,7 +251,10 @@ class CourseIndex:
         # "before" it; this much backwards is still in order.
         slack = 50.0
         skip = 1e6            # far above any sum of offsets
-        options = [course.line.passes((row["lon"], row["lat"]), self.max_offset_m)
+        options = [course.line.passes(
+                       (row["lon"], row["lat"]),
+                       max(self.max_offset_m, STATED_MAX_OFFSET_M)
+                       if row["id"] in stated else self.max_offset_m)
                    for row in stops]
         placeable = [j for j, found in enumerate(options) if found]
 
@@ -293,7 +308,8 @@ class CourseIndex:
             on_it = [row for row in ordered_rows
                      if course.id in served.get(row["id"], ())]
             if on_it:
-                per_course[course.id] = self.progression(course.id, on_it)
+                per_course[course.id] = self.progression(
+                    course.id, on_it, {row["id"] for row in on_it})
         out: dict[int, CoursePosition | None] = {}
         for row in ordered_rows:
             found = None
