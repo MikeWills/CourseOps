@@ -843,22 +843,35 @@ function drawPois(pois) {
          matter more than the ones around them. */
       zIndexOffset: label ? 1000 : 0,
     });
-    const rows = [['Layer', cat.name]];
-    if (poi.course_position) {
-      rows.push(['Course position',
-        `${formatMile(poi.course_position.distance_along_m)} of ` +
-        `${poi.course_position.course_name}`]);
-    }
-    if (poi.what3words) rows.push(['what3words', `///${poi.what3words}`]);
-    if (poi.notes) rows.push(['Notes', poi.notes]);
-    rows.push(['Position', `${poi.lat.toFixed(5)}, ${poi.lon.toFixed(5)}`]);
-    marker.bindPopup(
-      `<h3>${escapeHtml(poi.name)}</h3><dl>` +
-      rows.map(([k, v]) => {
-        const cls = k === 'what3words' ? ' class="w3w"' : '';
-        return `<dt>${escapeHtml(k)}</dt><dd${cls}>${escapeHtml(String(v))}</dd>`;
-      }).join('') + '</dl>'
-    );
+    // Built when the popup OPENS, not here: NCS posts and moves operators over
+    // the socket, which updates state.roster without redrawing the pins, so a
+    // string made at draw time would name whoever was posted at the last load.
+    marker.bindPopup(() => {
+      const rows = [['Layer', cat.name]];
+      // Who is stationed here: callsign and name, nothing more. Several people
+      // can share a stop, so one row each.
+      [...state.roster.values()]
+        .filter((entry) => entry.poi_id === poi.id)
+        .forEach((entry) => {
+          rows.push(['Stationed',
+            entry.operator_name
+              ? `${entry.station_key} - ${entry.operator_name}`
+              : entry.station_key]);
+        });
+      if (poi.course_position) {
+        rows.push(['Course position',
+          `${formatMile(poi.course_position.distance_along_m)} of ` +
+          `${poi.course_position.course_name}`]);
+      }
+      if (poi.what3words) rows.push(['what3words', `///${poi.what3words}`]);
+      if (poi.notes) rows.push(['Notes', poi.notes]);
+      rows.push(['Position', `${poi.lat.toFixed(5)}, ${poi.lon.toFixed(5)}`]);
+      return `<h3>${escapeHtml(poi.name)}</h3><dl>` +
+        rows.map(([k, v]) => {
+          const cls = k === 'what3words' ? ' class="w3w"' : '';
+          return `<dt>${escapeHtml(k)}</dt><dd${cls}>${escapeHtml(String(v))}</dd>`;
+        }).join('') + '</dl>';
+    });
     /* Two characters answer "which one is that?" only if you already know
        the scheme. Zoomed in far enough that they will not collide, show the
        name as well - the pin says F, the label beside it says Foxtrot.

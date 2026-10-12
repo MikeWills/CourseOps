@@ -11,6 +11,15 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Added
+
+- **A place's popup names who is stationed there.** Callsign and name, one
+  row per person, from the roster entries posted at that place. The popup is
+  built when it opens, not when the pin is drawn: NCS posts and moves
+  operators over the socket, which updates the roster without redrawing the
+  pins, so a draw-time string would have named whoever was posted at the last
+  full load. Operators with no name show the callsign alone.
+
 ## [2026.10.0] - 2026-10-01
 
 ### Changed
