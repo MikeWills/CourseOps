@@ -11,6 +11,8 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+## [2026.10.1] - 2026-10-12
+
 ### Added
 
 - **A place's popup names who is stationed there.** Callsign and name, one
