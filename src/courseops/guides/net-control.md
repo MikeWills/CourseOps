@@ -35,7 +35,10 @@ stamped with it, which is what makes a shift handover readable.
 ![The stations list, each row with its status buttons](images/ncs-stations.png)
 
 Each row is one roster entry: its name, callsign, the operator, how far along
-the course it is, and how long since we heard it.
+the course it is, and how long since we heard it. An operator posted at a place
+is listed by that place's name (*Water Stop Alpha*); a sweep or SAG, who has no
+place, is listed by the label on the roster. Tap a place's pin on the map and
+the popup lists who is stationed there, callsign and name.
 
 Set the status as it is reported on the net. The buttons are worded for the kind
 of station - an aid station is *Not staffed / On station / Torn down*, a sweep is

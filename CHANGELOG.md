@@ -11,6 +11,14 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Changed
+
+- **A posted station's row on the stations list is named by its place.**
+  The row showed the roster's label - the short code typed at setup ("WA") -
+  which means nothing to anyone who did not type it. A station posted at a
+  place now reads "Water Stop Alpha" (the same layer-plus-name `placeName`
+  gives everywhere else); unposted stations (sweeps, SAG) keep their label.
+
 ## [2026.10.1] - 2026-10-12
 
 ### Added
