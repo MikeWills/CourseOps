@@ -11,6 +11,8 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+## [2026.10.2] - 2026-10-13
+
 ### Changed
 
 - **A posted station's row on the stations list is named by its place.**
