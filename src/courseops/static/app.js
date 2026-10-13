@@ -1265,11 +1265,19 @@ function renderStations() {
     // The operator's name earns a second line only when there is one, so an
     // event that never fills them in looks exactly as it did before.
     const who = operatorOf(stationKey);
+    // A posted station is read by the place it staffs ("Water Stop Alpha"),
+    // not by the roster's label, which is whatever short code the club typed
+    // ("WA") and says nothing to someone who did not type it. Unposted
+    // stations (sweeps, SAG) have no place, so the label is all there is.
+    const postedAt = state.roster.get(stationKey);
+    const rowName = postedAt && postedAt.poi_id != null
+      ? placeName(postedAt.poi_id, labelOf(stationKey))
+      : labelOf(stationKey);
     const nameCell = who
-      ? `<span class="name">${escapeHtml(labelOf(stationKey))}` +
+      ? `<span class="name">${escapeHtml(rowName)}` +
         `<span class="who">${escapeHtml(stationKey)} · ${escapeHtml(who)}</span>` +
         `</span>`
-      : `<span class="name">${escapeHtml(labelOf(stationKey))}</span>`;
+      : `<span class="name">${escapeHtml(rowName)}</span>`;
 
     locate.innerHTML =
       `<span class="dot dot--${status}"></span>` +
