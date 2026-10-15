@@ -925,8 +925,15 @@ function cssColor(value) {
 
 function fitToContent() {
   const bounds = L.latLngBounds([]);
+  /* The event, not the feed: a station heard from another continent (an
+     igate, a ham travelling) must not pull the first view off the course.
+     Live station markers are used only when the event has no course or
+     places at all. */
   state.courseLayers.forEach((line) => bounds.extend(line.getBounds()));
-  state.markers.forEach((marker) => bounds.extend(marker.getLatLng()));
+  state.poiMarkers.forEach((marker) => bounds.extend(marker.getLatLng()));
+  if (!bounds.isValid()) {
+    state.markers.forEach((marker) => bounds.extend(marker.getLatLng()));
+  }
   if (bounds.isValid()) {
     map.fitBounds(bounds, { padding: [40, 40] });
   } else if (state.event && state.event.center_lat != null) {

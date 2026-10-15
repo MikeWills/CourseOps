@@ -11,6 +11,12 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Fixed
+- The map's first view fits the courses and places only. It also fitted every
+  heard station, so one igate or a travelling ham (a marker in France on race
+  week) zoomed the map out to the Atlantic and the course was a speck. Live
+  station markers are used only when the event has no course and no places.
+
 ## [2026.10.2] - 2026-10-13
 
 ### Changed
