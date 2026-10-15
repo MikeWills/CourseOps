@@ -11,6 +11,8 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+## [2026.10.3] - 2026-10-14
+
 ### Fixed
 - The map's first view fits the courses and places only. It also fitted every
   heard station, so one igate or a travelling ham (a marker in France on race
