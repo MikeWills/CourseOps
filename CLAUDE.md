@@ -1205,6 +1205,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-10-14** Fixed: the map's first view fits courses and places only, not every heard station (one far-off igate zoomed it out to the Atlantic).
 - **2026-10-13** A posted station's row on the stations list is named by its place ("Water Stop Alpha"), not the roster's short label; unposted stations keep the label.
 - **2026-10-12** A place's popup lists who is stationed there (callsign and name), built when the popup opens so socket posting changes show.
 - **2026-10-01** A stop ticked for a race reaches 500 m from that race's line (`progress.STATED_MAX_OFFSET_M`), not 250: the organizer spaced the Mankato lines apart on purpose, so stop A is 284 m off the Half. Unticked stops keep 250.
@@ -1214,4 +1215,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-29** Fixed: the NCS stations list sorted posted stations by mile across races (10K mile 1.7 above Full 2.2); it now follows the club's place order, movers grouped by race.
 - **2026-09-29** Print roster (setup, Roster tab): callsign, operator, post, GPS, W3W in course order, unposted last; the browser's Save as PDF is the PDF.
 - **2026-09-29** Race start times: a Start column on the Courses tab, shown beside the bib colour in each race's lead runners heading; `course.start_time`, 'HH:MM' in the event's zone, never converted.
-- **2026-09-29** Net info: the net's repeaters and tones as free text on the event form, shown to every role at the top of the panel (on a phone, above the lifted role sections).
