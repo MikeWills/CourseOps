@@ -195,3 +195,25 @@ def test_guides_ship_in_the_wheel_and_the_frozen_build():
     assert '"guides/*.md"' in pyproject and '"guides/images/*"' in pyproject
     spec = (root / "packaging" / "courseops.spec").read_text(encoding="utf-8")
     assert '"courseops/guides"' in spec
+
+
+# --- the ? button -------------------------------------------------------------
+
+def _help_pages() -> dict[str, str]:
+    """HELP_PAGES as app.js spells it: the one place a role is tied to a guide."""
+    src = (Path(guides.__file__).parent / "static" / "app.js").read_text(encoding="utf-8")
+    block = re.search(r"const HELP_PAGES = \{(.*?)\};", src, re.S)
+    assert block, "HELP_PAGES not found in app.js"
+    return dict(re.findall(r"(\w+):\s*'([^']+)'", block.group(1)))
+
+
+def test_every_role_help_link_opens_its_own_guide():
+    from courseops import access
+
+    pages = _help_pages()
+    assert set(pages) == set(access.ROLES)
+    for role, page in pages.items():
+        assert guides.load(page) is not None, (role, page)
+    # One guide per role: a SAG driver opening "help" gets the queue, not a
+    # page shared with someone whose job is different.
+    assert len(set(pages.values())) == len(pages)
