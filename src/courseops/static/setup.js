@@ -1358,6 +1358,154 @@ function endOptions(selected) {
     `${esc(p.name)} (${esc(p.layer_name)})</option>`).join('');
 }
 
+/* ---------- leader routes (#210, docs/leader-route.md) ----------------------
+
+   One ordered list of stops per race, a stop may repeat: the Mankato Full goes
+   out to J and back by I, so H, I, J, I, K. Edited here and saved with ONE
+   button for the whole section - it is its own section below the courses
+   table, not another save scope inside it. An edit that has not been saved
+   survives loadCourses re-running (saving a course colour must not throw away
+   a half-built route), which is why the state lives outside the markup. */
+const ROUTES = new Map();   // course id -> {original, current, draft}: poi ids
+
+const routeDirty = (r) => r.current.join(',') !== r.original.join(',');
+
+function routeStopName(poiId) {
+  const poi = (S.pois || []).find((p) => p.id === poiId);
+  return poi ? poi.name : `place ${poiId}`;
+}
+
+/* Only places a leader can be reported at, the same ones the server accepts:
+   the club's staffed layers, in their running order. */
+function routeStopChoices() {
+  const staffed = new Set((S.poiCategories || [])
+    .filter((c) => c.staffed).map((c) => c.key));
+  return (S.pois || []).filter((p) => staffed.has(p.poi_type));
+}
+
+async function loadRoutes() {
+  const courses = [...(S.courses || [])].reverse();
+  const fetched = await Promise.all(courses.map((c) =>
+    api(`/api/setup/events/${S.eventId}/courses/${c.id}/route`)
+      .then((r) => [c.id, r])));
+  const present = new Set(courses.map((c) => c.id));
+  [...ROUTES.keys()].forEach((id) => { if (!present.has(id)) ROUTES.delete(id); });
+  fetched.forEach(([id, r]) => {
+    const saved = r.steps.map((s) => s.poi_id);
+    const draft = r.draft.map((s) => s.poi_id);
+    const held = ROUTES.get(id);
+    if (held && routeDirty(held)) {
+      held.draft = draft;           // keep the unsaved edit, refresh the rest
+    } else {
+      ROUTES.set(id, { original: saved, current: [...saved], draft });
+    }
+  });
+  renderRoutes();
+}
+
+function renderRoutes() {
+  const host = $('route-list');
+  const courses = [...(S.courses || [])].reverse();
+  if (!courses.length) { host.innerHTML = ''; refreshRouteSave(); return; }
+  host.innerHTML = courses.map((c) => `<section class="route" data-route="${c.id}">
+    <h4>${esc(c.name)}</h4><div data-routebody="${c.id}"></div></section>`).join('');
+  courses.forEach((c) => renderRoute(c.id));
+  bindRouteList(host);
+  refreshRouteSave();
+}
+
+function renderRoute(courseId) {
+  const route = ROUTES.get(courseId);
+  const body = document.querySelector(`[data-routebody="${courseId}"]`);
+  if (!route || !body) return;
+  const course = (S.courses || []).find((c) => c.id === courseId);
+  const cname = course ? course.name : 'this race';
+  const steps = route.current.length
+    ? '<ol class="route-steps">' + route.current.map((poiId, i) => {
+      const name = routeStopName(poiId);
+      const where = `${name}, step ${i + 1} of ${cname}`;
+      return `<li><span class="route-name">${esc(name)}</span>
+        <button type="button" data-routeup="${courseId}" data-i="${i}"
+          ${i === 0 ? 'disabled' : ''}
+          title="Move ${esc(name)} up" aria-label="Move ${esc(where)} up">Up</button>
+        <button type="button" data-routedown="${courseId}" data-i="${i}"
+          ${i === route.current.length - 1 ? 'disabled' : ''}
+          title="Move ${esc(name)} down" aria-label="Move ${esc(where)} down">Down</button>
+        ${iconBtn('remove', {'data-routedel': courseId, 'data-i': i},
+          `Remove ${where}`)}</li>`;
+    }).join('') + '</ol>'
+    : '<p class="muted">No route stated: Net Control sees this race as before.</p>';
+  const options = routeStopChoices().map((p) =>
+    `<option value="${p.id}">${esc(p.name)}</option>`).join('');
+  const hasDraft = route.draft.length > 0;
+  body.innerHTML = steps + `<div class="row">
+    <select data-routeadd="${courseId}" aria-label="Stop to add to ${esc(cname)}">
+      ${options}</select>
+    <button type="button" data-routeaddbtn="${courseId}">Add stop</button>
+    <button type="button" data-routedraft="${courseId}" ${hasDraft ? '' : 'disabled'}
+      title="Replaces this list with the stops ticked for ${esc(cname)}, in the club's order. Not saved until you press Save.">Fill from ticked stops</button>
+  </div>`;
+}
+
+function refreshRouteSave() {
+  const count = [...ROUTES.values()].filter(routeDirty).length;
+  const btn = $('route-save-all');
+  btn.hidden = count === 0;
+  btn.textContent = count === 1 ? 'Save 1 route' : `Save ${count} routes`;
+  $('route-dirty').textContent = count ? 'unsaved' : '';
+}
+
+function bindRouteList(host) {
+  if (host._bound) return;          // the element survives every re-render
+  host._bound = true;
+  host.addEventListener('click', (event) => {
+    const t = event.target.closest('button');
+    if (!t) return;
+    const id = Number(t.dataset.routeup || t.dataset.routedown || t.dataset.routedel
+      || t.dataset.routeaddbtn || t.dataset.routedraft);
+    const route = ROUTES.get(id);
+    if (!route) return;
+    const i = Number(t.dataset.i);
+    if (t.dataset.routeup && i > 0) {
+      [route.current[i - 1], route.current[i]] = [route.current[i], route.current[i - 1]];
+    } else if (t.dataset.routedown && i < route.current.length - 1) {
+      [route.current[i + 1], route.current[i]] = [route.current[i], route.current[i + 1]];
+    } else if (t.dataset.routedel) {
+      route.current.splice(i, 1);
+    } else if (t.dataset.routeaddbtn) {
+      const select = host.querySelector(`[data-routeadd="${id}"]`);
+      if (select && select.value) route.current.push(Number(select.value));
+    } else if (t.dataset.routedraft) {
+      if (route.current.length && !confirm(
+        'Replace this route with the ticked stops? Nothing is saved until you press Save.')) return;
+      route.current = [...route.draft];
+    } else { return; }
+    renderRoute(id);
+    refreshRouteSave();
+  });
+  $('route-save-all').onclick = async () => {
+    const changed = [...ROUTES].filter(([, r]) => routeDirty(r));
+    if (!changed.length) return;
+    const btn = $('route-save-all');
+    btn.disabled = true;
+    let saved = 0;
+    try {
+      for (const [id, route] of changed) {
+        await post(`/api/setup/events/${S.eventId}/courses/${id}/route`,
+                   { poi_ids: route.current });
+        route.original = [...route.current];
+        saved += 1;
+      }
+      banner(`Saved ${saved} route(s).`);
+    } catch (err) {
+      banner(`Saved ${saved} of ${changed.length}, then: ${err.message}`, true);
+    } finally {
+      btn.disabled = false;
+      refreshRouteSave();
+    }
+  };
+}
+
 async function loadCourses() {
   // The layer list drives the per-row dropdown and the bulk target.
   if (!S.poiCategories) {
@@ -1448,6 +1596,8 @@ async function loadCourses() {
         loadCourses();
       } catch (err) { banner(err.message, true); }
     }));
+
+  loadRoutes().catch((err) => banner(err.message, true));
 
   /* Two routes to what3words, neither of them the paid API (docs/PLAN.md).
      Coordinates go OUT by a copy button: the site's search box takes

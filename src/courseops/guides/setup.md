@@ -163,6 +163,18 @@ Names and colours save together: edit as many rows as you like and one
 **Save** button appears above the table, the same as on Places. Dragging saves
 the order on its own.
 
+**Leader routes** (under the courses table) list, for each race, the stops its
+lead runner passes, in order. Everyone on a race runs the same path, so it is
+one list per race: the Half shares some of the Full's stops, skips some and adds
+others. A stop can appear twice - press **Add stop** again - for a race that
+goes out and comes back by the same place, such as H, I, J, I, K. **Fill from
+ticked stops** drafts a list from the races ticked on the Places tab, in your
+running order; it only fills the editor, so read it over, add any stop the
+runners pass a second time, then press **Save**. Use **Up**, **Down** and the
+remove button to change a list. A race with no list here works exactly as it
+did before. A place that is in a route cannot be deleted until it is taken out.
+*Net Control's* **Passed** button does not follow these lists yet.
+
 **Check the distance.** If a course reads 3 mi when it should read 13, segments
 are missing or one belongs to a different route. **Stitched it wrong? Delete
 the course** and its segments go back to the Import tab's review list, ready

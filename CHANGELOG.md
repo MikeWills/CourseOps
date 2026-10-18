@@ -32,6 +32,19 @@ month, PATCH counting releases in that month from 0. Before that they were
   position" for this one list only: the lead runner progression, the printed
   roster and the Places tab keep the club's order. `STATUS_RANK`, `OP_RANK` and
   `placeRankOf` are gone with the sort that used them.
+- **Leader routes in setup (#210, PR A).** Under the courses table, each race
+  gets an ordered list of the stops its lead runner passes, and a stop may
+  appear twice: the Mankato Full goes out to J and back by I, so H, I, J, I, K.
+  Until now the order was inferred from one event-wide place order and a set of
+  ticked stops, which cannot say "I, twice" or "the 10K skips F" - after the
+  second I the panel named J as next again, and the legs out and back had no
+  pace. New table `course_stop` (one row per step) and a nullable
+  `lead_sighting.step`, both additive; a race with no route behaves exactly as
+  before, and "Fill from ticked stops" only drafts a list for review. Nothing
+  on the Net Control panel changes yet: that is PR B. Deleting a place a route
+  uses is refused with the count; deleting the race takes its route with it;
+  the route travels in an export. Design, the written rollback and the open
+  questions are in `docs/leader-route.md`.
 
 ## [2026.10.4] - 2026-10-17
 
