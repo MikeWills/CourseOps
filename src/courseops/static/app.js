@@ -1582,6 +1582,19 @@ async function resetLeader(leader) {
   }
 }
 
+/* The bib box is two things: the bib for the NEXT report (Passed, picker) and,
+   once changed, a correction to the LAST one. Without this a typo could only
+   be fixed by Clear (#208). Only fires when there is a last report to fix. */
+async function correctLeaderBib(leader, value) {
+  try {
+    await post('leaders/bib', {
+      course_id: leader.course_id, division: leader.division, bib: value || null,
+    });
+  } catch (err) {
+    setLocateStatus(`Could not correct the bib - ${err.message}`);
+  }
+}
+
 async function undoSighting(leader) {
   try {
     await post('leaders/undo',
@@ -1743,6 +1756,26 @@ function renderLeaders() {
         `Bib for ${leader.division_label}, ${leader.course_name}`);
       bibField.dataset.editKey =
         `leaderbib:${leader.course_id}:${leader.division}`;
+      if (leader.last_poi_id) {
+        bibField.title = 'Change this to correct the last report';
+        /* Typing a NEW leader's bib and then pressing Passed or the picker is
+           a new report, not a correction of the previous one. The press
+           starts before the box blurs, so it marks the coming change as
+           spoken for. */
+        let nextReport = false;
+        controls.addEventListener('pointerdown', (ev) => {
+          if (ev.target.closest('.leader-passed, .leader-picker')) {
+            nextReport = true;
+            setTimeout(() => { nextReport = false; }, 1000);
+          }
+        });
+        bibField.addEventListener('change', () => {
+          const value = bibField.value.trim();
+          if (nextReport || value === (leader.bib || '')) return;
+          leader.bib = value || null;
+          correctLeaderBib(leader, value);
+        });
+      }
       controls.appendChild(bibField);
 
       if (leader.next_poi_id) {

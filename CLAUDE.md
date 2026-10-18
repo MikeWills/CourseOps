@@ -1221,6 +1221,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-10-17** Fixed: a lead runner's bib can be corrected - changing the bib box fixes the latest sighting in place (`leaders/bib`), where it used to feed only the next report and force Clear (#208).
 - **2026-10-17** The NCS stations list is alphabetical and never re-sorts; the heading counts silent stations since order no longer shows them (#212).
 - **2026-10-17** Event notes list can be hidden on its own (Hide notes / Show notes, count kept) while the add box stays on screen (#209).
 - **2026-10-17** Net Control follows the stated leader route (#210 PR B): Passed names the next step and stores it; after the second I the next stop is K; pace is step to step; NCS rows show the logged clock time.
@@ -1230,4 +1231,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-10-13** A posted station's row on the stations list is named by its place ("Water Stop Alpha"), not the roster's short label; unposted stations keep the label.
 - **2026-10-12** A place's popup lists who is stationed there (callsign and name), built when the popup opens so socket posting changes show.
 - **2026-10-01** A stop ticked for a race reaches 500 m from that race's line (`progress.STATED_MAX_OFFSET_M`), not 250: the organizer spaced the Mankato lines apart on purpose, so stop A is 284 m off the Half. Unticked stops keep 250.
-- **2026-09-29** Replace from an updated file: Import's assign box can put a staged line INTO an existing race or ONE point INTO an existing place (nearest first); only geometry changes, the line is re-turned to its start.

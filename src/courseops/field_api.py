@@ -649,6 +649,27 @@ async def record_leader(
     return JSONResponse({"ok": True}, status_code=201)
 
 
+@router.post("/api/{event_slug}/{token}/leaders/bib")
+async def correct_leader_bib(
+    event_slug: str, token: str, request: Request,
+    auth: Grant = Depends(needs(access.CAP_LEADERS))
+) -> JSONResponse:
+    """Correct the bib on a leader's latest sighting (#208)."""
+    conn, granted = auth
+    body = await json_body(request)
+    try:
+        updated = leaders.correct_latest_bib(
+            conn, granted.event_id,
+            int(body.get("course_id")), str(body.get("division", "")),
+            body.get("bib"),
+        )
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    if updated:
+        await _publish_leaders(request.app, granted.event_id)
+    return JSONResponse({"updated": updated})
+
+
 @router.post("/api/{event_slug}/{token}/leaders/undo")
 async def undo_leader(
     event_slug: str, token: str, request: Request,
