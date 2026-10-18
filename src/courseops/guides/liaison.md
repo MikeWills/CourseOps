@@ -24,6 +24,10 @@ note and fill in its bib and note; moving one along its workflow, closing it or
 deleting it stays with Net Control and SAG. Each row shows its status as plain
 text so you can see what has been done with what you reported.
 
+Once a pickup is dropped off or closed it moves under a folded **Finished (N)**
+heading below the list. Press it to look back at what you reported; it stays
+folded until you open it.
+
 ---
 
 ## Reporting what comes in

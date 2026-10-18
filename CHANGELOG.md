@@ -22,6 +22,17 @@ month, PATCH counting releases in that month from 0. Before that they were
   typing a new bib is a new report, so that press suppresses the correction.
 
 ### Changed
+- **Finished pickups sit under a folded "Finished (N)" drop-down (#213).**
+  Dropped-off and closed rows used to stay in the pickup list all day, pushing
+  down the ones somebody still has to act on. They now live under a 44px
+  toggle below the live queue, newest first, each still a full row (fix a bib,
+  reopen it). The split is `incidentDone()` and nothing else, so the "(N
+  waiting)" count and the map markers are unchanged, and "picked up" (in the
+  vehicle) stays in the main list. Folded by default; open state is kept in
+  prefs, stored as OPEN so an existing device starts folded. A field with the
+  cursor in a finished row holds the group open for that render, so a row is
+  not folded away mid-edit. A queue with only finished rows reads "Nothing
+  waiting", not "No pickups". Course notes are untouched.
 - **Net Control follows the stated leader route (#210, PR B).** On a race with
   a route set in setup, "Passed" names the next STEP and stores which step it
   was, so after the second I (H, I, J, I, K) the next stop is K and no longer J

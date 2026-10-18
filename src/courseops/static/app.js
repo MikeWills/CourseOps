@@ -2215,6 +2215,116 @@ function sortPickups(list) {
   });
 }
 
+function buildPickupRow(incident) {
+  const row = document.createElement('div');
+  row.className = `incident incident--${incident.status}`;
+
+  const main = document.createElement('button');
+  main.type = 'button';
+  main.className = 'incident-main';
+  const mile = incident.course_position
+    ? mileHtml(incident.course_position.distance_along_m) : '';
+  // Time in the CURRENT status, not since it was reported: "waiting 8
+  // minutes with nobody dispatched" is the thing worth seeing.
+  // Shown whenever we know it, not only while sorting by it: a driver
+  // deciding which to take next wants the number, and hiding it behind the
+  // sort would mean the list reorders with nothing on screen explaining why.
+  const away = distanceToMe(incident);
+  const awayText = away == null ? ''
+    : away < 1609.344 ? `${Math.round(away / 0.9144)} yd away`
+    : `${(away / 1609.344).toFixed(1)} mi away`;
+
+  main.innerHTML =
+    `<span class="inc-dot inc-dot--${incident.status}"></span>` +
+    // The bib set as a bib tag: it is what an operator matches against the
+    // runner in front of them, so it is the loud thing in the row.
+    `<span class="name">` +
+    (incident.bib
+      ? `<span class="bib-tag">${escapeHtml(incident.bib)}</span>`
+      : `<span class="bib-tag bib-tag--unknown">Bib unknown</span>`) +
+    (awayText ? `<span class="away">${escapeHtml(awayText)}</span>` : '') +
+    `</span>` +
+    `<span class="mile">${mile}</span>` +
+    `<span class="age">${escapeHtml(formatAge(ageSeconds(incident.status_at)))}</span>`;
+  main.addEventListener('click', () => showOnMap(state.incidentMarkers.get(incident.id)));
+  row.appendChild(main);
+
+  // Whoever may report may also describe: a pin with no bib and no note is
+  // half a report. Moving it along the workflow and taking it off the board
+  // are the parts that stay with NCS and SAG.
+  if (can('incident_report')) {
+    // Bib and note edited in place. The bib is usually unknown when the
+    // incident is opened, and the note stays short by design - see the
+    // schema comment on why medical detail is kept out.
+    const fields = document.createElement('div');
+    fields.className = 'incident-fields';
+
+    const bib = document.createElement('input');
+    bib.type = 'text';
+    bib.className = 'incident-bib';
+    bib.placeholder = 'Bib';
+    bib.maxLength = 16;
+    bib.value = incident.bib || '';
+    bib.setAttribute('aria-label', 'Bib number');
+    bib.dataset.editKey = `bib:${incident.id}`;
+
+    const note = document.createElement('input');
+    note.type = 'text';
+    note.className = 'incident-note';
+    note.placeholder = 'Short note';
+    note.maxLength = 200;
+    note.value = incident.note || '';
+    note.setAttribute('aria-label', 'Operational note');
+    note.dataset.editKey = `note:${incident.id}`;
+
+    const commit = (field, name) => {
+      const value = field.value.trim();
+      if (value === (incident[name] || '')) return;
+      incident[name] = value || null;
+      editIncident(incident.id, {[name]: value || null});
+    };
+    bib.addEventListener('change', () => commit(bib, 'bib'));
+    note.addEventListener('change', () => commit(note, 'note'));
+    [bib, note].forEach((field) => field.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') field.blur();
+    }));
+
+    fields.append(bib, note);
+    if (can('incidents')) {
+      fields.appendChild(deleteButton(
+        incident.bib ? `the pickup for bib ${incident.bib}` : 'this pickup',
+        () => deleteIncident(incident)));
+    }
+    row.appendChild(fields);
+  } else if (incident.note) {
+    const note = document.createElement('p');
+    note.className = 'incident-readonly-note';
+    note.textContent = incident.note;
+    row.appendChild(note);
+  }
+
+  const controls = document.createElement('div');
+  controls.className = 'incident-op';
+  if (can('incidents')) {
+    state.incidentStatuses.forEach((option) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `op-btn${option.value === incident.status ? ' op-btn--on' : ''}`;
+      btn.textContent = option.label;
+      btn.setAttribute('aria-pressed', String(option.value === incident.status));
+      btn.addEventListener('click', () => setIncidentStatus(incident.id, option.value));
+      controls.appendChild(btn);
+    });
+  } else {
+    const span = document.createElement('span');
+    span.className = 'op-readonly';
+    span.textContent = incident.status_label;
+    controls.appendChild(span);
+  }
+  row.appendChild(controls);
+  return row;
+}
+
 function renderPickups(pickups) {
   const host = document.getElementById('incident-list');
   const list = sortPickups(pickups);
@@ -2235,121 +2345,41 @@ function renderPickups(pickups) {
   }
   document.getElementById('pickup-sort').hidden = list.length < 2;
 
+  // Finished rows go under a drop-down, newest first. The split is
+  // incidentDone() and nothing else: the count above and the map marker read
+  // the same one, and a second rule is how they would disagree.
+  const liveRows = list.filter((i) => !incidentDone(i));
+  const finished = list.filter(incidentDone)
+    .sort((a, b) => String(b.status_at).localeCompare(String(a.status_at)));
+
+  // Stored as OPEN, so a device with no entry (every existing one) starts
+  // folded. A row whose field has the cursor is never folded away from under
+  // the typist: the group is held open for this render only.
+  const active = document.activeElement;
+  const editingKey = active && active.dataset ? active.dataset.editKey || '' : '';
+  const editingFinished = finished.some((i) => editingKey.endsWith(`:${i.id}`));
+  const finishedOpen = state.foldedSections.has('finished-pickups-open') || editingFinished;
+  const group = document.getElementById('finished-group');
+  const toggle = document.getElementById('finished-toggle');
+  const finishedHost = document.getElementById('finished-list');
+  group.hidden = !finished.length;
+  toggle.setAttribute('aria-expanded', String(finishedOpen));
+  toggle.textContent = `Finished (${finished.length})`;
+  finishedHost.hidden = !finishedOpen;
+  finishedHost.innerHTML = '';
+  finished.forEach((incident) => finishedHost.appendChild(buildPickupRow(incident)));
+
+  host.innerHTML = '';
   if (!list.length) {
     host.innerHTML = '<p class="muted">No pickups.</p>';
     return;
   }
-
-  host.innerHTML = '';
-  list.forEach((incident) => {
-    const row = document.createElement('div');
-    row.className = `incident incident--${incident.status}`;
-
-    const main = document.createElement('button');
-    main.type = 'button';
-    main.className = 'incident-main';
-    const mile = incident.course_position
-      ? mileHtml(incident.course_position.distance_along_m) : '';
-    // Time in the CURRENT status, not since it was reported: "waiting 8
-    // minutes with nobody dispatched" is the thing worth seeing.
-    // Shown whenever we know it, not only while sorting by it: a driver
-    // deciding which to take next wants the number, and hiding it behind the
-    // sort would mean the list reorders with nothing on screen explaining why.
-    const away = distanceToMe(incident);
-    const awayText = away == null ? ''
-      : away < 1609.344 ? `${Math.round(away / 0.9144)} yd away`
-      : `${(away / 1609.344).toFixed(1)} mi away`;
-
-    main.innerHTML =
-      `<span class="inc-dot inc-dot--${incident.status}"></span>` +
-      // The bib set as a bib tag: it is what an operator matches against the
-      // runner in front of them, so it is the loud thing in the row.
-      `<span class="name">` +
-      (incident.bib
-        ? `<span class="bib-tag">${escapeHtml(incident.bib)}</span>`
-        : `<span class="bib-tag bib-tag--unknown">Bib unknown</span>`) +
-      (awayText ? `<span class="away">${escapeHtml(awayText)}</span>` : '') +
-      `</span>` +
-      `<span class="mile">${mile}</span>` +
-      `<span class="age">${escapeHtml(formatAge(ageSeconds(incident.status_at)))}</span>`;
-    main.addEventListener('click', () => showOnMap(state.incidentMarkers.get(incident.id)));
-    row.appendChild(main);
-
-    // Whoever may report may also describe: a pin with no bib and no note is
-    // half a report. Moving it along the workflow and taking it off the board
-    // are the parts that stay with NCS and SAG.
-    if (can('incident_report')) {
-      // Bib and note edited in place. The bib is usually unknown when the
-      // incident is opened, and the note stays short by design - see the
-      // schema comment on why medical detail is kept out.
-      const fields = document.createElement('div');
-      fields.className = 'incident-fields';
-
-      const bib = document.createElement('input');
-      bib.type = 'text';
-      bib.className = 'incident-bib';
-      bib.placeholder = 'Bib';
-      bib.maxLength = 16;
-      bib.value = incident.bib || '';
-      bib.setAttribute('aria-label', 'Bib number');
-      bib.dataset.editKey = `bib:${incident.id}`;
-
-      const note = document.createElement('input');
-      note.type = 'text';
-      note.className = 'incident-note';
-      note.placeholder = 'Short note';
-      note.maxLength = 200;
-      note.value = incident.note || '';
-      note.setAttribute('aria-label', 'Operational note');
-      note.dataset.editKey = `note:${incident.id}`;
-
-      const commit = (field, name) => {
-        const value = field.value.trim();
-        if (value === (incident[name] || '')) return;
-        incident[name] = value || null;
-        editIncident(incident.id, {[name]: value || null});
-      };
-      bib.addEventListener('change', () => commit(bib, 'bib'));
-      note.addEventListener('change', () => commit(note, 'note'));
-      [bib, note].forEach((field) => field.addEventListener('keydown', (ev) => {
-        if (ev.key === 'Enter') field.blur();
-      }));
-
-      fields.append(bib, note);
-      if (can('incidents')) {
-        fields.appendChild(deleteButton(
-          incident.bib ? `the pickup for bib ${incident.bib}` : 'this pickup',
-          () => deleteIncident(incident)));
-      }
-      row.appendChild(fields);
-    } else if (incident.note) {
-      const note = document.createElement('p');
-      note.className = 'incident-readonly-note';
-      note.textContent = incident.note;
-      row.appendChild(note);
-    }
-
-    const controls = document.createElement('div');
-    controls.className = 'incident-op';
-    if (can('incidents')) {
-      state.incidentStatuses.forEach((option) => {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = `op-btn${option.value === incident.status ? ' op-btn--on' : ''}`;
-        btn.textContent = option.label;
-        btn.setAttribute('aria-pressed', String(option.value === incident.status));
-        btn.addEventListener('click', () => setIncidentStatus(incident.id, option.value));
-        controls.appendChild(btn);
-      });
-    } else {
-      const span = document.createElement('span');
-      span.className = 'op-readonly';
-      span.textContent = incident.status_label;
-      controls.appendChild(span);
-    }
-    row.appendChild(controls);
-    host.appendChild(row);
-  });
+  if (!liveRows.length) {
+    // Finished rows exist: say nobody is waiting, not that nothing happened.
+    host.innerHTML = '<p class="muted">Nothing waiting.</p>';
+    return;
+  }
+  liveRows.forEach((incident) => host.appendChild(buildPickupRow(incident)));
 }
 
 /* Course notes: a blocked intersection, a confusing turn, a marshal who never
@@ -2556,6 +2586,16 @@ async function deleteEventNote(note) {
     setLocateStatus(`Could not delete - ${err.message}`);
   }
 }
+
+document.getElementById('finished-toggle').addEventListener('click', () => {
+  if (state.foldedSections.has('finished-pickups-open')) {
+    state.foldedSections.delete('finished-pickups-open');
+  } else {
+    state.foldedSections.add('finished-pickups-open');
+  }
+  savePrefs();
+  renderIncidents();
+});
 
 document.getElementById('event-note-toggle').addEventListener('click', () => {
   if (state.foldedSections.has('event-note-list')) {

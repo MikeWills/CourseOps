@@ -43,6 +43,10 @@ The buttons across the row are the workflow. Press the one that just happened:
 | **Dropped off** | Delivered |
 | **Closed** | Off the board without a pickup - they carried on, or somebody else collected them |
 
+**Dropped off** and **Closed** rows leave the list and fold into **Finished (N)**
+just below it, so what is left is only who still needs you. Press that heading
+to open them; a runner marked Dropped off by mistake can be set back from there.
+
 Press **En route** as you start moving, and say so on the net. Between them that
 is what stops two vehicles being sent to the same runner - the button alone only
 reaches whoever happens to be looking at a screen.
