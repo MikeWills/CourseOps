@@ -266,7 +266,7 @@ def _fn(name):
     return SETUP_JS[start:SETUP_JS.index("\n}\n", start)]
 
 
-def test_the_courses_tab_has_a_route_section_with_one_save():
+def test_the_route_stops_tab_has_one_editor_with_one_save():
     assert 'id="route-list"' in SETUP_HTML
     assert SETUP_HTML.count('id="route-save-all"') == 1
 
@@ -285,7 +285,7 @@ def test_route_text_is_escaped_into_the_markup():
     body = _fn("renderRoute")
     body = re.sub(r"const where = [^\n]*\n", "", body)    # a string, not markup
     body = re.sub(r"\$\{esc\([^}]*\)\}", "", body)         # escaped: fine
-    body = re.sub(r"iconBtn\([^;]*?\)\}</li>", "", body, flags=re.S)
+    body = re.sub(r"iconBtn\([^;]*?\)\}</td>", "", body, flags=re.S)
     for raw in ("${name}", "${cname}", "${where}", "${p.name}"):
         assert raw not in body, f"{raw} reaches the markup unescaped"
 
@@ -295,3 +295,11 @@ def test_nothing_is_saved_by_filling_from_the_draft():
     body = SETUP_JS[SETUP_JS.index("function bindRouteList"):]
     draft = body[body.index("t.dataset.routedraft)"):body.index("} else { return; }")]
     assert "post(" not in draft
+
+
+def test_route_stops_reorder_by_the_shared_grip_not_up_and_down_buttons():
+    body = _fn("renderRoute")
+    assert "iconBtn('grip'" in body and "bindReorder(" in body
+    assert "routeup" not in SETUP_JS and "routedown" not in SETUP_JS
+    # A stop can repeat, so a row is its position, never the place's id.
+    assert 'data-row="${i}"' in body

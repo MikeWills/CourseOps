@@ -278,7 +278,7 @@ SETUP_HTML = (web.STATIC_DIR / "setup.html").read_text(encoding="utf-8")
 def test_event_tabs_exist_only_inside_an_event():
     """One tab bar held all twelve tabs, and a tab that needed an event
     opened on "Pick an event first" - so whether the screen was working on
-    an event at all was a line of small text above the panel. The nine
+    an event at all was a line of small text above the panel. The ten
     event tabs now live in #event-tabs, which is shown only inside an event
     (Configure on the Events list), with the event's name as the heading
     and "All events" as the way back; the three installation tabs are the
@@ -289,7 +289,8 @@ def test_event_tabs_exist_only_inside_an_event():
         return set(re.findall(r'data-tab="(\w+)"', nav))
     assert tabs("tabs") == {"orgs", "events", "users"}
     assert tabs("event-tabs") == {"course", "courses", "stations", "layers",
-                                  "roles", "leaders", "tracking", "roster",
+                                  "roles", "leaders", "routes", "tracking",
+                                  "roster",
                                   "links"}
     assert "Pick an event first" not in SETUP_HTML
     assert 'id="event-back"' in SETUP_HTML and 'id="event-title"' in SETUP_HTML

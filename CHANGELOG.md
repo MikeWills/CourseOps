@@ -41,6 +41,15 @@ month, PATCH counting releases in that month from 0. Before that they were
   folded sections. Nothing changes on the server or the socket.
 
 ### Changed
+- **Leader routes are now the "Route stops" tab.** They sat under the courses
+  table, where a second job (which stops the lead runner passes) was easy to
+  miss on a tab about drawing the races, and "leader routes" read as a map
+  line. Same editor, same save, same data; only its place and name moved, so
+  nothing on the Net Control panel or in the database changes. Its stops also
+  reorder the way every other list in setup does, by dragging the grip (arrow
+  keys work too), in place of the Up and Down buttons nobody else had; it is
+  the same `bindReorder`, with each step named by its position because a
+  stop can appear twice.
 - **Finished pickups sit under a folded "Finished (N)" drop-down (#213).**
   Dropped-off and closed rows used to stay in the pickup list all day, pushing
   down the ones somebody still has to act on. They now live under a 44px
