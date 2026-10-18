@@ -112,6 +112,7 @@ Both schema changes are additive. Nothing existing is altered or dropped.
 ## Open
 
 - Does the finish need to be a step, or is "past the last stop" enough for #215?
-- One route per race, or per race and leader (a wheelchair field may skip stops)?
-  Starting with per race; per leader can be added without changing this table
-  by adding a nullable `division`.
+- RESOLVED (Mike, 2026-10-17): one route per race. Everyone on a race, wheelchair
+  field included, runs the same path past the same stops. The Half shares some
+  of the Full's stops, skips some and adds others, which is why the route is
+  per race and not one event-wide order.
