@@ -653,8 +653,11 @@ def lead_division_labels(conn: sqlite3.Connection, event_id: int) -> dict[str, s
     return {row["key"]: row["name"] for row in lead_divisions(conn, event_id)}
 
 
+LEAD_KINDS = ("leader", "sweep")
+
+
 def add_lead_division(
-    conn: sqlite3.Connection, event_id: int, name: str
+    conn: sqlite3.Connection, event_id: int, name: str, kind: str = "leader"
 ) -> sqlite3.Row:
     """Track another kind of racer: a wheelchair field, a first junior.
 
@@ -665,6 +668,9 @@ def add_lead_division(
     name = (name or "").strip()
     if not name:
         raise CategoryError("A leader needs a name.")
+    kind = (kind or "leader").strip().lower()
+    if kind not in LEAD_KINDS:
+        raise CategoryError(f"A leader is one of {', '.join(LEAD_KINDS)}.")
     key = slugify(name)
     if not _KEY_OK.match(key):
         raise CategoryError(f"{name!r} does not make a usable leader name.")
@@ -679,9 +685,9 @@ def add_lead_division(
         " WHERE event_id = ?", (event_id,),
     ).fetchone()["m"]
     conn.execute(
-        "INSERT INTO lead_division (event_id, key, name, sort_order)"
-        " VALUES (?, ?, ?, ?)",
-        (event_id, key, name, top + 10),
+        "INSERT INTO lead_division (event_id, key, name, sort_order, kind)"
+        " VALUES (?, ?, ?, ?, ?)",
+        (event_id, key, name, top + 10, kind),
     )
     return conn.execute(
         "SELECT * FROM lead_division WHERE event_id = ? AND key = ?",

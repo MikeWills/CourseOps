@@ -57,7 +57,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 896 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 962 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -301,6 +301,16 @@ usability, not style preferences.
   three races is six rows; four is twelve. That is why deleting has to be as
   ordinary an action as adding, and why the setup screen states the
   arithmetic before someone adds a fourth.
+- **A sweep is a leader with `kind = 'sweep'`, never a name match, and the
+  finish is the route's LAST step.** `docs/sweep-tracking.md`. Pace limits
+  come from `leaders.pace_bounds(kind)` (sweep 45:00-6:00 a mile, leader
+  30:00-3:00): one function, so a walking sweep is not rejected as clock
+  noise and a leader is still held to a human pace. The finish estimate
+  averages the last three measured legs and stops at the first unmeasured
+  one rather than skipping it; it is None with one report, no route, a
+  report off the route or a pace out of bounds. Legs and the estimate are
+  derived on every read, never stored. The browser works out "in 42 min"
+  from the clock; the server sends only the ISO time.
 - **Lead runner sightings are reports, not measurements.** There is no tracker
   on the front runner. Store the sighting; derive position, pace and ETA from it.
 - **A clock time in the live app is formatted by the BROWSER, in the event's
@@ -1223,6 +1233,7 @@ Last 10 entries; full record in `CHANGELOG.md`.
 
 - **2026-10-17** Fixed: a lead runner's bib can be corrected - changing the bib box fixes the latest sighting in place (`leaders/bib`), where it used to feed only the next report and force Clear (#208).
 - **2026-10-17** Finished pickups (dropped off / closed, per `incidentDone`) sit under a folded 'Finished (N)' drop-down below the live queue, state in prefs (#213); count and map markers unchanged.
+- **2026-10-17** Sweep tracking (#215): a leader has a `kind` ('sweep' ticked on the Leaders tab); leg times per stop, a finish estimate from the last three legs to the route's last step, per-kind pace limits, a Leg column on the report.
 - **2026-10-17** The NCS stations list is alphabetical and never re-sorts; the heading counts silent stations since order no longer shows them (#212).
 - **2026-10-17** Event notes list can be hidden on its own (Hide notes / Show notes, count kept) while the add box stays on screen (#209).
 - **2026-10-17** Net Control follows the stated leader route (#210 PR B): Passed names the next step and stores it; after the second I the next stop is K; pace is step to step; NCS rows show the logged clock time.
@@ -1230,4 +1241,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-10-17** The after-event report has a Lead runners section: per race and leader, each stop reported with bib and clock time, no reporter (#207).
 - **2026-10-14** Fixed: the map's first view fits courses and places only, not every heard station (one far-off igate zoomed it out to the Atlantic).
 - **2026-10-13** A posted station's row on the stations list is named by its place ("Water Stop Alpha"), not the roster's short label; unposted stations keep the label.
-- **2026-10-12** A place's popup lists who is stationed there (callsign and name), built when the popup opens so socket posting changes show.

@@ -11,15 +11,34 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
-### Fixed
-- **A lead runner's bib can be corrected (#208).** The bib box on a leader row
-  only fed the NEXT report; the one write that existed was an INSERT, so a typo
-  meant Clear and re-reporting every stop. Changing the box now POSTs
-  `leaders/bib`, which updates the bib of the latest sighting for that race and
-  leader in place (stop and time kept, nothing duplicated) and broadcasts the
-  leaders list. The after-event report reads the same row, so it agrees. Older
-  sightings are left as reported. Pressing Passed or the picker right after
-  typing a new bib is a new report, so that press suppresses the correction.
+### Added
+- **Sweep tracking, leg times and a finish estimate (#215).** A leader now has
+  a `kind`, 'leader' or 'sweep' (`lead_division.kind`, additive migration,
+  default 'leader'; the Leaders tab has "This one is a sweep" on the add
+  form). A sweep is reported with the same Passed button as the front runner:
+  the passing is the same fact, so it reuses `lead_sighting` rather than
+  copying the log, the undo, the clear and the report query into a second
+  table. On a race with a stated route every leader row gets a "Leg times"
+  list (stop, clock time passed, time since the stop before, pace of that leg)
+  and an estimate of the finish: the route's last step is the finish, the
+  pace is distance over time across the last three measured legs (the back of
+  the pack is slow and noisy, so the last leg alone is not used), and the
+  clock is shown in the event's zone with "in ~42 min" worked out in the
+  browser. Pace limits are per kind: a sweep may be as slow as 45:00 a mile
+  and as fast as 6:00, a leader 30:00 to 3:00. No estimate, rather than a
+  wrong one, with one report, no route, a report off the route, or an
+  implausible pace. Logistics reads the sweep through the existing payload;
+  nothing to write, so no new capability. The after-event report gains a Leg
+  column. Answers the open question in `docs/leader-route.md`: the finish is
+  the last step, not a new concept. Design and rollback:
+  `docs/sweep-tracking.md`.
+
+- **Hide the event notes list, keep the box (#209).** A Hide notes / Show notes
+  button above the list puts the list away on Net Control, Liaison and
+  Logistics; the add box stays on screen so a note can be typed the moment
+  something happens. The label carries the count, so a hidden list still says
+  how many notes there are. The choice is kept per device with the other
+  folded sections. Nothing changes on the server or the socket.
 
 ### Changed
 - **Finished pickups sit under a folded "Finished (N)" drop-down (#213).**
@@ -46,15 +65,6 @@ month, PATCH counting releases in that month from 0. Before that they were
   `progression`, over a list that may repeat a place. Net Control's row now
   shows the clock time of the last report beside its age. No schema change.
 
-### Added
-- **Hide the event notes list, keep the box (#209).** A Hide notes / Show notes
-  button above the list puts the list away on Net Control, Liaison and
-  Logistics; the add box stays on screen so a note can be typed the moment
-  something happens. The label carries the count, so a hidden list still says
-  how many notes there are. The choice is kept per device with the other
-  folded sections. Nothing changes on the server or the socket.
-
-### Changed
 - **The NCS stations list is alphabetical and never re-sorts (#212).** It sorted
   by operational status, then radio status, then the club's place order, so a
   row jumped whenever NCS pressed On station or a station went quiet, and the
@@ -80,6 +90,16 @@ month, PATCH counting releases in that month from 0. Before that they were
   uses is refused with the count; deleting the race takes its route with it;
   the route travels in an export. Design, the written rollback and the open
   questions are in `docs/leader-route.md`.
+
+### Fixed
+- **A lead runner's bib can be corrected (#208).** The bib box on a leader row
+  only fed the NEXT report; the one write that existed was an INSERT, so a typo
+  meant Clear and re-reporting every stop. Changing the box now POSTs
+  `leaders/bib`, which updates the bib of the latest sighting for that race and
+  leader in place (stop and time kept, nothing duplicated) and broadcasts the
+  leaders list. The after-event report reads the same row, so it agrees. Older
+  sightings are left as reported. Pressing Passed or the picker right after
+  typing a new bib is a new report, so that press suppresses the correction.
 
 ## [2026.10.4] - 2026-10-17
 

@@ -527,6 +527,10 @@ CREATE TABLE IF NOT EXISTS lead_division (
     name       TEXT    NOT NULL,
     -- The set is the club's, so the order cannot come from a list in the code.
     sort_order INTEGER NOT NULL DEFAULT 0,
+    -- 'leader' or 'sweep' (#215, docs/sweep-tracking.md). A sweep has its
+    -- own pace limits and gets a finish estimate. Nothing keys on the NAME.
+    -- Also in db._ADDED_COLUMNS.
+    kind       TEXT    NOT NULL DEFAULT 'leader',
     UNIQUE (event_id, key)
 );
 

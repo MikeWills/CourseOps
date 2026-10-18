@@ -897,7 +897,7 @@ TAXONOMIES = (
     Taxonomy(
         segment="leaders",
         add=lambda conn, event_id, body: categories.add_lead_division(
-            conn, event_id, body.get("name") or ""),
+            conn, event_id, body.get("name") or "", body.get("kind") or "leader"),
         update=lambda conn, event_id, key, body: categories.rename_lead_division(
             conn, event_id, key, body.get("name", "")),
         reorder=categories.reorder_lead_divisions,

@@ -51,6 +51,13 @@ and roughly when they are due at the next one. Between the leader and the sweep
 you have the front and the back of the field, which is the whole window your
 intersection has to be staffed for.
 
+If the club tracks a sweep as a lead runner, its row also shows the clock time
+it passed each stop, a **Leg times** list, and an estimated finish time
+(*Finish ~16:14, estimated from reports*). That is an estimate from what the
+net has reported, not a tracker: plan cones from the time it actually passed
+you, and use the estimate for the end of the day. You can read all of it; only
+Net Control enters it.
+
 If a sighting looks impossible, the app will already be showing no pace and no
 estimate rather than a wrong one - two reports seconds apart cannot produce a
 useful number.

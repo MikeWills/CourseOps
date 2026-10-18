@@ -17,8 +17,8 @@ in the half marathon".
 from __future__ import annotations
 
 import sqlite3
-from dataclasses import dataclass
-from datetime import datetime, timezone
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from . import categories, db
@@ -52,6 +52,23 @@ STALE_AFTER_SECONDS = 45 * 60
 # walking. Anything outside that came from the clock, not the runner.
 MIN_PACE_MPS = 1609.344 / (30 * 60)   # 30:00 per mile
 MAX_PACE_MPS = 1609.344 / (3 * 60)    # 3:00 per mile
+
+# A sweep walks the back of the field: slower than a leader may be, and never
+# quicker than the last runner. Per KIND, not per row - see
+# docs/sweep-tracking.md for why there is no editable limit.
+SWEEP_MIN_PACE_MPS = 1609.344 / (45 * 60)   # 45:00 per mile
+SWEEP_MAX_PACE_MPS = 1609.344 / (6 * 60)    # 6:00 per mile
+
+# The running pace behind the finish estimate is taken over this many legs.
+# The back of the pack is slow and noisy, so the last leg alone is not enough.
+AVERAGE_LEGS = 3
+
+
+def pace_bounds(kind: str | None) -> tuple[float, float]:
+    """(slowest, fastest) plausible pace, in metres per second, for a kind."""
+    if kind == "sweep":
+        return SWEEP_MIN_PACE_MPS, SWEEP_MAX_PACE_MPS
+    return MIN_PACE_MPS, MAX_PACE_MPS
 
 
 def division_label(division: str, labels: dict[str, str] | None = None) -> str:
@@ -98,6 +115,22 @@ class Leader:
     # and for a report at a place that is not on it.
     last_step: int | None = None
     next_step: int | None = None
+    # 'leader' or 'sweep' (lead_division.kind). Only the pace limits and the
+    # finish estimate differ; the club's name for it is `division_name`.
+    kind: str = "leader"
+    # Every report on the stated route with the time since the one before it
+    # (#215). Empty for a race with no route: no distance to measure.
+    legs: list = field(default_factory=list)
+    # Running pace over the last few legs, the finish it is carrying to (the
+    # route's last step), and when that is expected - an ISO UTC clock for the
+    # browser to format. All None rather than wrong.
+    avg_pace_mps: float | None = None
+    finish_poi_name: str | None = None
+    finish_total_m: float | None = None
+    finish_distance_m: float | None = None
+    finish_eta_seconds: float | None = None
+    finish_eta_at: str | None = None
+    finished: bool = False
 
     @property
     def division_label(self) -> str:
@@ -125,6 +158,15 @@ class Leader:
             "eta_seconds": self.eta_seconds,
             "last_step": self.last_step,
             "next_step": self.next_step,
+            "kind": self.kind,
+            "legs": self.legs,
+            "avg_pace_mps": self.avg_pace_mps,
+            "finish_poi_name": self.finish_poi_name,
+            "finish_total_m": self.finish_total_m,
+            "finish_distance_m": self.finish_distance_m,
+            "finish_eta_seconds": self.finish_eta_seconds,
+            "finish_eta_at": self.finish_eta_at,
+            "finished": self.finished,
         }
         return data
 
@@ -371,6 +413,8 @@ def for_event(
     from . import categories
 
     labels = categories.lead_division_labels(conn, event_id)
+    kinds = {row["key"]: row["kind"] for row in
+             categories.lead_divisions(conn, event_id)}
     if divisions is None:
         divisions = tuple(labels)
 
@@ -426,13 +470,15 @@ def for_event(
         for division in divisions:
             results.append(
                 _leader_for(conn, event_id, course, division, on_course, known,
-                            index, division_label(division, labels))
+                            index, division_label(division, labels),
+                            kinds.get(division, "leader"))
             )
     return results
 
 
 def _leader_for(
-    conn, event_id, course, division, stations, known, index, division_name=None
+    conn, event_id, course, division, stations, known, index, division_name=None,
+    kind="leader",
 ) -> Leader:
     base = dict(
         course_id=course["id"],
@@ -442,6 +488,7 @@ def _leader_for(
         start_time=course["start_time"],
         division=division,
         division_name=division_name,
+        kind=kind,
     )
 
     reports = sightings(conn, event_id, course["id"], division)
@@ -450,7 +497,7 @@ def _leader_for(
         " ORDER BY step", (course["id"],)).fetchall() if r["poi_id"] in known]
     if route:
         return _leader_on_route(conn, event_id, course, base, reports, route,
-                                known, index)
+                                known, index, kind)
     # `known` covers every staffed place in the event, so a sighting recorded
     # at a station that snapped to another course is still named.
     #
@@ -513,7 +560,7 @@ def _leader_for(
                 # Silence beats a confident wrong number: see the note on
                 # MIN_PACE_MPS. A burst of catch-up reports must not produce an
                 # ETA an aid station would plan around.
-                if MIN_PACE_MPS <= candidate <= MAX_PACE_MPS:
+                if _plausible(candidate, kind):
                     pace = candidate
 
     # The next station is the one after the last SIGHTING in the club's order,
@@ -583,8 +630,68 @@ def _resolve_steps(reports, route) -> list[int | None]:
     return out
 
 
+def _plausible(pace: float, kind: str | None) -> bool:
+    slowest, fastest = pace_bounds(kind)
+    return slowest <= pace <= fastest
+
+
+def _legs(reports, resolved, route, dist, known, kind) -> list[dict]:
+    """The route-step reports, each with the time and distance since the last.
+
+    Reports off the route are skipped: a leg is between two steps. A pace is
+    kept only inside the kind's bounds, so a burst of catch-up reports keeps
+    its clock times and shows no figure.
+    """
+    out: list[dict] = []
+    previous = None                  # (resolved index, parsed time)
+    for report, idx in zip(reports, resolved):
+        if idx is None:
+            continue
+        at = _parse(report["at"])
+        poi_id = route[idx]["poi_id"]
+        seconds = leg_m = pace = None
+        if previous is not None and at is not None and previous[1] is not None:
+            elapsed = (at - previous[1]).total_seconds()
+            if elapsed >= 0:
+                seconds = int(elapsed)
+            before, here = dist[previous[0]], dist[idx]
+            if before is not None and here is not None and here - before > 0:
+                leg_m = here - before
+            if seconds and leg_m and _plausible(leg_m / seconds, kind):
+                pace = leg_m / seconds
+        out.append({
+            "step": route[idx]["step"], "poi_id": poi_id,
+            "poi_name": known[poi_id][0], "at": report["at"],
+            "distance_m": dist[idx], "leg_seconds": seconds,
+            "leg_m": leg_m, "leg_pace_mps": pace,
+        })
+        previous = (idx, at)
+    return out
+
+
+def _average_pace(legs: list[dict], kind: str | None) -> float | None:
+    """Distance over time across the last few measured legs, newest back.
+
+    Stops at the first leg with no plausible pace: skipping it would add its
+    distance or time to a window it was not measured in.
+    """
+    taken: list[dict] = []
+    for leg in reversed(legs):
+        if len(taken) == AVERAGE_LEGS:
+            break
+        if leg["leg_pace_mps"] is None:
+            break
+        taken.append(leg)
+    if not taken:
+        return None
+    seconds = sum(leg["leg_seconds"] for leg in taken)
+    metres = sum(leg["leg_m"] for leg in taken)
+    average = metres / seconds if seconds else None
+    return average if average and _plausible(average, kind) else None
+
+
 def _leader_on_route(conn, event_id, course, base, reports, route, known,
-                     index) -> Leader:
+                     index, kind="leader") -> Leader:
     """A leader on a race whose route the club stated (docs/leader-route.md).
 
     The next stop is the next STEP, and pace is measured from one step to the
@@ -624,6 +731,8 @@ def _leader_on_route(conn, event_id, course, base, reports, route, known,
             last_at=latest["at"], last_by=latest["by"], bib=latest["bib"])
 
     _, last_name, last_distance, last_step = step_info(here)
+    legs = _legs(reports, resolved, route, dist, known, kind)
+    average = _average_pace(legs, kind)
     pace = None
     if len(reports) >= 2 and resolved[-2] is not None:
         before = dist[resolved[-2]]
@@ -633,7 +742,7 @@ def _leader_on_route(conn, event_id, course, base, reports, route, known,
             travelled = last_distance - before
             if elapsed > 0 and travelled > 0:
                 candidate = travelled / elapsed
-                if MIN_PACE_MPS <= candidate <= MAX_PACE_MPS:
+                if _plausible(candidate, kind):
                     pace = candidate
 
     nxt = step_info(here + 1) if here + 1 < len(route) else None
@@ -643,10 +752,32 @@ def _leader_on_route(conn, event_id, course, base, reports, route, known,
         if gap > 0:
             eta = gap / pace
 
+    # The route's last step is the finish (docs/sweep-tracking.md). An
+    # estimate needs a plausible running pace and a positive distance left;
+    # at the last step there is nothing left to estimate.
+    finish = {}
+    last_index = len(route) - 1
+    finish_name = known[route[last_index]["poi_id"]][0]
+    finish_total = dist[last_index]
+    finished = here == last_index
+    if (not finished and average and finish_total is not None
+            and last_distance is not None and finish_total > last_distance):
+        remaining = finish_total - last_distance
+        seconds = remaining / average
+        seen = _parse(latest["at"])
+        if seen is not None:
+            finish = dict(
+                finish_distance_m=remaining,
+                finish_eta_seconds=seconds,
+                finish_eta_at=(seen + timedelta(seconds=seconds)).strftime(
+                    "%Y-%m-%dT%H:%M:%SZ"))
+
     return Leader(
         **base, last_poi_id=latest["poi_id"], last_poi_name=last_name,
         last_distance_m=last_distance, last_at=latest["at"],
         last_by=latest["by"], bib=latest["bib"], pace_mps=pace,
+        legs=legs, avg_pace_mps=average, finish_poi_name=finish_name,
+        finish_total_m=finish_total, finished=finished, **finish,
         next_poi_id=nxt[0] if nxt else None,
         next_poi_name=nxt[1] if nxt else None,
         next_distance_m=nxt[2] if nxt else None,

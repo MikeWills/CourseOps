@@ -177,6 +177,10 @@ did before. A place that is in a route cannot be deleted until it is taken out.
 names K, not J, and the pace is measured from one step to the next, the leg
 back included.
 
+**End a route at the finish.** The last stop in the list is treated as the
+finish: Net Control presses **Passed** there when the leader or sweep arrives,
+and the estimated finish time (see the Leaders tab) is measured to it.
+
 **Check the distance.** If a course reads 3 mi when it should read 13, segments
 are missing or one belongs to a different route. **Stitched it wrong? Delete
 the course** and its segments go back to the Import tab's review list, ready

@@ -258,6 +258,19 @@ way you left it.
 
 The panel shows the leader wherever they were **last reported**. There is no
 separate "finished" state to clear - position is only ever the last sighting.
+(On a race with a route, a report at the route's last stop reads "Reached
+Finish at 16:14" and the Passed button goes away; **Undo**, or a report from
+the **At...** list, still corrects it.)
+
+### Following the sweep
+
+A sweep is a leader the club added in **Setup -> Leaders** with "This one is a
+sweep" ticked. NCS reports it exactly like the front runner. On a race with a
+route it shows leg times and a finish estimate worked out from the last three
+legs; the estimate is from reports, not a tracker, and is silent with one
+report, no route, or an implausible pace (a sweep may be as slow as 45:00 a mile,
+a leader 30:00). Logistics reads the same numbers. End each route at the
+finish so the last Passed closes the race.
 
 - **They are actually back at H:** pick H from the **At...** dropdown on that
   row. The new sighting is later, so it wins.

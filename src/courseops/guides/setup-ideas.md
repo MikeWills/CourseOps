@@ -54,6 +54,13 @@ course. A new event starts with *First male* and *First female*. Rename them to
 your own wording, add a wheelchair leader or a first junior, and delete any your
 race does not award.
 
+**A sweep is a leader too.** To follow the back of the field, add a leader and
+tick **This one is a sweep** (it cannot be changed afterwards). It gets a row
+per race on the Net Control screen, like any leader, but may be slower than
+a leader is allowed to be, and on a race with a route it shows leg times and an
+estimated finish time that Logistics can read. Add a second one if you run a
+walking sweep and a vehicle.
+
 **Not a race at all?** A bike festival, a parade or a walk has no leaders.
 Delete both and the list stays empty: the Lead runners section then disappears
 from every role's screen, and there is nothing for Net Control to fill in.

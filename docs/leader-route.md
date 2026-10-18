@@ -112,7 +112,7 @@ Both schema changes are additive. Nothing existing is altered or dropped.
 
 ## Open
 
-- Does the finish need to be a step, or is "past the last stop" enough for #215?
+- RESOLVED (#215, docs/sweep-tracking.md): the finish IS a step, the last one. No new concept.
 - RESOLVED (Mike, 2026-10-17): one route per race. Everyone on a race, wheelchair
   field included, runs the same path past the same stops. The Half shares some
   of the Full's stops, skips some and adds others, which is why the route is

@@ -20,6 +20,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from dataclasses import dataclass, field
+from datetime import datetime
 from html import escape
 
 from . import categories, event_notes, geo, incidents, progress
@@ -70,6 +71,9 @@ class Passing:
     stop: str
     at: str                  # ISO-8601 UTC, as stored
     bib: str | None
+    # Seconds since the previous passing of the same leader on the same race
+    # (#215); None for the first. A duration, so it needs no time zone.
+    leg_seconds: int | None = None
 
 
 @dataclass
@@ -105,6 +109,23 @@ def _mile(index: progress.CourseIndex, lat: float, lon: float) -> str | None:
     return f"mile {located.distance_along_m / 1609.344:.1f} of {located.course_name}"
 
 
+def _parse_utc(iso: str | None) -> datetime | None:
+    try:
+        return datetime.strptime(iso or "", "%Y-%m-%dT%H:%M:%SZ")
+    except ValueError:
+        return None
+
+
+def _duration(seconds: int | None) -> str:
+    """'20 min', '1 h 05 min'. A length of time, so nothing to localise."""
+    if seconds is None:
+        return "-"
+    minutes = round(seconds / 60)
+    if minutes < 60:
+        return f"{minutes} min"
+    return f"{minutes // 60} h {minutes % 60:02d} min"
+
+
 def _leader_runs(conn: sqlite3.Connection, event_id: int) -> list[LeaderRun]:
     """The record of every lead runner report, not the panel's last one.
 
@@ -133,14 +154,23 @@ def _leader_runs(conn: sqlite3.Connection, event_id: int) -> list[LeaderRun]:
     ).fetchall()
     runs: list[LeaderRun] = []
     current: tuple | None = None
+    previous_at: datetime | None = None
     for row in rows:
         key = (row["course_id"], row["division"])
         if key != current:
             runs.append(LeaderRun(course=row["course"],
                                   leader=row["label"] or row["division"]))
             current = key
+            previous_at = None
+        at = _parse_utc(row["at"])
+        leg = None
+        if at is not None and previous_at is not None:
+            elapsed = int((at - previous_at).total_seconds())
+            leg = elapsed if elapsed >= 0 else None
+        previous_at = at
         runs[-1].passings.append(
-            Passing(stop=row["stop"], at=row["at"], bib=row["bib"]))
+            Passing(stop=row["stop"], at=row["at"], bib=row["bib"],
+                    leg_seconds=leg))
     return runs
 
 
@@ -288,10 +318,11 @@ def render(report: Report) -> str:
         leaders_html = "".join(
             f'<h3>{e(run.course)} &middot; {e(run.leader)}</h3>'
             '<table><thead><tr><th>Stop</th><th>Bib</th><th class="n">Time</th>'
-            '</tr></thead><tbody>'
+            '<th class="n">Leg</th></tr></thead><tbody>'
             + "".join(
                 f'<tr><td>{e(p.stop)}</td><td>{e(p.bib or "-")}</td>'
-                f'<td class="n">{_time(p.at)}</td></tr>'
+                f'<td class="n">{_time(p.at)}</td>'
+                f'<td class="n">{_duration(p.leg_seconds)}</td></tr>'
                 for p in run.passings
             )
             + '</tbody></table>'
