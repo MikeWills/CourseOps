@@ -140,6 +140,7 @@ _ADDED_COLUMNS: list[tuple[str, str, str]] = [
     ("course", "start_time", "TEXT"),
     ("course", "start_poi_id", "INTEGER REFERENCES poi(id) ON DELETE SET NULL"),
     ("course", "finish_poi_id", "INTEGER REFERENCES poi(id) ON DELETE SET NULL"),
+    ("lead_sighting", "step", "INTEGER"),
 ]
 
 # Columns whose sensible starting value comes from data already in the table.

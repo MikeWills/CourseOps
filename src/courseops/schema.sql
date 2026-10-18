@@ -143,6 +143,31 @@ CREATE TABLE IF NOT EXISTS poi_course (
 CREATE INDEX IF NOT EXISTS idx_poi_course_course
     ON poi_course (event_id, course_id);
 
+-- The route of one race: the stops its leader passes, in order, one row per
+-- STEP (#210, docs/leader-route.md).
+--
+-- A place may appear in several steps of one race - the Mankato Full goes out
+-- to J and back by I, so H, I, J, I, K - which neither `poi_course` (a set) nor
+-- `poi.sort_order` (one order for the whole event) can say. Per race, because
+-- everyone on a race runs the same path while the Half shares some stops,
+-- skips some and adds others.
+--
+-- No rows for a race means "not stated", and everything behaves as it did
+-- before this table: same shape as `poi_course`, for the same reason. Deleting
+-- a place a route uses is refused with the count; deleting the race takes its
+-- route with it.
+CREATE TABLE IF NOT EXISTS course_stop (
+    id        INTEGER PRIMARY KEY,
+    event_id  INTEGER NOT NULL REFERENCES event(id)  ON DELETE CASCADE,
+    course_id INTEGER NOT NULL REFERENCES course(id) ON DELETE CASCADE,
+    step      INTEGER NOT NULL,
+    poi_id    INTEGER NOT NULL REFERENCES poi(id)    ON DELETE CASCADE,
+    UNIQUE (course_id, step)
+);
+
+CREATE INDEX IF NOT EXISTS idx_course_stop_poi
+    ON course_stop (event_id, poi_id);
+
 -- What kinds of place this event has, and how each is drawn.
 --
 -- Deliberately data rather than an enum in the code. A KML arrives with
@@ -464,7 +489,13 @@ CREATE TABLE IF NOT EXISTS lead_sighting (
     poi_id    INTEGER NOT NULL REFERENCES poi(id) ON DELETE CASCADE,
     bib       TEXT,
     at        TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
-    by        TEXT
+    by        TEXT,
+    -- Which step of the race's route this report was (course_stop.step), so a
+    -- stop the leader passes twice is unambiguous. NULL for every report made
+    -- before routes existed and for a stop off the route; those are matched
+    -- to a step by place, first pass, as they always were. Also in
+    -- db._ADDED_COLUMNS.
+    step      INTEGER
 );
 
 CREATE INDEX IF NOT EXISTS idx_lead_sighting

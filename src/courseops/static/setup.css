@@ -747,3 +747,13 @@ td.races { line-height: 1.35; }
 /* Values someone reads aloud or types into a map app: the data face. */
 #roster-sheet .data { font-family: var(--font-data); font-variant-numeric: tabular-nums; }
 #roster-sheet .unposted td { color: #444; }
+
+/* Leader routes (#210): one ordered list per race. A step is a name and three
+   controls; the buttons keep a finger-sized target because this is edited on a
+   tablet in the field as often as at a desk. */
+.route { margin: 12px 0 18px; }
+.route h4 { margin: 0 0 6px; font-size: 15px; }
+.route-steps { margin: 0 0 8px; padding-left: 26px; }
+.route-steps li { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
+.route-steps li .route-name { flex: 1 1 auto; min-width: 0; }
+.route-steps li button:not(.icon-btn) { min-height: 36px; min-width: 52px; }

@@ -568,6 +568,34 @@ async def setup_update_course(
     )
 
 
+# The route a race's leader runs: stops in order, a stop may repeat. GET also
+# carries the draft (the ticked stops in the club's order) for review; it is
+# never saved by a GET - a setup GET must not write.
+@router.get("/api/setup/events/{event_id}/courses/{course_id}/route")
+async def setup_course_route(
+    event_id: int, course_id: int, auth: EventAdmin
+) -> JSONResponse:
+    conn = auth.conn
+    if conn.execute("SELECT 1 FROM course WHERE id = ? AND event_id = ?",
+                    (course_id, event_id)).fetchone() is None:
+        raise HTTPException(status_code=404, detail="No such course.")
+    return JSONResponse({
+        "steps": admin.course_route(conn, event_id, course_id),
+        "draft": admin.draft_course_route(conn, event_id, course_id),
+    })
+
+
+@router.post("/api/setup/events/{event_id}/courses/{course_id}/route")
+async def setup_set_course_route(
+    event_id: int, course_id: int, auth: EventAdmin, request: Request
+) -> JSONResponse:
+    conn = auth.conn
+    body = await json_body(request)
+    steps = _guard(admin.set_course_route, conn, event_id, course_id,
+                   body.get("poi_ids") or [])
+    return JSONResponse({"steps": steps})
+
+
 @router.post("/api/setup/events/{event_id}/courses/{course_id}/delete")
 async def setup_delete_course(
     event_id: int, course_id: int, auth: EventAdmin

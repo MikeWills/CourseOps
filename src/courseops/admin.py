@@ -269,7 +269,7 @@ def unarchive_event(conn: sqlite3.Connection, event_id: int) -> dict[str, Any]:
 # its row. `organization` and `event` are handled first, by id.
 EXPORTED_TABLES = (
     "poi_category", "roster_role", "lead_division", "course", "poi",
-    "poi_course", "roster", "import_batch", "import_feature", "incident",
+    "poi_course", "course_stop", "roster", "import_batch", "import_feature", "incident",
     "incident_log", "event_note", "lead_sighting", "roster_status_log",
     "station_exclusion",
 )
@@ -847,6 +847,77 @@ def set_poi_courses(conn: sqlite3.Connection, event_id: int, poi_id: int,
     return sorted(set(ids))
 
 
+def course_route(conn: sqlite3.Connection, event_id: int,
+                 course_id: int) -> list[dict]:
+    """A race's route, in order: [{step, poi_id, name}]. Empty is "not stated"."""
+    return [dict(row) for row in conn.execute(
+        "SELECT s.step AS step, s.poi_id AS poi_id, p.name AS name"
+        "  FROM course_stop s JOIN poi p ON p.id = s.poi_id"
+        " WHERE s.event_id = ? AND s.course_id = ? ORDER BY s.step",
+        (event_id, course_id),
+    ).fetchall()]
+
+
+@db.transactional
+def set_course_route(conn: sqlite3.Connection, event_id: int, course_id: int,
+                     poi_ids) -> list[dict]:
+    """Say which stops a race's leader passes, in order. Replaces the route.
+
+    A place may be listed more than once: a race that goes out and back passes
+    it twice, and each pass is its own step. An empty list clears the route,
+    which is "not stated" and puts the race back on the old behaviour.
+
+    Only staffed places can be steps - the same places a leader can be reported
+    at. Everything is checked before anything is written, so a refusal half way
+    cannot leave half a route (and the transaction would undo it anyway).
+    """
+    from . import leaders
+
+    if conn.execute("SELECT 1 FROM course WHERE id = ? AND event_id = ?",
+                    (course_id, event_id)).fetchone() is None:
+        raise ValueError(f"No course with id {course_id} in this event.")
+    ids = []
+    for part in list(poi_ids or []):
+        try:
+            ids.append(int(part))
+        except (TypeError, ValueError):
+            raise ValueError(f"{part!r} is not a place id.")
+    staffed = {row["id"]: row["name"] for row in leaders.staffed_places(conn, event_id)}
+    in_event = {row["id"]: row["name"] for row in conn.execute(
+        "SELECT id, name FROM poi WHERE event_id = ?", (event_id,)).fetchall()}
+    for poi_id in ids:
+        if poi_id not in in_event:
+            raise ValueError(f"No place with id {poi_id} in this event.")
+        if poi_id not in staffed:
+            raise ValueError(
+                f"{in_event[poi_id]} is not in a staffed layer, so a leader "
+                f"cannot be reported there.")
+
+    conn.execute("DELETE FROM course_stop WHERE event_id = ? AND course_id = ?",
+                 (event_id, course_id))
+    for step, poi_id in enumerate(ids):
+        conn.execute(
+            "INSERT INTO course_stop (event_id, course_id, step, poi_id)"
+            " VALUES (?, ?, ?, ?)", (event_id, course_id, step, poi_id))
+    return course_route(conn, event_id, course_id)
+
+
+def draft_course_route(conn: sqlite3.Connection, event_id: int,
+                       course_id: int) -> list[dict]:
+    """A first guess at a route: the places ticked for this race, in the club's
+    order. SHOWN for review and never saved - a repeated stop (the way back by
+    I) cannot be known from a set, so a person adds those."""
+    from . import leaders, progress
+
+    ticked = {row["poi_id"] for row in conn.execute(
+        "SELECT poi_id FROM poi_course WHERE event_id = ? AND course_id = ?",
+        (event_id, course_id)).fetchall()}
+    rows = [r for r in leaders.staffed_places(conn, event_id) if r["id"] in ticked]
+    index = progress.CourseIndex.for_event(conn, event_id)
+    return [{"step": n, "poi_id": r["id"], "name": r["name"]}
+            for n, r in enumerate(index.order_along_course(rows))]
+
+
 def reorder_pois(conn: sqlite3.Connection, event_id: int,
                  poi_ids: list[int]) -> int:
     """Set the club's running order for places, in the order given.
@@ -931,9 +1002,14 @@ def delete_poi(conn: sqlite3.Connection, event_id: int,
         "SELECT COUNT(*) AS c FROM roster WHERE event_id = ? AND poi_id = ?",
         (event_id, poi_id),
     ).fetchone()["c"]
+    steps = conn.execute(
+        "SELECT COUNT(*) AS c FROM course_stop WHERE event_id = ? AND poi_id = ?",
+        (event_id, poi_id),
+    ).fetchone()["c"]
     blocked = _in_use([
         (sightings, "lead runner sighting", "lead runner sightings"),
         (posted, "posted station", "posted stations"),
+        (steps, "route step", "route steps"),
     ])
     if blocked:
         return blocked
