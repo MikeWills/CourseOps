@@ -11,6 +11,8 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+## [2026.10.5] - 2026-10-18
+
 ### Added
 - **Sweep tracking, leg times and a finish estimate (#215).** A leader now has
   a `kind`, 'leader' or 'sweep' (`lead_division.kind`, additive migration,
