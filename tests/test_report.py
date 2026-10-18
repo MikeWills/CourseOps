@@ -160,3 +160,90 @@ def test_the_time_zone_cannot_break_out_of_the_script(event):
     html = report.render(report.build(conn, event_id))
     assert "<script>alert(1)" not in html
     assert "&lt;/script&gt;" in html
+
+
+# --- lead runner passings (issue #207) ---------------------------------------
+
+
+def _passing(conn, event_id, division, stop, when, bib=None, by=None):
+    from courseops import leaders
+    course_id = conn.execute(
+        "SELECT id FROM course WHERE event_id = ?", (event_id,)).fetchone()["id"]
+    poi_id = conn.execute(
+        "SELECT id FROM poi WHERE event_id = ? AND name = ?", (event_id, stop)
+    ).fetchone()["id"]
+    row = leaders.record_sighting(conn, event_id, course_id, division, poi_id,
+                                  bib=bib, by=by)
+    conn.execute("UPDATE lead_sighting SET at = ? WHERE id = ?", (when, row["id"]))
+
+
+def test_leader_passings_are_listed_per_race_and_leader_in_order(event):
+    conn, event_id = event
+    _passing(conn, event_id, "male", "Aid 1", "2026-10-17T14:05:00Z", bib="101")
+    _passing(conn, event_id, "female", "Aid 1", "2026-10-17T14:09:00Z", bib="202")
+    _passing(conn, event_id, "male", "Aid 2", "2026-10-17T14:30:00Z", bib="101")
+
+    data = report.build(conn, event_id)
+
+    by_label = {(r.course, r.leader): r for r in data.leader_runs}
+    male = by_label[("Half", "First male")]
+    assert [(p.stop, p.at, p.bib) for p in male.passings] == [
+        ("Aid 1", "2026-10-17T14:05:00Z", "101"),
+        ("Aid 2", "2026-10-17T14:30:00Z", "101"),
+    ]
+    assert [p.stop for p in by_label[("Half", "First female")].passings] == ["Aid 1"]
+
+
+def test_a_correction_is_not_hidden_by_the_report(event):
+    """The panel shows the last sighting; the report is the record, so a
+    later correction sits beside the report it corrects, in time order."""
+    conn, event_id = event
+    _passing(conn, event_id, "male", "Aid 2", "2026-10-17T14:30:00Z")
+    _passing(conn, event_id, "male", "Aid 1", "2026-10-17T14:05:00Z")
+
+    run = report.build(conn, event_id).leader_runs[0]
+
+    assert [p.stop for p in run.passings] == ["Aid 1", "Aid 2"]
+
+
+def test_no_leader_passings_means_no_section_rows(event):
+    conn, event_id = event
+    data = report.build(conn, event_id)
+    assert data.leader_runs == []
+    assert "No lead runner passings recorded." in report.render(data)
+
+
+def test_leader_passings_never_carry_who_reported_them(event):
+    conn, event_id = event
+    _passing(conn, event_id, "male", "Aid 1", "2026-10-17T14:05:00Z",
+             bib="101", by="WX0MIK")
+    page = report.render(report.build(conn, event_id))
+    assert "WX0MIK" not in page
+    assert "Aid 1" in page and "101" in page
+    assert '<time datetime="2026-10-17T14:05:00Z">' in page
+
+
+def test_a_leader_deleted_after_sighting_keeps_its_passings(event):
+    """lead_sighting.division is free text on purpose: the record outlives the
+    club tidying the leader list."""
+    conn, event_id = event
+    _passing(conn, event_id, "male", "Aid 1", "2026-10-17T14:05:00Z")
+    conn.execute("DELETE FROM lead_division WHERE event_id = ? AND key = 'male'",
+                 (event_id,))
+    run = report.build(conn, event_id).leader_runs[0]
+    assert run.leader == "male"
+
+
+def test_building_the_report_does_not_write(event):
+    conn, event_id = event
+    _passing(conn, event_id, "male", "Aid 1", "2026-10-17T14:05:00Z")
+    before = conn.total_changes
+    report.build(conn, event_id)
+    assert conn.total_changes == before
+
+
+def test_leader_text_is_escaped(event):
+    conn, event_id = event
+    _passing(conn, event_id, "male", "Aid 1", "2026-10-17T14:05:00Z",
+             bib="<b>1</b>")
+    assert "<b>1</b>" not in report.render(report.build(conn, event_id))

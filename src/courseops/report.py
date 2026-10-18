@@ -4,7 +4,8 @@ One page, printable, screenshot-able. What the organizer wants to know after
 the race is small and specific: how many pickups there were and over what
 window, which water stops they clustered at, and what went wrong where - a
 blocked intersection, a confusing turn, a marshal who never arrived. That is
-the whole page. It carries no names: not the volunteers who reported things,
+the whole page, plus when each leader was reported at each stop (#207). It
+carries no names: not the volunteers who reported things,
 not who moved a pickup along, and certainly never a runner's name - we hold
 bibs and nothing that maps a bib to a person.
 
@@ -63,6 +64,23 @@ class EventNote:
 
 
 @dataclass
+class Passing:
+    """One report that a leader was at a stop. No reporter: `lead_sighting.by`
+    is left behind on purpose, like every other name."""
+    stop: str
+    at: str                  # ISO-8601 UTC, as stored
+    bib: str | None
+
+
+@dataclass
+class LeaderRun:
+    """Every passing for one leader on one race, in the order they happened."""
+    course: str
+    leader: str              # the club's label ("First male"), or the stored key
+    passings: list[Passing] = field(default_factory=list)
+
+
+@dataclass
 class Report:
     event_name: str
     event_date: str | None
@@ -74,6 +92,7 @@ class Report:
     between_stops: int = 0
     notes: list[Note] = field(default_factory=list)
     event_notes: list[EventNote] = field(default_factory=list)
+    leader_runs: list[LeaderRun] = field(default_factory=list)
     # Drawn under each note's map so the corner is seen in relation to the
     # route, which is what makes "mile 9.1" recognisable as a place.
     courses: list[dict] = field(default_factory=list)
@@ -84,6 +103,45 @@ def _mile(index: progress.CourseIndex, lat: float, lon: float) -> str | None:
     if not located:
         return None
     return f"mile {located.distance_along_m / 1609.344:.1f} of {located.course_name}"
+
+
+def _leader_runs(conn: sqlite3.Connection, event_id: int) -> list[LeaderRun]:
+    """The record of every lead runner report, not the panel's last one.
+
+    Read straight from the tables: `categories.lead_divisions` seeds defaults
+    on the way out, and a report is a read. A leader the club has since
+    deleted keeps its passings under its stored key, because the sighting
+    outlives the list on purpose. Races go top of the stack first, as the
+    Courses section lists them; leaders in the club's order; passings oldest
+    first, so a correction sits beside what it corrects.
+    """
+    rows = conn.execute(
+        """
+        SELECT c.id AS course_id, c.name AS course, s.division AS division,
+               d.name AS label, p.name AS stop, s.at AS at, s.bib AS bib
+          FROM lead_sighting s
+          JOIN course c ON c.id = s.course_id
+          JOIN poi p ON p.id = s.poi_id
+          LEFT JOIN lead_division d
+                 ON d.event_id = s.event_id AND d.key = s.division
+         WHERE s.event_id = ?
+         ORDER BY c.sort_order DESC, c.id,
+                  d.sort_order IS NULL, d.sort_order, s.division,
+                  s.at, s.id
+        """,
+        (event_id,),
+    ).fetchall()
+    runs: list[LeaderRun] = []
+    current: tuple | None = None
+    for row in rows:
+        key = (row["course_id"], row["division"])
+        if key != current:
+            runs.append(LeaderRun(course=row["course"],
+                                  leader=row["label"] or row["division"]))
+            current = key
+        runs[-1].passings.append(
+            Passing(stop=row["stop"], at=row["at"], bib=row["bib"]))
+    return runs
 
 
 def build(conn: sqlite3.Connection, event_id: int) -> Report:
@@ -142,6 +200,7 @@ def build(conn: sqlite3.Connection, event_id: int) -> Report:
             ))
 
     report.by_place = [p for p in places.values() if p.count]
+    report.leader_runs = _leader_runs(conn, event_id)
     # Oldest first here, unlike the live list: on paper this reads as the
     # day in order. `created_by` is left behind on purpose - no names.
     report.event_notes = [
@@ -223,6 +282,24 @@ def render(report: Report) -> str:
     else:
         general = "<p class=\"big\">Nothing recorded.</p>"
 
+    if report.leader_runs:
+        # One table per race and leader: the time each stop was reported, in
+        # the order it happened. Bib is the runner's number, not a name.
+        leaders_html = "".join(
+            f'<h3>{e(run.course)} &middot; {e(run.leader)}</h3>'
+            '<table><thead><tr><th>Stop</th><th>Bib</th><th class="n">Time</th>'
+            '</tr></thead><tbody>'
+            + "".join(
+                f'<tr><td>{e(p.stop)}</td><td>{e(p.bib or "-")}</td>'
+                f'<td class="n">{_time(p.at)}</td></tr>'
+                for p in run.passings
+            )
+            + '</tbody></table>'
+            for run in report.leader_runs
+        )
+    else:
+        leaders_html = "<p class=\"big\">No lead runner passings recorded.</p>"
+
     # Course lines for the small maps. JSON inside a <script> is the one
     # place HTML escaping does not apply, so "<" is written as its JSON
     # escape - a course NAME is club-typed text and must not be able to end
@@ -248,6 +325,7 @@ def render(report: Report) -> str:
          color: #0e1b2b; background: #fff; }}
   header {{ border-bottom: 3px solid #ff6a13; padding-bottom: 10px; margin-bottom: 20px; }}
   h1 {{ margin: 0; font-size: 24px; font-weight: 800; }}
+  h3 {{ font-size: 15px; font-weight: 700; margin: 16px 0 4px; break-after: avoid; }}
   h2 {{ font-size: 16px; font-weight: 800; color: #0e1b2b; margin: 26px 0 8px; }}
   td.n {{ font-family: "Overpass Mono", ui-monospace, monospace; }}
   .sub {{ color: #4a5561; margin: 4px 0 0; }}
@@ -286,12 +364,17 @@ def render(report: Report) -> str:
 <h2>Course notes</h2>
 {notes}
 
+<h2>Lead runners</h2>
+<p class="sub">When Net Control reported the first runner at each stop. These
+are radio reports, so a time is when it was called in, not a timing mat.</p>
+{leaders_html}
+
 <h2>Event notes</h2>
 <p class="sub">Anything a volunteer thought worth telling you that happened
 nowhere in particular.</p>
 {general}
 
-<footer>Counts and locations only. No names are recorded here.</footer>
+<footer>Counts, locations and bibs only. No names are recorded here.</footer>
 
 <script id="courses" type="application/json">{courses_json}</script>
 <script src="{LEAFLET_JS}"></script>
