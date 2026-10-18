@@ -11,6 +11,14 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Added
+- **Hide the event notes list, keep the box (#209).** A Hide notes / Show notes
+  button above the list puts the list away on Net Control, Liaison and
+  Logistics; the add box stays on screen so a note can be typed the moment
+  something happens. The label carries the count, so a hidden list still says
+  how many notes there are. The choice is kept per device with the other
+  folded sections. Nothing changes on the server or the socket.
+
 ### Changed
 - **The NCS stations list is alphabetical and never re-sorts (#212).** It sorted
   by operational status, then radio status, then the club's place order, so a

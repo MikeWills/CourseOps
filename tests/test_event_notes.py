@@ -244,3 +244,29 @@ def test_the_report_says_so_when_there_are_no_event_notes(event):
     conn, event_id = event
     html = report.render(report.build(conn, event_id))
     assert "Event notes" in html
+
+
+# --- #209: hide the list, keep the box ------------------------------------
+
+STATIC = Path(__file__).parent.parent / "src" / "courseops" / "static"
+
+
+def test_the_notes_list_has_its_own_toggle_and_the_box_stays_outside_it():
+    html = (STATIC / "index.html").read_text(encoding="utf-8")
+    js = (STATIC / "app.js").read_text(encoding="utf-8")
+    # The form is not inside the element the toggle hides.
+    list_at = html.index('id="event-note-list"')
+    assert html.index('id="event-note-form"') < list_at
+    assert 'id="event-note-toggle"' in html
+    # State is remembered with the other folds, under its own key.
+    assert "'event-note-list'" in js
+    assert "foldedSections" in js[js.index("function renderEventNotes"):]
+
+
+def test_the_hidden_list_still_says_how_many_notes_there_are():
+    js = (STATIC / "app.js").read_text(encoding="utf-8")
+    body = js[js.index("function renderEventNotes"):]
+    body = body[:body.index("\nasync function addEventNote")]
+    # The toggle's label carries the count, so hiding never hides the number.
+    assert "event-note-toggle" in body and "notes.length" in body
+    assert "aria-expanded" in body
