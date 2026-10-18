@@ -11,6 +11,8 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+## [2026.10.4] - 2026-10-17
+
 ### Added
 - **The after-event report lists the lead runner passings.** A "Lead runners"
   section gives, per race and per leader, each stop the leader was reported at
