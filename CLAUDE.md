@@ -724,10 +724,10 @@ usability, not style preferences.
   LAST, so an unordered event is unchanged and a later import lands at the end
   where it is visible. The lead runner progression uses the same order, or
   "the next station" disagrees with the list the club just arranged. So does
-  the NCS stations list (`placeRankOf` in `app.js`): it sorted posted
-  stations by mile until the first real marathon roster, where that put the
-  10K's mile 1.7 above the Full's mile 2.2. A mile compares two stations only
-  on the SAME race; across races, `courseStack()` order.
+  the lead runner progression. (The NCS stations list used to as well, and
+  sorted by mile before that, which put the 10K's mile 1.7 above the Full's
+  2.2; since #212 it is alphabetical instead.) A mile compares two stations
+  only on the SAME race; across races, `courseStack()` order.
 - **Which race a stop serves is stated, not guessed.** `poi_course`, many to
   many, because one water stop routinely serves several races - the organizer's
   file names them "WATER (ALL)". Snapping a stop to the nearest course line
@@ -757,9 +757,14 @@ usability, not style preferences.
   correction was stored and then displayed as nothing, and the leader looked
   stuck. There is no "finished" state to reset: position is only ever the last
   sighting, so a later sighting is the correction.
-- **Order aid stations by course position, never by name.** Greek letters sort
-  Alpha, Beta, Delta, Epsilon, Gamma; "Aid 10" sorts before "Aid 2"; place names
-  do not sort at all. `CourseIndex.order_along_course()`.
+- **Order aid stations by course position, never by name - except the NCS
+  stations list.** Greek letters sort Alpha, Beta, Delta, Epsilon, Gamma;
+  "Aid 10" sorts before "Aid 2"; place names do not sort at all.
+  `CourseIndex.order_along_course()`. That list is the deliberate exception
+  (#212): people FIND a row by name, so it is alphabetical (numeric-aware,
+  `compareStationNames` in `util.js`) and never re-sorts, and status moves
+  nothing. Because order no longer carries "silent", the heading counts the
+  silent ones. Everything else that lists stations or leaders keeps this rule.
 - **A race's direction is stated by the club, never inferred.** A file runs
   whichever way the organizer drew it (the Mankato Half and 10K were drawn
   finish-first), and `geo.stitch` picks a direction from whichever segment it
@@ -1205,6 +1210,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-10-17** The NCS stations list is alphabetical and never re-sorts; the heading counts silent stations since order no longer shows them (#212).
 - **2026-10-17** The after-event report has a Lead runners section: per race and leader, each stop reported with bib and clock time, no reporter (#207).
 - **2026-10-14** Fixed: the map's first view fits courses and places only, not every heard station (one far-off igate zoomed it out to the Atlantic).
 - **2026-10-13** A posted station's row on the stations list is named by its place ("Water Stop Alpha"), not the roster's short label; unposted stations keep the label.
@@ -1214,4 +1220,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-29** Fixed: a place's mile is measured on a race it serves (not the nearest line), at the pass the club's order means; lead runner pace/ETA measured on the leader's own race.
 - **2026-09-29** Starts at / Finishes at per race on the Courses tab: naming either turns the stored line to run from the start (the Mankato Half and 10K were drawn finish-first).
 - **2026-09-29** Fixed: the NCS stations list sorted posted stations by mile across races (10K mile 1.7 above Full 2.2); it now follows the club's place order, movers grouped by race.
-- **2026-09-29** Print roster (setup, Roster tab): callsign, operator, post, GPS, W3W in course order, unposted last; the browser's Save as PDF is the PDF.

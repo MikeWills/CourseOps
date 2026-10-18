@@ -87,7 +87,6 @@ const state = {
   // render two rows the event may not have.
   leaders: [],
   aidStations: [],
-  placeOrder: new Map(),     // poi id -> index in the club's place order
   operatorInitials: '',
   following: false,
   meMarker: null,
@@ -242,16 +241,6 @@ function formatMile(meters) {
 function mileHtml(meters) {
   if (meters == null) return '';
   return `mile <span class="data">${(meters / 1609.344).toFixed(1)}</span>`;
-}
-
-/* Where a station's posted place sits in the club's order, or Infinity for
-   someone not posted. The snapshot sends places already ordered
-   (`CourseIndex.order_along_course`: sort_order, then distance). */
-function placeRankOf(stationKey) {
-  const entry = state.roster.get(stationKey);
-  if (!entry || entry.poi_id == null) return Infinity;
-  const rank = state.placeOrder.get(entry.poi_id);
-  return rank == null ? Infinity : rank;
 }
 
 function coursePositionOf(stationKey) {
@@ -1131,17 +1120,10 @@ function applyLayerVisibility() {
   });
 }
 
-/* Stations sort with whatever needs attention first: silent before stale
-   before fresh, and anything not expected to beacon last, since a quiet aid
-   station operator is not news. */
-const STATUS_RANK = { silent: 0, stale: 1, fresh: 2, no_aprs: 3 };
-
 /* Operational status is NCS's manual state and is NEVER merged with radio
    status. "On station, no APRS" is a healthy row; "Rolling, silent 18 min" is an
    alarm. Collapsing them into one badge loses exactly the distinction that makes
    this panel worth watching. */
-const OP_RANK = { active: 0, pending: 1, closed: 2 };
-
 function opStatusOf(stationKey) {
   const entry = state.roster.get(stationKey);
   return entry ? (entry.op_status || 'pending') : 'pending';
@@ -1195,47 +1177,37 @@ async function setStationStatus(stationKey, opStatus) {
   }
 }
 
+/* What a station row is called: its place when it has one ("Water Stop
+   Alpha"), not the roster's short label, which is whatever code the club typed
+   ("WA") and says nothing to someone who did not type it. Unposted stations
+   (sweeps, SAG) have no place, so the label is all there is. The list sorts by
+   this very name, so what is read is what is ordered. */
+function stationRowName(stationKey) {
+  const postedAt = state.roster.get(stationKey);
+  return postedAt && postedAt.poi_id != null
+    ? placeName(postedAt.poi_id, labelOf(stationKey))
+    : labelOf(stationKey);
+}
+
 function renderStations() {
   const host = document.getElementById('station-list');
-  const stackAt = new Map(courseStack().map((c, i) => [c.id, i]));
   const keys = [...new Set([...state.roster.keys(), ...state.positions.keys()])]
     .filter(stationVisible)
-    .sort((a, b) => {
-      // Closed sinks: a torn-down aid station going silent is not news, and
-      // leaving it near the top would bury the rows that matter.
-      const byOp = OP_RANK[opStatusOf(a)] - OP_RANK[opStatusOf(b)];
-      if (byOp !== 0) return byOp;
-      const byStatus = STATUS_RANK[radioStatus(a)] - STATUS_RANK[radioStatus(b)];
-      if (byStatus !== 0) return byStatus;
-      /* The club's place order first: the order the Places rows were dragged
-         into, which setup, the roster and the printed sheet already follow.
-         Sorting posted stations by mile interleaved three races - F at 10K
-         mile 1.7 above A at Full mile 2.2 - because each mile is measured
-         on whichever race its place snaps to. Posted stations lead; people
-         who move (sweeps, SAG) follow. */
-      const ra = placeRankOf(a);
-      const rb = placeRankOf(b);
-      if (ra !== rb) return ra - rb;
-      /* A mile orders two stations only on the same race: mile 9 of the Half
-         says nothing about mile 12 of the Full. Across races, the races go
-         in courseStack() order like every other race-grouped list; a label
-         tie-break here instead made the order depend on which pair the sort
-         happened to compare. */
-      const pa = coursePositionOf(a);
-      const pb = coursePositionOf(b);
-      if (pa && pb) {
-        if (pa.course_id === pb.course_id) {
-          return pa.distance_along_m - pb.distance_along_m;
-        }
-        return stackAt.get(pa.course_id) - stackAt.get(pb.course_id);
-      }
-      if (pa) return -1;
-      if (pb) return 1;
-      return labelOf(a).localeCompare(labelOf(b));
-    });
+    /* Alphabetical by the name on the row, and nothing else. It used to sort
+       by status, so a row jumped when NCS pressed On station or a station went
+       quiet, and the one being looked for had moved. Status is the dot, the
+       colour and the age; the silent ones are counted in the heading below, so
+       they are still in front of NCS without moving anything (#212). The
+       station key breaks a tie so two equal names never swap places. */
+    .sort((a, b) => compareStationNames(stationRowName(a), stationRowName(b))
+      || compareStationNames(a, b));
 
-  document.getElementById('station-count').textContent =
-    keys.length ? `(${keys.length})` : '';
+  /* Silent is the alarm, and sorting no longer carries it. A torn-down station
+     going quiet is not news, so closed ones are not counted. */
+  const silent = keys.filter((k) => radioStatus(k) === 'silent'
+                                    && opStatusOf(k) !== 'closed').length;
+  document.getElementById('station-count').textContent = keys.length
+    ? `(${keys.length}${silent ? ` · ${silent} silent` : ''})` : '';
 
   if (!keys.length) {
     host.innerHTML = '<p class="muted">No stations on the roster yet.</p>';
@@ -1276,10 +1248,7 @@ function renderStations() {
     // not by the roster's label, which is whatever short code the club typed
     // ("WA") and says nothing to someone who did not type it. Unposted
     // stations (sweeps, SAG) have no place, so the label is all there is.
-    const postedAt = state.roster.get(stationKey);
-    const rowName = postedAt && postedAt.poi_id != null
-      ? placeName(postedAt.poi_id, labelOf(stationKey))
-      : labelOf(stationKey);
+    const rowName = stationRowName(stationKey);
     const nameCell = who
       ? `<span class="name">${escapeHtml(rowName)}` +
         `<span class="who">${escapeHtml(stationKey)} · ${escapeHtml(who)}</span>` +
@@ -2764,7 +2733,6 @@ function applyState(data) {
     (data.poi_categories || []).filter((c) => c.staffed).map((c) => c.key));
   state.aidStations = (data.pois || []).filter((p) => staffed.has(p.poi_type));
   // The club's place order, as sent: the station list ranks posted people by it.
-  state.placeOrder = new Map((data.pois || []).map((p, i) => [p.id, i]));
 
   if (firstLoad) {
     const prefs = loadPrefs();

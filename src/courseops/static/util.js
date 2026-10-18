@@ -16,3 +16,12 @@ function escapeHtml(text) {
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
   }[ch]));
 }
+
+/* Orders two station row names the way a person looks one up: case and accents
+   do not matter, and "Aid 2" comes before "Aid 10". The NCS stations list sorts
+   by this and by nothing else, so a row never moves because something about it
+   changed (#212). */
+function compareStationNames(a, b) {
+  return String(a).localeCompare(String(b), undefined,
+                                 {numeric: true, sensitivity: 'base'});
+}
