@@ -116,6 +116,7 @@ TRACKED_BY = (TRACKED_BY_APRS, TRACKED_BY_PHONE)
 _ADDED_COLUMNS: list[tuple[str, str, str]] = [
     # (table, column, DDL type/default)
     ("poi", "what3words", "TEXT"),
+    ("lead_division", "kind", "TEXT NOT NULL DEFAULT 'leader'"),
     ("course", "dash_pattern", "TEXT"),
     ("import_feature", "style_id", "TEXT"),
     ("event", "organization_id", "INTEGER REFERENCES organization(id) ON DELETE CASCADE"),

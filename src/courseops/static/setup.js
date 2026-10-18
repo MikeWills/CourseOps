@@ -2317,7 +2317,7 @@ function renderLeaderTable() {
           `Reorder ${d.name} - drag, or use the arrow keys`)}</td>
         <td><input value="${esc(d.name)}" data-dname="${esc(d.key)}"
               style="width:180px">
-          <br><span class="muted">${esc(d.key)}</span></td>
+          <br><span class="muted">${esc(d.key)}${d.kind === 'sweep' ? ' - sweep' : ''}</span></td>
         <td>${d.in_use || 0}</td>
         <td class="actions">${iconBtn('remove', {'data-ddel': d.key},
           `Delete ${d.name}`)}</td>
@@ -2472,8 +2472,10 @@ $('leader-form').addEventListener('submit', async (ev) => {
   $('leader-error').hidden = true;
   try {
     await post(`/api/setup/events/${S.eventId}/leaders`,
-      { name: $('leader-name').value });
+      { name: $('leader-name').value,
+        kind: $('leader-sweep').checked ? 'sweep' : 'leader' });
     $('leader-name').value = '';
+    $('leader-sweep').checked = false;
     banner('Leader added.');
     loadLayers('leaders');
   } catch (err) {

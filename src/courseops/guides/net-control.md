@@ -172,7 +172,25 @@ division or a first junior, whoever set the event up can add it under
 **Setup -> Leaders**, and the new row appears on this
 panel without anyone reloading.
 
-There is no "finished" state. A later sighting is the correction.
+**The sweep.** If the club added a sweep under **Setup -> Leaders**, it has
+a row per race like any leader, and you report it the same way: press
+**Passed <station>** as the sweep goes by. On a race with a route, every row
+(leader or sweep) also shows:
+
+- **Leg times** - open it to see each stop, the clock time it was passed, the
+  time since the stop before, and the pace over that leg.
+- **A finish estimate** - *Finish ~16:14 (in ~42 min), estimated from
+  reports*. It uses the pace over the last three legs and the distance left on
+  the route, so end the route at the finish and press **Passed** there when the
+  sweep arrives: the row then reads *Reached Finish at 16:14*. No estimate
+  appears with one report, with no route, or when the pace looks wrong (a
+  sweep may be as slow as 45 minutes a mile; a leader is held to 30).
+
+It is an estimate worked out from what the net reported, not a tracker.
+
+A leader or sweep that has reached the last stop has nothing left to press.
+If that was a mis-tap, **Undo** it; otherwise a later sighting is the
+correction.
 
 ---
 

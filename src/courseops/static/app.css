@@ -1073,6 +1073,18 @@ body {
   font-family: var(--font-data); font-variant-numeric: tabular-nums;
 }
 .leader-next { font-size: 12px; color: var(--ink-soft); }
+.leader-finish {
+  font-size: 12px; color: var(--ink-soft);
+  font-family: var(--font-data); font-variant-numeric: tabular-nums;
+}
+.leader-legs { font-size: 12px; margin-top: 2px; }
+.leader-legs summary { cursor: pointer; color: var(--ink-soft); min-height: 24px; }
+.leader-legs table { width: 100%; border-collapse: collapse; }
+.leader-legs th { text-align: left; font-weight: 600; color: var(--ink-soft); }
+.leader-legs th.n, .leader-legs td.n {
+  text-align: right; font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+}
 
 /* Wraps. Five controls - bib, Passed, the picker, Undo, Clear - do not fit
    across a sidebar at its narrowest, and without this Undo and Clear sat

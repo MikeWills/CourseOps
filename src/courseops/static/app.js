@@ -1547,6 +1547,65 @@ function paceLabel(mps) {
   return `${mins}:${String(secs).padStart(2, '0')}/mi`;
 }
 
+/* "Finish ~16:14 (in ~42 min), estimated from reports", or "Finished 16:14".
+   Null when there is nothing honest to say. */
+function finishLabel(leader) {
+  if (leader.finished) {
+    const at = clockTime(leader.last_at);
+    return at ? `Reached ${leader.finish_poi_name || 'the finish'} at ${at}` : null;
+  }
+  if (!leader.finish_eta_at) return null;
+  const clock = clockTime(leader.finish_eta_at);
+  if (!clock) return null;
+  const until = Date.parse(leader.finish_eta_at) - Date.now();
+  const rel = formatEta(Number.isNaN(until) ? null : Math.max(0, until / 1000));
+  const target = leader.finish_poi_name || 'finish';
+  return `${target} ~${clock}` + (rel ? ` (${rel.replace('~', 'in ~')})` : '')
+    + ' - estimated from reports';
+}
+
+/* Which leg tables the viewer has open. A socket message rebuilds the list,
+   and a table that closes itself under a thumb is a table nobody reads. */
+const openLegTables = new Set();
+
+function legDuration(seconds) {
+  if (seconds == null) return '';
+  const mins = Math.round(seconds / 60);
+  return mins < 60 ? `${mins} min`
+    : `${Math.floor(mins / 60)}h${String(mins % 60).padStart(2, '0')}`;
+}
+
+/* Stop, clock time passed, time since the stop before, pace of that leg. Read
+   by Logistics as much as NCS: the sweep's clock times are what say a road is
+   clear. Club-typed names go through escapeHtml. */
+function legsTable(leader) {
+  if (!leader.legs || leader.legs.length < 1) return null;
+  const key = `${leader.course_id}:${leader.division}`;
+  const box = document.createElement('details');
+  box.className = 'leader-legs';
+  box.open = openLegTables.has(key);
+  box.addEventListener('toggle', () => {
+    if (box.open) openLegTables.add(key); else openLegTables.delete(key);
+  });
+  const summary = document.createElement('summary');
+  summary.textContent = 'Leg times';
+  box.appendChild(summary);
+  const rows = leader.legs.map((leg) => {
+    const pace = paceLabel(leg.leg_pace_mps);
+    return '<tr>'
+      + `<td>${escapeHtml(placeName(leg.poi_id, leg.poi_name))}</td>`
+      + `<td class="n">${escapeHtml(clockTime(leg.at) || '')}</td>`
+      + `<td class="n">${escapeHtml(legDuration(leg.leg_seconds))}</td>`
+      + `<td class="n">${pace ? escapeHtml(pace) : ''}</td></tr>`;
+  }).join('');
+  const table = document.createElement('table');
+  table.innerHTML = '<thead><tr><th>Stop</th><th class="n">Passed</th>'
+    + '<th class="n">Leg</th><th class="n">Pace</th></tr></thead>'
+    + `<tbody>${rows}</tbody>`;
+  box.appendChild(table);
+  return box;
+}
+
 async function recordSighting(leader, poiId, bib, step) {
   try {
     /* `step` is which pass of the club's route this was, sent only by the
@@ -1739,6 +1798,21 @@ function renderLeaders() {
         : `Next: ${nextPlace}`;
       row.appendChild(hint);
     }
+
+    /* The finish (#215): the last step of the club's route. An estimate from
+       the pace of the last few reports - not a tracker - so it says so, and
+       the clock is what a crew plans from. "In 42 min" is worked out here
+       from that clock because a figure the server sent would be stale by the
+       time it was read. Nothing is drawn when the server had no estimate. */
+    const finishLine = finishLabel(leader);
+    if (finishLine) {
+      const fin = document.createElement('div');
+      fin.className = 'leader-finish';
+      fin.textContent = finishLine;
+      row.appendChild(fin);
+    }
+    const legsBox = legsTable(leader);
+    if (legsBox) row.appendChild(legsBox);
 
     if (can('leaders')) {
       const controls = document.createElement('div');
