@@ -53,10 +53,12 @@ of station - an aid station is *Not staffed / On station / Torn down*, a sweep i
 "On station, no APRS" is a healthy aid station. "Rolling, 28m" is a sweep worth
 a call.
 
-Rows sort with the ones that need you at the top: closed stations sink. Within
-a status, stations posted at a place run in the club's place order - the order
-set on the Places tab in setup, the same as the roster - and people who move
-(sweeps, SAG) are grouped by race, in mile order.
+The list is **alphabetical by the name on the row**, and it never re-sorts: a row
+stays where it is when you press a status button or when a station goes quiet,
+so the one you are looking for is where you left it. Status is the dot, the
+colour and the age. Next to **Stations** the count shows how many stations are
+**silent** - that is your cue to scan the list for red. A torn-down station is
+not counted.
 
 Tap a row to fly the map to that station - to their last position if they
 beacon, to the place they are posted at if they do not.

@@ -11,6 +11,20 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Changed
+- **The NCS stations list is alphabetical and never re-sorts (#212).** It sorted
+  by operational status, then radio status, then the club's place order, so a
+  row jumped whenever NCS pressed On station or a station went quiet, and the
+  one someone was looking for had moved under their finger on race day. It now
+  sorts by the name shown on the row (numbers as numbers, so "Aid 2" before
+  "Aid 10"), with the station key as a tie-break. Status is still the dot, the
+  colour and the age; because order no longer carries it, the heading counts
+  the silent stations (`Stations (27 · 3 silent)`, torn-down ones excluded) so a
+  silent failure stays in front of NCS. This departs from "order by course
+  position" for this one list only: the lead runner progression, the printed
+  roster and the Places tab keep the club's order. `STATUS_RANK`, `OP_RANK` and
+  `placeRankOf` are gone with the sort that used them.
+
 ## [2026.10.4] - 2026-10-17
 
 ### Added
