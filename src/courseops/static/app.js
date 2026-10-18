@@ -1547,11 +1547,16 @@ function paceLabel(mps) {
   return `${mins}:${String(secs).padStart(2, '0')}/mi`;
 }
 
-async function recordSighting(leader, poiId, bib) {
+async function recordSighting(leader, poiId, bib, step) {
   try {
+    /* `step` is which pass of the club's route this was, sent only by the
+       Passed button: a stop the route goes by twice is two steps. A
+       correction from the picker names a place and leaves the server to work
+       the step out. */
     await post('leaders/sighting', {
       course_id: leader.course_id, division: leader.division,
       poi_id: poiId, bib: bib || null, changed_by: state.operatorInitials,
+      step: step == null ? null : step,
     });
   } catch (err) {
     setLocateStatus(`Could not record the sighting - ${err.message}`);
@@ -1694,7 +1699,10 @@ function renderLeaders() {
     const lastPlace = placeName(leader.last_poi_id, leader.last_poi_name);
     let where = 'not yet seen';
     if (leader.last_poi_name && can('leaders')) {
+      // The clock time beside the age: what was logged, as well as how long
+      // ago, so a second look at the board does not need the sum done.
       where = `${escapeHtml(lastPlace)} · `
+        + (seenAt ? `${escapeHtml(seenAt)} · ` : '')
         + `${escapeHtml(formatAge(ageSeconds(leader.last_at)))} ago`;
     } else if (leader.last_poi_name) {
       where = `Passed ${escapeHtml(lastPlace)}`
@@ -1751,7 +1759,8 @@ function renderLeaders() {
         passed.title = `Passed ${nextPlace}`;
         passed.setAttribute('aria-label', `Passed ${nextPlace}`);
         passed.addEventListener('click',
-          () => recordSighting(leader, leader.next_poi_id, bibField.value.trim()));
+          () => recordSighting(leader, leader.next_poi_id, bibField.value.trim(),
+                               leader.next_step));
         controls.appendChild(passed);
       }
 

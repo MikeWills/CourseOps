@@ -243,10 +243,30 @@ class CourseIndex:
         `stated` names the stops (poi ids) the club ticked for this race;
         they reach `STATED_MAX_OFFSET_M`, the rest `max_offset_m`.
         """
+        found = self._chain(course_id, stops, stated)
+        return {row["id"]: found[j] for j, row in enumerate(stops)}
+
+    def route_progression(self, course_id: int, steps: list,
+                          stated: set[int] | None = None
+                          ) -> list[CoursePosition | None]:
+        """Each STEP of a stated route, in order, one position per step.
+
+        `progression` answers per place and so cannot hold a stop twice; a
+        route that goes out to J and back by I (H, I, J, I, K) needs the
+        second I measured at the pass on the way back. Same search - one
+        pass per entry, miles never running backwards in the order given,
+        the least total offset - over a list that may repeat a place, and
+        the answer is a list indexed by step. `progression` is this with
+        the places as the list.
+        """
+        return self._chain(course_id, steps, stated)
+
+    def _chain(self, course_id: int, stops: list,
+               stated: set[int] | None) -> list[CoursePosition | None]:
         stated = stated or set()
         course = next((c for c in self._courses if c.id == course_id), None)
         if course is None:
-            return {row["id"]: None for row in stops}
+            return [None for _ in stops]
         # A stop beside another on the same spot projects a few metres
         # "before" it; this much backwards is still in order.
         slack = 50.0
@@ -283,15 +303,15 @@ class CourseIndex:
                 chosen[node[0]] = node[1]
                 node = best[node][1]
 
-        out: dict[int, CoursePosition | None] = {}
-        for j, row in enumerate(stops):
+        out: list[CoursePosition | None] = []
+        for j in range(len(stops)):
             if not options[j]:
-                out[row["id"]] = None
+                out.append(None)
             elif j in chosen:
-                out[row["id"]] = self._position(course, options[j][chosen[j]])
+                out.append(self._position(course, options[j][chosen[j]]))
             else:
                 nearest = min(options[j], key=lambda p: p.offset_m)
-                out[row["id"]] = self._position(course, nearest)
+                out.append(self._position(course, nearest))
         return out
 
     def place_positions(self, ordered_rows: list,

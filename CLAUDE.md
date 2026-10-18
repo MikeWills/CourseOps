@@ -1223,6 +1223,7 @@ Last 10 entries; full record in `CHANGELOG.md`.
 
 - **2026-10-17** The NCS stations list is alphabetical and never re-sorts; the heading counts silent stations since order no longer shows them (#212).
 - **2026-10-17** Event notes list can be hidden on its own (Hide notes / Show notes, count kept) while the add box stays on screen (#209).
+- **2026-10-17** Net Control follows the stated leader route (#210 PR B): Passed names the next step and stores it; after the second I the next stop is K; pace is step to step; NCS rows show the logged clock time.
 - **2026-10-17** Leader routes in setup (#210 PR A): per race, an ordered stop list where a stop may repeat (H, I, J, I, K); `course_stop` + nullable `lead_sighting.step`; Net Control does not read it yet.
 - **2026-10-17** The after-event report has a Lead runners section: per race and leader, each stop reported with bib and clock time, no reporter (#207).
 - **2026-10-14** Fixed: the map's first view fits courses and places only, not every heard station (one far-off igate zoomed it out to the Atlantic).
@@ -1230,4 +1231,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-10-12** A place's popup lists who is stationed there (callsign and name), built when the popup opens so socket posting changes show.
 - **2026-10-01** A stop ticked for a race reaches 500 m from that race's line (`progress.STATED_MAX_OFFSET_M`), not 250: the organizer spaced the Mankato lines apart on purpose, so stop A is 284 m off the Half. Unticked stops keep 250.
 - **2026-09-29** Replace from an updated file: Import's assign box can put a staged line INTO an existing race or ONE point INTO an existing place (nearest first); only geometry changes, the line is re-turned to its start.
-- **2026-09-29** Fixed: a place's mile is measured on a race it serves (not the nearest line), at the pass the club's order means; lead runner pace/ETA measured on the leader's own race.
