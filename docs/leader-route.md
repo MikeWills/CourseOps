@@ -51,7 +51,7 @@ is matched to a step by place, first pass, as today.
 
 ## Behaviour
 
-1. **Setup.** On the Courses tab, per race, an ordered list: add a stop, drag to
+1. **Setup.** On the Route stops tab, per race, an ordered list: add a stop, drag to
    reorder, remove a step, one Save-all (`bindSaveAll`). A "Fill from ticked
    stops" button drafts a route from `poi_course` in the club's order. It is a
    draft shown for review, never saved on its own. Repeats are added by adding

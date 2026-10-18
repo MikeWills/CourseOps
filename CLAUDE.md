@@ -57,7 +57,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 962 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 975 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -1231,6 +1231,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-10-18** Leader routes moved to their own **Route stops** setup tab (after Courses); stops reorder by the shared grip (`bindReorder`, row = position, since a stop can repeat) instead of Up/Down buttons.
 - **2026-10-17** Fixed: a lead runner's bib can be corrected - changing the bib box fixes the latest sighting in place (`leaders/bib`), where it used to feed only the next report and force Clear (#208).
 - **2026-10-17** Finished pickups (dropped off / closed, per `incidentDone`) sit under a folded 'Finished (N)' drop-down below the live queue, state in prefs (#213); count and map markers unchanged.
 - **2026-10-17** Sweep tracking (#215): a leader has a `kind` ('sweep' ticked on the Leaders tab); leg times per stop, a finish estimate from the last three legs to the route's last step, per-kind pace limits, a Leg column on the report.
@@ -1240,4 +1241,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-10-17** Leader routes in setup (#210 PR A): per race, an ordered stop list where a stop may repeat (H, I, J, I, K); `course_stop` + nullable `lead_sighting.step`; Net Control does not read it yet.
 - **2026-10-17** The after-event report has a Lead runners section: per race and leader, each stop reported with bib and clock time, no reporter (#207).
 - **2026-10-14** Fixed: the map's first view fits courses and places only, not every heard station (one far-off igate zoomed it out to the Atlantic).
-- **2026-10-13** A posted station's row on the stations list is named by its place ("Water Stop Alpha"), not the roster's short label; unposted stations keep the label.

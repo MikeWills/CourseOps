@@ -377,7 +377,7 @@ async function refreshTab(name) {
     // One loader for both: the places table needs the courses for its Races
     // column, and the courses table is small. Rendering into a panel that is
     // not showing costs nothing and keeps the two in step.
-    if (name === 'courses' || name === 'stations') return loadCourses();
+    if (name === 'courses' || name === 'routes' || name === 'stations') return loadCourses();
     // Three taxonomies, one endpoint, one loader - each tab re-renders only
     // its own table, because reloading a table someone has not touched
     // discards the edits in progress in it.
@@ -1358,7 +1358,7 @@ function endOptions(selected) {
     `${esc(p.name)} (${esc(p.layer_name)})</option>`).join('');
 }
 
-/* ---------- leader routes (#210, docs/leader-route.md) ----------------------
+/* ---------- route stops (#210, docs/leader-route.md) ----------------------
 
    One ordered list of stops per race, a stop may repeat: the Mankato Full goes
    out to J and back by I, so H, I, J, I, K. Edited here and saved with ONE
@@ -1420,20 +1420,23 @@ function renderRoute(courseId) {
   if (!route || !body) return;
   const course = (S.courses || []).find((c) => c.id === courseId);
   const cname = course ? course.name : 'this race';
+  /* The same grip column as every other ordered list in setup. A stop can be
+     in a route twice, so a row is named by its POSITION, not by the place:
+     bindReorder hands back the positions in their new order and the route is
+     rebuilt from them. */
   const steps = route.current.length
-    ? '<ol class="route-steps">' + route.current.map((poiId, i) => {
-      const name = routeStopName(poiId);
-      const where = `${name}, step ${i + 1} of ${cname}`;
-      return `<li><span class="route-name">${esc(name)}</span>
-        <button type="button" data-routeup="${courseId}" data-i="${i}"
-          ${i === 0 ? 'disabled' : ''}
-          title="Move ${esc(name)} up" aria-label="Move ${esc(where)} up">Up</button>
-        <button type="button" data-routedown="${courseId}" data-i="${i}"
-          ${i === route.current.length - 1 ? 'disabled' : ''}
-          title="Move ${esc(name)} down" aria-label="Move ${esc(where)} down">Down</button>
-        ${iconBtn('remove', {'data-routedel': courseId, 'data-i': i},
-          `Remove ${where}`)}</li>`;
-    }).join('') + '</ol>'
+    ? '<table class="grid route-steps"><thead><tr><th></th><th>Step</th><th>Stop</th><th></th></tr></thead><tbody>'
+      + route.current.map((poiId, i) => {
+        const name = routeStopName(poiId);
+        const where = `${name}, step ${i + 1} of ${cname}`;
+        return `<tr data-row="${i}">
+          <td class="grip-cell">${iconBtn('grip', {'data-grip': i},
+            `Reorder ${where} - drag, or use the arrow keys`)}</td>
+          <td>${i + 1}</td>
+          <td>${esc(name)}</td>
+          <td class="actions">${iconBtn('remove', {'data-routedel': courseId, 'data-i': i},
+            `Remove ${where}`)}</td></tr>`;
+      }).join('') + '</tbody></table>'
     : '<p class="muted">No route stated: Net Control sees this race as before.</p>';
   const options = routeStopChoices().map((p) =>
     `<option value="${p.id}">${esc(p.name)}</option>`).join('');
@@ -1445,6 +1448,24 @@ function renderRoute(courseId) {
     <button type="button" data-routedraft="${courseId}" ${hasDraft ? '' : 'disabled'}
       title="Replaces this list with the stops ticked for ${esc(cname)}, in the club's order. Not saved until you press Save.">Fill from ticked stops</button>
   </div>`;
+  const table = body.querySelector('table.route-steps');
+  if (table) {
+    bindReorder(table, (positions) => {
+      // An arrow key leaves focus on the grip that moved; the rebuild would
+      // drop it, so find where that row went and focus it again.
+      const held = document.activeElement && document.activeElement.dataset
+        ? document.activeElement.dataset.grip : undefined;
+      route.current = positions.map((i) => route.current[Number(i)]);
+      renderRoute(courseId);
+      refreshRouteSave();
+      if (held !== undefined) {
+        const moved = positions.indexOf(String(held));
+        const grip = document.querySelector(
+          `[data-routebody="${courseId}"] [data-grip="${moved}"]`);
+        if (grip) grip.focus();
+      }
+    });
+  }
 }
 
 function refreshRouteSave() {
@@ -1461,16 +1482,11 @@ function bindRouteList(host) {
   host.addEventListener('click', (event) => {
     const t = event.target.closest('button');
     if (!t) return;
-    const id = Number(t.dataset.routeup || t.dataset.routedown || t.dataset.routedel
-      || t.dataset.routeaddbtn || t.dataset.routedraft);
+    const id = Number(t.dataset.routedel || t.dataset.routeaddbtn || t.dataset.routedraft);
     const route = ROUTES.get(id);
     if (!route) return;
     const i = Number(t.dataset.i);
-    if (t.dataset.routeup && i > 0) {
-      [route.current[i - 1], route.current[i]] = [route.current[i], route.current[i - 1]];
-    } else if (t.dataset.routedown && i < route.current.length - 1) {
-      [route.current[i + 1], route.current[i]] = [route.current[i], route.current[i + 1]];
-    } else if (t.dataset.routedel) {
+    if (t.dataset.routedel) {
       route.current.splice(i, 1);
     } else if (t.dataset.routeaddbtn) {
       const select = host.querySelector(`[data-routeadd="${id}"]`);

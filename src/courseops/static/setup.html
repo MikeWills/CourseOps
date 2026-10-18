@@ -119,6 +119,7 @@
   <nav id="event-tabs" hidden>
     <button class="tab" data-tab="course" type="button">Import</button>
     <button class="tab" data-tab="courses" type="button">Courses</button>
+    <button class="tab" data-tab="routes" type="button">Route stops</button>
     <button class="tab" data-tab="stations" type="button">Places</button>
     <button class="tab" data-tab="layers" type="button">Layers</button>
     <button class="tab" data-tab="roles" type="button">Roles</button>
@@ -302,8 +303,13 @@
       <span id="course-order-note" class="muted"></span>
     </div>
     <div id="course-table"></div>
+  </section>
 
-    <h3>Leader routes</h3>
+  <!-- The stops each race's lead runner passes, in order. Its own tab: it is
+       a different job from drawing the races, and it sat under the courses
+       table where it was easy to miss. -->
+  <section class="panel" data-panel="routes" hidden>
+    <h2>Route stops</h2>
     <p class="muted">
       The stops each race's lead runner passes, in order. Net Control's
       <em>Passed</em> button follows this list. A stop can appear twice -
