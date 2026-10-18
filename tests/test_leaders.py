@@ -688,3 +688,51 @@ def test_a_leader_needs_a_name(race):
     with pytest.raises(categories.CategoryError):
         categories.add_lead_division(conn, event_id, "   ")
 
+
+
+# --- correcting a bib (#208) -------------------------------------------------
+
+def test_correcting_the_bib_fixes_the_latest_sighting_in_place(race):
+    """The bib box on a leader row once edited nothing stored: the only write
+    was a new sighting, so a typo meant Clear and re-reporting every stop."""
+    conn, event_id, course_id, index = race
+    leaders.record_sighting(conn, event_id, course_id, "male",
+                            poi_id(conn, "Alpha"), bib="101")
+    leaders.record_sighting(conn, event_id, course_id, "male",
+                            poi_id(conn, "Bravo"), bib="1O2")
+    before = leaders.sightings(conn, event_id, course_id, "male")
+
+    assert leaders.correct_latest_bib(
+        conn, event_id, course_id, "male", " 102 ") is True
+
+    after = leaders.sightings(conn, event_id, course_id, "male")
+    assert len(after) == 2                       # no duplicate row
+    assert after[0]["bib"] == "101"              # older one untouched
+    assert after[1]["bib"] == "102"
+    assert (after[1]["at"], after[1]["poi_id"], after[1]["id"]) == \
+        (before[1]["at"], before[1]["poi_id"], before[1]["id"])
+    assert leader(conn, event_id, index).bib == "102"
+
+
+def test_correcting_a_bib_can_clear_it(race):
+    conn, event_id, course_id, index = race
+    leaders.record_sighting(conn, event_id, course_id, "male",
+                            poi_id(conn, "Alpha"), bib="101")
+    assert leaders.correct_latest_bib(conn, event_id, course_id, "male", "") is True
+    assert leader(conn, event_id, index).bib is None
+
+
+def test_correcting_a_bib_with_nothing_reported_is_harmless(race):
+    conn, event_id, course_id, index = race
+    assert leaders.correct_latest_bib(
+        conn, event_id, course_id, "male", "101") is False
+
+
+def test_correcting_one_leader_leaves_the_other_alone(race):
+    conn, event_id, course_id, index = race
+    leaders.record_sighting(conn, event_id, course_id, "male",
+                            poi_id(conn, "Alpha"), bib="101")
+    leaders.record_sighting(conn, event_id, course_id, "female",
+                            poi_id(conn, "Alpha"), bib="201")
+    leaders.correct_latest_bib(conn, event_id, course_id, "male", "111")
+    assert leader(conn, event_id, index, "female").bib == "201"

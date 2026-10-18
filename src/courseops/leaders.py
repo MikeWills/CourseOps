@@ -277,6 +277,31 @@ def undo_last_sighting(
     return True
 
 
+def correct_latest_bib(
+    conn: sqlite3.Connection, event_id: int, course_id: int, division: str,
+    bib: str | None,
+) -> bool:
+    """Fix the bib on the most recent sighting, keeping its stop and time.
+
+    The bib box on a leader row used to be only the input for the NEXT report,
+    so a typo could be fixed by Clear and nothing else (#208). The leader's bib
+    is read from the latest sighting everywhere (the panel, the after-event
+    report), so correcting that one row is the whole fix. Older sightings keep
+    what was reported then: they are the record of what NCS was told at the
+    time. An empty bib clears it. False when nothing has been reported.
+    """
+    row = conn.execute(
+        "SELECT id FROM lead_sighting WHERE event_id = ? AND course_id = ?"
+        " AND division = ? ORDER BY at DESC, id DESC LIMIT 1",
+        (event_id, course_id, _division(division)),
+    ).fetchone()
+    if row is None:
+        return False
+    conn.execute("UPDATE lead_sighting SET bib = ? WHERE id = ?",
+                 (db.clean_text(bib, 16), row["id"]))
+    return True
+
+
 def clear_sightings(
     conn: sqlite3.Connection, event_id: int, course_id: int, division: str
 ) -> int:

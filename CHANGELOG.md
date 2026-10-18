@@ -11,6 +11,16 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Fixed
+- **A lead runner's bib can be corrected (#208).** The bib box on a leader row
+  only fed the NEXT report; the one write that existed was an INSERT, so a typo
+  meant Clear and re-reporting every stop. Changing the box now POSTs
+  `leaders/bib`, which updates the bib of the latest sighting for that race and
+  leader in place (stop and time kept, nothing duplicated) and broadcasts the
+  leaders list. The after-event report reads the same row, so it agrees. Older
+  sightings are left as reported. Pressing Passed or the picker right after
+  typing a new bib is a new report, so that press suppresses the correction.
+
 ### Changed
 - **Net Control follows the stated leader route (#210, PR B).** On a race with
   a route set in setup, "Passed" names the next STEP and stores which step it

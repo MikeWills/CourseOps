@@ -955,6 +955,39 @@ def test_a_mis_tap_can_be_undone_over_the_api(setup):
     assert male["last_poi_id"] is None
 
 
+def test_a_bib_correction_reaches_other_screens_and_the_report(setup):
+    """#208: editing the bib on a leader row corrects the latest sighting and
+    is broadcast; the after-event report reads the same row."""
+    app, tokens, db_path, event_id = setup
+    conn = db.connect(db_path)
+    course_id = conn.execute("SELECT id FROM course").fetchone()["id"]
+    poi_id = conn.execute("SELECT id FROM poi").fetchone()["id"]
+    conn.close()
+
+    with TestClient(app) as client:
+        client.post(f"/api/m2026/{tokens['ncs']}/leaders/sighting",
+                    json={"course_id": course_id, "division": "male",
+                          "poi_id": poi_id, "bib": "1O1"})
+        with client.websocket_connect(f"/ws/m2026/{tokens['logistics']}") as ws:
+            response = client.post(
+                f"/api/m2026/{tokens['ncs']}/leaders/bib",
+                json={"course_id": course_id, "division": "male",
+                      "bib": "101"})
+            message = ws.receive_json()
+        denied = client.post(
+            f"/api/m2026/{tokens['logistics']}/leaders/bib",
+            json={"course_id": course_id, "division": "male", "bib": "9"})
+
+    assert response.json() == {"updated": True}
+    male = next(e for e in message["leaders"] if e["division"] == "male")
+    assert male["bib"] == "101"
+    assert denied.status_code == 403
+    conn = db.connect(db_path)
+    rows = conn.execute("SELECT bib FROM lead_sighting").fetchall()
+    conn.close()
+    assert [r["bib"] for r in rows] == ["101"]
+
+
 def test_bib_colour_is_set_in_setup_and_reaches_the_field(setup):
     """The live app once had its own bib-colour write with no control
     behind it; setup owns the colour and the field reads it."""
