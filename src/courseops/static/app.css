@@ -973,6 +973,19 @@ body {
 }
 .net-info-line + .net-info-line { margin-top: 4px; }
 
+/* --- finished pickups ---------------------------------------------------- */
+
+/* The drop-down under the live queue. Text and aria-expanded carry the state,
+   not colour; the count stays in the label so a folded group still says how
+   many. */
+.finished-toggle {
+  min-height: 44px;                 /* thumb-sized */
+  margin: 8px 0;
+  padding: 0 12px;
+  font: inherit;
+  font-weight: 600;
+}
+
 /* --- event notes --------------------------------------------------------- */
 
 /* A sentence and a clock time. The row reuses .incident for its rule and

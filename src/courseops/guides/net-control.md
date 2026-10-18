@@ -73,6 +73,13 @@ The count in the heading - **(4 waiting)** - is how many people are still on us.
 Delivered and closed do not count; *picked up* still does, because that runner is
 in a vehicle and still ours.
 
+Once a pickup is **Dropped off** or **Closed** it moves out of the list into a
+folded **Finished (4)** section just below it, newest first. Press it to open
+the rows - they are complete, so you can still fix a bib or press another status
+to bring one back. It stays folded after a reload, and a row you are typing in
+stays open while you type. A list with only finished rows says **Nothing
+waiting**.
+
 Sorting is status first, longest-waiting first inside it. A pickup nobody has
 dispatched sits at the top no matter how far away it is.
 
