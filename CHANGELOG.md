@@ -11,6 +11,19 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Added
+- **The after-event report lists the lead runner passings.** A "Lead runners"
+  section gives, per race and per leader, each stop the leader was reported at
+  with the bib and the clock time (the event's zone, formatted by the browser
+  like every other time on the page), oldest first. The passings were already
+  stored one row each in `lead_sighting`, but the report never read them, so
+  the only record of how the front of the race went was in the database, and
+  Public Safety had asked for it. The reporter is left off, per the page's
+  no-names rule. Read straight from the tables rather than through
+  `categories.lead_divisions`, which seeds defaults: a report is a read. A
+  leader the club later deleted keeps its passings under its stored key. Note
+  Clear on the leader row still deletes them (#208 and #215 follow).
+
 ## [2026.10.3] - 2026-10-14
 
 ### Fixed

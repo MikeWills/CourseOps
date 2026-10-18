@@ -141,9 +141,15 @@ what to do when something breaks - is in
 ![The after-event report: counts, places, times, no names](images/setup-report.png)
 
 Every event row has an **After-event report** link. It carries counts, places,
-times, course notes and event notes with **no volunteer names**, because it goes to the race
-organizer, who needs to know that four runners were collected and where - not
-which of your members reported it.
+times, course notes, the lead runner passings and event notes with **no volunteer
+names**, because it goes to the race organizer, who needs to know that four
+runners were collected and where - not which of your members reported it.
+
+**Lead runners** lists, for each race and each leader you track, every stop Net
+Control reported them at, with the bib and the clock time, oldest first. These
+are radio reports, so a time is when it was called in, not a timing mat. A
+correction sits beside the report it corrects. The reporter is left off. Do not
+press **Clear** on a leader's row after the race starts: it deletes these.
 
 The small maps on it are drawn by the browser from the same tiles as the live
 map, so nothing about an incident is sent anywhere the live map does not already

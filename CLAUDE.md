@@ -1205,6 +1205,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-10-17** The after-event report has a Lead runners section: per race and leader, each stop reported with bib and clock time, no reporter (#207).
 - **2026-10-14** Fixed: the map's first view fits courses and places only, not every heard station (one far-off igate zoomed it out to the Atlantic).
 - **2026-10-13** A posted station's row on the stations list is named by its place ("Water Stop Alpha"), not the roster's short label; unposted stations keep the label.
 - **2026-10-12** A place's popup lists who is stationed there (callsign and name), built when the popup opens so socket posting changes show.
@@ -1214,4 +1215,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-29** Starts at / Finishes at per race on the Courses tab: naming either turns the stored line to run from the start (the Mankato Half and 10K were drawn finish-first).
 - **2026-09-29** Fixed: the NCS stations list sorted posted stations by mile across races (10K mile 1.7 above Full 2.2); it now follows the club's place order, movers grouped by race.
 - **2026-09-29** Print roster (setup, Roster tab): callsign, operator, post, GPS, W3W in course order, unposted last; the browser's Save as PDF is the PDF.
-- **2026-09-29** Race start times: a Start column on the Courses tab, shown beside the bib colour in each race's lead runners heading; `course.start_time`, 'HH:MM' in the event's zone, never converted.
