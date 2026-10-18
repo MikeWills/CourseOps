@@ -79,8 +79,9 @@ is matched to a step by place, first pass, as today.
 
 - **PR A**: table, `step` column, setup API and UI, "Fill from ticked", export,
   guide. No change to what NCS sees. Safe to ship first.
-- **PR B**: `route_progression`, leaders read the route, Passed follows steps,
-  NCS shows the logged clock time. Behaviour change.
+- **PR B** (built): `route_progression`, leaders read the route, Passed follows
+  steps, NCS shows the logged clock time. Behaviour change, no schema change.
+  A step that does not match its place is stored as none, not refused.
 
 ## Rollback
 

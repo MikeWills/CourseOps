@@ -140,6 +140,11 @@ When a station reports the leader through:
    is expected at next.
 3. If they were sighted somewhere else, pick it from the **At...** list instead.
 
+On a race whose route the club set in setup, the button follows that route
+step by step - a stop the leader passes twice is pressed twice, and the second
+time it names the stop after it. Each row shows the clock time the report was
+logged as well as how long ago.
+
 The panel then reads *Next: Aid station 5 (~23 min)*. If two reports arrive
 seconds apart, the app shows no pace and no estimate at all rather than
 publishing "120 mph" and an aid station planning around it.

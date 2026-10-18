@@ -93,6 +93,11 @@ class Leader:
     next_poi_name: str | None = None
     next_distance_m: float | None = None
     eta_seconds: float | None = None
+    # Where on the club's stated route (`course_stop.step`) the last report
+    # was and where the next one should be. None for a race with no route,
+    # and for a report at a place that is not on it.
+    last_step: int | None = None
+    next_step: int | None = None
 
     @property
     def division_label(self) -> str:
@@ -118,6 +123,8 @@ class Leader:
             "next_poi_name": self.next_poi_name,
             "next_distance_m": self.next_distance_m,
             "eta_seconds": self.eta_seconds,
+            "last_step": self.last_step,
+            "next_step": self.next_step,
         }
         return data
 
@@ -198,8 +205,16 @@ def record_sighting(
     poi_id: int,
     bib: str | None = None,
     by: str | None = None,
+    step: int | None = None,
 ) -> sqlite3.Row:
-    """Log that the leader for a division passed an aid station."""
+    """Log that the leader for a division passed an aid station.
+
+    `step` is which step of the race's stated route this was (a stop the route
+    passes twice is two steps). It is kept only if it IS that place on that
+    race's route: a phone holding a route edited since it loaded must not
+    file a report under a step that is now somebody else. Anything else
+    stores None, and the panel works the step out from the place.
+    """
     division = _division(division)
     # Against the event's own list, not just non-empty: a client holding a
     # stale leader list (one deleted in setup since the page loaded) would
@@ -221,13 +236,26 @@ def record_sighting(
     if poi is None:
         raise ValueError(f"No aid station with id {poi_id} in this event.")
 
+    kept_step = None
+    if step is not None:
+        try:
+            wanted = int(step)
+        except (TypeError, ValueError):
+            wanted = None
+        if wanted is not None and conn.execute(
+            "SELECT 1 FROM course_stop WHERE course_id = ? AND step = ?"
+            " AND poi_id = ?", (course_id, wanted, poi_id),
+        ).fetchone():
+            kept_step = wanted
+
     cur = conn.execute(
         """
-        INSERT INTO lead_sighting (event_id, course_id, division, poi_id, bib, by)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO lead_sighting
+               (event_id, course_id, division, poi_id, bib, by, step)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
         (event_id, course_id, division, poi_id,
-         db.clean_text(bib, 16), db.clean_text(by, 24)),
+         db.clean_text(bib, 16), db.clean_text(by, 24), kept_step),
     )
     return conn.execute(
         "SELECT * FROM lead_sighting WHERE id = ?", (int(cur.lastrowid),)
@@ -392,6 +420,12 @@ def _leader_for(
     )
 
     reports = sightings(conn, event_id, course["id"], division)
+    route = [r for r in conn.execute(
+        "SELECT step, poi_id FROM course_stop WHERE course_id = ?"
+        " ORDER BY step", (course["id"],)).fetchall() if r["poi_id"] in known]
+    if route:
+        return _leader_on_route(conn, event_id, course, base, reports, route,
+                                known, index)
     # `known` covers every staffed place in the event, so a sighting recorded
     # at a station that snapped to another course is still named.
     #
@@ -494,3 +528,102 @@ def _leader_for(
         next_distance_m=following[0] if following else None,
         eta_seconds=eta,
     )
+
+
+def _resolve_steps(reports, route) -> list[int | None]:
+    """Which route step each report was, as an index into `route`.
+
+    A report that stored its step is taken at its word. One that did not (every
+    report before routes existed, and any correction picked from the list) is
+    the first pass of that place AFTER the step before it, so a leader
+    reported at I a second time is the second I and not the first again. A
+    place the route does not name is None.
+    """
+    by_step = {r["step"]: i for i, r in enumerate(route)}
+    out: list[int | None] = []
+    previous = -1
+    for report in reports:
+        stored = report["step"]
+        if (stored is not None and stored in by_step
+                and route[by_step[stored]]["poi_id"] == report["poi_id"]):
+            idx = by_step[stored]
+        else:
+            matching = [i for i, r in enumerate(route)
+                        if r["poi_id"] == report["poi_id"]]
+            ahead = [i for i in matching if i > previous]
+            idx = (ahead or matching or [None])[0]
+        out.append(idx)
+        if idx is not None:
+            previous = idx
+    return out
+
+
+def _leader_on_route(conn, event_id, course, base, reports, route, known,
+                     index) -> Leader:
+    """A leader on a race whose route the club stated (docs/leader-route.md).
+
+    The next stop is the next STEP, and pace is measured from one step to the
+    next, so the leg back from J to I is as ordinary as the one out.
+    """
+    ticked = {row["poi_id"] for row in conn.execute(
+        "SELECT poi_id FROM poi_course WHERE event_id = ? AND course_id = ?",
+        (event_id, course["id"])).fetchall()}
+    rows = [{"id": r["poi_id"], "lat": known[r["poi_id"]][3],
+             "lon": known[r["poi_id"]][4]} for r in route]
+    along = index.route_progression(
+        course["id"], rows, ticked | {r["poi_id"] for r in route})
+    dist = [p.distance_along_m if p else None for p in along]
+
+    def step_info(i):
+        poi_id = route[i]["poi_id"]
+        return poi_id, known[poi_id][0], dist[i], route[i]["step"]
+
+    if not reports:
+        poi_id, name, d, step = step_info(0)
+        return Leader(**base, next_poi_id=poi_id, next_poi_name=name,
+                      next_distance_m=d, next_step=step)
+
+    resolved = _resolve_steps(reports, route)
+    latest = reports[-1]
+    here = resolved[-1]
+    if here is None:
+        # Off the route: name it, measure it on this race if it reaches, and
+        # do not guess what comes next.
+        place = known.get(latest["poi_id"])
+        located = (index.locate_on(place[3], place[4], course["id"])
+                   if place else None)
+        return Leader(
+            **base, last_poi_id=latest["poi_id"],
+            last_poi_name=place[0] if place else None,
+            last_distance_m=located.distance_along_m if located else None,
+            last_at=latest["at"], last_by=latest["by"], bib=latest["bib"])
+
+    _, last_name, last_distance, last_step = step_info(here)
+    pace = None
+    if len(reports) >= 2 and resolved[-2] is not None:
+        before = dist[resolved[-2]]
+        start, end = _parse(reports[-2]["at"]), _parse(latest["at"])
+        if before is not None and last_distance is not None and start and end:
+            elapsed = (end - start).total_seconds()
+            travelled = last_distance - before
+            if elapsed > 0 and travelled > 0:
+                candidate = travelled / elapsed
+                if MIN_PACE_MPS <= candidate <= MAX_PACE_MPS:
+                    pace = candidate
+
+    nxt = step_info(here + 1) if here + 1 < len(route) else None
+    eta = None
+    if nxt and pace and nxt[2] is not None and last_distance is not None:
+        gap = nxt[2] - last_distance
+        if gap > 0:
+            eta = gap / pace
+
+    return Leader(
+        **base, last_poi_id=latest["poi_id"], last_poi_name=last_name,
+        last_distance_m=last_distance, last_at=latest["at"],
+        last_by=latest["by"], bib=latest["bib"], pace_mps=pace,
+        next_poi_id=nxt[0] if nxt else None,
+        next_poi_name=nxt[1] if nxt else None,
+        next_distance_m=nxt[2] if nxt else None,
+        eta_seconds=eta, last_step=last_step,
+        next_step=nxt[3] if nxt else None)

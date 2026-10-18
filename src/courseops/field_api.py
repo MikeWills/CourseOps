@@ -641,6 +641,7 @@ async def record_leader(
             poi_id=int(body.get("poi_id")),
             bib=body.get("bib"),
             by=body.get("changed_by"),
+            step=body.get("step"),
         )
     except (ValueError, TypeError) as exc:
         raise HTTPException(status_code=400, detail=str(exc))

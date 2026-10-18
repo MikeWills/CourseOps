@@ -173,7 +173,9 @@ running order; it only fills the editor, so read it over, add any stop the
 runners pass a second time, then press **Save**. Use **Up**, **Down** and the
 remove button to change a list. A race with no list here works exactly as it
 did before. A place that is in a route cannot be deleted until it is taken out.
-*Net Control's* **Passed** button does not follow these lists yet.
+*Net Control's* **Passed** button follows the list: after the second I it
+names K, not J, and the pace is measured from one step to the next, the leg
+back included.
 
 **Check the distance.** If a course reads 3 mi when it should read 13, segments
 are missing or one belongs to a different route. **Stitched it wrong? Delete

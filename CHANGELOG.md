@@ -11,6 +11,20 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Changed
+- **Net Control follows the stated leader route (#210, PR B).** On a race with
+  a route set in setup, "Passed" names the next STEP and stores which step it
+  was, so after the second I (H, I, J, I, K) the next stop is K and no longer J
+  again, and pace and ETA are measured step to step - the leg back from J to I
+  gets a pace like the leg out. A report with no step (every one recorded
+  before this, and a correction picked from the list) is taken as the first
+  pass of that place after the step before it. A step that does not match its
+  place is stored as none rather than refused, so a phone holding a route edited
+  since it loaded cannot lose a report. A race with no route behaves as before.
+  `CourseIndex.route_progression` is the same one-pass-per-entry search as
+  `progression`, over a list that may repeat a place. Net Control's row now
+  shows the clock time of the last report beside its age. No schema change.
+
 ### Added
 - **Hide the event notes list, keep the box (#209).** A Hide notes / Show notes
   button above the list puts the list away on Net Control, Liaison and
