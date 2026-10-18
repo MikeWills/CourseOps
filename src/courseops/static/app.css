@@ -977,6 +977,13 @@ body {
 
 /* A sentence and a clock time. The row reuses .incident for its rule and
    spacing; the time takes the data face because it is read off the screen. */
+.event-note-toggle {
+  min-height: 44px;                 /* thumb-sized */
+  margin-bottom: 8px;
+  padding: 0 12px;
+  font: inherit;
+  font-weight: 600;
+}
 .event-note-form { display: flex; gap: 6px; margin-bottom: 8px; }
 .event-note-form input {
   flex: 1;

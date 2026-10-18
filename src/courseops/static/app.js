@@ -2403,7 +2403,17 @@ function renderEventNotes() {
   // and never the list, so the count would always read zero for them.
   const sees = can('event_note_view');
   document.getElementById('event-note-blind').hidden = sees || !can('event_note');
-  host.hidden = !sees;
+  // The list can be put away without the box: nobody acts on these during the
+  // race and the list only grows. The label keeps the count, so a hidden list
+  // still says how many notes there are. Folded state rides with the other
+  // folds in prefs, so a phone reload does not reopen it.
+  const listFolded = state.foldedSections.has('event-note-list');
+  const toggle = document.getElementById('event-note-toggle');
+  toggle.hidden = !sees;
+  toggle.setAttribute('aria-expanded', String(!listFolded));
+  toggle.textContent = listFolded
+    ? `Show notes (${notes.length})` : `Hide notes (${notes.length})`;
+  host.hidden = !sees || listFolded;
   document.getElementById('event-note-count').hidden = !sees;
 
   const editing = captureFieldEdit();
@@ -2504,6 +2514,16 @@ async function deleteEventNote(note) {
     setLocateStatus(`Could not delete - ${err.message}`);
   }
 }
+
+document.getElementById('event-note-toggle').addEventListener('click', () => {
+  if (state.foldedSections.has('event-note-list')) {
+    state.foldedSections.delete('event-note-list');
+  } else {
+    state.foldedSections.add('event-note-list');
+  }
+  savePrefs();
+  renderEventNotes();
+});
 
 document.getElementById('event-note-form').addEventListener('submit', async (ev) => {
   ev.preventDefault();

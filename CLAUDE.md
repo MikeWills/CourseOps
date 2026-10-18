@@ -1211,6 +1211,7 @@ Rules that keep this honest:
 Last 10 entries; full record in `CHANGELOG.md`.
 
 - **2026-10-17** The NCS stations list is alphabetical and never re-sorts; the heading counts silent stations since order no longer shows them (#212).
+- **2026-10-17** Event notes list can be hidden on its own (Hide notes / Show notes, count kept) while the add box stays on screen (#209).
 - **2026-10-17** The after-event report has a Lead runners section: per race and leader, each stop reported with bib and clock time, no reporter (#207).
 - **2026-10-14** Fixed: the map's first view fits courses and places only, not every heard station (one far-off igate zoomed it out to the Atlantic).
 - **2026-10-13** A posted station's row on the stations list is named by its place ("Water Stop Alpha"), not the roster's short label; unposted stations keep the label.
@@ -1219,4 +1220,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-09-29** Replace from an updated file: Import's assign box can put a staged line INTO an existing race or ONE point INTO an existing place (nearest first); only geometry changes, the line is re-turned to its start.
 - **2026-09-29** Fixed: a place's mile is measured on a race it serves (not the nearest line), at the pass the club's order means; lead runner pace/ETA measured on the leader's own race.
 - **2026-09-29** Starts at / Finishes at per race on the Courses tab: naming either turns the stored line to run from the start (the Mankato Half and 10K were drawn finish-first).
-- **2026-09-29** Fixed: the NCS stations list sorted posted stations by mile across races (10K mile 1.7 above Full 2.2); it now follows the club's place order, movers grouped by race.
