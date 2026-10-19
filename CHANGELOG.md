@@ -11,6 +11,8 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+## [2026.10.8] - 2026-10-19
+
 ### Added
 - Net Control can send an operator to another station once they are Torn down
   (#211): a **Send to...** box on the station row. The operator is posted at the
