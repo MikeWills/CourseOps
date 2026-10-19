@@ -1095,7 +1095,7 @@ def save_roster_entry(conn: sqlite3.Connection, event_id: int, payload: dict) ->
         raise ValueError(f"{tracked_by} is not a way of tracking someone.")
     station_key = (_text(payload, "station_key") or "").upper()
     label = _text(payload, "display_label", 80) or ""
-    if tracked_by == db.TRACKED_BY_PHONE:
+    if tracked_by in (db.TRACKED_BY_PHONE, db.TRACKED_BY_MANUAL):
         # A designator, not a callsign: what the person types into the
         # tracking app. Stored in the same normalised spelling the endpoint
         # matches on, so "m-1" here and "M 1" on the phone are one person.

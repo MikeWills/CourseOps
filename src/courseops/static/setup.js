@@ -2899,6 +2899,7 @@ $('roster-print').addEventListener('click', async () => {
    non-tracked one has nothing to go quiet. */
 function trackingPill(r) {
   if (r.tracked_by === 'phone') return '<span class="pill">phone app</span>';
+  if (r.tracked_by === 'manual') return '<span class="pill">hand-placed</span>';
   return r.expects_aprs
     ? '<span class="pill">APRS</span>'
     : '<span class="pill is-off">not tracked</span>';
@@ -2906,11 +2907,14 @@ function trackingPill(r) {
 
 function trackingValue(entry) {
   if (entry.tracked_by === 'phone') return 'phone';
+  if (entry.tracked_by === 'manual') return 'manual';
   return entry.expects_aprs ? 'aprs' : 'none';
 }
 
 const TRACKING_HINTS = {
   aprs: 'APRS: the callsign is asked for on APRS-IS and silence is an alert.',
+  manual: 'A unit someone places on the map by hand - an officer, a Public Works '
+    + 'truck. The badge number is the identity; Net Control or Liaison moves the pin.',
   phone: 'A designator they type into the tracking app - M1, BIKE2. Letters '
     + 'and digits; it is what gets said on the air.',
   none: 'For operators who do not transmit - keeps them out of the '
@@ -2920,7 +2924,7 @@ const TRACKING_HINTS = {
 function renderTrackingHint() {
   const value = $('rs-tracking').value;
   $('rs-tracking-hint').textContent = TRACKING_HINTS[value];
-  $('rs-call').placeholder = value === 'phone' ? 'M1' : 'N0CALL';
+  $('rs-call').placeholder = value === 'phone' ? 'M1' : value === 'manual' ? '4021' : 'N0CALL';
 }
 $('rs-tracking').addEventListener('change', renderTrackingHint);
 
@@ -2962,7 +2966,8 @@ $('roster-form').addEventListener('submit', async (ev) => {
       category: $('rs-category').value,
       operator_name: $('rs-operator').value,
       expects_aprs: $('rs-tracking').value !== 'none',
-      tracked_by: $('rs-tracking').value === 'phone' ? 'phone' : 'aprs',
+      tracked_by: ['phone', 'manual'].includes($('rs-tracking').value)
+        ? $('rs-tracking').value : 'aprs',
       poi_id: $('rs-poi').value ? Number($('rs-poi').value) : null,
     });
     banner('Station saved.');

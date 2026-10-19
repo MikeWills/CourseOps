@@ -57,7 +57,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 975 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 1002 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -192,6 +192,7 @@ usability, not style preferences.
   releases in that month from 0; a new month starts at `.0`. No leading
   zero on the month: Python normalises `2026.09` to `2026.9` in the
   metadata and the tag must match `pyproject.toml` byte for byte.
+- **A hand-placed unit is private to the field roles, on EVERY path.** `tracked_by = 'manual'` (#196): police, CSO and Public Works positions are the most sensitive thing the app holds. The Staff link never gets them - not in the snapshot (roster AND positions), not on the position message, and not on `station_status` (a test caught that one leaking). A new message about a station must check the unit case.
 - **Receive-only, forever.** Passcode `-1` grants read access and no transmit
   capability. The club needs a callsign and no secret. Never add a real passcode.
 - **One APRS-IS connection for the whole server.** Browsers connect to our
@@ -1231,6 +1232,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-10-19** Hand-placed unit pins (#196): `tracked_by='manual'`, badge-number pill, Net Control + Liaison move it (`CAP_UNIT_MOVE`), every field role but Staff sees it (`CAP_UNIT_VIEW`).
 - **2026-10-19** Fixed: tabbing from a leader's bib box to Passed is a new report, not a correction of the previous sighting (#208 keyboard gap).
 - **2026-10-19** A pickup or course note pin can be moved: Move this pin in the popup arms it, then a tap or a drag sets the spot; the log keeps the old one (#214).
 - **2026-10-19** Net Control can send a Torn down operator to another staffed place (#211): `db.relocate_station`, append-only `roster_post_log`, resync to every screen.
@@ -1240,4 +1242,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-10-17** Sweep tracking (#215): a leader has a `kind` ('sweep' ticked on the Leaders tab); leg times per stop, a finish estimate from the last three legs to the route's last step, per-kind pace limits, a Leg column on the report.
 - **2026-10-17** The NCS stations list is alphabetical and never re-sorts; the heading counts silent stations since order no longer shows them (#212).
 - **2026-10-17** Event notes list can be hidden on its own (Hide notes / Show notes, count kept) while the add box stays on screen (#209).
-- **2026-10-17** Net Control follows the stated leader route (#210 PR B): Passed names the next step and stores it; after the second I the next stop is K; pace is step to step; NCS rows show the logged clock time.

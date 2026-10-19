@@ -63,6 +63,11 @@ not counted.
 Tap a row to fly the map to that station - to their last position if they
 beacon, to the place they are posted at if they do not.
 
+**Hand-placed units** (police, CSOs, Public Works) are rows with a badge number
+and a **Place on map** / **Move on map** button: press it and tap the map, or
+drag the pill. The pin shows when it was set and by whom. They never read as
+silent, and the Staff link never receives them.
+
 **Sending an operator on.** A water stop that tears down early frees its
 operator. Once a station reads *Torn down*, a **Send to...** box appears on its
 row: pick the next place and they are posted there, set back to *Not staffed*

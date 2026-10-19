@@ -11,6 +11,18 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Added
+- **Hand-placed unit pins for police, CSOs and Public Works (#196).** A roster
+  entry can be Tracked by **Hand-placed** (`tracked_by = 'manual'`): its key is
+  a badge number, it never enters the APRS filter and never alarms (a quiet
+  officer is normal). Net Control and Liaison (`CAP_UNIT_MOVE`) set its position
+  by dragging a white pill marker or **Place on map** + a tap; the pin says when
+  and by whom it was set (the position's time and `comment`), so it cannot read
+  as live tracking. Seeing units is `CAP_UNIT_VIEW`: every field role but Staff,
+  in the snapshot, on the position socket message and on status changes. A test
+  caught the status message reaching Staff before this shipped. No new tables
+  or columns; the existing one-position-per-station row is used.
+
 ## [2026.10.8] - 2026-10-19
 
 ### Added

@@ -89,6 +89,20 @@ when it can be released.
 
 ---
 
+## Police, CSO and Public Works units
+
+If the club listed units as **Hand-placed**, each appears as a white pill with
+its badge number. You and Net Control move them, nobody else can:
+
+- **Place on map** on the unit's row (in the stations list), then tap the map -
+  the first time, and any time on a phone.
+- Or **drag the pill** to its new spot.
+
+Every pill says how long ago it was set and by whom (tap it). **It is where
+someone put it, not a live track** - an officer who stepped away is still on the
+map where you left them until you move them. A quiet unit is never an alarm.
+Staff links never see these units at all.
+
 ## Quick answers
 
 | Question | Answer |

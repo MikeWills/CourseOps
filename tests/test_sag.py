@@ -70,7 +70,12 @@ def test_the_field_roles_may_report_and_no_more(role):
     assert not any(granted.can(cap) for cap in
                    access.ALL_CAPABILITIES
                    - {access.CAP_INCIDENT_REPORT, access.CAP_EVENT_NOTE,
-                      access.CAP_EVENT_NOTE_VIEW})
+                      access.CAP_EVENT_NOTE_VIEW,
+                      # Hand-placed units (#196): both SEE them; only Liaison,
+                      # who sits with Public Safety, may MOVE one.
+                      access.CAP_UNIT_VIEW}
+                   - ({access.CAP_UNIT_MOVE} if role == access.ROLE_LIAISON
+                      else set()))
 
 
 def test_every_role_has_a_capability_entry():
