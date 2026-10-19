@@ -290,6 +290,33 @@ async def set_station_status(
     return JSONResponse(payload)
 
 
+@router.post("/api/{event_slug}/{token}/station/{station_key}/relocate")
+async def relocate_station(
+    event_slug: str, token: str, station_key: str, request: Request,
+    auth: Grant = Depends(needs(access.CAP_STATIONS))
+) -> JSONResponse:
+    """Send an operator to another staffed place (#211). Net Control only.
+
+    A move changes the roster row, the station's status and the place's
+    popup list at once, which no single incremental message can express, so
+    every screen is told to reload (the same answer as adopting an SSID).
+    """
+    conn, granted = auth
+    body = await json_body(request)
+    try:
+        poi = body.get("poi_id")
+        row = db.relocate_station(
+            conn, granted.event_id, station_key,
+            int(poi) if poi is not None else None,
+            db.clean_text(body.get("changed_by"), incidents.MAX_WHO_LENGTH),
+            lat=body.get("lat"), lon=body.get("lon"), name=body.get("name"))
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    await _publish_state_hint(request.app, granted.event_id)
+    return JSONResponse({"station_key": row["station_key"],
+                         "poi_id": row["poi_id"], "post_name": row["post_name"], "op_status": row["op_status"]})
+
+
 async def _publish_state_hint(app: FastAPI, event_id: int) -> None:
     """Ask every client to reload full state.
 

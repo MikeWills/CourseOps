@@ -63,6 +63,20 @@ not counted.
 Tap a row to fly the map to that station - to their last position if they
 beacon, to the place they are posted at if they do not.
 
+**Sending an operator on.** A water stop that tears down early frees its
+operator. Once a station reads *Torn down*, a **Send to...** box appears on its
+row: pick the next place and they are posted there, set back to *Not staffed*
+(they are not On station until you say so), and every screen follows without a
+reload. Only places the club staffs are on the list. Where they were is kept,
+with the time and your initials.
+
+**Sending them somewhere that is not a place** - the end of a turn-around, a
+busy intersection: choose **Drop a pin...** in the same box. Type a name for the
+spot if you like (the box that appears), then tap the map. The operator is
+posted at that spot, which gets a flag on the map and a mile on the row like any
+other station. It never becomes an entry on the Places tab, so it cannot show up
+as a stop for the lead runner's **Passed** button.
+
 ---
 
 ## 2. The pickup queue

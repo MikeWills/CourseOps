@@ -12,6 +12,24 @@ month, PATCH counting releases in that month from 0. Before that they were
 ## [Unreleased]
 
 ### Added
+- Net Control can send an operator to another station once they are Torn down
+  (#211): a **Send to...** box on the station row. The operator is posted at the
+  new place, set back to the not-started status, and every screen resyncs (the
+  place popups and the stations list follow). Only a staffed place is a valid
+  target; the same place is refused. New append-only table `roster_post_log`
+  (who, from place, to place, when, by whom), also written by setup's post
+  changes, followed by a callsign rename and included in an export. Net Control
+  only (`CAP_STATIONS`).
+- Send to a **dropped pin** as well as to a place (#211): the turn-around, a
+  busy intersection. The spot lives on the roster row (`post_lat`, `post_lon`,
+  `post_name`; poi_id is NULL), never as a `poi`, because a stray staffed place
+  would appear in the leader's Passed button and on the Places tab. It gets its
+  own flag on the map, a course mile on the row, and a line in the post log. The
+  three roster columns are added to existing databases by the normal
+  column-adding step at startup; rolling the code back leaves them unread.
+  **Rollback:** the table is `CREATE TABLE IF NOT EXISTS`, so deploying creates
+  it with no migration step; rolling the code back leaves it unused and
+  harmless. Nothing reads it yet apart from `db.post_log`.
 - A pickup or course note pin can be moved after it is placed (#214): **Move this
   pin** in its popup arms it, then a map tap or a drag of the pin sets the new
   spot. A pin is draggable only while armed, so panning never knocks one loose;

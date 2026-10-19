@@ -1506,3 +1506,12 @@ body {
 /* Move this pin (#214): a 44px target inside the popup. */
 .inc-move { min-height: 44px; margin-top: 8px; padding: 0 14px; font: inherit; font-weight: 700; cursor: pointer; }
 #pin-move-cancel { min-height: 44px; margin-left: 8px; }
+
+/* Send a torn-down station to another place (#211). */
+.station-relocate { min-height: 44px; margin-top: 6px; max-width: 100%; font: inherit; }
+
+/* A post that is a spot, not a place (#211). */
+.post-pin { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--navy-700); color: #fff; border: 2px solid #fff; font-size: 15px; }
+#send-pin-cancel { min-height: 44px; margin-left: 8px; }
+#send-pin-name { min-height: 44px; }

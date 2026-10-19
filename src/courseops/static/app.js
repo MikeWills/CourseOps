@@ -76,6 +76,8 @@ const state = {
     {value: 'closed', label: 'Closed'},
   ],
   droppingPin: false,
+  sendingStation: null, // station key while NCS is dropping its new pin (#211)
+  postMarkers: new Map(), // station key -> L.Marker for a post that is a spot, not a place
   movingPin: null,     // incident id while its pin is being moved (#214)
   mePositionAt: 0,      // when the browser last gave us a fix
   meAccuracyM: null,    // and how good it said that fix was
@@ -1185,12 +1187,16 @@ async function setStationStatus(stationKey, opStatus) {
    this very name, so what is read is what is ordered. */
 function stationRowName(stationKey) {
   const postedAt = state.roster.get(stationKey);
+  if (postedAt && postedAt.post_lat != null) {
+    return `${postedAt.post_name} (${labelOf(stationKey)})`;
+  }
   return postedAt && postedAt.poi_id != null
     ? placeName(postedAt.poi_id, labelOf(stationKey))
     : labelOf(stationKey);
 }
 
 function renderStations() {
+  syncPostPins();
   const host = document.getElementById('station-list');
   const keys = [...new Set([...state.roster.keys(), ...state.positions.keys()])]
     .filter(stationVisible)
@@ -1266,7 +1272,8 @@ function renderStations() {
     locate.addEventListener('click', () => {
       const entry = state.roster.get(stationKey);
       showOnMap(state.markers.get(stationKey)
-        || (entry && entry.poi_id != null ? state.poiMarkers.get(entry.poi_id) : null));
+        || (entry && entry.poi_id != null ? state.poiMarkers.get(entry.poi_id) : null)
+        || state.postMarkers.get(stationKey));
     });
     row.appendChild(locate);
 
@@ -1307,8 +1314,97 @@ function renderStations() {
     }
     row.appendChild(opRow);
 
+    /* Wrapped up and free to move (#211): a station that is Torn down can be
+       sent to another staffed place. Offered only to NCS and only once they
+       have finished, so it is not a thing to hit by accident mid-spot. The
+       server posts them there, puts them back to the not-started status and
+       logs it; every screen then reloads (a resync). */
+    if (can('stations') && op === 'closed' && (entry.poi_id || entry.post_lat != null)) {
+      const move = document.createElement('select');
+      move.className = 'station-relocate';
+      move.setAttribute('aria-label', `Send ${entry.display_label} to another station`);
+      // A spot that is not a place - the end of a turn-around, a busy
+      // intersection - is a dropped pin, not an entry on the Places tab.
+      move.innerHTML = '<option value="">Send to…</option><option value="pin">Drop a pin…</option>' +
+        state.aidStations
+          .filter((p) => p.id !== entry.poi_id)
+          .map((p) => `<option value="${p.id}">${escapeHtml(placeName(p.id, p.name))}</option>`)
+          .join('');
+      move.addEventListener('change', () => {
+        if (move.value === 'pin') startSendPin(stationKey);
+        else if (move.value) relocateStation(stationKey, {poi_id: Number(move.value)});
+      });
+      row.appendChild(move);
+    }
+
     host.appendChild(row);
   });
+}
+
+/* The pin is armed first and dropped by a tap, like a pickup; the name is
+   typed beforehand because nothing here may block on a dialog. */
+function startSendPin(stationKey) {
+  state.sendingStation = stationKey;
+  document.getElementById('send-pin-hint').hidden = false;
+  document.getElementById('map').style.cursor = 'crosshair';
+  setSheet(false);
+}
+
+function stopSendPin() {
+  state.sendingStation = null;
+  document.getElementById('send-pin-hint').hidden = true;
+  if (!state.droppingPin && !state.movingPin) document.getElementById('map').style.cursor = '';
+  renderStations();      // put the box back to "Send to…"
+}
+
+function sendToPin(latlng) {
+  const key = state.sendingStation;
+  const name = document.getElementById('send-pin-name').value.trim();
+  state.sendingStation = null;
+  document.getElementById('send-pin-hint').hidden = true;
+  document.getElementById('send-pin-name').value = '';
+  document.getElementById('map').style.cursor = '';
+  relocateStation(key, {lat: latlng.lat, lon: latlng.lng, name});
+}
+
+/* A post that is a spot gets a pin of its own: no place exists to carry it. */
+function syncPostPins() {
+  const wanted = new Map();
+  state.roster.forEach((entry, key) => {
+    if (entry.post_lat != null) wanted.set(key, entry);
+  });
+  state.postMarkers.forEach((marker, key) => {
+    if (!wanted.has(key)) { map.removeLayer(marker); state.postMarkers.delete(key); }
+  });
+  wanted.forEach((entry, key) => {
+    let marker = state.postMarkers.get(key);
+    if (!marker) {
+      marker = L.marker([entry.post_lat, entry.post_lon], {
+        icon: L.divIcon({className: '', html: '<div class="post-pin">&#9873;</div>',
+                         iconSize: [28, 28], iconAnchor: [14, 14]}),
+      });
+      marker.bindPopup(() => {
+        const e = state.roster.get(key);
+        return e ? `<h3>${escapeHtml(e.post_name || 'Dropped pin')}</h3><dl><dt>Stationed</dt><dd>` +
+          escapeHtml(e.operator_name ? `${e.station_key} - ${e.operator_name}` : e.station_key) +
+          '</dd></dl>' : '';
+      });
+      state.postMarkers.set(key, marker);
+      marker.addTo(map);
+    } else {
+      marker.setLatLng([entry.post_lat, entry.post_lon]);
+    }
+  });
+}
+
+async function relocateStation(stationKey, target) {
+  try {
+    await post(`station/${encodeURIComponent(stationKey)}/relocate`,
+      {...target, changed_by: state.operatorInitials});
+    setLocateStatus('Moved. They are Not staffed at the new place until you mark them On station.');
+  } catch (err) {
+    setLocateStatus(`Could not move them - ${err.message}`);
+  }
 }
 
 /* ---------- SSID mismatches ---------------------------------------------- */
@@ -2827,12 +2923,15 @@ document.getElementById('incident-add').addEventListener('click', () => {
 });
 
 document.getElementById('pin-move-cancel').addEventListener('click', stopMovePin);
+document.getElementById('send-pin-cancel').addEventListener('click', stopSendPin);
 document.addEventListener('keydown', (ev) => {
   if (ev.key === 'Escape' && state.movingPin) stopMovePin();
+  if (ev.key === 'Escape' && state.sendingStation) stopSendPin();
 });
 
 map.on('click', (ev) => {
   if (state.movingPin) { commitMovePin(state.movingPin, ev.latlng); return; }
+  if (state.sendingStation) { sendToPin(ev.latlng); return; }
   if (!state.droppingPin) return;
   setDroppingPin(false);
   createIncident(ev.latlng);

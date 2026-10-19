@@ -204,6 +204,11 @@ def build_state(conn: sqlite3.Connection, event_id: int) -> dict[str, Any]:
             poi = next((p for p in pois if p["id"] == row["poi_id"]), None)
             if poi is not None:
                 entry["course_position"] = poi["course_position"]
+        elif row["post_lat"] is not None:
+            # A dropped pin (#211) has a mile like any other spot, so the row
+            # reads "mile 14.2" for a turn-around too.
+            entry["course_position"] = course_position(
+                index, row["post_lat"], row["post_lon"])
         roster.append(entry)
 
     # Ignoring an SSID has to hide what was already stored, not merely stop
