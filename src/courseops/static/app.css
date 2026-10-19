@@ -979,11 +979,27 @@ body {
    not colour; the count stays in the label so a folded group still says how
    many. */
 .finished-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
   min-height: 44px;                 /* thumb-sized */
-  margin: 8px 0;
-  padding: 0 12px;
+  margin: 8px 0 0;
+  padding: 0;
+  border: 0;
+  background: none;
   font: inherit;
-  font-weight: 600;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+.finished-toggle .muted { font-weight: 600; }
+.finished-toggle[aria-expanded="false"] .fold-chevron { transform: rotate(-90deg); }
+.finished-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 /* --- event notes --------------------------------------------------------- */

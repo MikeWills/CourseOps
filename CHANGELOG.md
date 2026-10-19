@@ -16,6 +16,12 @@ month, PATCH counting releases in that month from 0. Before that they were
   Each note is a sentence a volunteer typed, and a page of them in semibold
   read as a list of headings; the time and place line above each already
   separates one from the next.
+- **The Finished (N) toggle is set like the section headings around it.** It
+  was a grey bordered button, the only one of its kind in the panel, and it
+  stuck out between the queue and Course notes. It is now a heavy label with
+  a quiet count and a chevron on the right, the same as Course notes and
+  Stations, and the chevron turns when it is open. Same 44px target, same
+  behaviour, same remembered state.
 
 ## [2026.10.5] - 2026-10-18
 

@@ -39,7 +39,7 @@ def test_the_finished_group_has_a_44px_toggle_with_count_and_aria():
     block = CSS[CSS.index(".finished-toggle"):]
     assert "min-height: 44px" in block[:300]
     body = _render_pickups()
-    assert "Finished (" in body
+    assert "Finished <span" in body and "(${finished.length})" in body
     assert "aria-expanded" in body
 
 
