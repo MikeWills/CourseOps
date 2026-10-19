@@ -213,6 +213,25 @@ def test_update_with_nothing_to_change_is_rejected(event):
         incidents.update(conn, event_id, row["id"], by="MW")
 
 
+def test_moving_a_pin_updates_it_and_the_log_keeps_where_it_was(event):
+    """#214: the log said only "moved", so a pin knocked to the wrong place
+    could not be put back - the old coordinates were nowhere."""
+    conn, event_id = event
+    row = open_one(conn, event_id)
+    moved = incidents.update(conn, event_id, row["id"], by="MW", lat=44.15, lon=-94.0)
+    assert (moved["lat"], moved["lon"]) == (44.15, -94.0)
+    detail = incidents.log_for(conn, row["id"])[-1]["detail"]
+    assert "moved from 44.14, -93.99" in detail
+
+
+def test_moving_a_pin_out_of_range_is_refused_and_changes_nothing(event):
+    conn, event_id = event
+    row = open_one(conn, event_id)
+    with pytest.raises(incidents.IncidentError, match="out of range"):
+        incidents.update(conn, event_id, row["id"], by="MW", lat=91, lon=0)
+    assert incidents.get(conn, event_id, row["id"])["lat"] == 44.14
+
+
 # --- deleting an oops -------------------------------------------------------
 
 def test_deleting_removes_the_incident_and_its_log(event):

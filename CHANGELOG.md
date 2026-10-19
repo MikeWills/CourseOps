@@ -11,8 +11,14 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
-### Fixed
+### Added
+- A pickup or course note pin can be moved after it is placed (#214): **Move this
+  pin** in its popup arms it, then a map tap or a drag of the pin sets the new
+  spot. A pin is draggable only while armed, so panning never knocks one loose;
+  a refused save puts it back. The incident log now records the OLD position
+  (`moved from lat, lon`), where it said only "moved".
 
+### Fixed
 - Tabbing from a leader's bib box to **Passed** and pressing Enter no longer
   writes the new bib over the PREVIOUS sighting first. Only a mouse press was
   recognised as "this is the next report"; with the keyboard `change` fired

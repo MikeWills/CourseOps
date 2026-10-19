@@ -76,6 +76,7 @@ const state = {
     {value: 'closed', label: 'Closed'},
   ],
   droppingPin: false,
+  movingPin: null,     // incident id while its pin is being moved (#214)
   mePositionAt: 0,      // when the browser last gave us a fix
   meAccuracyM: null,    // and how good it said that fix was
   ssidAlerts: [],
@@ -2032,9 +2033,62 @@ function incidentPopup(incident) {
 
   const title = note ? 'Course note'
     : incident.bib ? `Bib ${incident.bib}` : 'Pickup (bib unknown)';
+  const move = can('incident_report')
+    ? `<button type="button" class="inc-move" data-move="${incident.id}">Move this pin</button>`
+    : '';
   return `<h3>${escapeHtml(title)}</h3><dl>` +
     rows.map(([k, v]) => `<dt>${escapeHtml(k)}</dt><dd>${escapeHtml(String(v))}</dd>`)
-      .join('') + '</dl>';
+      .join('') + '</dl>' + move;
+}
+
+/* Moving a pin (#214). Armed from the popup, never draggable by default: a
+   finger panning the map must not be able to knock someone's pickup loose.
+   While armed, either a tap on the map or a drag of the pin itself sets the
+   new spot; both go through commitMovePin, which asks the server and puts
+   the pin back if the server said no - no pin may sit where the server does
+   not have it. The drag is L.Marker's own, because a finger sends touchmove,
+   not mousemove. */
+function startMovePin(id) {
+  const marker = state.incidentMarkers.get(id);
+  if (!marker) return;
+  stopMovePin();
+  state.movingPin = id;
+  marker.closePopup();
+  marker.dragging.enable();
+  marker.on('dragend', onMovePinDragEnd);
+  const hint = document.getElementById('pin-move-hint');
+  hint.hidden = false;
+  document.getElementById('map').style.cursor = 'crosshair';
+  setSheet(false);
+}
+
+function stopMovePin() {
+  const id = state.movingPin;
+  state.movingPin = null;
+  const marker = id && state.incidentMarkers.get(id);
+  if (marker) {
+    marker.dragging.disable();
+    marker.off('dragend', onMovePinDragEnd);
+  }
+  document.getElementById('pin-move-hint').hidden = true;
+  if (!state.droppingPin) document.getElementById('map').style.cursor = '';
+}
+
+function onMovePinDragEnd(ev) {
+  if (state.movingPin) commitMovePin(state.movingPin, ev.target.getLatLng());
+}
+
+async function commitMovePin(id, latlng) {
+  const incident = state.incidents.get(id);
+  const marker = state.incidentMarkers.get(id);
+  stopMovePin();
+  if (!incident || !marker) return;
+  marker.setLatLng(latlng);
+  const saved = await editIncident(id, {lat: latlng.lat, lon: latlng.lng});
+  // Back to where the server has it. The socket message that follows a good
+  // save moves it again with setLatLng, never animated.
+  if (!saved) marker.setLatLng([incident.lat, incident.lon]);
+  else setLocateStatus('Pin moved.');
 }
 
 function upsertIncidentMarker(incident) {
@@ -2042,6 +2096,10 @@ function upsertIncidentMarker(incident) {
   if (!marker) {
     marker = L.marker([incident.lat, incident.lon], {icon: incidentIcon(incident)});
     marker.bindPopup(() => incidentPopup(state.incidents.get(incident.id)));
+    marker.on('popupopen', (ev) => {
+      const btn = ev.popup.getElement().querySelector('.inc-move');
+      if (btn) btn.addEventListener('click', () => startMovePin(incident.id));
+    });
     state.incidentMarkers.set(incident.id, marker);
   } else {
     marker.setLatLng([incident.lat, incident.lon]);
@@ -2768,7 +2826,13 @@ document.getElementById('incident-add').addEventListener('click', () => {
   if (state.droppingPin) setSheet(false);   // get the panel out of the way
 });
 
+document.getElementById('pin-move-cancel').addEventListener('click', stopMovePin);
+document.addEventListener('keydown', (ev) => {
+  if (ev.key === 'Escape' && state.movingPin) stopMovePin();
+});
+
 map.on('click', (ev) => {
+  if (state.movingPin) { commitMovePin(state.movingPin, ev.latlng); return; }
   if (!state.droppingPin) return;
   setDroppingPin(false);
   createIncident(ev.latlng);
