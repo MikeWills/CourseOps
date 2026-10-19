@@ -11,6 +11,8 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+## [2026.10.7] - 2026-10-19
+
 ### Changed
 - **The event notes list folds like Finished pickups, not with a button.**
   "Hide notes" / "Show notes" was a bordered button that looked like nothing
