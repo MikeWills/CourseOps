@@ -12,6 +12,19 @@ month, PATCH counting releases in that month from 0. Before that they were
 ## [Unreleased]
 
 ### Added
+- Net Control can send an operator to another station once they are Torn down
+  (#211): a **Send to...** box on the station row. The operator is posted at the
+  new place, set back to the not-started status, and every screen resyncs (the
+  place popups and the stations list follow). Only a staffed place is a valid
+  target; the same place is refused. New append-only table `roster_post_log`
+  (who, from place, to place, when, by whom), also written by setup's post
+  changes, followed by a callsign rename and included in an export. Net Control
+  only (`CAP_STATIONS`).
+  **Rollback:** the table is `CREATE TABLE IF NOT EXISTS`, so deploying creates
+  it with no migration step; rolling the code back leaves it unused and
+  harmless. Nothing reads it yet apart from `db.post_log`.
+
+
 - A pickup or course note pin can be moved after it is placed (#214): **Move this
   pin** in its popup arms it, then a map tap or a drag of the pin sets the new
   spot. A pin is draggable only while armed, so panning never knocks one loose;

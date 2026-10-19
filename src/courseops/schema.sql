@@ -561,6 +561,26 @@ CREATE TABLE IF NOT EXISTS roster_status_log (
 CREATE INDEX IF NOT EXISTS idx_roster_status_log
     ON roster_status_log (event_id, station_key, at);
 
+-- Every change of where an operator is posted, never overwritten (#211).
+--
+-- `roster.poi_id` holds only the current post, so sending someone from a water
+-- stop that tears down early to a later one used to leave no record of who
+-- staffed the first stop or until when. Same reasoning as roster_status_log,
+-- and like it this cannot be rebuilt afterwards. No foreign key on the places
+-- or the key: the history must survive a place being renamed or removed.
+CREATE TABLE IF NOT EXISTS roster_post_log (
+    id           INTEGER PRIMARY KEY,
+    event_id     INTEGER NOT NULL REFERENCES event(id) ON DELETE CASCADE,
+    station_key  TEXT    NOT NULL,
+    at           TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+    by           TEXT,
+    from_poi_id  INTEGER,
+    to_poi_id    INTEGER
+);
+
+CREATE INDEX IF NOT EXISTS idx_roster_post_log
+    ON roster_post_log (event_id, station_key, at);
+
 -- SSIDs to keep OFF the map, under a callsign we otherwise want.
 --
 -- The live filter is a wildcard per rostered callsign by default, because a

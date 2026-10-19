@@ -63,6 +63,13 @@ not counted.
 Tap a row to fly the map to that station - to their last position if they
 beacon, to the place they are posted at if they do not.
 
+**Sending an operator on.** A water stop that tears down early frees its
+operator. Once a station reads *Torn down*, a **Send to...** box appears on its
+row: pick the next place and they are posted there, set back to *Not staffed*
+(they are not On station until you say so), and every screen follows without a
+reload. Only places the club staffs are on the list. Where they were is kept,
+with the time and your initials.
+
 ---
 
 ## 2. The pickup queue

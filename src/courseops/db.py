@@ -776,13 +776,17 @@ def set_op_status(
 
 
 def assign_station_to_poi(
-    conn: sqlite3.Connection, event_id: int, station_key: str, poi_id: int | None
+    conn: sqlite3.Connection, event_id: int, station_key: str, poi_id: int | None,
+    changed_by: str | None = None,
 ) -> sqlite3.Row:
     """Post a roster entry at an aid station.
 
     This is what lets a non-beaconing operator be drawn in the right place and
     sorted into course order - most aid station operators never transmit, so
     their position can only come from the station they are posted at.
+
+    A change of post is appended to `roster_post_log` (#211); posting the same
+    place again writes nothing.
     """
     if poi_id is not None:
         exists = conn.execute(
@@ -791,16 +795,77 @@ def assign_station_to_poi(
         if exists is None:
             raise ValueError(f"No POI with id {poi_id} in this event.")
 
-    cur = conn.execute(
-        "UPDATE roster SET poi_id = ? WHERE event_id = ? AND station_key = ?",
-        (poi_id, event_id, station_key.upper()),
-    )
-    if cur.rowcount == 0:
-        raise ValueError(f"{station_key} is not on this event's roster.")
+    with transaction(conn):
+        previous = conn.execute(
+            "SELECT poi_id FROM roster WHERE event_id = ? AND station_key = ?",
+            (event_id, station_key.upper()),
+        ).fetchone()
+        cur = conn.execute(
+            "UPDATE roster SET poi_id = ? WHERE event_id = ? AND station_key = ?",
+            (poi_id, event_id, station_key.upper()),
+        )
+        if cur.rowcount == 0:
+            raise ValueError(f"{station_key} is not on this event's roster.")
+        if previous["poi_id"] != poi_id:
+            conn.execute(
+                "INSERT INTO roster_post_log"
+                " (event_id, station_key, by, from_poi_id, to_poi_id)"
+                " VALUES (?, ?, ?, ?, ?)",
+                (event_id, station_key.upper(), clean_text(changed_by, 24),
+                 previous["poi_id"], poi_id),
+            )
     return conn.execute(
         "SELECT * FROM roster WHERE event_id = ? AND station_key = ?",
         (event_id, station_key.upper()),
     ).fetchone()
+
+
+def relocate_station(
+    conn: sqlite3.Connection, event_id: int, station_key: str, poi_id: int,
+    changed_by: str | None = None,
+) -> sqlite3.Row:
+    """Send an operator to another STAFFED place (#211), live, by Net Control.
+
+    The new post is logged, and the status goes back to 'pending': they are
+    not on station at the new place until NCS says so, and "Torn down" must
+    not follow them there. The old place keeps its history in the logs.
+    Only a staffed place is a valid target - the same flag everything
+    operational keys off - so an unpostable pin cannot be chosen.
+    """
+    station_key = resolve_station_key(conn, event_id, station_key)
+    with transaction(conn):
+        place = conn.execute(
+            "SELECT p.poi_type, c.staffed FROM poi p"
+            " LEFT JOIN poi_category c"
+            "   ON c.event_id = p.event_id AND c.key = p.poi_type"
+            " WHERE p.id = ? AND p.event_id = ?", (poi_id, event_id),
+        ).fetchone()
+        if place is None:
+            raise ValueError(f"No POI with id {poi_id} in this event.")
+        if not place["staffed"]:
+            raise ValueError("That place is not staffed, so nobody can be posted there.")
+        current = conn.execute(
+            "SELECT poi_id FROM roster WHERE event_id = ? AND station_key = ?",
+            (event_id, station_key.upper()),
+        ).fetchone()
+        if current is None:
+            raise ValueError(f"{station_key} is not on this event's roster.")
+        if current["poi_id"] == poi_id:
+            raise ValueError("They are already posted there.")
+        assign_station_to_poi(conn, event_id, station_key, poi_id, changed_by)
+        return set_op_status(conn, event_id, station_key, "pending", changed_by)
+
+
+def post_log(
+    conn: sqlite3.Connection, event_id: int, station_key: str | None = None
+) -> list[sqlite3.Row]:
+    """Where operators were posted, oldest first; omit the key for the event."""
+    query = "SELECT * FROM roster_post_log WHERE event_id = ?"
+    params: list = [event_id]
+    if station_key is not None:
+        query += " AND station_key = ?"
+        params.append(station_key.upper())
+    return conn.execute(query + " ORDER BY at, id", params).fetchall()
 
 
 def excluded_station_keys(conn: sqlite3.Connection, event_id: int) -> set[str]:
@@ -1028,6 +1093,11 @@ def rename_station_key(
         # the two leaves the log orphaned.
         conn.execute(
             "UPDATE roster_status_log SET station_key = ?"
+            " WHERE event_id = ? AND station_key = ?",
+            (new_key, event_id, old_key),
+        )
+        conn.execute(
+            "UPDATE roster_post_log SET station_key = ?"
             " WHERE event_id = ? AND station_key = ?",
             (new_key, event_id, old_key),
         )

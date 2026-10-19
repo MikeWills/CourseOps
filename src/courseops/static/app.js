@@ -1307,8 +1307,38 @@ function renderStations() {
     }
     row.appendChild(opRow);
 
+    /* Wrapped up and free to move (#211): a station that is Torn down can be
+       sent to another staffed place. Offered only to NCS and only once they
+       have finished, so it is not a thing to hit by accident mid-spot. The
+       server posts them there, puts them back to the not-started status and
+       logs it; every screen then reloads (a resync). */
+    if (can('stations') && op === 'closed' && entry.poi_id) {
+      const move = document.createElement('select');
+      move.className = 'station-relocate';
+      move.setAttribute('aria-label', `Send ${entry.display_label} to another station`);
+      move.innerHTML = '<option value="">Send to…</option>' +
+        state.aidStations
+          .filter((p) => p.id !== entry.poi_id)
+          .map((p) => `<option value="${p.id}">${escapeHtml(placeName(p.id, p.name))}</option>`)
+          .join('');
+      move.addEventListener('change', () => {
+        if (move.value) relocateStation(stationKey, Number(move.value));
+      });
+      row.appendChild(move);
+    }
+
     host.appendChild(row);
   });
+}
+
+async function relocateStation(stationKey, poiId) {
+  try {
+    await post(`station/${encodeURIComponent(stationKey)}/relocate`,
+      {poi_id: poiId, changed_by: state.operatorInitials});
+    setLocateStatus('Moved. They are Not staffed at the new place until you mark them On station.');
+  } catch (err) {
+    setLocateStatus(`Could not move them - ${err.message}`);
+  }
 }
 
 /* ---------- SSID mismatches ---------------------------------------------- */

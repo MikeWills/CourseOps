@@ -271,6 +271,7 @@ EXPORTED_TABLES = (
     "poi_category", "roster_role", "lead_division", "course", "poi",
     "poi_course", "course_stop", "roster", "import_batch", "import_feature", "incident",
     "incident_log", "event_note", "lead_sighting", "roster_status_log",
+    "roster_post_log",
     "station_exclusion",
 )
 
@@ -1189,6 +1190,9 @@ def delete_roster_entry(conn: sqlite3.Connection, event_id: int,
             (event_id, k))
         conn.execute(
             "DELETE FROM roster_status_log WHERE event_id = ? AND station_key = ?",
+            (event_id, k))
+        conn.execute(
+            "DELETE FROM roster_post_log WHERE event_id = ? AND station_key = ?",
             (event_id, k))
 
 
