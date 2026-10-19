@@ -122,10 +122,11 @@ a place on the course - *bring more pizza*, *the start was late*. Type it into
 the box and press **Add**. Every link can add one, Staff included; only you,
 Liaison and Logistics see the list. The pencil beside a note opens it for
 editing (tick saves, x cancels); the second **x** deletes it, which you and
-SAG are the ones who can do. **Hide notes** above the list puts the list away
-and leaves the box where it is, so a note can still be typed the moment
-something happens; the button then reads **Show notes** and keeps the count.
-The choice is kept on that device. See
+SAG are the ones who can do. The **Notes (N)** row above the list, with its
+arrow, folds the list away and leaves the box where it is, so a note can still
+be typed the moment something happens; it keeps the count while folded. It is
+the same fold row as **Finished (N)** under the pickups. The choice is kept on
+that device. See
 [the basics](everyone.md) for the rest.
 
 ---

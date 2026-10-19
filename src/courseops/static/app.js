@@ -2563,8 +2563,12 @@ function renderEventNotes() {
   const toggle = document.getElementById('event-note-toggle');
   toggle.hidden = !sees;
   toggle.setAttribute('aria-expanded', String(!listFolded));
-  toggle.textContent = listFolded
-    ? `Show notes (${notes.length})` : `Hide notes (${notes.length})`;
+  // The same fold row as Finished (N) under the pickups: a heading-weight
+  // label, the count, a chevron that turns. The state is aria-expanded.
+  toggle.innerHTML = `Notes <span class="muted">(${notes.length})</span>`
+    + '<svg class="fold-chevron" viewBox="0 0 16 16" width="14" height="14" '
+    + 'aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" '
+    + 'stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg>';
   host.hidden = !sees || listFolded;
   document.getElementById('event-note-count').hidden = !sees;
 
