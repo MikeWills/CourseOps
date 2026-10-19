@@ -11,6 +11,14 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Fixed
+- **A deploy no longer reuses a half-written build.** The 2026.10.5 deploy
+  hit a full disk while setuptools copied files into `build/`; the re-run saw
+  a file there that looked current and installed it, so `app.js` was served
+  at 52 KiB of 139 KiB and every field page sat on "Loading...". Cloudflare
+  then cached the broken file for four hours. `deploy.sh` now removes
+  `build/` before each install, the rollback's included.
+
 ### Changed
 - **The report's course notes and event notes are regular weight, not bold.**
   Each note is a sentence a volunteer typed, and a page of them in semibold
