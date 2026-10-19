@@ -95,6 +95,11 @@ you have it - a call comes in before anyone can read a number.
 
 Use **Here** only when you are standing at the spot. Net Control usually is not.
 
+**A pin in the wrong spot** can be moved: tap the pin, press **Move this pin** in
+its popup, then tap the map at the right spot (or drag the pin there). Escape or
+**Cancel** backs out. Pins cannot be dragged any other way, so panning the map
+never knocks one loose. The log keeps where it was.
+
 ### Move one along
 
 The buttons across the row are the workflow: **Reported, En route, Picked up,

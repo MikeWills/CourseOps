@@ -1502,3 +1502,7 @@ body {
   #brand-name, #brand-rule { display: none; }
   #help-link { width: 24px; height: 24px; font-size: 13px; }
 }
+
+/* Move this pin (#214): a 44px target inside the popup. */
+.inc-move { min-height: 44px; margin-top: 8px; padding: 0 14px; font: inherit; font-weight: 700; cursor: pointer; }
+#pin-move-cancel { min-height: 44px; margin-left: 8px; }

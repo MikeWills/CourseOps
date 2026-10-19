@@ -41,6 +41,11 @@ folded until you open it.
 4. **Call it in to Net Control on the net.** The pin does not do this for
    you, and a pickup nobody heard is a pickup nobody was assigned.
 
+**A pin in the wrong spot** can be moved: tap the pin, press **Move this pin** in
+its popup, then tap the map at the right spot (or drag the pin there). Escape or
+**Cancel** backs out. Pins cannot be dragged any other way, so panning the map
+never knocks one loose. The log keeps where it was.
+
 **Tapping the map is the normal way in, and that is the whole point for you.**
 You are reporting places you have never seen - a location a deputy just read
 over the radio. Your own position is the one position that is always wrong for

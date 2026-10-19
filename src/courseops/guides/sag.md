@@ -88,6 +88,11 @@ You will see runners nobody has called in.
 beside them. The app tells you if the fix is poor rather than letting you trust
 it.
 
+**A pin in the wrong spot** can be moved: tap the pin, press **Move this pin** in
+its popup, then tap the map at the right spot (or drag the pin there). Escape or
+**Cancel** backs out. Pins cannot be dragged any other way, so panning the map
+never knocks one loose. The log keeps where it was.
+
 Switch **Pickup / Course note** at the top if what you found is not a runner:
 cones knocked into a lane, a turn nobody is marshalling. Notes never enter the
 pickup count.

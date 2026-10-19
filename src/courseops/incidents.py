@@ -186,7 +186,7 @@ def update(
     **fields,
 ) -> sqlite3.Row:
     """Edit bib, note, assignment or position. Only fields given are touched."""
-    get(conn, event_id, incident_id)          # existence check
+    before = get(conn, event_id, incident_id)          # existence check
     allowed = {"bib": MAX_BIB_LENGTH, "note": MAX_NOTE_LENGTH,
                "assigned_to": MAX_WHO_LENGTH}
 
@@ -204,7 +204,9 @@ def update(
             raise IncidentError(f"Position out of range: {lat}, {lon}")
         updates += ["lat = ?", "lon = ?"]
         values += [lat, lon]
-        described.append("moved")
+        # The old spot is kept: a pin dragged to the wrong place can be put
+        # back by someone reading the log (#214).
+        described.append(f"moved from {before['lat']}, {before['lon']}")
 
     if not updates:
         raise IncidentError("Nothing to change.")
