@@ -11,6 +11,13 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Changed
+- **The event notes list folds like Finished pickups, not with a button.**
+  "Hide notes" / "Show notes" was a bordered button that looked like nothing
+  else in the panel. It is now the same fold row as Finished (N): a heavy
+  "Notes" label, the count, and an arrow that turns. Same behaviour: the box
+  stays put, the count stays, the choice is kept on the device.
+
 ## [2026.10.6] - 2026-10-19
 
 ### Fixed
