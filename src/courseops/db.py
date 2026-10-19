@@ -126,6 +126,9 @@ _ADDED_COLUMNS: list[tuple[str, str, str]] = [
     ("roster", "op_status_at", "TEXT"),
     ("roster", "op_status_by", "TEXT"),
     ("roster", "bound_key", "TEXT"),
+    ("roster", "post_lat", "REAL"),
+    ("roster", "post_lon", "REAL"),
+    ("roster", "post_name", "TEXT"),
     ("incident", "kind", "TEXT NOT NULL DEFAULT 'pickup'"),
     ("poi", "label", "TEXT"),
     ("poi", "sort_order", "INTEGER NOT NULL DEFAULT 0"),
@@ -797,22 +800,24 @@ def assign_station_to_poi(
 
     with transaction(conn):
         previous = conn.execute(
-            "SELECT poi_id FROM roster WHERE event_id = ? AND station_key = ?",
+            "SELECT poi_id, post_name FROM roster"
+            " WHERE event_id = ? AND station_key = ?",
             (event_id, station_key.upper()),
         ).fetchone()
         cur = conn.execute(
-            "UPDATE roster SET poi_id = ? WHERE event_id = ? AND station_key = ?",
+            "UPDATE roster SET poi_id = ?, post_lat = NULL, post_lon = NULL,"
+            " post_name = NULL WHERE event_id = ? AND station_key = ?",
             (poi_id, event_id, station_key.upper()),
         )
         if cur.rowcount == 0:
             raise ValueError(f"{station_key} is not on this event's roster.")
-        if previous["poi_id"] != poi_id:
+        if previous["poi_id"] != poi_id or previous["post_name"]:
             conn.execute(
                 "INSERT INTO roster_post_log"
-                " (event_id, station_key, by, from_poi_id, to_poi_id)"
-                " VALUES (?, ?, ?, ?, ?)",
+                " (event_id, station_key, by, from_poi_id, from_name, to_poi_id)"
+                " VALUES (?, ?, ?, ?, ?, ?)",
                 (event_id, station_key.upper(), clean_text(changed_by, 24),
-                 previous["poi_id"], poi_id),
+                 previous["poi_id"], previous["post_name"], poi_id),
             )
     return conn.execute(
         "SELECT * FROM roster WHERE event_id = ? AND station_key = ?",
@@ -821,38 +826,63 @@ def assign_station_to_poi(
 
 
 def relocate_station(
-    conn: sqlite3.Connection, event_id: int, station_key: str, poi_id: int,
-    changed_by: str | None = None,
+    conn: sqlite3.Connection, event_id: int, station_key: str,
+    poi_id: int | None, changed_by: str | None = None,
+    lat: float | None = None, lon: float | None = None, name: str | None = None,
 ) -> sqlite3.Row:
-    """Send an operator to another STAFFED place (#211), live, by Net Control.
+    """Send an operator somewhere else (#211), live, by Net Control.
 
+    Either to another STAFFED place (`poi_id`), or to a spot NCS dropped a pin
+    on (`lat`/`lon`, an optional `name`): the end of a turn-around, a busy
+    intersection - somewhere that is not, and must not become, a place.
     The new post is logged, and the status goes back to 'pending': they are
-    not on station at the new place until NCS says so, and "Torn down" must
-    not follow them there. The old place keeps its history in the logs.
-    Only a staffed place is a valid target - the same flag everything
-    operational keys off - so an unpostable pin cannot be chosen.
+    not on station there until NCS says so, and "Torn down" must not follow
+    them. The old post keeps its history in the logs.
     """
     station_key = resolve_station_key(conn, event_id, station_key)
     with transaction(conn):
-        place = conn.execute(
-            "SELECT p.poi_type, c.staffed FROM poi p"
-            " LEFT JOIN poi_category c"
-            "   ON c.event_id = p.event_id AND c.key = p.poi_type"
-            " WHERE p.id = ? AND p.event_id = ?", (poi_id, event_id),
-        ).fetchone()
-        if place is None:
-            raise ValueError(f"No POI with id {poi_id} in this event.")
-        if not place["staffed"]:
-            raise ValueError("That place is not staffed, so nobody can be posted there.")
         current = conn.execute(
             "SELECT poi_id FROM roster WHERE event_id = ? AND station_key = ?",
             (event_id, station_key.upper()),
         ).fetchone()
         if current is None:
             raise ValueError(f"{station_key} is not on this event's roster.")
-        if current["poi_id"] == poi_id:
-            raise ValueError("They are already posted there.")
-        assign_station_to_poi(conn, event_id, station_key, poi_id, changed_by)
+        if poi_id is not None:
+            place = conn.execute(
+                "SELECT c.staffed FROM poi p"
+                " LEFT JOIN poi_category c"
+                "   ON c.event_id = p.event_id AND c.key = p.poi_type"
+                " WHERE p.id = ? AND p.event_id = ?", (poi_id, event_id),
+            ).fetchone()
+            if place is None:
+                raise ValueError(f"No POI with id {poi_id} in this event.")
+            if not place["staffed"]:
+                raise ValueError(
+                    "That place is not staffed, so nobody can be posted there.")
+            if current["poi_id"] == poi_id:
+                raise ValueError("They are already posted there.")
+            assign_station_to_poi(conn, event_id, station_key, poi_id, changed_by)
+        else:
+            if lat is None or lon is None:
+                raise ValueError("Pick a place or drop a pin.")
+            lat, lon = float(lat), float(lon)
+            if not (-90.0 <= lat <= 90.0) or not (-180.0 <= lon <= 180.0):
+                raise ValueError(f"Position out of range: {lat}, {lon}")
+            label = clean_text(name, 40) or "Dropped pin"
+            previous = conn.execute(
+                "SELECT poi_id, post_name FROM roster"
+                " WHERE event_id = ? AND station_key = ?",
+                (event_id, station_key.upper())).fetchone()
+            conn.execute(
+                "UPDATE roster SET poi_id = NULL, post_lat = ?, post_lon = ?,"
+                " post_name = ? WHERE event_id = ? AND station_key = ?",
+                (lat, lon, label, event_id, station_key.upper()))
+            conn.execute(
+                "INSERT INTO roster_post_log (event_id, station_key, by,"
+                " from_poi_id, from_name, to_lat, to_lon, to_name)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (event_id, station_key.upper(), clean_text(changed_by, 24),
+                 previous["poi_id"], previous["post_name"], lat, lon, label))
         return set_op_status(conn, event_id, station_key, "pending", changed_by)
 
 

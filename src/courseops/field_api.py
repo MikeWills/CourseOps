@@ -304,15 +304,17 @@ async def relocate_station(
     conn, granted = auth
     body = await json_body(request)
     try:
-        poi_id = int(body.get("poi_id"))
+        poi = body.get("poi_id")
         row = db.relocate_station(
-            conn, granted.event_id, station_key, poi_id,
-            db.clean_text(body.get("changed_by"), incidents.MAX_WHO_LENGTH))
+            conn, granted.event_id, station_key,
+            int(poi) if poi is not None else None,
+            db.clean_text(body.get("changed_by"), incidents.MAX_WHO_LENGTH),
+            lat=body.get("lat"), lon=body.get("lon"), name=body.get("name"))
     except (TypeError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     await _publish_state_hint(request.app, granted.event_id)
     return JSONResponse({"station_key": row["station_key"],
-                         "poi_id": row["poi_id"], "op_status": row["op_status"]})
+                         "poi_id": row["poi_id"], "post_name": row["post_name"], "op_status": row["op_status"]})
 
 
 async def _publish_state_hint(app: FastAPI, event_id: int) -> None:

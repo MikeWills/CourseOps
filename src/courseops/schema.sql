@@ -263,6 +263,12 @@ CREATE TABLE IF NOT EXISTS roster (
     -- that posts to the event's tracker URL). A phone entry never goes into
     -- the APRS-IS filter; expects_aprs still says whether silence is an alarm.
     tracked_by    TEXT    NOT NULL DEFAULT 'aprs',
+    -- A post that is a spot rather than a place (#211): the turn-around, a busy
+    -- intersection. poi_id is NULL then. Never a poi row: a stray staffed place
+    -- would turn up in the leader's Passed button and on the Places tab.
+    post_lat      REAL,
+    post_lon      REAL,
+    post_name     TEXT,
     -- Fixed assignment: drawn at this POI when they do not beacon.
     poi_id        INTEGER REFERENCES poi(id) ON DELETE SET NULL,
     -- Manual, NCS-set. pending | active | closed. Independent of radio status:
@@ -575,7 +581,11 @@ CREATE TABLE IF NOT EXISTS roster_post_log (
     at           TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
     by           TEXT,
     from_poi_id  INTEGER,
-    to_poi_id    INTEGER
+    from_name    TEXT,
+    to_poi_id    INTEGER,
+    to_lat       REAL,
+    to_lon       REAL,
+    to_name      TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_roster_post_log

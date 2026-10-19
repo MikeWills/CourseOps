@@ -82,3 +82,48 @@ def test_only_net_control_can_relocate_and_the_client_offers_it_there():
     assert access.CAP_STATIONS not in access.ROLE_CAPABILITIES[access.ROLE_SAG]
     js = (STATIC / "app.js").read_text(encoding="utf-8")
     assert "relocate" in js and "can('stations')" in js
+
+
+# --- a pin that is not a place: a turn-around, a busy intersection ---------
+
+
+def test_relocating_to_a_dropped_pin_posts_them_at_that_spot_not_a_place(event):
+    conn, event_id, pid = event
+    before = conn.execute("SELECT COUNT(*) AS n FROM poi").fetchone()["n"]
+    row = db.relocate_station(
+        conn, event_id, "N0CALL-1", None, "MW",
+        lat=44.2, lon=-94.0, name="Turn-around")
+    assert row["poi_id"] is None
+    assert (row["post_lat"], row["post_lon"], row["post_name"]) == (44.2, -94.0, "Turn-around")
+    assert row["op_status"] == "pending"
+    # It must not become a place: a stray staffed place would turn up in the
+    # leader's Passed button and the Places tab.
+    assert conn.execute("SELECT COUNT(*) AS n FROM poi").fetchone()["n"] == before
+
+
+def test_the_pin_move_is_logged_and_a_later_real_post_clears_the_pin(event):
+    conn, event_id, pid = event
+    db.relocate_station(conn, event_id, "N0CALL-1", None, "MW", lat=44.2, lon=-94.0, name="Cones")
+    last = db.post_log(conn, event_id, "N0CALL-1")[-1]
+    assert (last["to_lat"], last["to_lon"], last["to_name"]) == (44.2, -94.0, "Cones")
+    db.set_op_status(conn, event_id, "N0CALL-1", "closed", "MW")
+    row = db.relocate_station(conn, event_id, "N0CALL-1", pid["B"], "MW")
+    assert row["post_lat"] is None and row["post_name"] is None
+    assert db.post_log(conn, event_id, "N0CALL-1")[-1]["from_name"] == "Cones"
+
+
+def test_a_pin_needs_a_valid_position_and_a_name_is_optional(event):
+    conn, event_id, pid = event
+    with pytest.raises(ValueError, match="out of range"):
+        db.relocate_station(conn, event_id, "N0CALL-1", None, "MW", lat=95, lon=0)
+    with pytest.raises(ValueError):
+        db.relocate_station(conn, event_id, "N0CALL-1", None, "MW")
+    row = db.relocate_station(conn, event_id, "N0CALL-1", None, "MW", lat=44.2, lon=-94.0)
+    assert row["post_name"] == "Dropped pin"
+
+
+def test_the_client_drops_a_pin_for_a_send_and_draws_it():
+    js = (STATIC / "app.js").read_text(encoding="utf-8")
+    assert "sendingStation" in js and "post_lat" in js
+    handler = js[js.index("map.on('click'"):]
+    assert "sendingStation" in handler[:handler.index("});")]
