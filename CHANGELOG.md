@@ -11,6 +11,8 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+## [2026.10.6] - 2026-10-19
+
 ### Fixed
 - **A deploy no longer reuses a half-written build.** The 2026.10.5 deploy
   hit a full disk while setuptools copied files into `build/`; the re-run saw
