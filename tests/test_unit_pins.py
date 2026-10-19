@@ -138,3 +138,79 @@ def test_setup_offers_hand_placed_as_a_way_of_tracking():
     html = (STATIC / "setup.html").read_text(encoding="utf-8")
     assert 'value="manual"' in html
     assert "'manual'" in setup_js
+
+
+# --- units are made and removed from the live pages, not from setup --------
+
+
+def test_liaison_adds_a_unit_from_the_field_with_no_setup_access(setup):
+    """The people who place police and Public Works units hold a role link and
+    no setup account, and do not know who is working until the day, so the
+    unit must be creatable from the live app."""
+    app, tokens, db_path, event_id = setup
+    with TestClient(app) as client:
+        made = client.post(f"/api/m2026/{tokens['liaison']}/units",
+                           json={"badge": "pw 12a", "kind": "Public Works",
+                                 "lat": 44.1, "lon": -94.0, "changed_by": "LZ"})
+        data = client.get(f"/api/m2026/{tokens['ncs']}/state").json()
+    assert made.status_code == 200
+    entry = next(e for e in data["roster"] if e["station_key"] == "PW12A")
+    assert entry["tracked_by"] == "manual" and entry["expects_aprs"] == 0
+    assert entry["display_label"] == "Public Works PW12A"
+    pos = next(p for p in data["positions"] if p["station_key"] == "PW12A")
+    assert pos["comment"] == "LZ"
+
+
+def test_adding_an_existing_badge_moves_it_instead_of_making_two(setup):
+    app, tokens, db_path, event_id = setup
+    with TestClient(app) as client:
+        for lat in (44.1, 44.2):
+            client.post(f"/api/m2026/{tokens['ncs']}/units",
+                        json={"badge": "4021", "lat": lat, "lon": -94.0})
+    conn = db.connect(db_path)
+    assert conn.execute("SELECT COUNT(*) AS n FROM roster WHERE station_key = '4021'"
+                        ).fetchone()["n"] == 1
+    assert conn.execute("SELECT lat FROM position WHERE station_key = '4021'"
+                        ).fetchone()["lat"] == 44.2
+
+
+def test_a_unit_cannot_take_over_a_real_callsign_or_a_bad_badge(setup):
+    app, tokens, db_path, event_id = setup
+    conn = db.connect(db_path)
+    db.upsert_roster_entry(conn, event_id, "N0CALL", "Op", "rover")
+    conn.close()
+    with TestClient(app) as client:
+        clash = client.post(f"/api/m2026/{tokens['ncs']}/units",
+                            json={"badge": "N0CALL", "lat": 44.1, "lon": -94.0})
+        empty = client.post(f"/api/m2026/{tokens['ncs']}/units",
+                            json={"badge": " ", "lat": 44.1, "lon": -94.0})
+        denied = client.post(f"/api/m2026/{tokens['sag']}/units",
+                             json={"badge": "9", "lat": 44.1, "lon": -94.0})
+    assert clash.status_code == 400 and empty.status_code == 400
+    assert denied.status_code == 403
+
+
+def test_a_unit_can_be_stood_down_from_the_field_and_only_a_unit(setup):
+    app, tokens, db_path, event_id = setup
+    conn = db.connect(db_path)
+    db.upsert_roster_entry(conn, event_id, "N0CALL-7", "Half-back", "sweep")
+    conn.close()
+    with TestClient(app) as client:
+        client.post(f"/api/m2026/{tokens['ncs']}/units",
+                    json={"badge": "4021", "lat": 44.1, "lon": -94.0})
+        refused = client.post(f"/api/m2026/{tokens['ncs']}/units/N0CALL-7/remove")
+        denied = client.post(f"/api/m2026/{tokens['logistics']}/units/4021/remove")
+        gone = client.post(f"/api/m2026/{tokens['liaison']}/units/4021/remove")
+        data = client.get(f"/api/m2026/{tokens['ncs']}/state").json()
+    assert refused.status_code == 400 and denied.status_code == 403
+    assert gone.status_code == 200
+    assert not any(e["station_key"] == "4021" for e in data["roster"])
+    assert not any(p["station_key"] == "4021" for p in data["positions"])
+
+
+def test_the_live_page_has_the_add_form_and_a_remove_button():
+    js = (STATIC / "app.js").read_text(encoding="utf-8")
+    html = (STATIC / "index.html").read_text(encoding="utf-8")
+    assert 'id="unit-add-form"' in html and 'id="unit-badge"' in html
+    assert "post('units'" in js and "/remove" in js
+    assert "unit-add-form" in js and "can('unit_move')" in js

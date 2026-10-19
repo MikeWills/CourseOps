@@ -891,6 +891,9 @@ Things discovered but not yet acted on. Each is a real constraint, not a wish.
 Police, CSOs and Public Works: a roster entry with `tracked_by = 'manual'`,
 the badge number as its key, a pill marker, moved by Net Control and Liaison
 (`CAP_UNIT_MOVE`), seen by every field role but Staff (`CAP_UNIT_VIEW`). The
-design is the 2026-10-02 comment on the issue. Not built: a place-in-advance
+design is the 2026-10-02 comment on the issue, with one change: units are
+created and removed on the live pages (Liaison and Net Control hold no setup
+account and do not know who is working until the day), so setup is optional.
+Not built: a place-in-advance
 bulk entry (units are placed one at a time), and a trail (a hand-placed unit
 keeps one position, as every station does).

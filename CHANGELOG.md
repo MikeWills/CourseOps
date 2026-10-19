@@ -22,6 +22,12 @@ month, PATCH counting releases in that month from 0. Before that they were
   in the snapshot, on the position socket message and on status changes. A test
   caught the status message reaching Staff before this shipped. No new tables
   or columns; the existing one-position-per-station row is used.
+  **Units are made and removed from the live pages, not setup**: Liaison and
+  Net Control have no setup account and do not know who is working until the
+  day, so `POST /units` (badge + kind + a map tap) creates the unit and
+  places it, re-adding a badge moves it, and `POST /units/{key}/remove`
+  stands it down (units only, never a real station). Listing units in setup
+  stays possible but optional.
 
 ## [2026.10.8] - 2026-10-19
 

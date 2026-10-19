@@ -1522,3 +1522,8 @@ body {
   border: 2px solid var(--navy-700); font-family: var(--font-data); font-weight: 700;
   font-size: 12px; letter-spacing: 0; box-sizing: border-box; white-space: nowrap; }
 .unit-place-btn, #unit-place-cancel { min-height: 44px; margin-top: 6px; }
+
+/* Adding a unit from the live page (#196). */
+.unit-add { display: flex; gap: 6px; margin: 0 0 8px; }
+.unit-add input, .unit-add select, .unit-add button { min-height: 44px; font: inherit; }
+.unit-add input { flex: 1; min-width: 0; font-family: var(--font-data); }

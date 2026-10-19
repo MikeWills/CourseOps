@@ -171,6 +171,19 @@
 
   <div class="sheet-section" id="station-section">
     <h2>Stations <span id="station-count" class="muted"></span></h2>
+    <!-- Liaison and Net Control add police / CSO / Public Works units here, on
+         the day: no setup account, and nobody knows who is working before. -->
+    <form id="unit-add-form" class="unit-add" hidden>
+      <input id="unit-badge" type="text" maxlength="8" autocomplete="off"
+             placeholder="Badge #" aria-label="Badge number of the unit">
+      <select id="unit-kind" aria-label="What kind of unit">
+        <option value="">Unit</option>
+        <option>Officer</option>
+        <option>CSO</option>
+        <option>Public Works</option>
+      </select>
+      <button type="submit">Place on map</button>
+    </form>
     <div id="station-list"></div>
   </div>
 

@@ -77,6 +77,7 @@ const state = {
   ],
   droppingPin: false,
   placingUnit: null,    // badge while NCS/Liaison taps the map to set a unit (#196)
+  placingKind: '',      // 'Officer', 'CSO'... for a unit being added
   sendingStation: null, // station key while NCS is dropping its new pin (#211)
   postMarkers: new Map(), // station key -> L.Marker for a post that is a spot, not a place
   movingPin: null,     // incident id while its pin is being moved (#214)
@@ -1358,8 +1359,18 @@ function renderStations() {
       place.type = 'button';
       place.className = 'unit-place-btn';
       place.textContent = position ? 'Move on map' : 'Place on map';
-      place.addEventListener('click', () => startPlaceUnit(stationKey));
+      place.addEventListener('click', () => {
+        state.placingKind = '';
+        startPlaceUnit(stationKey);
+      });
       row.appendChild(place);
+      const stand = document.createElement('button');
+      stand.type = 'button';
+      stand.className = 'unit-place-btn';
+      stand.textContent = 'Remove';
+      stand.setAttribute('aria-label', `Remove ${stationKey}`);
+      stand.addEventListener('click', () => removeUnit(stationKey));
+      row.appendChild(stand);
     }
 
     /* Wrapped up and free to move (#211): a station that is Torn down can be
@@ -1448,15 +1459,42 @@ function syncPostPins() {
 /* Setting a unit (#196): a drag of its pin, or - for the first placement and
    for a phone - a tap on the map. Both end here. The pin goes back to where
    the server has it if the save is refused. */
-async function placeUnit(stationKey, latlng) {
+async function placeUnit(stationKey, latlng, kind) {
   const held = state.positions.get(stationKey);
   try {
-    await post(`units/${encodeURIComponent(stationKey)}/position`,
-      {lat: latlng.lat, lon: latlng.lng, changed_by: state.operatorInitials});
+    // One endpoint for a new badge and a move of an existing one: adding a
+    // badge that is already a unit just moves it, so a repeat never makes two.
+    await post('units',
+      {badge: stationKey, kind: kind || '', lat: latlng.lat, lon: latlng.lng,
+       changed_by: state.operatorInitials});
   } catch (err) {
     setLocateStatus(`Could not move ${stationKey} - ${err.message}`);
     const marker = state.markers.get(stationKey);
     if (marker && held) marker.setLatLng([held.lat, held.lon]);
+  }
+}
+
+/* Units are made on the day, from this page: Liaison and Net Control hold a
+   role link and no setup account, and nobody knows who is working until
+   then. Badge and kind first, then a tap on the map. */
+const unitAddForm = document.getElementById('unit-add-form');
+if (unitAddForm) {
+  unitAddForm.addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    const badge = document.getElementById('unit-badge').value.trim();
+    if (!badge) { setLocateStatus('Enter the badge number first.'); return; }
+    state.placingKind = document.getElementById('unit-kind').value;
+    startPlaceUnit(badge);
+    document.getElementById('unit-badge').value = '';
+  });
+}
+
+async function removeUnit(stationKey) {
+  if (!confirm(`Stand ${stationKey} down and take the pin off the map?`)) return;
+  try {
+    await post(`units/${encodeURIComponent(stationKey)}/remove`, {});
+  } catch (err) {
+    setLocateStatus(`Could not remove ${stationKey} - ${err.message}`);
   }
 }
 
@@ -1471,6 +1509,7 @@ function startPlaceUnit(stationKey) {
 
 function stopPlaceUnit() {
   state.placingUnit = null;
+  state.placingKind = '';
   document.getElementById('unit-place-bar').hidden = true;
   if (!state.droppingPin && !state.movingPin && !state.sendingStation) {
     document.getElementById('map').style.cursor = '';
@@ -3016,8 +3055,9 @@ map.on('click', (ev) => {
   if (state.sendingStation) { sendToPin(ev.latlng); return; }
   if (state.placingUnit) {
     const key = state.placingUnit;
+    const kind = state.placingKind;
     stopPlaceUnit();
-    placeUnit(key, ev.latlng);
+    placeUnit(key, ev.latlng, kind);
     return;
   }
   if (!state.droppingPin) return;
@@ -3265,6 +3305,7 @@ function applyState(data) {
   // Reporting, not managing: every role is somewhere an incident can happen,
   // so all four get the pin controls. What they cannot do is work the queue.
   document.getElementById('pin-actions').hidden = !can('incident_report');
+  document.getElementById('unit-add-form').hidden = !can('unit_move');
   document.getElementById('pin-kind').hidden = !can('incident_report');
   // A role that cannot report is not sent the queue at all (Staff), so the
   // two sections would sit there empty - and an empty "Pickups" reads as

@@ -48,8 +48,10 @@ Silence still counts as an alert for them, because the whole point of tracking a
 medic is knowing where they are.
 
 A **hand-placed** unit is never asked for on APRS-IS and never alarms: a quiet
-officer is normal. Its pin is a white pill with the badge number, shows when and
-by whom it was set, and is never sent to the Staff link.
+officer is normal. You do NOT need to enter these here - Liaison and Net Control
+add police, CSO and Public Works units themselves from their own pages on the
+day, when it is known who is working. Listing them here is optional, for a club
+that does know its units beforehand.
 
 **Enter the callsign alone.** The SSID belongs to whichever radio or phone app
 they bring on the day; ask a coordinator to collect it in advance and you will be

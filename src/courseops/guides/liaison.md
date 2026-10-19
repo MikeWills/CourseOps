@@ -91,17 +91,23 @@ when it can be released.
 
 ## Police, CSO and Public Works units
 
-If the club listed units as **Hand-placed**, each appears as a white pill with
-its badge number. You and Net Control move them, nobody else can:
+You add these yourself, on the day, from this page - no setup account and no
+list beforehand, because nobody knows who is working until then.
 
-- **Place on map** on the unit's row (in the stations list), then tap the map -
-  the first time, and any time on a phone.
-- Or **drag the pill** to its new spot.
+1. In the **Stations** section, type the unit's **badge number** (`4021`, `PW12`)
+   and pick the kind (Officer, CSO, Public Works, or leave it blank).
+2. Press **Place on map** and tap where they are.
+
+The unit appears as a white pill with its badge number. To move it, **drag the
+pill**, or press **Move on map** on its row and tap. Typing a badge that is
+already there moves it rather than adding a second. **Remove** on its row takes
+the pill off when they stand down.
 
 Every pill says how long ago it was set and by whom (tap it). **It is where
 someone put it, not a live track** - an officer who stepped away is still on the
 map where you left them until you move them. A quiet unit is never an alarm.
-Staff links never see these units at all.
+Net Control can do all of this too. SAG and Logistics can see the pills but not
+move them, and the Staff link never sees them at all.
 
 ## Quick answers
 
