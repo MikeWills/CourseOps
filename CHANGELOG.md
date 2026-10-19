@@ -11,6 +11,14 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Fixed
+
+- Tabbing from a leader's bib box to **Passed** and pressing Enter no longer
+  writes the new bib over the PREVIOUS sighting first. Only a mouse press was
+  recognised as "this is the next report"; with the keyboard `change` fired
+  before focus moved, so the correction ran, then the new report. The handler
+  now waits one tick and checks where focus went (#208).
+
 ## [2026.10.7] - 2026-10-19
 
 ### Changed

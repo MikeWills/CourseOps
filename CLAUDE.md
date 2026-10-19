@@ -1231,6 +1231,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-10-19** Fixed: tabbing from a leader's bib box to Passed is a new report, not a correction of the previous sighting (#208 keyboard gap).
 - **2026-10-18** Leader routes moved to their own **Route stops** setup tab (after Courses); stops reorder by the shared grip (`bindReorder`, row = position, since a stop can repeat) instead of Up/Down buttons.
 - **2026-10-17** Fixed: a lead runner's bib can be corrected - changing the bib box fixes the latest sighting in place (`leaders/bib`), where it used to feed only the next report and force Clear (#208).
 - **2026-10-17** Finished pickups (dropped off / closed, per `incidentDone`) sit under a folded 'Finished (N)' drop-down below the live queue, state in prefs (#213); count and map markers unchanged.
@@ -1240,4 +1241,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-10-17** Net Control follows the stated leader route (#210 PR B): Passed names the next step and stores it; after the second I the next stop is K; pace is step to step; NCS rows show the logged clock time.
 - **2026-10-17** Leader routes in setup (#210 PR A): per race, an ordered stop list where a stop may repeat (H, I, J, I, K); `course_stop` + nullable `lead_sighting.step`; Net Control does not read it yet.
 - **2026-10-17** The after-event report has a Lead runners section: per race and leader, each stop reported with bib and clock time, no reporter (#207).
-- **2026-10-14** Fixed: the map's first view fits courses and places only, not every heard station (one far-off igate zoomed it out to the Atlantic).

@@ -1843,11 +1843,18 @@ function renderLeaders() {
             setTimeout(() => { nextReport = false; }, 1000);
           }
         });
+        /* Tab from the bib box to Passed has no pointer press at all, and
+           `change` fires before focus has moved, so the decision waits one
+           tick and looks at where focus landed (#208). */
         bibField.addEventListener('change', () => {
           const value = bibField.value.trim();
-          if (nextReport || value === (leader.bib || '')) return;
-          leader.bib = value || null;
-          correctLeaderBib(leader, value);
+          setTimeout(() => {
+            const to = document.activeElement;
+            const toNext = to && to.closest && to.closest('.leader-passed, .leader-picker');
+            if (nextReport || toNext || value === (leader.bib || '')) return;
+            leader.bib = value || null;
+            correctLeaderBib(leader, value);
+          }, 0);
         });
       }
       controls.appendChild(bibField);
