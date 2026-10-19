@@ -374,7 +374,7 @@ def render(report: Report) -> str:
            background: #eef2f6; }}
   .words {{ flex: 1; min-width: 0; }}
   .when {{ margin: 0 0 4px; color: #4a5561; font-size: 14px; }}
-  .what {{ margin: 0; font-size: 17px; font-weight: 600; }}
+  .what {{ margin: 0; font-size: 17px; }}
   /* The note's own marker: a plain dot, so it cannot be mistaken for a stop. */
   .dot {{ width: 14px; height: 14px; border-radius: 50%; background: #c8321e;
           border: 3px solid #fff; box-shadow: 0 0 0 1px #c8321e; }}
