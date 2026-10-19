@@ -30,8 +30,6 @@ month, PATCH counting releases in that month from 0. Before that they were
   **Rollback:** the table is `CREATE TABLE IF NOT EXISTS`, so deploying creates
   it with no migration step; rolling the code back leaves it unused and
   harmless. Nothing reads it yet apart from `db.post_log`.
-
-
 - A pickup or course note pin can be moved after it is placed (#214): **Move this
   pin** in its popup arms it, then a map tap or a drag of the pin sets the new
   spot. A pin is draggable only while armed, so panning never knocks one loose;
