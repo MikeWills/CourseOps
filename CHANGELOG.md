@@ -22,6 +22,10 @@ month, PATCH counting releases in that month from 0. Before that they were
   a quiet count and a chevron on the right, the same as Course notes and
   Stations, and the chevron turns when it is open. Same 44px target, same
   behaviour, same remembered state.
+- **A sweep is marked in the Leaders table.** Once added, it was only a
+  small ' - sweep' after the key under the name, easy to miss and impossible
+  to tell from a leader at a glance, and the kind cannot be changed
+  afterwards. It is now a "Sweep" pill beside the name field.
 
 ## [2026.10.5] - 2026-10-18
 
