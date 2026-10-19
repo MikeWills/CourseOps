@@ -72,6 +72,10 @@ say "Checking out $(git rev-parse --short "$TARGET") ($TARGET)"
 git -c advice.detachedHead=false checkout --force --detach "$TARGET"
 
 say "Installing"
+# `pip install .` builds in ./build and setuptools reuses a file there that
+# looks current. A build cut off by a full disk (2026.10.5) left a truncated
+# app.js behind, and every later install shipped it: the page never loaded.
+rm -rf build
 .venv/bin/pip install --quiet --upgrade pip
 .venv/bin/pip install --quiet .
 
@@ -94,6 +98,7 @@ done
 if [ "$healthy" -ne 1 ]; then
     say "NOT healthy after $((HEALTH_TRIES * 2))s - rolling back to $PREVIOUS"
     git -c advice.detachedHead=false checkout --force "$PREVIOUS"
+    rm -rf build
     .venv/bin/pip install --quiet .
     sudo systemctl restart "$SERVICE"
 

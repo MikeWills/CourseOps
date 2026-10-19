@@ -412,3 +412,15 @@ def test_the_host_key_can_be_pinned():
     assert "SSH_KNOWN_HOSTS" in text
     assert "StrictHostKeyChecking=yes" in text
     assert "StrictHostKeyChecking=no" not in text
+
+
+def test_every_install_starts_from_an_empty_build_directory(script):
+    """A build cut off by a full disk left a truncated app.js in ./build, and
+    setuptools reused it: the page served a half file until the cache expired.
+    Both installs, the deploy and the rollback, clear it first."""
+    lines = script.splitlines()
+    installs = [i for i, l in enumerate(lines)
+                if l.strip() == ".venv/bin/pip install --quiet ."]
+    assert len(installs) == 2
+    for i in installs:
+        assert "rm -rf build" in [l.strip() for l in lines[max(i - 2, 0):i]]
