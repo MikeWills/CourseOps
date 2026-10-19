@@ -2333,7 +2333,8 @@ function renderLeaderTable() {
           `Reorder ${d.name} - drag, or use the arrow keys`)}</td>
         <td><input value="${esc(d.name)}" data-dname="${esc(d.key)}"
               style="width:180px">
-          <br><span class="muted">${esc(d.key)}${d.kind === 'sweep' ? ' - sweep' : ''}</span></td>
+          ${d.kind === 'sweep' ? '<span class="pill" title="Reported with Passed like a leader, but allowed a slower pace, and gets an estimated finish time">Sweep</span>' : ''}
+          <br><span class="muted">${esc(d.key)}</span></td>
         <td>${d.in_use || 0}</td>
         <td class="actions">${iconBtn('remove', {'data-ddel': d.key},
           `Delete ${d.name}`)}</td>
