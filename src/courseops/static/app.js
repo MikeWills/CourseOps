@@ -2438,7 +2438,13 @@ function renderPickups(pickups) {
   const finishedHost = document.getElementById('finished-list');
   group.hidden = !finished.length;
   toggle.setAttribute('aria-expanded', String(finishedOpen));
-  toggle.textContent = `Finished (${finished.length})`;
+  // Set like the section headings above and below it (heavy label, quiet
+  // count, a chevron on the right), so it reads as part of the panel and not
+  // as a stray button. The state is aria-expanded and the chevron's turn.
+  toggle.innerHTML = `Finished <span class="muted">(${finished.length})</span>`
+    + '<svg class="fold-chevron" viewBox="0 0 16 16" width="14" height="14" '
+    + 'aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" '
+    + 'stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg>';
   finishedHost.hidden = !finishedOpen;
   finishedHost.innerHTML = '';
   finished.forEach((incident) => finishedHost.appendChild(buildPickupRow(incident)));
