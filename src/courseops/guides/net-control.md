@@ -160,8 +160,8 @@ publishing "120 mph" and an aid station planning around it.
 - **A wrong bib** is fixed in the same box: change it and move on (tap
   elsewhere or press Enter) and the last report takes the new bib, keeping its
   stop and time. Older reports keep the bib they were given. Typing a new
-  leader's bib and pressing **Passed** straight away is a new report, not a
-  correction.
+  leader's bib and pressing **Passed** straight away (or tabbing to it) is a
+  new report, not a correction.
 - **Undo** removes the last sighting - for a mis-tap.
 - **Clear** empties that race and leader - for the morning, when the panel is
   carrying a rehearsal. It is scoped to one race and one leader, so clearing

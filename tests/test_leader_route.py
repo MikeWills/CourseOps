@@ -198,3 +198,15 @@ def test_net_control_sees_the_clock_time_beside_the_age():
     # The NCS branch used to be age only; the log time is there too now.
     ncs = body[body.index("can('leaders')"):body.index("else if (leader.last_poi_name)")]
     assert "seenAt" in ncs
+
+
+def test_tabbing_from_the_bib_box_to_passed_is_a_new_report_not_a_correction():
+    """#208: the mouse press marks the coming change as spoken for, but Tab
+    from the bib box to Passed fires `change` with no pointer press, so the
+    new leader's bib was written over the PREVIOUS sighting first. The change
+    handler must look at where focus went, not only at the pointer."""
+    js = (STATIC / "app.js").read_text(encoding="utf-8")
+    body = js[js.index("bibField.addEventListener('change'"):]
+    body = body[:body.index("correctLeaderBib(leader, value)")]
+    assert "activeElement" in body and ".leader-passed" in body
+    assert "setTimeout" in body  # focus has not moved yet when `change` fires
