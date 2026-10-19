@@ -11,6 +11,12 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Changed
+- **The report's course notes and event notes are regular weight, not bold.**
+  Each note is a sentence a volunteer typed, and a page of them in semibold
+  read as a list of headings; the time and place line above each already
+  separates one from the next.
+
 ## [2026.10.5] - 2026-10-18
 
 ### Added
