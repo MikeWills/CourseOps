@@ -11,6 +11,8 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+## [2026.10.10] - 2026-10-19
+
 ### Changed
 - The Links tab lists roles in the order they are run - Net Control, SAG, Liaison,
   Logistics, Staff - where it was alphabetical (Liaison first, Net Control third).
