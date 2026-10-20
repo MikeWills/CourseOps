@@ -147,6 +147,8 @@ ring), above *Sign out*: it asks for the current one first,
 and when it succeeds you are signed out everywhere and sign back in with the
 new one.
 
+![The account menu open: name and role, Change password, Sign out](images/setup-account-menu.png)
+
 **Disable** keeps the account and its event list but stops it signing in;
 **Delete** removes it. The last system administrator can be neither, because
 that would lock everyone out with no way back.
