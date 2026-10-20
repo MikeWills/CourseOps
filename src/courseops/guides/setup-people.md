@@ -48,8 +48,9 @@ Silence still counts as an alert for them, because the whole point of tracking a
 medic is knowing where they are.
 
 The choices Liaison and Net Control pick the kind from (Officer, CSO, Public
-Works) are set on the **Roles** tab, under **Unit kinds**, one per line. Leave it
-blank for those three; it reaches pages already open without a reload.
+Works) are set on the **Unit types** tab, one at a time like the roles: rename one,
+delete one, or add your own (`Fire`, `EMS`). Delete them all and the usual
+three come back; a change reaches pages already open without a reload.
 
 A **hand-placed** unit is never asked for on APRS-IS and never alarms: a quiet
 officer is normal. You do NOT need to enter these here - Liaison and Net Control

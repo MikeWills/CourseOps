@@ -54,7 +54,6 @@ def test_the_snapshot_carries_them_and_the_page_builds_its_menu_from_them(event)
     js = (STATIC / "app.js").read_text(encoding="utf-8")
     html = (STATIC / "index.html").read_text(encoding="utf-8")
     assert "unit_kinds" in js and "<option>Officer</option>" not in html
-    assert 'id="ev-unit-kinds"' in (STATIC / "setup.html").read_text(encoding="utf-8")
     assert "unit_kinds" in (STATIC / "setup.js").read_text(encoding="utf-8")
 
 
@@ -66,9 +65,18 @@ def test_a_select_in_a_button_row_matches_the_buttons():
     assert "min-height: 42px" in block
 
 
-def test_unit_kinds_are_on_the_roles_tab_not_hidden_in_the_event_form():
+def test_unit_types_are_their_own_tab_worked_like_the_roles():
     html = (STATIC / "setup.html").read_text(encoding="utf-8")
-    roles = html[html.index('data-panel="roles"'):html.index('data-panel="leaders"')]
-    assert 'id="ev-unit-kinds"' in roles and 'id="unit-kinds-form"' in roles
-    events = html[html.index('data-panel="events"'):html.index('data-panel="course"')]
-    assert "ev-unit-kinds" not in events
+    assert 'data-tab="units"' in html and 'data-panel="units"' in html
+    panel = html[html.index('data-panel="units"'):html.index("</section>",
+                                                            html.index('data-panel="units"'))]
+    # A table and a one-at-a-time Add form, like Roles - not a box of lines.
+    assert 'id="unit-table"' in panel and 'id="unit-form"' in panel
+    assert "<textarea" not in panel
+    assert "ev-unit-kinds" not in html
+
+
+def test_the_setup_default_list_is_the_servers():
+    js = (STATIC / "setup.js").read_text(encoding="utf-8")
+    line = js[js.index("const DEFAULT_UNIT_KINDS"):].splitlines()[0]
+    assert all(f"'{k}'" in line for k in admin.UNIT_KINDS_DEFAULT)

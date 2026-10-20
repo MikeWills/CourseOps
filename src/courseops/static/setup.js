@@ -225,6 +225,7 @@ const HELP_FOR_TAB = {
   users: 'setup-people',
   layers: 'setup-ideas',
   roles: 'setup-ideas',
+  units: 'setup-people',
   leaders: 'setup-ideas',
   tracking: 'setup-race-week',
 };
@@ -383,6 +384,7 @@ async function refreshTab(name) {
     // discards the edits in progress in it.
     if (name === 'layers' || name === 'roles') return loadLayers();
     if (name === 'leaders') return loadLayers('leaders');
+    if (name === 'units') return renderUnitTable();
     if (name === 'tracking') return loadTracking();
     if (name === 'roster') return loadRoster();
     if (name === 'links') return loadLinks();
@@ -2328,27 +2330,77 @@ function showVersion(info) {
   el.hidden = false;
 }
 
-/* Unit kinds live on the event, so the box is filled from the events list and
-   saved through the event's own route; the saved row replaces the held one so
-   leaving the tab and coming back shows what was saved. */
-function fillUnitKinds() {
+/* Unit types live on the event as one list (`event.unit_kinds`, a name per
+   line), but they are worked on like the roles: a table, a rename, a delete,
+   and an Add form that takes one at a time. Each change posts the whole list;
+   the saved row replaces the held one so the table never shows a stale list.
+   The three below are what the server falls back to when the list is empty -
+   admin.UNIT_KINDS_DEFAULT, held equal by a test. */
+const DEFAULT_UNIT_KINDS = ['Officer', 'CSO', 'Public Works'];
+
+function unitKinds() {
   const event = S.events.find((e) => e.id === S.eventId);
-  $('ev-unit-kinds').value = (event && event.unit_kinds) || '';
+  const stored = ((event && event.unit_kinds) || '').split('\n').filter(Boolean);
+  return stored.length ? stored : DEFAULT_UNIT_KINDS.slice();
 }
 
-$('unit-kinds-form').addEventListener('submit', async (ev) => {
+async function saveUnitKinds(list) {
+  const saved = await post(`/api/setup/events/${S.eventId}`,
+    { unit_kinds: list.join('\n') });
+  S.events = S.events.map((e) => (e.id === saved.id ? { ...e, ...saved } : e));
+}
+
+function renderUnitTable() {
+  if (!S.eventId) return;
+  $('unit-table').innerHTML = `
+    <table class="grid"><thead><tr><th>Unit type</th><th></th></tr></thead><tbody>`
+    + unitKinds().map((k) => `<tr>
+        <td><input value="${esc(k)}" data-uname="${esc(k)}" maxlength="30"
+              style="width:180px"></td>
+        <td class="actions">${iconBtn('remove', {'data-udel': k},
+          `Delete ${k}`)}</td>
+      </tr>`).join('') + '</tbody></table>';
+
+  $('unit-table').querySelectorAll('[data-udel]').forEach((b) =>
+    b.addEventListener('click', async () => {
+      const kind = b.dataset.udel;
+      if (!confirm(`Delete the "${kind}" unit type?`)) return;
+      try {
+        await saveUnitKinds(unitKinds().filter((k) => k !== kind));
+        banner(`Deleted ${kind}.`);
+        renderUnitTable();
+      } catch (err) { banner(err.message, true); }
+    }));
+
+  bindSaveAll({
+    table: 'unit-table',
+    button: 'unit-save-all',
+    status: 'unit-dirty',
+    fields: [{ attr: 'uname', name: 'name' }],
+    // One row at a time, each against the list as the last one left it.
+    save: (kind, payload) => saveUnitKinds(
+      unitKinds().map((k) => (k === kind ? payload.name : k))),
+    noun: 'unit type(s)',
+    reload: renderUnitTable,
+  });
+}
+
+$('unit-form').addEventListener('submit', async (ev) => {
   ev.preventDefault();
   if (!needEvent()) return;
-  $('unit-kinds-error').hidden = true;
+  $('unit-error').hidden = true;
+  const name = $('unit-name').value.trim();
   try {
-    const saved = await post(`/api/setup/events/${S.eventId}`,
-      {unit_kinds: $('ev-unit-kinds').value});
-    S.events = S.events.map((e) => (e.id === saved.id ? {...e, ...saved} : e));
-    fillUnitKinds();
-    banner('Saved unit kinds.');
+    if (unitKinds().some((k) => k.toLowerCase() === name.toLowerCase())) {
+      throw new Error(`${name} is already on the list.`);
+    }
+    await saveUnitKinds([...unitKinds(), name]);
+    $('unit-name').value = '';
+    banner('Unit type added.');
+    renderUnitTable();
   } catch (err) {
-    $('unit-kinds-error').textContent = err.message;
-    $('unit-kinds-error').hidden = false;
+    $('unit-error').textContent = err.message;
+    $('unit-error').hidden = false;
   }
 });
 
@@ -2357,7 +2409,6 @@ async function loadLayers(only) {
   S.poiCategories = data.poi_categories;
   S.roles = data.roster_roles;
   S.leaders = data.lead_divisions;
-  fillUnitKinds();
   // Three tables on one endpoint, each re-rendered only when asked for.
   // Reloading a table the user has not touched discards edits in progress in
   // it - the same bug that cost twelve renames on the roster, one table over.

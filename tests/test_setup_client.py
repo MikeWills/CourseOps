@@ -289,7 +289,7 @@ def test_event_tabs_exist_only_inside_an_event():
         return set(re.findall(r'data-tab="(\w+)"', nav))
     assert tabs("tabs") == {"orgs", "events", "users"}
     assert tabs("event-tabs") == {"course", "courses", "stations", "layers",
-                                  "roles", "leaders", "routes", "tracking",
+                                  "roles", "units", "leaders", "routes", "tracking",
                                   "roster",
                                   "links"}
     assert "Pick an event first" not in SETUP_HTML

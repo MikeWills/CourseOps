@@ -11,6 +11,13 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Changed
+- Unit kinds are now their own **Unit types** tab, worked like the Roles tab: a
+  table with rename and delete, and an Add form that takes one at a time. It
+  had been a text box on the Roles tab, and before that on the event's Edit
+  form - somebody looking for it would never find it under Roles, and a text
+  box of lines was not how any other list in setup works.
+
 ## [2026.10.11] - 2026-10-19
 
 ### Changed
