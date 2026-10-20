@@ -214,3 +214,22 @@ def test_the_live_page_has_the_add_form_and_a_remove_button():
     assert 'id="unit-add-form"' in html and 'id="unit-badge"' in html
     assert "post('units'" in js and "/remove" in js
     assert "unit-add-form" in js and "can('unit_move')" in js
+
+
+def test_units_have_their_own_section_above_the_stations():
+    """Found and moved without hunting through the roster."""
+    html = (STATIC / "index.html").read_text(encoding="utf-8")
+    js = (STATIC / "app.js").read_text(encoding="utf-8")
+    assert html.index('id="unit-section"') < html.index('id="station-section"')
+    section = html[html.index('id="unit-section"'):html.index('id="station-section"')]
+    assert 'id="unit-add-form"' in section and 'id="unit-list"' in section
+    assert 'id="unit-add-form"' not in html[html.index('id="station-section"'):]
+    plan = js[js.index("const SIDE_PANEL_BY_ROLE"):js.index("function sidePanelPlan")]
+    # Every role that is sent units lists the section; Staff, never sent them, does not.
+    for role in ("ncs:", "logistics:", "liaison:", "sag:"):
+        assert "unit-section" in plan[plan.index(role):].split("\n  ")[0] or \
+            "unit-section" in plan[plan.index(role):plan.index(role) + 400]
+    staff = plan[plan.index("staff:"):plan.index("staff:") + 80]
+    assert "unit-section" not in staff
+    render = js[js.index("function renderStations"):]
+    assert "isUnit(stationKey) ? unitHost : host" in render

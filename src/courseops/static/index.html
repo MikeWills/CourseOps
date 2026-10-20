@@ -169,10 +169,13 @@
     <div id="note-list"></div>
   </div>
 
-  <div class="sheet-section" id="station-section">
-    <h2>Stations <span id="station-count" class="muted"></span></h2>
-    <!-- Liaison and Net Control add police / CSO / Public Works units here, on
-         the day: no setup account, and nobody knows who is working before. -->
+  <!-- Police, CSO and Public Works units are not stations: nobody is posted
+       and they never beacon, so they get a section of their own where they
+       are easy to find and move. Liaison and Net Control add them here, on the
+       day: no setup account, and nobody knows who is working before. Hidden
+       for a role that is not sent them (Staff). -->
+  <div class="sheet-section" id="unit-section" hidden>
+    <h2>Units <span id="unit-count" class="muted"></span></h2>
     <form id="unit-add-form" class="unit-add" hidden>
       <input id="unit-badge" type="text" maxlength="8" autocomplete="off"
              placeholder="Badge #" aria-label="Badge number of the unit">
@@ -181,6 +184,11 @@
       </select>
       <button type="submit">Place on map</button>
     </form>
+    <div id="unit-list"></div>
+  </div>
+
+  <div class="sheet-section" id="station-section">
+    <h2>Stations <span id="station-count" class="muted"></span></h2>
     <div id="station-list"></div>
   </div>
 
