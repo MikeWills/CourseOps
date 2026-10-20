@@ -27,19 +27,75 @@ body.setup #brand { display: flex; }
    bar stays the height it was with the pin and the wordmark. */
 body.setup #brand img { width: auto; height: 32px; }
 #setup-title { font-size: 15px; color: rgba(255, 255, 255, 0.72); flex: 1; }
-#whoami { font-size: 13px; color: rgba(255, 255, 255, 0.9); }
-#logout, #change-pw {
-  min-height: 34px;
-  padding: 0 12px;
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  border-radius: var(--radius);
-  font-weight: 650;
+/* Account menu: the signed-in person and what they can do to their own
+   account, behind one control. */
+#account { position: relative; }
+#account-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 8px 0 4px;
+  border: 1px solid transparent;
+  border-radius: 999px;
   background: transparent;
   color: #fff;
   font: inherit;
   font-size: 13px;
   cursor: pointer;
 }
+#account-btn:hover, #account-btn[aria-expanded="true"] {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+#account-avatar {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--orange);
+  color: var(--navy-700);
+  font-size: 12px;
+  font-weight: 700;
+}
+#account-name { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#account-btn .chev { opacity: 0.8; }
+#account-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  min-width: 220px;
+  padding: 6px;
+  background: #fff;
+  color: var(--ink, #1a2433);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(11, 37, 69, 0.22);
+}
+#account-who {
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px 10px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--line);
+}
+#whoami { font-size: 12px; color: var(--muted, #5b6778); }
+#account-menu button {
+  display: block;
+  width: 100%;
+  min-height: 40px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+#account-menu button:hover, #account-menu button:focus-visible { background: var(--ground); }
 
 /* --- sign in ------------------------------------------------------------- */
 
@@ -533,16 +589,15 @@ a.icon-btn[hidden] { display: none; }
    are the SAME elements - the card is a layout, not a second rendering - so
    `bindSaveAll` and the drag handles keep working untouched. */
 @media (max-width: 699px) {
-  /* The bar holds the lockup, the help ring and Sign out; who is signed in
-     is on the Users tab and was wrapping the bar to three lines. */
+  /* The bar holds the lockup, the help ring and the account menu; on a
+     phone the menu button is just the avatar, the name is inside it. */
   #setup-bar { padding: 8px 12px; gap: 8px; }
-  #whoami { display: none; }
+  #account-name { display: none; }
   /* The lockup stays; the word "Setup" goes instead - the tab bar
      underneath already says it. The version chip stays: a deploy from a
      phone is confirmed by reading it. */
   #setup-title { display: none; }
   #app-version { flex: 1; min-width: 0; text-align: right; overflow: hidden; text-overflow: ellipsis; }
-  #logout, #change-pw { white-space: nowrap; }
   #app { padding: 12px 16px 48px; }
 
   /* One row, scrolling sideways, bleeding to the screen edges so the last

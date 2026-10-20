@@ -49,13 +49,27 @@
   <button id="version-notice" type="button" hidden
     title="This page was loaded before the current version. Reload to pick it up.">
     New version &mdash; reload</button>
-  <span id="whoami" hidden></span>
-  <!-- The signed-in person's OWN password. The Users tab's per-row "Set a
-       password" is a manager setting someone else's, and the manager then
-       knows it; without this, the only way to change your own was to ask. -->
-  <button id="change-pw" type="button" hidden
-    title="Change my password" aria-label="Change my password">Password</button>
-  <button id="logout" type="button" hidden>Sign out</button>
+  <!-- One account menu instead of a name and two buttons on the bar. -->
+  <div id="account" hidden>
+    <button id="account-btn" type="button" aria-haspopup="menu"
+      aria-expanded="false" aria-controls="account-menu"
+      title="Account" aria-label="Account menu">
+      <span id="account-avatar" aria-hidden="true"></span>
+      <span id="account-name"></span>
+      <svg class="chev" viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M2 4.5 6 8.5 10 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <div id="account-menu" role="menu" hidden>
+      <div id="account-who">
+        <strong id="account-who-name"></strong>
+        <span id="whoami"></span>
+      </div>
+      <!-- The signed-in person's OWN password. The Users tab's per-row "Set a
+           password" is a manager setting someone else's, and the manager then
+           knows it; without this, the only way to change your own was to ask. -->
+      <button id="change-pw" type="button" role="menuitem">Change password</button>
+      <button id="logout" type="button" role="menuitem">Sign out</button>
+    </div>
+  </div>
 </header>
 
 <!-- Sign in / first run ------------------------------------------------- -->

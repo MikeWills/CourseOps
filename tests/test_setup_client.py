@@ -239,11 +239,12 @@ def test_the_own_password_form_reaches_its_route_and_ends_at_the_gate():
     assert "new_password: $('pw-new').value" in handler
     assert "showGate(false," in handler
     assert 'id="change-pw"' in SETUP_HTML and 'id="pw-form"' in SETUP_HTML
-    # The button appears with Sign out and goes with it.
+    # The item lives in the account menu, which appears when someone is
+    # signed in and goes with the sign-in gate.
     start = _block("async function start()", "(async () => {")
-    assert "$('change-pw').hidden = false;" in start
+    assert "$('account').hidden = false;" in start
     gate = _block("function showGate(", "$('gate-form').addEventListener")
-    assert "$('change-pw').hidden = true;" in gate
+    assert "$('account').hidden = true;" in gate
 
 
 def test_an_event_admins_events_are_editable_in_the_users_table():

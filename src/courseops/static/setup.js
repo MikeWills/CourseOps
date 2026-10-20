@@ -81,9 +81,8 @@ const post = (path, body) => api(path, {method: 'POST', body: JSON.stringify(bod
 function showGate(firstRun, notice) {
   $('gate').hidden = false;
   $('app').hidden = true;
-  $('whoami').hidden = true;
-  $('logout').hidden = true;
-  $('change-pw').hidden = true;
+  $('account').hidden = true;
+  closeAccountMenu();
   $('pw-form').hidden = true;
   const banner = $('gate-notice');
   banner.textContent = notice || '';
@@ -167,6 +166,26 @@ $('version-notice').addEventListener('click', () => {
   window.location.reload();
 });
 
+function closeAccountMenu() {
+  $('account-menu').hidden = true;
+  $('account-btn').setAttribute('aria-expanded', 'false');
+}
+$('account-btn').addEventListener('click', () => {
+  const open = $('account-menu').hidden;
+  $('account-menu').hidden = !open;
+  $('account-btn').setAttribute('aria-expanded', String(open));
+  if (open) $('change-pw').focus();
+});
+document.addEventListener('click', (e) => {
+  if (!$('account').contains(e.target)) closeAccountMenu();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !$('account-menu').hidden) {
+    closeAccountMenu();
+    $('account-btn').focus();
+  }
+});
+
 $('logout').addEventListener('click', async () => {
   try {
     await post('/api/setup/logout');
@@ -182,6 +201,7 @@ $('logout').addEventListener('click', async () => {
    this one included - so the form ends on the sign-in page with the
    username filled in, the same shape as the first-run flow. */
 $('change-pw').addEventListener('click', () => {
+  closeAccountMenu();
   const form = $('pw-form');
   form.hidden = !form.hidden;
   if (!form.hidden) $('pw-current').focus();
@@ -3388,10 +3408,13 @@ $('user-form').addEventListener('submit', async (ev) => {
 async function start() {
   $('gate').hidden = true;
   $('app').hidden = false;
-  $('whoami').hidden = false;
-  $('whoami').textContent = `${S.user.display_name || S.user.username} · ${S.user.role_label}`;
-  $('logout').hidden = false;
-  $('change-pw').hidden = false;
+  const who = S.user.display_name || S.user.username;
+  $('account').hidden = false;
+  $('account-name').textContent = who;
+  $('account-who-name').textContent = who;
+  $('account-avatar').textContent = who.split(/\s+/).slice(0, 2)
+    .map(w => w[0]).join('').toUpperCase();
+  $('whoami').textContent = S.user.role_label;
   document.querySelector('[data-tab="users"]').hidden = !S.user.may_manage_users;
   document.querySelector('[data-tab="orgs"]').hidden = !S.user.is_system_admin;
   fillTimeZones();
