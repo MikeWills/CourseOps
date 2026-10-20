@@ -1361,7 +1361,10 @@ function renderStations() {
       span.textContent = opLabelOf(stationKey);
       opRow.appendChild(span);
     }
-    row.appendChild(opRow);
+    /* A unit is not posted or started: Not started / Rolling / Finished are
+       station and sweep words and mean nothing for a badge on the map, so it
+       gets no status row - only where it is, and Move / Remove. */
+    if (!isUnit(stationKey)) row.appendChild(opRow);
 
     if (isUnit(stationKey) && can('unit_move')) {
       const place = document.createElement('button');
@@ -1375,7 +1378,7 @@ function renderStations() {
       row.appendChild(place);
       const stand = document.createElement('button');
       stand.type = 'button';
-      stand.className = 'unit-place-btn';
+      stand.className = 'unit-place-btn unit-place-btn--danger';
       stand.textContent = 'Remove';
       stand.setAttribute('aria-label', `Remove ${stationKey}`);
       stand.addEventListener('click', () => removeUnit(stationKey));

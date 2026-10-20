@@ -80,3 +80,39 @@ def test_the_setup_default_list_is_the_servers():
     js = (STATIC / "setup.js").read_text(encoding="utf-8")
     line = js[js.index("const DEFAULT_UNIT_KINDS"):].splitlines()[0]
     assert all(f"'{k}'" in line for k in admin.UNIT_KINDS_DEFAULT)
+
+
+# --- how many units of each type are on the map -------------------------------
+
+def test_a_unit_remembers_its_kind_and_the_setup_counts_them(event):
+    conn, eid = event
+    admin.add_unit(conn, eid, {"badge": "3456", "kind": "Officer", "lat": 44.1, "lon": -94.0})
+    admin.add_unit(conn, eid, {"badge": "4021", "kind": "Officer", "lat": 44.1, "lon": -94.0})
+    admin.add_unit(conn, eid, {"badge": "PW12", "kind": "Public Works", "lat": 44.1, "lon": -94.0})
+    admin.add_unit(conn, eid, {"badge": "9", "lat": 44.1, "lon": -94.0})      # no kind
+    assert admin.unit_kind_counts(conn, eid) == {"Officer": 2, "Public Works": 1}
+
+
+def test_adding_a_badge_again_with_another_kind_changes_it(event):
+    conn, eid = event
+    admin.add_unit(conn, eid, {"badge": "3456", "kind": "Officer", "lat": 44.1, "lon": -94.0})
+    admin.add_unit(conn, eid, {"badge": "3456", "kind": "CSO", "lat": 44.2, "lon": -94.0})
+    assert admin.unit_kind_counts(conn, eid) == {"CSO": 1}
+
+
+def test_units_from_before_the_column_get_their_kind_from_the_label(tmp_path):
+    conn = db.connect(tmp_path / "old.sqlite3")
+    db.init_schema(conn)
+    org = users.create_organization(conn, "club", "Club")
+    eid = admin.create_event(conn, {"slug": "m", "name": "M"}, org["id"])["id"]
+    admin.add_unit(conn, eid, {"badge": "3456", "kind": "Officer", "lat": 44.1, "lon": -94.0})
+    conn.execute("UPDATE roster SET unit_kind = NULL")
+    conn.execute("ALTER TABLE roster DROP COLUMN unit_kind")
+    db.init_schema(conn)
+    assert admin.unit_kind_counts(conn, eid) == {"Officer": 1}
+
+
+def test_the_unit_types_table_shows_the_count():
+    js = (STATIC / "setup.js").read_text(encoding="utf-8")
+    block = js[js.index("function renderUnitTable"):js.index("$('unit-form')")]
+    assert "On the map" in block and "unit_kinds_in_use" in js
