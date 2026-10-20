@@ -257,3 +257,21 @@ def test_the_danger_rule_comes_after_the_base_rule_or_it_loses():
     when the modifier sat above `.unit-place-btn`."""
     css = (STATIC / "app.css").read_text(encoding="utf-8")
     assert css.index(".unit-place-btn--danger {") > css.index(".unit-place-btn {")
+
+
+def test_buttons_and_text_fields_in_the_rows_share_one_height():
+    """Buttons were 34, 36, 38, 40 and 44px side by side in one panel."""
+    css = (STATIC / "app.css").read_text(encoding="utf-8")
+    assert "--row-btn-h:  40px" in css
+    for selector in (".op-btn {", ".station-unmatch {", ".unit-place-btn {",
+                     ".leader-bib-input {", ".event-note-form input {",
+                     ".incident-fields input {", ".ssid-pick {", "#send-pin-name {"):
+        block = css[css.index(selector):]
+        block = block[:block.index("}")]
+        assert "min-height: var(--row-btn-h)" in block, selector
+
+
+def test_setup_text_fields_match_setup_buttons():
+    css = (STATIC / "setup.css").read_text(encoding="utf-8")
+    field = css[css.index(".field input, .field select, .field textarea {"):]
+    assert "min-height: 42px" in field[:field.index("}")]

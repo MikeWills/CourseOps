@@ -11,6 +11,16 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Changed
+- Every button and text field in the live page's rows and sections is the same
+  height (`--row-btn-h`, 40px). They were 34, 36, 38, 40 and 44 side by side, so a
+  station's Not staffed / On station / Torn down sat next to Move on map and
+  Remove at three different sizes. A two-line label (a wrapped Passed button, a
+  long status) now fits inside that height instead of growing its button. The row
+  bodies you tap to locate something, and the full-width Finished / Notes
+  fold-out bars, are left at 44px on purpose. In setup the text
+  fields are 42px like its buttons, where they were 40.
+
 ## [2026.10.14] - 2026-10-20
 
 ### Added
