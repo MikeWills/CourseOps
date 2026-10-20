@@ -184,10 +184,14 @@ def create_token(
 
 
 def tokens_for_event(conn: sqlite3.Connection, event_id: int) -> list[sqlite3.Row]:
-    return conn.execute(
-        "SELECT * FROM access_token WHERE event_id = ? ORDER BY role, id",
+    # In the order the roles are run, not alphabetical: Net Control first on
+    # the Links tab, where the person handing links out reads top to bottom.
+    rows = conn.execute(
+        "SELECT * FROM access_token WHERE event_id = ? ORDER BY id",
         (event_id,),
     ).fetchall()
+    rank = {role: i for i, role in enumerate(ROLES)}
+    return sorted(rows, key=lambda r: rank.get(r["role"], len(ROLES)))
 
 
 def ensure_tokens(conn: sqlite3.Connection, event_id: int) -> dict[str, str]:

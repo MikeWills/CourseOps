@@ -11,6 +11,11 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Changed
+- The Links tab lists roles in the order they are run - Net Control, SAG, Liaison,
+  Logistics, Staff - where it was alphabetical (Liaison first, Net Control third).
+  Several links for one role keep their issue order.
+
 ### Added
 - Copy an event (#240): the two-squares button on the Events list makes a new
   event from an existing one - courses, places, layers, roles, leaders,

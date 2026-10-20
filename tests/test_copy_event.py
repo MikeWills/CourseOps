@@ -158,3 +158,13 @@ def test_the_setup_screen_can_copy(app):
 def test_the_events_list_has_a_copy_button():
     js = (STATIC / "setup.js").read_text(encoding="utf-8")
     assert "data-copy" in js and "/copy`" in js
+
+
+def test_links_list_in_the_order_the_roles_are_run(world):
+    """Net Control, SAG, Liaison, Logistics, Staff - not alphabetical."""
+    conn, eid, _ = world
+    access.ensure_tokens(conn, eid)
+    access.create_token(conn, eid, access.ROLE_NCS, "second")
+    roles = [r["role"] for r in access.tokens_for_event(conn, eid)]
+    assert roles == [access.ROLE_NCS, access.ROLE_NCS, access.ROLE_SAG,
+                     access.ROLE_LIAISON, access.ROLE_LOGISTICS, access.ROLE_STAFF]
