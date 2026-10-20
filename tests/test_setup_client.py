@@ -331,3 +331,10 @@ def test_a_swatch_and_its_name_share_a_line_in_the_courses_table():
     assert 'data-bib="${c.id}"' in cell
     css = (web.STATIC_DIR / "setup.css").read_text(encoding="utf-8")
     assert ".pair { display: flex;" in css
+
+
+def test_a_places_layer_icon_shares_a_line_with_its_dropdown():
+    js = (web.STATIC_DIR / "setup.js").read_text(encoding="utf-8")
+    cell = js[js.index("data-player"):]
+    before = js[:js.index("data-player")]
+    assert '<div class="pair"><span class="layer-glyph"' in before[-400:]

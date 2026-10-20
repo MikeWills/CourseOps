@@ -1686,12 +1686,12 @@ async function loadCourses() {
              >${esc(p.course_name || '')}</span>`
         : '—'}</td>
       <td><input value="${esc(p.name)}" data-pname="${p.id}" style="width:150px"></td>
-      <td><span class="layer-glyph" style="color:${esc(p.layer_color || '#35507a')}"
+      <td><div class="pair"><span class="layer-glyph" style="color:${esc(p.layer_color || '#35507a')}"
             >${glyphSvg(p.layer_icon || 'pin', 16)}</span>
         <select data-player="${p.id}" style="width:150px">${
           S.poiCategories.map((c) => `<option value="${esc(c.key)}"${
             c.key === p.poi_type ? ' selected' : ''}>${esc(c.name)}</option>`).join('')
-        }</select></td>
+        }</select></div></td>
       <td class="races">${S.courses.length ? S.courses.map((c) => `
         <label class="race-pick"><input type="checkbox" data-prace="${p.id}"
             value="${c.id}"${(p.course_ids || []).includes(c.id) ? ' checked' : ''}

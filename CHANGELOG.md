@@ -12,6 +12,8 @@ month, PATCH counting releases in that month from 0. Before that they were
 ## [Unreleased]
 
 ### Fixed
+- The Places table's Layer cell stacked the layer's icon above its dropdown; they
+  sit on one line now, which also shortens every place row.
 - The Courses table's Bib colour cell stacked the swatch above its name box, which
   made each row half as tall again as it needed to be. They sit on one line.
 
