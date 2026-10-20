@@ -145,7 +145,7 @@ body.setup #brand img { width: auto; height: 32px; }
 .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; flex: 1; }
 .field > span { font-size: 13px; font-weight: 650; }
 .field input, .field select, .field textarea {
-  min-height: 42px;
+  min-height: var(--row-btn-h);
   padding: 6px 10px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -167,7 +167,7 @@ body.setup #brand img { width: auto; height: 32px; }
    to add) is not inside a .field, so it got the browser's small default box
    next to 42px buttons. Same height, border and type as the buttons. */
 .row > select {
-  min-height: 42px;
+  min-height: var(--row-btn-h);
   padding: 0 10px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -181,7 +181,7 @@ body.setup #brand img { width: auto; height: 32px; }
 .check small { display: block; color: var(--ink-soft); font-weight: 400; }
 
 button.primary {
-  min-height: 42px;
+  min-height: var(--row-btn-h);
   padding: 0 16px;
   border: 1px solid var(--navy-700);
   border-radius: var(--radius);
@@ -202,7 +202,7 @@ button.primary {
 .panel button:not(.primary):not(.tab):not(.icon-btn):not(.icon-opt),
 #pw-form button:not(.primary),
 .gate button:not(.primary):not(.icon-btn) {
-  min-height: 42px;
+  min-height: var(--row-btn-h);
   padding: 0 14px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -609,9 +609,9 @@ a.icon-btn[hidden] { display: none; }
   table.grid td.grip-cell { width: auto; }
   /* Inputs sized for a desktop column stretch to the card instead. */
   table.grid td input:not([type="checkbox"]):not([type="color"]):not(.pos):not(.coord):not(.pin-label) {
-    width: 100% !important; min-height: 42px;
+    width: 100% !important; min-height: var(--row-btn-h);
   }
-  table.grid td select { width: auto !important; max-width: 100%; min-height: 42px; }
+  table.grid td select { width: auto !important; max-width: 100%; min-height: var(--row-btn-h); }
   table.grid td input, table.grid td select { font-size: 16px; }  /* no iOS zoom */
   table.grid .link-label { width: 100%; }
 

@@ -11,6 +11,12 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Changed
+- Setup's buttons and text fields use the same height variable as the live page
+  (40px), where setup was 42px and the live page 40px. Buttons inside setup
+  tables follow too: the table rule that asks for 34px is outweighed by the
+  panel's button rule, so they were 42px all along.
+
 ## [2026.10.15] - 2026-10-20
 
 ### Added
