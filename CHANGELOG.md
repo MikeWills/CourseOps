@@ -11,6 +11,8 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+## [2026.10.12] - 2026-10-19
+
 ### Changed
 - Unit kinds are now their own **Unit types** tab, worked like the Roles tab: a
   table with rename and delete, and an Add form that takes one at a time. It
