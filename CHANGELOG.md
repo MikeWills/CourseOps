@@ -11,6 +11,8 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+## [2026.10.17] - 2026-10-20
+
 ### Changed
 - Setup's top bar holds one account menu - avatar, name, chevron - instead of
   the name and two buttons. Change password and Sign out sit inside it, under
