@@ -11,6 +11,8 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+## [2026.10.18] - 2026-10-20
+
 ### Changed
 - Re-shot the setup guide screenshots that show the top bar (events, import, courses, places, layers, roles, leaders, roster, tracking, links, and the phone roster), which still showed the old name and Password / Sign out buttons and the September tab order. Added a picture of the account menu to the Users page of the guide.
 
