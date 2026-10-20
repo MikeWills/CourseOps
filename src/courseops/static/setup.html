@@ -232,6 +232,25 @@
         <button id="event-cancel" type="button" hidden>Cancel</button>
       </div>
     </form>
+
+    <!-- Copy an event: a form like every other, not a pair of pop-up boxes. -->
+    <form id="event-copy-form" class="card" hidden>
+      <h3 id="event-copy-title">Copy an event</h3>
+      <p class="muted">
+        Takes the courses, places, layers, roles, leaders, routes and roster,
+        with new links and tracking off. Pickups, notes, sightings and
+        positions stay with the original, and nothing here changes it.
+      </p>
+      <label class="field"><span>Short name (used in links)</span>
+        <input id="cp-slug" type="text" placeholder="mankato2026-rehearsal" required></label>
+      <label class="field"><span>Full name</span>
+        <input id="cp-name" type="text" placeholder="2026 Mankato Marathon rehearsal" required></label>
+      <p id="event-copy-error" class="error" hidden></p>
+      <div class="row">
+        <button class="primary" type="submit">Make the copy</button>
+        <button id="event-copy-cancel" type="button">Cancel</button>
+      </div>
+    </form>
   </section>
 
   <section class="panel" data-panel="course" hidden>

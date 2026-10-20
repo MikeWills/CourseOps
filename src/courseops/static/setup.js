@@ -409,6 +409,11 @@ const ICONS = {
   remove: ['<path d="M4.2 4.2l7.6 7.6M11.8 4.2l-7.6 7.6"/>', 'Remove'],
   copy: ['<rect x="6" y="6" width="7.4" height="7.4" rx="1.4"/>'
        + '<path d="M10.6 3.6H4.2a1.6 1.6 0 0 0-1.6 1.6v6.4"/>', 'Copy link'],
+  // A page with a plus on it: make a new one like this. Not `copy`, which is
+  // "copy this link" on the Links tab - the same two squares meant two things.
+  duplicate: ['<rect x="2.4" y="5.6" width="8" height="8" rx="1.4"/>'
+            + '<path d="M5.4 5.6V4a1.4 1.4 0 0 1 1.4-1.4h6A1.4 1.4 0 0 1 14.2 4v6'
+            + 'a1.4 1.4 0 0 1-1.4 1.4h-2.4M6.4 9.6h2M7.4 8.6v2"/>', 'Make a copy'],
   password: ['<circle cx="6.2" cy="9.8" r="2.6"/>'
            + '<path d="M8.1 8L13.4 2.7M11.4 4.7l1.5 1.5"/>', 'Set a password'],
   // Two columns of dots: the conventional "drag me" grip. Recognised without
@@ -697,7 +702,7 @@ async function loadEvents() {
       + iconLink('report', {href: `/setup/events/${e.id}/report`},
                  `After-event report for ${e.name}`)
       + iconBtn('edit', {'data-edite': e.id}, `Edit ${e.name}`)
-      + (mayManage ? iconBtn('copy', {'data-copy': e.id},
+      + (mayManage ? iconBtn('duplicate', {'data-copy': e.id},
                              `Make a copy of ${e.name}`) : '')
       + (mayManage ? iconBtn('archive', {'data-archive': e.id},
                              `Archive ${e.name}`) : ''))
@@ -737,21 +742,16 @@ async function loadEvents() {
   host.querySelectorAll('[data-edite]').forEach((b) => b.addEventListener('click', () => {
     editEvent(S.events.find((e) => e.id === Number(b.dataset.edite)));
   }));
-  host.querySelectorAll('[data-copy]').forEach((b) => b.addEventListener('click', async () => {
+  host.querySelectorAll('[data-copy]').forEach((b) => b.addEventListener('click', () => {
     const event = S.events.find((e) => e.id === Number(b.dataset.copy));
-    // A name and a short name, because the short name is in every link.
-    const name = prompt(`Name for the copy of "${event.name}":`, `${event.name} (copy)`);
-    if (!name || !name.trim()) return;
-    const slug = prompt('Short name for its links (letters, numbers, - and _):',
-      `${event.slug}-copy`);
-    if (!slug || !slug.trim()) return;
-    try {
-      const made = await post(`/api/setup/events/${event.id}/copy`,
-        {name: name.trim(), slug: slug.trim()});
-      banner(`Made ${made.name}. The original is untouched.`);
-      await loadEvents();
-      enterEvent(made.id);
-    } catch (err) { banner(err.message, true); }
+    S.copyingEvent = event.id;
+    $('event-copy-title').textContent = `Copy ${event.name}`;
+    $('cp-name').value = `${event.name} (copy)`;
+    $('cp-slug').value = `${event.slug}-copy`;
+    $('event-copy-error').hidden = true;
+    $('event-copy-form').hidden = false;
+    $('cp-slug').focus();
+    $('cp-slug').select();
   }));
   host.querySelectorAll('[data-archive]').forEach((b) => b.addEventListener('click', async () => {
     const event = S.events.find((e) => e.id === Number(b.dataset.archive));
@@ -909,6 +909,28 @@ function resetEventForm() {
 }
 
 $('event-cancel').addEventListener('click', () => resetEventForm());
+
+$('event-copy-cancel').addEventListener('click', () => {
+  S.copyingEvent = null;
+  $('event-copy-form').hidden = true;
+});
+
+$('event-copy-form').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  $('event-copy-error').hidden = true;
+  try {
+    const made = await post(`/api/setup/events/${S.copyingEvent}/copy`,
+      { name: $('cp-name').value.trim(), slug: $('cp-slug').value.trim() });
+    S.copyingEvent = null;
+    $('event-copy-form').hidden = true;
+    banner(`Made ${made.name}. The original is untouched.`);
+    await loadEvents();
+    enterEvent(made.id);
+  } catch (err) {
+    $('event-copy-error').textContent = err.message;
+    $('event-copy-error').hidden = false;
+  }
+});
 
 /* The centre goes in the payload only when both boxes hold something.
    Left blank it is left alone on the server: an import may already have

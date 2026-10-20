@@ -233,3 +233,27 @@ def test_units_have_their_own_section_above_the_stations():
     assert "unit-section" not in staff
     render = js[js.index("function renderStations"):]
     assert "isUnit(stationKey) ? unitHost : host" in render
+
+
+def test_the_add_form_wraps_and_matches_the_other_controls():
+    """In the ~260px side panel badge + kind + button on one line left the badge
+    box about 20px wide, and the button was the browser's default grey."""
+    css = (STATIC / "app.css").read_text(encoding="utf-8")
+    block = css[css.index(".unit-add {"):css.index(".unit-add input {")]
+    assert "flex-wrap: wrap" in block
+    assert "background: var(--paper)" in block and "border: 1px solid var(--line)" in block
+
+
+def test_a_unit_row_has_no_station_status_buttons_and_remove_is_a_danger_button():
+    js = (STATIC / "app.js").read_text(encoding="utf-8")
+    assert "if (!isUnit(stationKey)) row.appendChild(opRow);" in js
+    assert "unit-place-btn unit-place-btn--danger" in js
+    css = (STATIC / "app.css").read_text(encoding="utf-8")
+    assert ".unit-place-btn--danger" in css
+
+
+def test_the_danger_rule_comes_after_the_base_rule_or_it_loses():
+    """Same specificity: the later rule wins, and the red Remove rendered grey
+    when the modifier sat above `.unit-place-btn`."""
+    css = (STATIC / "app.css").read_text(encoding="utf-8")
+    assert css.index(".unit-place-btn--danger {") > css.index(".unit-place-btn {")

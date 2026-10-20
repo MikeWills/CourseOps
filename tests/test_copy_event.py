@@ -168,3 +168,14 @@ def test_links_list_in_the_order_the_roles_are_run(world):
     roles = [r["role"] for r in access.tokens_for_event(conn, eid)]
     assert roles == [access.ROLE_NCS, access.ROLE_NCS, access.ROLE_SAG,
                      access.ROLE_LIAISON, access.ROLE_LOGISTICS, access.ROLE_STAFF]
+
+
+def test_copy_is_an_inline_form_with_its_own_icon_not_popups():
+    """Every other setup form is inline; `copy` already means "copy this link"."""
+    js = (STATIC / "setup.js").read_text(encoding="utf-8")
+    html = (STATIC / "setup.html").read_text(encoding="utf-8")
+    assert 'id="event-copy-form"' in html
+    handler = js[js.index("$('event-copy-form').addEventListener"):]
+    assert "prompt(" not in js[js.index("[data-copy]"):js.index("[data-archive]')")]
+    assert "iconBtn('duplicate', {'data-copy'" in js
+    assert "  duplicate: [" in js

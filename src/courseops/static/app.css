@@ -1533,8 +1533,23 @@ body {
   color: var(--ink);
   cursor: pointer;
 }
+/* Destructive, and it has to look it: the same red as Delete in setup. */
+.unit-place-btn--danger { color: var(--silent); border-color: #e3a9a4; }
 
 /* Adding a unit from the live page (#196). */
-.unit-add { display: flex; gap: 6px; margin: 0 0 8px; }
-.unit-add input, .unit-add select, .unit-add button { min-height: 44px; font: inherit; }
-.unit-add input { flex: 1; min-width: 0; font-family: var(--font-data); }
+/* Wraps: the side panel is ~260px, and badge + kind + button on one line left
+   the badge box about 20px wide. The button drops to its own full-width row
+   there, and sits beside them on a phone, where it fits. */
+.unit-add { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; }
+.unit-add input, .unit-add select, .unit-add button {
+  min-height: 44px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+}
+.unit-add input { flex: 1 1 90px; min-width: 0; font-family: var(--font-data); }
+.unit-add select { flex: 1 1 120px; min-width: 0; }
+.unit-add button { flex: 1 1 auto; padding: 0 14px; cursor: pointer; }
