@@ -413,6 +413,18 @@ def _require_event_creator(user, verb: str) -> None:
         )
 
 
+@router.post("/api/setup/events/{event_id}/copy")
+async def setup_copy_event(
+    event_id: int, auth: EventAdmin, request: Request
+) -> JSONResponse:
+    """A copy of this event's setup under a new name (#240): rehearse on it
+    without touching the original. Same people who may create an event."""
+    conn, user = auth
+    _require_event_creator(user, "copy")
+    body = await json_body(request)
+    return JSONResponse(_guard(admin.copy_event, conn, event_id, body), status_code=201)
+
+
 @router.post("/api/setup/events/{event_id}/archive")
 async def setup_archive_event(
     event_id: int, auth: EventAdmin, request: Request

@@ -51,6 +51,7 @@ CREATE TABLE IF NOT EXISTS event (
     -- published anyway and a volunteer who cannot find the backup is the
     -- failure this exists to prevent. NULL when the club has written none.
     net_info          TEXT,
+    unit_kinds        TEXT,
     created_at        TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
 );
 

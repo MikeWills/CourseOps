@@ -1489,6 +1489,24 @@ if (unitAddForm) {
   });
 }
 
+/* The kinds are the club's list (Setup > Events > Edit), sent in the event so
+   a change reaches an open page. Rebuilt only when the list changed: a resync
+   must not reset a choice someone is half way through making. */
+function renderUnitKinds() {
+  const select = document.getElementById('unit-kind');
+  const kinds = (state.event && state.event.unit_kinds) || [];
+  const have = Array.from(select.options).slice(1).map((o) => o.value);
+  if (have.join('\n') === kinds.join('\n')) return;
+  const chosen = select.value;
+  select.length = 1;
+  for (const kind of kinds) {
+    const option = document.createElement('option');
+    option.value = option.textContent = kind;
+    select.appendChild(option);
+  }
+  select.value = kinds.includes(chosen) ? chosen : '';
+}
+
 async function removeUnit(stationKey) {
   if (!confirm(`Stand ${stationKey} down and take the pin off the map?`)) return;
   try {
@@ -3306,6 +3324,7 @@ function applyState(data) {
   // so all four get the pin controls. What they cannot do is work the queue.
   document.getElementById('pin-actions').hidden = !can('incident_report');
   document.getElementById('unit-add-form').hidden = !can('unit_move');
+  renderUnitKinds();
   document.getElementById('pin-kind').hidden = !can('incident_report');
   // A role that cannot report is not sent the queue at all (Staff), so the
   // two sections would sit there empty - and an empty "Pickups" reads as

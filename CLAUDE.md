@@ -57,7 +57,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 1007 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 1020 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -1232,6 +1232,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-10-19** Copy an event (`admin.copy_event`, ids remapped, setup only) and a club-set list of unit kinds (`event.unit_kinds`).
 - **2026-10-19** Hand-placed unit pins (#196): `tracked_by='manual'`, badge-number pill, Net Control + Liaison move it (`CAP_UNIT_MOVE`), every field role but Staff sees it (`CAP_UNIT_VIEW`).
 - **2026-10-19** Fixed: tabbing from a leader's bib box to Passed is a new report, not a correction of the previous sighting (#208 keyboard gap).
 - **2026-10-19** A pickup or course note pin can be moved: Move this pin in the popup arms it, then a tap or a drag sets the spot; the log keeps the old one (#214).
@@ -1241,4 +1242,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-10-17** Finished pickups (dropped off / closed, per `incidentDone`) sit under a folded 'Finished (N)' drop-down below the live queue, state in prefs (#213); count and map markers unchanged.
 - **2026-10-17** Sweep tracking (#215): a leader has a `kind` ('sweep' ticked on the Leaders tab); leg times per stop, a finish estimate from the last three legs to the route's last step, per-kind pace limits, a Leg column on the report.
 - **2026-10-17** The NCS stations list is alphabetical and never re-sorts; the heading counts silent stations since order no longer shows them (#212).
-- **2026-10-17** Event notes list can be hidden on its own (Hide notes / Show notes, count kept) while the add box stays on screen (#209).

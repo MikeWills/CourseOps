@@ -81,7 +81,22 @@ the box and the section disappears.
 > you like; the short name cannot, because changing it would 404 every volunteer
 > at once, silently, on the morning they need it.
 
+**Unit kinds** is optional: the choices in the add-a-unit box that Liaison and
+Net Control use on the live page, one per line. Leave it blank and they get
+Officer, CSO and Public Works; type `Police`, `Fire`, `EMS` and that is what
+they pick from. It reaches pages already open without a reload.
+
 Creating an event takes you straight into it, on Import.
+
+### Make a copy of an event
+
+To rehearse, or to start next year's from this year's, press the two-squares
+button (**Make a copy**) on the event's row. Give it a name and a short name.
+The copy gets the courses, places, layers, roles, leaders, routes and roster,
+and its own new role links, with tracking off. It does **not** get pickups,
+notes, sightings, who was posted where, or any positions, and every roster
+entry starts as not yet posted. Nothing you do in the copy changes the
+original.
 
 ## 2. Import the course
 

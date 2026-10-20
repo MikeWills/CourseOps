@@ -145,6 +145,7 @@ _ADDED_COLUMNS: list[tuple[str, str, str]] = [
     ("position", "packets", "INTEGER NOT NULL DEFAULT 1"),
     ("event", "archived_at", "TEXT"),
     ("event", "net_info", "TEXT"),
+    ("event", "unit_kinds", "TEXT"),
     ("course", "start_time", "TEXT"),
     ("course", "start_poi_id", "INTEGER REFERENCES poi(id) ON DELETE SET NULL"),
     ("course", "finish_poi_id", "INTEGER REFERENCES poi(id) ON DELETE SET NULL"),

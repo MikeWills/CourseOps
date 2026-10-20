@@ -13,7 +13,7 @@ import json
 import sqlite3
 from typing import Any
 
-from . import (access, categories, db, event_notes, hub as hub_module, incidents,
+from . import (access, admin, categories, db, event_notes, hub as hub_module, incidents,
                labels as poi_labels, leaders, progress, symbols)
 
 # How long without a packet before a station is styled as going stale / silent.
@@ -254,6 +254,8 @@ def build_state(conn: sqlite3.Connection, event_id: int) -> dict[str, Any]:
             # Repeaters and tones, as the club typed them. Every role: the
             # forwarded Staff link needs the frequencies as much as NCS does.
             "net_info": event["net_info"],
+            # What Liaison and NCS may call a hand-placed unit: the club list.
+            "unit_kinds": admin.unit_kinds(conn, event_id),
         },
         "courses": courses,
         # A club's own wording for the station roles. The keys are fixed
