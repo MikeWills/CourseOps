@@ -11,6 +11,8 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+## [2026.10.13] - 2026-10-19
+
 ### Changed
 - Hand-placed units have their own **Units** section above Stations, with the
   add box and one row per unit, instead of sitting among the roster. They are
