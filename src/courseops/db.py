@@ -206,6 +206,27 @@ def _apply_migrations(conn: sqlite3.Connection) -> list[str]:
     return applied
 
 
+def _adopt_unit_roles(conn: sqlite3.Connection) -> None:
+    """Units placed before the Partner role existed were filed as Rover.
+
+    Only hand-placed units move; a real rover keeps its role. The role is
+    added to an event that has units and lacks it, so the move never leaves a
+    unit pointing at a role that is not in the list.
+    """
+    conn.execute(
+        "INSERT OR IGNORE INTO roster_role (event_id, key, name, sort_order)"
+        " SELECT DISTINCT r.event_id, 'partner', 'Partner',"
+        "  COALESCE((SELECT MAX(sort_order) FROM roster_role x"
+        "            WHERE x.event_id = r.event_id), 0) + 10"
+        " FROM roster r WHERE r.tracked_by = 'manual' AND r.category = 'rover'"
+        # An event with no roles yet is seeded whole on first read, and a lone
+        # Partner row would stop that: the seed only runs into an empty table.
+        " AND EXISTS (SELECT 1 FROM roster_role y WHERE y.event_id = r.event_id)")
+    conn.execute(
+        "UPDATE roster SET category = 'partner'"
+        " WHERE tracked_by = 'manual' AND category = 'rover'")
+
+
 def init_schema(conn: sqlite3.Connection) -> list[str]:
     # Readers never block the one writer (the ingest loop), and the mode
     # persists in the file, so once here is enough - every server start and
@@ -213,6 +234,7 @@ def init_schema(conn: sqlite3.Connection) -> list[str]:
     conn.execute("PRAGMA journal_mode = WAL")
     conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
     applied = _apply_migrations(conn)
+    _adopt_unit_roles(conn)
     _adopt_orphan_events(conn)
     _clean_html_notes(conn)
     _seed_categories(conn)

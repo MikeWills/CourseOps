@@ -69,6 +69,9 @@ DEFAULT_ROSTER_ROLES: list[tuple[str, str]] = [
     ("shadow", "Shadow"),
     ("rover", "Rover"),
     ("start_finish", "Start / finish"),
+    # Hand-placed units (#196): police, CSO, Public Works - any partner agency
+    # or crew that is not one of ours. Generic status wording, on purpose.
+    ("partner", "Partner"),
 ]
 
 # The leaders a new event tracks. The two nearly every race has; a club adds a
@@ -467,6 +470,24 @@ def seed_roster_roles(conn: sqlite3.Connection, event_id: int) -> None:
             " (event_id, key, name, sort_order) VALUES (?, ?, ?, ?)",
             (event_id, key, name, order * 10),
         )
+
+
+def ensure_partner_role(conn: sqlite3.Connection, event_id: int) -> None:
+    """Make sure the Partner role exists, for an event that predates it.
+
+    A hand-placed unit needs somewhere to live on the roster, and an event
+    made before the role was a default does not have it. This is not the
+    resurrection the seed rules forbid: a role the club deleted comes back
+    only when a unit is added that needs it, and it is refused deletion
+    while a unit holds it, like any role in use.
+    """
+    seed_event_defaults(conn, event_id)      # a lone row would stop the seed
+    last = conn.execute(
+        "SELECT COALESCE(MAX(sort_order), 0) AS n FROM roster_role WHERE event_id = ?",
+        (event_id,)).fetchone()["n"]
+    conn.execute(
+        "INSERT OR IGNORE INTO roster_role (event_id, key, name, sort_order)"
+        " VALUES (?, 'partner', 'Partner', ?)", (event_id, last + 10))
 
 
 def roster_roles(conn: sqlite3.Connection, event_id: int) -> list[sqlite3.Row]:

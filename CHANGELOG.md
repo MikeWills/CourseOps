@@ -11,6 +11,45 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Added
+- A **Partner** station role, for hand-placed units - police, CSOs, Public
+  Works, or any partner agency or crew that is not one of ours. A unit added from
+  the live page is a Partner instead of a Rover, and choosing Hand-placed in the
+  setup roster form picks it. It is a default role for new events; an event that
+  predates it gets the role when its first unit is added, and units already
+  placed move from Rover to Partner at startup (only units - a real rover keeps
+  its role). Rename it on the Roles tab like any other.
+
+### Fixed
+- The Places table's Layer cell stacked the layer's icon above its dropdown; they
+  sit on one line now, which also shortens every place row.
+- The Courses table's Bib colour cell stacked the swatch above its name box, which
+  made each row half as tall again as it needed to be. They sit on one line.
+
+### Changed
+- The event tabs run in the order an event is set up: Import, Courses, Layers,
+  Places, Route stops, Leaders, Roles, Roster, Unit types, Tracking, Links. They
+  had grown by being added on the end, so finishing a route meant crossing back
+  over Places, and Layers sat after the Places that use it.
+
+### Fixed
+- The icon picker (Add a layer, and a layer's row) drew each glyph off centre in
+  an outlined box. The panel's rule for plain buttons - 14px side padding, a 42px
+  minimum height, a border - outweighed `.icon-opt`, the same trap the icon
+  buttons were already excluded from. The picker is now excluded too, and has no
+  outline; the picked glyph is still a filled chip, and a keyboard focus ring
+  shows where you are.
+
+### Changed
+- Every button and text field in the live page's rows and sections is the same
+  height (`--row-btn-h`, 40px). They were 34, 36, 38, 40 and 44 side by side, so a
+  station's Not staffed / On station / Torn down sat next to Move on map and
+  Remove at three different sizes. A two-line label (a wrapped Passed button, a
+  long status) now fits inside that height instead of growing its button. The row
+  bodies you tap to locate something, and the full-width Finished / Notes
+  fold-out bars, are left at 44px on purpose. In setup the text
+  fields are 42px like its buttons, where they were 40.
+
 ## [2026.10.14] - 2026-10-20
 
 ### Added

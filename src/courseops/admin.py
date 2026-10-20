@@ -1322,9 +1322,10 @@ def add_unit(conn: sqlite3.Connection, event_id: int, payload: dict):
     if existing is not None and existing["tracked_by"] != db.TRACKED_BY_MANUAL:
         raise ValueError(f"{badge} is already on the roster as someone else.")
     if existing is None:
+        categories.ensure_partner_role(conn, event_id)
         db.upsert_roster_entry(
             conn, event_id, badge, f"{kind} {badge}" if kind else badge,
-            category="rover", tracked_by=db.TRACKED_BY_MANUAL)
+            category="partner", tracked_by=db.TRACKED_BY_MANUAL)
     # Stored as its own column so setup can say how many of each are out; a
     # badge added again with another kind becomes that kind.
     if kind or existing is None:

@@ -117,16 +117,23 @@
     <h1 id="event-title"></h1>
   </header>
   <nav id="event-tabs" hidden>
+    <!-- In the order an event is set up, left to right, so nobody crosses back
+         over a tab to finish a job: the course (Import, Courses), then the
+         places (Layers before Places, because a place takes its type from a
+         layer; Route stops after, because a route is a list of places), then
+         Leaders, then the people (Roles before Roster; Unit types last, a
+         day-of menu), then going live (Tracking, Links). A new tab goes where
+         its work falls in that sequence, not on the end. -->
     <button class="tab" data-tab="course" type="button">Import</button>
     <button class="tab" data-tab="courses" type="button">Courses</button>
-    <button class="tab" data-tab="routes" type="button">Route stops</button>
-    <button class="tab" data-tab="stations" type="button">Places</button>
     <button class="tab" data-tab="layers" type="button">Layers</button>
-    <button class="tab" data-tab="roles" type="button">Roles</button>
-    <button class="tab" data-tab="units" type="button">Unit types</button>
+    <button class="tab" data-tab="stations" type="button">Places</button>
+    <button class="tab" data-tab="routes" type="button">Route stops</button>
     <button class="tab" data-tab="leaders" type="button">Leaders</button>
-    <button class="tab" data-tab="tracking" type="button">Tracking</button>
+    <button class="tab" data-tab="roles" type="button">Roles</button>
     <button class="tab" data-tab="roster" type="button">Roster</button>
+    <button class="tab" data-tab="units" type="button">Unit types</button>
+    <button class="tab" data-tab="tracking" type="button">Tracking</button>
     <button class="tab" data-tab="links" type="button">Links</button>
   </nav>
 
@@ -476,7 +483,7 @@
       Safety, say.
     </p>
     <p class="muted">
-      The seven that come with a new event have their own status wording: an aid
+      Seven of the roles that come with a new event have their own status wording: an aid
       station is "Torn down" where a sweep is "Finished". A role you add uses
       "Not started / Active / Closed".
     </p>

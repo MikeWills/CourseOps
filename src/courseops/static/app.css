@@ -39,6 +39,7 @@
   --navy-700:   #0B2545;
   --navy-500:   #1B3B6F;
   --orange:     #FF6A13;   /* safety orange: identity and accent only */
+  --row-btn-h:  40px;      /* every button in a station or unit row: one height */
   --orange-ink: #B34700;   /* dark enough for text on white (AA) */
 
   /* Ink is navy-derived, not neutral grey, so text and chrome are one
@@ -400,7 +401,7 @@ body {
 .course-row .toggle { flex: 1; min-width: 0; }
 .course-row.is-dragging { opacity: 0.5; }
 .grip-btn, .stack-btn, .stack-reset {
-  min-height: 44px;
+  min-height: var(--row-btn-h);
   min-width: 44px;
   padding: 4px 8px;
   border: 1px solid var(--line);
@@ -456,8 +457,9 @@ body {
 
 .op-btn {
   flex: 1;
-  min-height: 36px;
-  padding: 4px 6px;
+  min-height: var(--row-btn-h);
+  padding: 0 6px;
+  line-height: 1.15;     /* a two-line label fits the shared height */
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--paper);
@@ -490,7 +492,7 @@ body {
 .pin-kind, .pickup-sort { display: flex; gap: 0; margin-bottom: 8px; }
 .sort-btn {
   flex: 1;
-  min-height: 38px;
+  min-height: var(--row-btn-h);
   border: 1px solid var(--line);
   background: var(--paper);
   font: inherit;
@@ -513,7 +515,7 @@ body {
 }
 .pin-kind-btn {
   flex: 1;
-  min-height: 40px;
+  min-height: var(--row-btn-h);
   border: 1px solid var(--line);
   background: var(--paper);
   font: inherit;
@@ -731,7 +733,7 @@ body {
   display: grid;
   place-items: center;
   width: 34px;
-  min-height: 34px;
+  min-height: var(--row-btn-h);
   flex: none;
   padding: 0;
   border: 0;
@@ -757,7 +759,7 @@ body {
 .operator-row span { flex: 1; }
 #operator-initials {
   width: 130px;
-  min-height: 40px;
+  min-height: var(--row-btn-h);
   padding: 6px 10px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -793,7 +795,7 @@ body {
   flex: 0 0 auto;
   /* 44px in both directions like every other control that gets pressed with a
      glove on, at arm's length, walking. */
-  min-height: 44px;
+  min-height: var(--row-btn-h);
   min-width: 64px;
   padding: 0 14px;
   border: 1px solid var(--line);
@@ -809,7 +811,7 @@ body {
 
 #incident-add {
   width: 100%;
-  min-height: 44px;
+  min-height: var(--row-btn-h);
   margin-bottom: 8px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -899,7 +901,7 @@ body {
 .inc-dot--note      { background: var(--inc-note); border-radius: 50%; }
 
 .incident-op { display: flex; gap: 5px; padding: 4px 2px 0 23px; }
-.incident-op .op-btn { font-size: 11px; padding: 4px 2px; }
+.incident-op .op-btn { font-size: 11px; padding: 0 2px; }
 
 /* Square marker: never confusable with a station (circle/diamond) or an aid
    station (rounded rect). The bib is the label because that is what is spoken. */
@@ -935,7 +937,7 @@ body {
 .incident-bib  { width: 88px; flex: none; }
 .incident-note { flex: 1; min-width: 0; }
 .incident-fields input {
-  min-height: 36px;
+  min-height: var(--row-btn-h);
   padding: 4px 8px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -1014,7 +1016,7 @@ body {
 .event-note-form input {
   flex: 1;
   min-width: 0;
-  min-height: 44px;
+  min-height: var(--row-btn-h);
   padding: 6px 10px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -1025,7 +1027,7 @@ body {
 }
 .event-note-form button {
   flex: none;
-  min-height: 44px;
+  min-height: var(--row-btn-h);
   min-width: 64px;
   padding: 0 14px;
   border: 1px solid var(--line);
@@ -1114,11 +1116,12 @@ body {
    a microphone, so it gets the space. */
 .leader-passed {
   flex: 1;
-  padding: 4px 8px;
-  min-height: 40px;
+  padding: 0 8px;
+  min-height: var(--row-btn-h);
   /* "Passed Water stop B" wraps onto two lines in a narrow sidebar rather
-     than being clipped, so the row keeps a readable target either way. */
-  line-height: 1.25;
+     than being clipped. Two lines fit inside the shared height, so a wrapped
+     label does not make this button taller than its neighbours. */
+  line-height: 1.15;
   border: 1px solid var(--accent);
   border-radius: var(--radius);
   background: var(--accent);
@@ -1129,7 +1132,7 @@ body {
   cursor: pointer;
 }
 .leader-picker, .leader-undo {
-  min-height: 40px;
+  min-height: var(--row-btn-h);
   padding: 0 8px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -1146,7 +1149,7 @@ body {
 .leader-bib-input {
   width: 72px;
   flex: none;
-  min-height: 40px;
+  min-height: var(--row-btn-h);
   padding: 0 8px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -1195,7 +1198,7 @@ body {
 }
 .ignored-row .ssid-meta { flex: 1; }
 .ssid-pick {
-  min-height: 38px;
+  min-height: var(--row-btn-h);
   max-width: 100%;
   padding: 4px 8px;
   border: 1px solid var(--line);
@@ -1207,7 +1210,7 @@ body {
 }
 .station-unmatch {
   margin: 2px 0 4px;
-  min-height: 34px;
+  min-height: var(--row-btn-h);
   padding: 0 10px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -1218,7 +1221,7 @@ body {
   cursor: pointer;
 }
 .ssid-ignore {
-  min-height: 38px;
+  min-height: var(--row-btn-h);
   padding: 0 10px;
   border-radius: var(--radius);
   font: inherit;
@@ -1228,6 +1231,9 @@ body {
 }
 .ssid-adopt {
   flex: 1;
+  min-height: var(--row-btn-h);   /* it is a button here; the shared rule above is a row */
+  padding: 0 10px;
+  line-height: 1.15;     /* "This is Sweep - Full" wraps on a phone; two lines fit */
   border: 1px solid var(--accent);
   background: var(--accent);
   color: #fff;
@@ -1504,26 +1510,26 @@ body {
 }
 
 /* Move this pin (#214): a 44px target inside the popup. */
-.inc-move { min-height: 44px; margin-top: 8px; padding: 0 14px; font: inherit; font-weight: 700; cursor: pointer; }
-#pin-move-cancel { min-height: 44px; margin-left: 8px; }
+.inc-move { min-height: var(--row-btn-h); margin-top: 8px; padding: 0 14px; font: inherit; font-weight: 700; cursor: pointer; }
+#pin-move-cancel { min-height: var(--row-btn-h); margin-left: 8px; }
 
 /* Send a torn-down station to another place (#211). */
-.station-relocate { min-height: 44px; margin-top: 6px; max-width: 100%; font: inherit; }
+.station-relocate { min-height: var(--row-btn-h); margin-top: 6px; max-width: 100%; font: inherit; }
 
 /* A post that is a spot, not a place (#211). */
 .post-pin { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
   background: var(--navy-700); color: #fff; border: 2px solid #fff; font-size: 15px; }
-#send-pin-cancel { min-height: 44px; margin-left: 8px; }
-#send-pin-name { min-height: 44px; }
+#send-pin-cancel { min-height: var(--row-btn-h); margin-left: 8px; }
+#send-pin-name { min-height: var(--row-btn-h); }
 
 /* A hand-placed unit (#196): a pill with the badge number, never a circle. */
 .stn--unit { min-width: 44px; width: auto; height: 24px; padding: 0 8px; border-radius: 12px;
   display: inline-grid; place-items: center; background: #fff; color: var(--navy-700);
   border: 2px solid var(--navy-700); font-family: var(--font-data); font-weight: 700;
   font-size: 12px; letter-spacing: 0; box-sizing: border-box; white-space: nowrap; }
-#unit-place-cancel { min-height: 44px; margin-top: 6px; }
+#unit-place-cancel { min-height: var(--row-btn-h); margin-top: 6px; }
 .unit-place-btn {
-  min-height: 44px;
+  min-height: var(--row-btn-h);
   margin: 6px 8px 0 0;
   padding: 0 14px;
   border: 1px solid var(--line);
@@ -1542,7 +1548,7 @@ body {
    there, and sits beside them on a phone, where it fits. */
 .unit-add { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; }
 .unit-add input, .unit-add select, .unit-add button {
-  min-height: 44px;
+  min-height: var(--row-btn-h);
   padding: 0 10px;
   border: 1px solid var(--line);
   border-radius: var(--radius);

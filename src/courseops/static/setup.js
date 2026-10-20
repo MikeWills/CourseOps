@@ -1590,10 +1590,11 @@ async function loadCourses() {
       <td><input value="${esc(c.name)}" data-name="${c.id}" style="width:130px"></td>
       <td>${miles(c.distance_m)}</td>
       <td><input type="color" value="${esc(c.color || '#d55e00')}" data-color="${c.id}"></td>
-      <td><input type="color" value="${esc(c.bib_color || c.color || '#d55e00')}"
-            data-bib="${c.id}">
+      <td><div class="pair"><input type="color" value="${esc(c.bib_color || c.color || '#d55e00')}"
+            data-bib="${c.id}" aria-label="Bib colour of ${esc(c.name)}">
           <input placeholder="Yellow" value="${esc(c.bib_color_name || '')}"
-            data-bibname="${c.id}" style="width:90px"></td>
+            data-bibname="${c.id}" style="width:90px"
+            aria-label="Name of the bib colour of ${esc(c.name)}"></div></td>
       <td><input type="time" value="${esc(c.start_time || '')}" data-start="${c.id}"
             aria-label="Start time of ${esc(c.name)}"></td>
       <td><select data-startpoi="${c.id}" aria-label="Where ${esc(c.name)} starts">
@@ -1685,12 +1686,12 @@ async function loadCourses() {
              >${esc(p.course_name || '')}</span>`
         : '—'}</td>
       <td><input value="${esc(p.name)}" data-pname="${p.id}" style="width:150px"></td>
-      <td><span class="layer-glyph" style="color:${esc(p.layer_color || '#35507a')}"
+      <td><div class="pair"><span class="layer-glyph" style="color:${esc(p.layer_color || '#35507a')}"
             >${glyphSvg(p.layer_icon || 'pin', 16)}</span>
         <select data-player="${p.id}" style="width:150px">${
           S.poiCategories.map((c) => `<option value="${esc(c.key)}"${
             c.key === p.poi_type ? ' selected' : ''}>${esc(c.name)}</option>`).join('')
-        }</select></td>
+        }</select></div></td>
       <td class="races">${S.courses.length ? S.courses.map((c) => `
         <label class="race-pick"><input type="checkbox" data-prace="${p.id}"
             value="${c.id}"${(p.course_ids || []).includes(c.id) ? ' checked' : ''}
@@ -3052,6 +3053,13 @@ function renderTrackingHint() {
   const value = $('rs-tracking').value;
   $('rs-tracking-hint').textContent = TRACKING_HINTS[value];
   $('rs-call').placeholder = value === 'phone' ? 'M1' : value === 'manual' ? '4021' : 'N0CALL';
+  // A hand-placed unit is a partner agency's, not a rover: pick the role for
+  // them unless one was already chosen deliberately.
+  const role = $('rs-category');
+  if (value === 'manual' && (!role.value || role.value === 'rover')
+      && [...role.options].some((o) => o.value === 'partner')) {
+    role.value = 'partner';
+  }
 }
 $('rs-tracking').addEventListener('change', renderTrackingHint);
 

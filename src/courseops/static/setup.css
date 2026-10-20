@@ -145,7 +145,7 @@ body.setup #brand img { width: auto; height: 32px; }
 .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; flex: 1; }
 .field > span { font-size: 13px; font-weight: 650; }
 .field input, .field select, .field textarea {
-  min-height: 40px;
+  min-height: 42px;
   padding: 6px 10px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -199,7 +199,7 @@ button.primary {
    and Open sat beside each other on the Links tab looking like two different
    kinds of control. Excluding the class leaves `.icon-btn` as the single
    description of an icon button, so a button and an anchor render alike. */
-.panel button:not(.primary):not(.tab):not(.icon-btn),
+.panel button:not(.primary):not(.tab):not(.icon-btn):not(.icon-opt),
 #pw-form button:not(.primary),
 .gate button:not(.primary):not(.icon-btn) {
   min-height: 42px;
@@ -252,21 +252,32 @@ button:disabled { opacity: 0.65; cursor: progress; }
   display: inline-grid;
   place-items: center;
   width: 34px; height: 34px;
-  border: 1px solid transparent;
+  min-height: 0;
+  padding: 0;            /* the panel's 14px button padding pushed the glyph off centre */
+  border: 0;             /* no outline: the glyph is the control */
   border-radius: var(--radius);
   background: none;
   color: var(--ink-soft);
   cursor: pointer;
 }
 .icon-opt:hover { background: #eef2f7; }
+.icon-opt:focus-visible { outline: 2px solid var(--navy-700); outline-offset: 1px; }
 /* Selection is a filled chip, not a colour change: the glyph itself is the
    thing being chosen, so it must not change appearance when picked. */
 .icon-opt.is-on {
   background: var(--navy-700);
-  border-color: var(--navy-700);
   color: #fff;
 }
 .layer-glyph { display: inline-grid; place-items: center; }
+
+/* A swatch (or a layer's icon) and the box beside it: one line, never stacked.
+   The Places table's Layer cell had the icon above the select, and the Courses
+   table's Bib colour cell is narrow, and the two wrapped onto separate lines
+   and made every row half as tall again as its neighbours. */
+.pair { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.pair input[type="color"] { flex: none; }
+.pair input:not([type="color"]), .pair select { min-width: 0; }
+.pair .layer-glyph { flex: none; }
 
 /* --- tables -------------------------------------------------------------- */
 
@@ -290,7 +301,7 @@ table.grid .actions { text-align: right; white-space: nowrap; }
    this one is a class and two elements, so its 10px of horizontal padding
    beat `.icon-btn`'s zero and squeezed a 16px glyph into a 14px content
    box - inside tables only, which is where every Save and Delete lives. */
-table.grid button:not(.icon-btn) {
+table.grid button:not(.icon-btn):not(.icon-opt) {
   min-height: 34px;
   padding: 0 10px;
   font-size: 13px;
@@ -598,9 +609,9 @@ a.icon-btn[hidden] { display: none; }
   table.grid td.grip-cell { width: auto; }
   /* Inputs sized for a desktop column stretch to the card instead. */
   table.grid td input:not([type="checkbox"]):not([type="color"]):not(.pos):not(.coord):not(.pin-label) {
-    width: 100% !important; min-height: 40px;
+    width: 100% !important; min-height: 42px;
   }
-  table.grid td select { width: auto !important; max-width: 100%; min-height: 40px; }
+  table.grid td select { width: auto !important; max-width: 100%; min-height: 42px; }
   table.grid td input, table.grid td select { font-size: 16px; }  /* no iOS zoom */
   table.grid .link-label { width: 100%; }
 

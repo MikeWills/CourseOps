@@ -52,6 +52,8 @@ Works) are set on the **Unit types** tab, one at a time like the roles: rename o
 delete one, or add your own (`Fire`, `EMS`). Delete them all and the usual
 three come back; a change reaches pages already open without a reload.
 
+A hand-placed unit's role is **Partner** (the roster form picks it for you).
+
 A **hand-placed** unit is never asked for on APRS-IS and never alarms: a quiet
 officer is normal. You do NOT need to enter these here - Liaison and Net Control
 add police, CSO and Public Works units themselves from their own pages on the
