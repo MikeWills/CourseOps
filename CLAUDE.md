@@ -57,7 +57,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 1039 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 1044 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -1239,6 +1239,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-10-20** A Partner station role for hand-placed units (default role; backfilled from Rover at startup).
 - **2026-10-20** Setup event tabs reordered into the order an event is set up; a new tab goes where its work falls.
 - **2026-10-19** Copy an event (`admin.copy_event`, ids remapped, setup only) and a club-set list of unit kinds (`event.unit_kinds`).
 - **2026-10-19** Hand-placed unit pins (#196): `tracked_by='manual'`, badge-number pill, Net Control + Liaison move it (`CAP_UNIT_MOVE`), every field role but Staff sees it (`CAP_UNIT_VIEW`).
@@ -1248,4 +1249,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-10-18** Leader routes moved to their own **Route stops** setup tab (after Courses); stops reorder by the shared grip (`bindReorder`, row = position, since a stop can repeat) instead of Up/Down buttons.
 - **2026-10-17** Fixed: a lead runner's bib can be corrected - changing the bib box fixes the latest sighting in place (`leaders/bib`), where it used to feed only the next report and force Clear (#208).
 - **2026-10-17** Finished pickups (dropped off / closed, per `incidentDone`) sit under a folded 'Finished (N)' drop-down below the live queue, state in prefs (#213); count and map markers unchanged.
-- **2026-10-17** Sweep tracking (#215): a leader has a `kind` ('sweep' ticked on the Leaders tab); leg times per stop, a finish estimate from the last three legs to the route's last step, per-kind pace limits, a Leg column on the report.

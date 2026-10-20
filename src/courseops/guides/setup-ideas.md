@@ -45,6 +45,10 @@ the list is missing - Liaison is the obvious example, and it is why the list
 stopped being fixed. Renaming is safe for the same reason: nothing keys off the
 displayed name.
 
+**Partner** is the role hand-placed units get - police, CSOs, Public Works, or any
+partner agency or crew that is not one of yours. Units added from the live page
+are Partners automatically; rename it if your club says something else.
+
 ## Leaders: which racers you follow
 
 ![The Leaders tab: rename, add, delete, drag to reorder](images/setup-leaders.png)

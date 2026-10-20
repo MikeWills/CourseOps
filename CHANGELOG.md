@@ -11,6 +11,15 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Added
+- A **Partner** station role, for hand-placed units - police, CSOs, Public
+  Works, or any partner agency or crew that is not one of ours. A unit added from
+  the live page is a Partner instead of a Rover, and choosing Hand-placed in the
+  setup roster form picks it. It is a default role for new events; an event that
+  predates it gets the role when its first unit is added, and units already
+  placed move from Rover to Partner at startup (only units - a real rover keeps
+  its role). Rename it on the Roles tab like any other.
+
 ### Fixed
 - The Places table's Layer cell stacked the layer's icon above its dropdown; they
   sit on one line now, which also shortens every place row.

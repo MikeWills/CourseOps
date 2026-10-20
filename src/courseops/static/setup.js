@@ -3053,6 +3053,13 @@ function renderTrackingHint() {
   const value = $('rs-tracking').value;
   $('rs-tracking-hint').textContent = TRACKING_HINTS[value];
   $('rs-call').placeholder = value === 'phone' ? 'M1' : value === 'manual' ? '4021' : 'N0CALL';
+  // A hand-placed unit is a partner agency's, not a rover: pick the role for
+  // them unless one was already chosen deliberately.
+  const role = $('rs-category');
+  if (value === 'manual' && (!role.value || role.value === 'rover')
+      && [...role.options].some((o) => o.value === 'partner')) {
+    role.value = 'partner';
+  }
 }
 $('rs-tracking').addEventListener('change', renderTrackingHint);
 

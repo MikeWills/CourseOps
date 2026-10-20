@@ -116,3 +116,49 @@ def test_the_unit_types_table_shows_the_count():
     js = (STATIC / "setup.js").read_text(encoding="utf-8")
     block = js[js.index("function renderUnitTable"):js.index("$('unit-form')")]
     assert "On the map" in block and "unit_kinds_in_use" in js
+
+
+# --- the Partner role -----------------------------------------------------------
+
+def test_a_new_event_has_a_partner_role(event):
+    from courseops import categories
+    conn, eid = event
+    roles = {r["key"]: r["name"] for r in categories.roster_roles(conn, eid)}
+    assert roles["partner"] == "Partner"
+
+
+def test_a_unit_added_on_the_day_is_a_partner_not_a_rover(event):
+    conn, eid = event
+    admin.add_unit(conn, eid, {"badge": "3456", "kind": "Officer", "lat": 44.1, "lon": -94.0})
+    row = conn.execute("SELECT category FROM roster WHERE station_key = '3456'").fetchone()
+    assert row["category"] == "partner"
+
+
+def test_an_event_from_before_gets_the_role_when_its_first_unit_is_added(event):
+    from courseops import categories
+    conn, eid = event
+    categories.roster_roles(conn, eid)                       # seeds the defaults
+    conn.execute("DELETE FROM roster_role WHERE event_id = ? AND key = 'partner'", (eid,))
+    admin.add_unit(conn, eid, {"badge": "9", "lat": 44.1, "lon": -94.0})
+    assert "partner" in {r["key"] for r in categories.roster_roles(conn, eid)}
+
+
+def test_units_made_before_this_move_from_rover_to_partner_at_startup(tmp_path):
+    conn = db.connect(tmp_path / "old.sqlite3")
+    db.init_schema(conn)
+    org = users.create_organization(conn, "club", "Club")
+    eid = admin.create_event(conn, {"slug": "m", "name": "M"}, org["id"])["id"]
+    admin.add_unit(conn, eid, {"badge": "3456", "kind": "Officer", "lat": 44.1, "lon": -94.0})
+    db.upsert_roster_entry(conn, eid, "N0CALL-7", "Half-back", "rover")
+    conn.execute("UPDATE roster SET category = 'rover'")
+    conn.execute("DELETE FROM roster_role WHERE key = 'partner'")
+    db.init_schema(conn)
+    cats = {r["station_key"]: r["category"] for r in conn.execute("SELECT * FROM roster")}
+    assert cats == {"3456": "partner", "N0CALL-7": "rover"}   # only units move
+    assert conn.execute("SELECT 1 FROM roster_role WHERE key = 'partner'").fetchone()
+
+
+def test_choosing_hand_placed_in_setup_picks_partner():
+    js = (STATIC / "setup.js").read_text(encoding="utf-8")
+    block = js[js.index("function renderTrackingHint"):js.index("$('rs-tracking').addEventListener")]
+    assert "'partner'" in block
