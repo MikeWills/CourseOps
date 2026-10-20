@@ -11,6 +11,8 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+## [2026.10.11] - 2026-10-19
+
 ### Changed
 - Unit kinds moved from the event's Edit form to the **Roles** tab, under the
   Add a role form with its own Save: it is a list of kinds of people, like the
