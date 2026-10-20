@@ -11,6 +11,11 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Fixed
+- The stop picker on Route stops sat at the browser's small default size beside two
+  42px buttons. A select directly in a button row now has the buttons' height,
+  border and type.
+
 ## [2026.10.10] - 2026-10-19
 
 ### Changed

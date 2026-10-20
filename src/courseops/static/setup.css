@@ -163,6 +163,18 @@ body.setup #brand img { width: auto; height: 32px; }
 }
 .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
 .row > .field { min-width: 160px; }
+/* A select sitting straight in a row beside buttons (Route stops: the stop
+   to add) is not inside a .field, so it got the browser's small default box
+   next to 42px buttons. Same height, border and type as the buttons. */
+.row > select {
+  min-height: 42px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+  font: inherit;
+  color: var(--ink);
+}
 
 .check { display: flex; gap: 10px; align-items: flex-start; margin: 6px 0 12px; }
 .check input { width: 20px; height: 20px; margin-top: 2px; flex: none; }

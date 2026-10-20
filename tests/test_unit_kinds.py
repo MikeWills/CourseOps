@@ -56,3 +56,11 @@ def test_the_snapshot_carries_them_and_the_page_builds_its_menu_from_them(event)
     assert "unit_kinds" in js and "<option>Officer</option>" not in html
     assert 'id="ev-unit-kinds"' in (STATIC / "setup.html").read_text(encoding="utf-8")
     assert "unit_kinds" in (STATIC / "setup.js").read_text(encoding="utf-8")
+
+
+def test_a_select_in_a_button_row_matches_the_buttons():
+    """Route stops: the stop picker sat at browser-default size beside 42px buttons."""
+    css = (STATIC / "setup.css").read_text(encoding="utf-8")
+    block = css[css.index(".row > select"):]
+    block = block[:block.index("}")]
+    assert "min-height: 42px" in block
