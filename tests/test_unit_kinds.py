@@ -62,7 +62,7 @@ def test_a_select_in_a_button_row_matches_the_buttons():
     css = (STATIC / "setup.css").read_text(encoding="utf-8")
     block = css[css.index(".row > select"):]
     block = block[:block.index("}")]
-    assert "min-height: 42px" in block
+    assert "min-height: var(--row-btn-h)" in block
 
 
 def test_unit_types_are_their_own_tab_worked_like_the_roles():
