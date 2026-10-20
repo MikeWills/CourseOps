@@ -1239,6 +1239,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-10-20** Setup's top bar: name, Password and Sign out collapse into one account dropdown.
 - **2026-10-20** A Partner station role for hand-placed units (default role; backfilled from Rover at startup).
 - **2026-10-20** Setup event tabs reordered into the order an event is set up; a new tab goes where its work falls.
 - **2026-10-19** Copy an event (`admin.copy_event`, ids remapped, setup only) and a club-set list of unit kinds (`event.unit_kinds`).
@@ -1248,4 +1249,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-10-19** Net Control can send a Torn down operator to another staffed place (#211): `db.relocate_station`, append-only `roster_post_log`, resync to every screen.
 - **2026-10-18** Leader routes moved to their own **Route stops** setup tab (after Courses); stops reorder by the shared grip (`bindReorder`, row = position, since a stop can repeat) instead of Up/Down buttons.
 - **2026-10-17** Fixed: a lead runner's bib can be corrected - changing the bib box fixes the latest sighting in place (`leaders/bib`), where it used to feed only the next report and force Clear (#208).
-- **2026-10-17** Finished pickups (dropped off / closed, per `incidentDone`) sit under a folded 'Finished (N)' drop-down below the live queue, state in prefs (#213); count and map markers unchanged.

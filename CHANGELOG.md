@@ -11,6 +11,13 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Changed
+- Setup's top bar holds one account menu - avatar, name, chevron - instead of
+  the name and two buttons. Change password and Sign out sit inside it, under
+  the name and role. It closes on Escape or an outside click, and on a phone
+  the bar shows just the avatar, so the name no longer has to be dropped from
+  the bar to stop it wrapping. The setup guide names the new place.
+
 ## [2026.10.16] - 2026-10-20
 
 ### Changed

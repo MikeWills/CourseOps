@@ -141,8 +141,9 @@ tab (shown to system and organization administrators) is where they are made.
   account.
 
 **Set a password** (the key icon) on someone's row sets *their* password, and
-you will know it - so tell them to change it. **Your own** is the **Password**
-button in the top bar, beside *Sign out*: it asks for the current one first,
+you will know it - so tell them to change it. **Your own** is the **Change
+password** item in the account menu (your name, top right, beside the help
+ring), above *Sign out*: it asks for the current one first,
 and when it succeeds you are signed out everywhere and sign back in with the
 new one.
 
