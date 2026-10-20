@@ -11,6 +11,8 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+## [2026.10.15] - 2026-10-20
+
 ### Added
 - A **Partner** station role, for hand-placed units - police, CSOs, Public
   Works, or any partner agency or crew that is not one of ours. A unit added from
