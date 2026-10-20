@@ -313,3 +313,13 @@ def test_the_hash_names_the_event_by_slug():
     # nine tabs first).
     assert "activateTab(EVENT_TABS.has(tab) ? tab : 'course', true)" in SETUP_JS
     assert "activateTab('events', true)" in SETUP_JS
+
+
+def test_event_tabs_run_in_the_order_an_event_is_set_up():
+    """Course, then places (a layer before the places that use it, a route after
+    the places it lists), leaders, then people (roles before the roster), then
+    going live. A new tab goes where its work falls, not on the end."""
+    nav = re.search(r'<nav id="event-tabs"[^>]*>(.*?)</nav>', SETUP_HTML, re.S).group(1)
+    assert re.findall(r'data-tab="(\w+)"', nav) == [
+        "course", "courses", "layers", "stations", "routes", "leaders",
+        "roles", "roster", "units", "tracking", "links"]

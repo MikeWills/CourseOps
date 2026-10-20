@@ -11,6 +11,12 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Changed
+- The event tabs run in the order an event is set up: Import, Courses, Layers,
+  Places, Route stops, Leaders, Roles, Roster, Unit types, Tracking, Links. They
+  had grown by being added on the end, so finishing a route meant crossing back
+  over Places, and Layers sat after the Places that use it.
+
 ### Fixed
 - The icon picker (Add a layer, and a layer's row) drew each glyph off centre in
   an outlined box. The panel's rule for plain buttons - 14px side padding, a 42px

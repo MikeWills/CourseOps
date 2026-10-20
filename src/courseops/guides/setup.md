@@ -26,7 +26,7 @@ The setup screen has two levels. **Outside an event** there are three tabs -
 Organizations, Events and Users - which belong to the installation. **Inside
 an event**, opened with the sliders button (**Configure**) on its row of the
 Events list, the event's name is the heading, **‹ All events** takes you back out, and the tabs below it -
-Import, Courses, Places and the rest - all belong to that one event. They run
+Import, Courses, Layers, Places and the rest - all belong to that one event. They run
 roughly in the order you will use them. If your club has a single event it
 opens on its own when you sign in.
 
@@ -173,7 +173,7 @@ Names and colours save together: edit as many rows as you like and one
 **Save** button appears above the table, the same as on Places. Dragging saves
 the order on its own.
 
-**Route stops** (their own tab, after Courses) list, for each race, the stops its
+**Route stops** (their own tab, after Places) list, for each race, the stops its
 lead runner passes, in order. Everyone on a race runs the same path, so it is
 one list per race: the Half shares some of the Full's stops, skips some and adds
 others. A stop can appear twice - press **Add stop** again - for a race that

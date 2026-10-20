@@ -57,7 +57,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # Windows
 cp .env.example .env                                    # then set APRS_CALLSIGN
 
-./.venv/Scripts/python.exe -m pytest -q                 # 1036 tests, no network
+./.venv/Scripts/python.exe -m pytest -q                 # 1037 tests, no network
 
 courseops init-db
 courseops add-event marathon2026 "Spring Marathon 2026" --lat 34.73 --lon -86.58
@@ -817,6 +817,13 @@ usability, not style preferences.
   symptom is not an error but an interface that contradicts itself: a sign-in
   form showing while the header says you are signed in. The rule lives in
   `app.css`; never remove it, and never hide by setting `style.display`.
+- **The event tabs run in setup order, and a new tab goes where its work
+  falls, not on the end.** Import, Courses, Layers, Places, Route stops,
+  Leaders, Roles, Roster, Unit types, Tracking, Links - the course, then the
+  places (a layer before the places that use it; a route after the places it
+  lists), then the people (roles before the roster), then going live. They had
+  grown one at a time on the end until finishing a route meant crossing back
+  over Places. `tests/test_setup_client.py` holds the order.
 - **Setup is two levels, and an event tab cannot be reached without an
   event.** `#tabs` holds the installation's three tabs; `#event-tabs` the
   nine that belong to one event, shown only inside it (`showLevel()`), with
@@ -1232,6 +1239,7 @@ Rules that keep this honest:
 
 Last 10 entries; full record in `CHANGELOG.md`.
 
+- **2026-10-20** Setup event tabs reordered into the order an event is set up; a new tab goes where its work falls.
 - **2026-10-19** Copy an event (`admin.copy_event`, ids remapped, setup only) and a club-set list of unit kinds (`event.unit_kinds`).
 - **2026-10-19** Hand-placed unit pins (#196): `tracked_by='manual'`, badge-number pill, Net Control + Liaison move it (`CAP_UNIT_MOVE`), every field role but Staff sees it (`CAP_UNIT_VIEW`).
 - **2026-10-19** Fixed: tabbing from a leader's bib box to Passed is a new report, not a correction of the previous sighting (#208 keyboard gap).
@@ -1241,4 +1249,3 @@ Last 10 entries; full record in `CHANGELOG.md`.
 - **2026-10-17** Fixed: a lead runner's bib can be corrected - changing the bib box fixes the latest sighting in place (`leaders/bib`), where it used to feed only the next report and force Clear (#208).
 - **2026-10-17** Finished pickups (dropped off / closed, per `incidentDone`) sit under a folded 'Finished (N)' drop-down below the live queue, state in prefs (#213); count and map markers unchanged.
 - **2026-10-17** Sweep tracking (#215): a leader has a `kind` ('sweep' ticked on the Leaders tab); leg times per stop, a finish estimate from the last three legs to the route's last step, per-kind pace limits, a Leg column on the report.
-- **2026-10-17** The NCS stations list is alphabetical and never re-sorts; the heading counts silent stations since order no longer shows them (#212).
