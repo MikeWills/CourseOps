@@ -33,18 +33,25 @@ So set **Tracked by** to *Not tracked* for anyone not beaconing. It is not
 place and drawn there. It means "do not warn me that they are quiet", which is
 what keeps the quiet list worth reading at all.
 
-**Tracked by** has three settings:
+**Tracked by** has four settings:
 
 | Setting | Who | What goes in the callsign box |
 |---|---|---|
 | **APRS radio** | A ham who will beacon | Their callsign |
 | **Phone app** | Someone with no callsign - a bike medic, race staff, a driver - running a tracking app on their phone | A short **designator** you choose: `M1`, `BIKE2`. Letters and digits, short enough to say on the air |
+| **Hand-placed** | A police officer, CSO or Public Works truck that someone on the net places on the map and moves as they move (Liaison and Net Control only) | Their **badge number**: `4021`, `PW12`. It is what is said on the radio and what the pin reads |
 | **Not tracked** | An operator who will not transmit | Their callsign |
 
 A phone entry is never asked for on APRS-IS; instead the app on their phone
 posts to a link you turn on under [Tracking](setup-race-week.md#phone-tracking).
 Silence still counts as an alert for them, because the whole point of tracking a
 medic is knowing where they are.
+
+A **hand-placed** unit is never asked for on APRS-IS and never alarms: a quiet
+officer is normal. You do NOT need to enter these here - Liaison and Net Control
+add police, CSO and Public Works units themselves from their own pages on the
+day, when it is known who is working. Listing them here is optional, for a club
+that does know its units beforehand.
 
 **Enter the callsign alone.** The SSID belongs to whichever radio or phone app
 they bring on the day; ask a coordinator to collect it in advance and you will be

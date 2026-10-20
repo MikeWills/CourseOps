@@ -1095,7 +1095,7 @@ def save_roster_entry(conn: sqlite3.Connection, event_id: int, payload: dict) ->
         raise ValueError(f"{tracked_by} is not a way of tracking someone.")
     station_key = (_text(payload, "station_key") or "").upper()
     label = _text(payload, "display_label", 80) or ""
-    if tracked_by == db.TRACKED_BY_PHONE:
+    if tracked_by in (db.TRACKED_BY_PHONE, db.TRACKED_BY_MANUAL):
         # A designator, not a callsign: what the person types into the
         # tracking app. Stored in the same normalised spelling the endpoint
         # matches on, so "m-1" here and "M 1" on the phone are one person.
@@ -1149,6 +1149,49 @@ def save_roster_entry(conn: sqlite3.Connection, event_id: int, payload: dict) ->
         "SELECT * FROM roster WHERE event_id = ? AND station_key = ?",
         (event_id, station_key),
     ).fetchone())
+
+
+@db.transactional
+def add_unit(conn: sqlite3.Connection, event_id: int, payload: dict):
+    """Create (or move) a hand-placed unit from the live page (#196).
+
+    Police, CSOs and Public Works are placed by Liaison and Net Control, who
+    hold a role link and no setup account, and nobody knows who is working
+    until the day - so a unit cannot depend on a roster typed in beforehand.
+    Re-adding a badge that is already a unit just moves it, so a repeat
+    never makes two pins. A badge that is somebody else's roster entry
+    (a callsign, a phone designator) is refused rather than taken over.
+    """
+    badge = tracker.normalise_designator(_text(payload, "badge") or "")
+    if not badge or not _DESIGNATOR.match(badge):
+        raise ValueError(
+            "Enter the badge number: letters and digits only, short enough to "
+            "say on the air.")
+    kind = _text(payload, "kind", 30)
+    existing = conn.execute(
+        "SELECT tracked_by FROM roster WHERE event_id = ? AND station_key = ?",
+        (event_id, badge)).fetchone()
+    if existing is not None and existing["tracked_by"] != db.TRACKED_BY_MANUAL:
+        raise ValueError(f"{badge} is already on the roster as someone else.")
+    if existing is None:
+        db.upsert_roster_entry(
+            conn, event_id, badge, f"{kind} {badge}" if kind else badge,
+            category="rover", tracked_by=db.TRACKED_BY_MANUAL)
+    return db.place_unit(conn, event_id, badge, payload.get("lat"),
+                         payload.get("lon"), _text(payload, "changed_by", 24)), \
+        existing is None
+
+
+@db.transactional
+def remove_unit(conn: sqlite3.Connection, event_id: int, station_key: str) -> None:
+    """Stand a hand-placed unit down: the roster entry and its pin. Only a
+    unit - the live page must not be a way to delete a real station."""
+    row = conn.execute(
+        "SELECT tracked_by FROM roster WHERE event_id = ? AND station_key = ?",
+        (event_id, (station_key or "").upper())).fetchone()
+    if row is None or row["tracked_by"] != db.TRACKED_BY_MANUAL:
+        raise ValueError(f"{station_key} is not a hand-placed unit.")
+    delete_roster_entry(conn, event_id, station_key)
 
 
 @db.transactional

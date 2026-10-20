@@ -147,6 +147,8 @@
     </div>
     <p id="pin-move-hint" class="muted" hidden>Tap the map, or drag the pin, to its new spot.
       <button id="pin-move-cancel" type="button">Cancel</button></p>
+    <p id="unit-place-bar" class="muted" hidden><span id="unit-place-hint"></span>
+      <button id="unit-place-cancel" type="button">Cancel</button></p>
     <p id="send-pin-hint" class="muted" hidden>
       <label>Name the spot <input id="send-pin-name" type="text" maxlength="40"
              placeholder="Turn-around"></label> then tap the map.
@@ -169,6 +171,19 @@
 
   <div class="sheet-section" id="station-section">
     <h2>Stations <span id="station-count" class="muted"></span></h2>
+    <!-- Liaison and Net Control add police / CSO / Public Works units here, on
+         the day: no setup account, and nobody knows who is working before. -->
+    <form id="unit-add-form" class="unit-add" hidden>
+      <input id="unit-badge" type="text" maxlength="8" autocomplete="off"
+             placeholder="Badge #" aria-label="Badge number of the unit">
+      <select id="unit-kind" aria-label="What kind of unit">
+        <option value="">Unit</option>
+        <option>Officer</option>
+        <option>CSO</option>
+        <option>Public Works</option>
+      </select>
+      <button type="submit">Place on map</button>
+    </form>
     <div id="station-list"></div>
   </div>
 

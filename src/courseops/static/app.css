@@ -1515,3 +1515,15 @@ body {
   background: var(--navy-700); color: #fff; border: 2px solid #fff; font-size: 15px; }
 #send-pin-cancel { min-height: 44px; margin-left: 8px; }
 #send-pin-name { min-height: 44px; }
+
+/* A hand-placed unit (#196): a pill with the badge number, never a circle. */
+.stn--unit { min-width: 44px; width: auto; height: 24px; padding: 0 8px; border-radius: 12px;
+  display: inline-grid; place-items: center; background: #fff; color: var(--navy-700);
+  border: 2px solid var(--navy-700); font-family: var(--font-data); font-weight: 700;
+  font-size: 12px; letter-spacing: 0; box-sizing: border-box; white-space: nowrap; }
+.unit-place-btn, #unit-place-cancel { min-height: 44px; margin-top: 6px; }
+
+/* Adding a unit from the live page (#196). */
+.unit-add { display: flex; gap: 6px; margin: 0 0 8px; }
+.unit-add input, .unit-add select, .unit-add button { min-height: 44px; font: inherit; }
+.unit-add input { flex: 1; min-width: 0; font-family: var(--font-data); }

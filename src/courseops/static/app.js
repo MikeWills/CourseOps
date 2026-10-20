@@ -76,6 +76,8 @@ const state = {
     {value: 'closed', label: 'Closed'},
   ],
   droppingPin: false,
+  placingUnit: null,    // badge while NCS/Liaison taps the map to set a unit (#196)
+  placingKind: '',      // 'Officer', 'CSO'... for a unit being added
   sendingStation: null, // station key while NCS is dropping its new pin (#211)
   postMarkers: new Map(), // station key -> L.Marker for a post that is a spot, not a place
   movingPin: null,     // incident id while its pin is being moved (#214)
@@ -619,7 +621,26 @@ function syncNameLabels() {
 map.on('zoomend', syncNameLabels);
 syncNameLabels();
 
+/* A hand-placed unit (#196) is a pill holding its badge number, not a round
+   station: up to four characters in the data font, which the 26px station
+   marker cannot hold. A different SHAPE as well as colour, because a pin a
+   person placed must never read as live tracking. */
+function isUnit(stationKey) {
+  const entry = state.roster.get(stationKey);
+  return !!entry && entry.tracked_by === 'manual';
+}
+
+function unitIcon(stationKey) {
+  return L.divIcon({
+    className: '',
+    html: `<div class="stn stn--unit">${escapeHtml(stationKey)}</div>`,
+    iconSize: [64, 24],
+    iconAnchor: [32, 12],
+  });
+}
+
 function stationIcon(stationKey) {
+  if (isUnit(stationKey)) return unitIcon(stationKey);
   const status = radioStatus(stationKey);
   const category = categoryOf(stationKey);
   const shape = category === 'sweep' ? ' stn--sweep'
@@ -639,10 +660,21 @@ function stationPopup(stationKey) {
   const status = radioStatus(stationKey);
   const rows = [];
 
-  if (entry) rows.push([entry.tracked_by === 'phone' ? 'Designator' : 'Callsign', stationKey]);
+  if (entry) rows.push([entry.tracked_by === 'phone' ? 'Designator'
+    : entry.tracked_by === 'manual' ? 'Badge' : 'Callsign', stationKey]);
   // Directly under the callsign, because the two are read out together.
   if (entry && entry.operator_name) rows.push(['Operator', entry.operator_name]);
-  if (status === 'no_aprs') {
+  if (entry && entry.tracked_by === 'manual') {
+    // Placed by a person, not heard: say when and by whom, so it cannot be
+    // mistaken for a live track.
+    if (position) {
+      rows.push(['Set', `${formatAge(ageSeconds(position.received_at))} ago` +
+        (position.comment ? ` by ${position.comment}` : '')]);
+      rows.push(['Position', `${position.lat.toFixed(5)}, ${position.lon.toFixed(5)}`]);
+    } else {
+      rows.push(['Set', 'not placed yet']);
+    }
+  } else if (status === 'no_aprs') {
     rows.push(['Radio', 'not tracked by APRS']);
   } else if (position) {
     const age = ageSeconds(position.received_at);
@@ -695,8 +727,14 @@ function upsertStationMarker(stationKey) {
     marker = L.marker([position.lat, position.lon], {
       icon: stationIcon(stationKey),
       title: labelOf(stationKey),
+      // Only NCS and Liaison, and only a hand-placed unit. A drag is
+      // L.Marker's own, so it works on a finger (a touchmove, not a mousemove).
+      draggable: isUnit(stationKey) && can('unit_move'),
     });
     marker.bindPopup(() => stationPopup(stationKey));
+    if (isUnit(stationKey) && can('unit_move')) {
+      marker.on('dragend', () => placeUnit(stationKey, marker.getLatLng()));
+    }
     state.markers.set(stationKey, marker);
   } else {
     // setLatLng, not an animated transition: see rule 1 at the top.
@@ -1229,7 +1267,9 @@ function renderStations() {
     const ageClass = status === 'no_aprs' ? 'age--none'
                    : status === 'silent' ? 'age--silent'
                    : status === 'stale' ? 'age--stale' : '';
-    const ageText = status === 'no_aprs' ? 'no APRS'
+    const ageText = isUnit(stationKey)
+                  ? (position ? `set ${formatAge(age)}` : 'not placed')
+                  : status === 'no_aprs' ? 'no APRS'
                   : position ? formatAge(age) : 'never';
 
     const op = opStatusOf(stationKey);
@@ -1314,6 +1354,25 @@ function renderStations() {
     }
     row.appendChild(opRow);
 
+    if (isUnit(stationKey) && can('unit_move')) {
+      const place = document.createElement('button');
+      place.type = 'button';
+      place.className = 'unit-place-btn';
+      place.textContent = position ? 'Move on map' : 'Place on map';
+      place.addEventListener('click', () => {
+        state.placingKind = '';
+        startPlaceUnit(stationKey);
+      });
+      row.appendChild(place);
+      const stand = document.createElement('button');
+      stand.type = 'button';
+      stand.className = 'unit-place-btn';
+      stand.textContent = 'Remove';
+      stand.setAttribute('aria-label', `Remove ${stationKey}`);
+      stand.addEventListener('click', () => removeUnit(stationKey));
+      row.appendChild(stand);
+    }
+
     /* Wrapped up and free to move (#211): a station that is Torn down can be
        sent to another staffed place. Offered only to NCS and only once they
        have finished, so it is not a thing to hit by accident mid-spot. The
@@ -1395,6 +1454,66 @@ function syncPostPins() {
       marker.setLatLng([entry.post_lat, entry.post_lon]);
     }
   });
+}
+
+/* Setting a unit (#196): a drag of its pin, or - for the first placement and
+   for a phone - a tap on the map. Both end here. The pin goes back to where
+   the server has it if the save is refused. */
+async function placeUnit(stationKey, latlng, kind) {
+  const held = state.positions.get(stationKey);
+  try {
+    // One endpoint for a new badge and a move of an existing one: adding a
+    // badge that is already a unit just moves it, so a repeat never makes two.
+    await post('units',
+      {badge: stationKey, kind: kind || '', lat: latlng.lat, lon: latlng.lng,
+       changed_by: state.operatorInitials});
+  } catch (err) {
+    setLocateStatus(`Could not move ${stationKey} - ${err.message}`);
+    const marker = state.markers.get(stationKey);
+    if (marker && held) marker.setLatLng([held.lat, held.lon]);
+  }
+}
+
+/* Units are made on the day, from this page: Liaison and Net Control hold a
+   role link and no setup account, and nobody knows who is working until
+   then. Badge and kind first, then a tap on the map. */
+const unitAddForm = document.getElementById('unit-add-form');
+if (unitAddForm) {
+  unitAddForm.addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    const badge = document.getElementById('unit-badge').value.trim();
+    if (!badge) { setLocateStatus('Enter the badge number first.'); return; }
+    state.placingKind = document.getElementById('unit-kind').value;
+    startPlaceUnit(badge);
+    document.getElementById('unit-badge').value = '';
+  });
+}
+
+async function removeUnit(stationKey) {
+  if (!confirm(`Stand ${stationKey} down and take the pin off the map?`)) return;
+  try {
+    await post(`units/${encodeURIComponent(stationKey)}/remove`, {});
+  } catch (err) {
+    setLocateStatus(`Could not remove ${stationKey} - ${err.message}`);
+  }
+}
+
+function startPlaceUnit(stationKey) {
+  state.placingUnit = stationKey;
+  document.getElementById('unit-place-hint').textContent =
+    `Tap the map where ${stationKey} is.`;
+  document.getElementById('unit-place-bar').hidden = false;
+  document.getElementById('map').style.cursor = 'crosshair';
+  setSheet(false);
+}
+
+function stopPlaceUnit() {
+  state.placingUnit = null;
+  state.placingKind = '';
+  document.getElementById('unit-place-bar').hidden = true;
+  if (!state.droppingPin && !state.movingPin && !state.sendingStation) {
+    document.getElementById('map').style.cursor = '';
+  }
 }
 
 async function relocateStation(stationKey, target) {
@@ -2923,15 +3042,24 @@ document.getElementById('incident-add').addEventListener('click', () => {
 });
 
 document.getElementById('pin-move-cancel').addEventListener('click', stopMovePin);
+document.getElementById('unit-place-cancel').addEventListener('click', stopPlaceUnit);
 document.getElementById('send-pin-cancel').addEventListener('click', stopSendPin);
 document.addEventListener('keydown', (ev) => {
   if (ev.key === 'Escape' && state.movingPin) stopMovePin();
   if (ev.key === 'Escape' && state.sendingStation) stopSendPin();
+  if (ev.key === 'Escape' && state.placingUnit) stopPlaceUnit();
 });
 
 map.on('click', (ev) => {
   if (state.movingPin) { commitMovePin(state.movingPin, ev.latlng); return; }
   if (state.sendingStation) { sendToPin(ev.latlng); return; }
+  if (state.placingUnit) {
+    const key = state.placingUnit;
+    const kind = state.placingKind;
+    stopPlaceUnit();
+    placeUnit(key, ev.latlng, kind);
+    return;
+  }
   if (!state.droppingPin) return;
   setDroppingPin(false);
   createIncident(ev.latlng);
@@ -3177,6 +3305,7 @@ function applyState(data) {
   // Reporting, not managing: every role is somewhere an incident can happen,
   // so all four get the pin controls. What they cannot do is work the queue.
   document.getElementById('pin-actions').hidden = !can('incident_report');
+  document.getElementById('unit-add-form').hidden = !can('unit_move');
   document.getElementById('pin-kind').hidden = !can('incident_report');
   // A role that cannot report is not sent the queue at all (Staff), so the
   // two sections would sit there empty - and an empty "Pickups" reads as

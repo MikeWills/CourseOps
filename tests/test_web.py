@@ -137,7 +137,8 @@ def test_roles_differ_on_write_permission(setup):
     # like everyone else.
     assert liaison["role"] == "liaison"
     assert liaison["capabilities"] == ["event_note", "event_note_view",
-                                       "incident_report"]
+                                       "incident_report", "unit_move",
+                                       "unit_view"]
     assert set(ncs["capabilities"]) > set(liaison["capabilities"])
 
 
@@ -386,7 +387,7 @@ def test_logistics_may_report_and_nothing_else(setup):
     assert data["role"] == "logistics"
     assert data["role_label"] == "Logistics"
     assert data["capabilities"] == ["event_note", "event_note_view",
-                                    "incident_report"]
+                                    "incident_report", "unit_view"]
 
 
 def test_revoking_one_field_role_leaves_the_other_working(setup):
@@ -1602,10 +1603,12 @@ def test_the_state_payload_names_the_capabilities(setup):
         sag = client.get(f"/api/m2026/{tokens['sag']}/state").json()
         liaison = client.get(f"/api/m2026/{tokens['liaison']}/state").json()
 
-    assert sag["capabilities"] == ["event_note", "incident_report", "incidents"]
+    assert sag["capabilities"] == ["event_note", "incident_report", "incidents",
+                                   "unit_view"]
     assert sag["can_write"] is True
     assert liaison["capabilities"] == ["event_note", "event_note_view",
-                                       "incident_report"]
+                                       "incident_report", "unit_move",
+                                       "unit_view"]
 
 
 def test_an_invalid_sag_token_is_still_a_404(setup):

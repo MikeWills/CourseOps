@@ -18,7 +18,7 @@ from fastapi import (APIRouter, Depends, FastAPI, HTTPException, Request,
                      WebSocket, WebSocketDisconnect)
 from fastapi.responses import JSONResponse
 
-from . import (access, db, event_notes, incidents, leaders, progress, snapshot,
+from . import (access, admin, db, event_notes, incidents, leaders, progress, snapshot,
                tracker)
 from .deps import Conn, FieldAccess, Grant, json_body, needs, raw_body
 
@@ -226,6 +226,15 @@ async def state(
     # Per capability, so the client shows exactly the controls this role can
     # actually use. A button the server would refuse is worse than no button.
     payload["capabilities"] = sorted(granted.capabilities)
+    # Hand-placed units (police, CSOs, Public Works) go only to the roles that
+    # may see them. Left out of the roster AND the positions, not blanked.
+    if not granted.can(access.CAP_UNIT_VIEW):
+        hidden = {e["station_key"] for e in payload["roster"]
+                  if e.get("tracked_by") == db.TRACKED_BY_MANUAL}
+        payload["roster"] = [e for e in payload["roster"]
+                             if e["station_key"] not in hidden]
+        payload["positions"] = [p for p in payload["positions"]
+                                if p["station_key"] not in hidden]
     # Pickups and course notes go to the roles that work or report them.
     # Staff hold neither: race staff and the organizer read the map for
     # where everyone is, and a queue of runners who could not continue is
@@ -286,7 +295,11 @@ async def set_station_status(
         "op_status_label": db.op_status_label(row["category"], row["op_status"]),
     }
     # Everyone watching sees it immediately, including the read-only roles.
-    await request.app.state.hub.publish(granted.event_id, payload)
+    # A hand-placed unit's status is as private as its position (#196).
+    await request.app.state.hub.publish(
+        granted.event_id, payload,
+        requires=(access.CAP_UNIT_VIEW
+                  if row["tracked_by"] == db.TRACKED_BY_MANUAL else None))
     return JSONResponse(payload)
 
 
@@ -315,6 +328,72 @@ async def relocate_station(
     await _publish_state_hint(request.app, granted.event_id)
     return JSONResponse({"station_key": row["station_key"],
                          "poi_id": row["poi_id"], "post_name": row["post_name"], "op_status": row["op_status"]})
+
+
+@router.post("/api/{event_slug}/{token}/units")
+async def add_unit(
+    event_slug: str, token: str, request: Request,
+    auth: Grant = Depends(needs(access.CAP_UNIT_MOVE))
+) -> JSONResponse:
+    """Add a unit by badge number and place it (#196), from the live page.
+
+    Liaison and Net Control have no setup account and do not know who is
+    working until the day. Adding a badge that exists moves it.
+    """
+    conn, granted = auth
+    body = await json_body(request)
+    try:
+        report, created = admin.add_unit(conn, granted.event_id, body)
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    if created:
+        # A new roster entry is more than a position message can say.
+        await _publish_state_hint(request.app, granted.event_id)
+    index = await asyncio.to_thread(
+        lambda: progress.CourseIndex.for_event(conn, granted.event_id))
+    message = snapshot.position_message_for(report, index)
+    await request.app.state.hub.publish(
+        granted.event_id, message, requires=access.CAP_UNIT_VIEW)
+    return JSONResponse(message)
+
+
+@router.post("/api/{event_slug}/{token}/units/{station_key}/remove")
+async def remove_unit(
+    event_slug: str, token: str, station_key: str, request: Request,
+    auth: Grant = Depends(needs(access.CAP_UNIT_MOVE))
+) -> JSONResponse:
+    """Stand a unit down (#196): its roster entry and its pin."""
+    conn, granted = auth
+    try:
+        admin.remove_unit(conn, granted.event_id, station_key)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    await _publish_state_hint(request.app, granted.event_id)
+    return JSONResponse({"removed": station_key.upper()})
+
+
+@router.post("/api/{event_slug}/{token}/units/{station_key}/position")
+async def place_unit(
+    event_slug: str, token: str, station_key: str, request: Request,
+    auth: Grant = Depends(needs(access.CAP_UNIT_MOVE))
+) -> JSONResponse:
+    """Set where a hand-placed unit is (#196). Net Control and Liaison."""
+    conn, granted = auth
+    body = await json_body(request)
+    try:
+        report = db.place_unit(
+            conn, granted.event_id, station_key, body.get("lat"), body.get("lon"),
+            db.clean_text(body.get("changed_by"), incidents.MAX_WHO_LENGTH))
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    index = await asyncio.to_thread(
+        lambda: progress.CourseIndex.for_event(conn, granted.event_id))
+    message = snapshot.position_message_for(report, index)
+    # Only the roles that may see units: a hand-placed police position is not
+    # something the forwarded Staff link is ever sent.
+    await request.app.state.hub.publish(
+        granted.event_id, message, requires=access.CAP_UNIT_VIEW)
+    return JSONResponse(message)
 
 
 async def _publish_state_hint(app: FastAPI, event_id: int) -> None:

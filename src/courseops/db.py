@@ -107,7 +107,11 @@ def transactional(fn):
 # not what a phone app is told to send.
 TRACKED_BY_APRS = "aprs"
 TRACKED_BY_PHONE = "phone"
-TRACKED_BY = (TRACKED_BY_APRS, TRACKED_BY_PHONE)
+# A unit a PERSON places on the map and moves by hand (#196): the officer at
+# an intersection, a Public Works truck. Its key is a badge number, like a
+# phone designator, and it never enters the APRS filter.
+TRACKED_BY_MANUAL = "manual"
+TRACKED_BY = (TRACKED_BY_APRS, TRACKED_BY_PHONE, TRACKED_BY_MANUAL)
 
 # Columns added after a database may already exist in the wild. `CREATE TABLE
 # IF NOT EXISTS` silently skips an existing table, so new columns would never
@@ -379,6 +383,9 @@ def upsert_roster_entry(
 ) -> None:
     if tracked_by not in TRACKED_BY:
         raise ValueError(f"{tracked_by!r} is not a tracking source.")
+    if tracked_by == TRACKED_BY_MANUAL:
+        # A quiet officer is normal, so there is nothing to alarm on.
+        expects_aprs = False
     conn.execute(
         """
         INSERT INTO roster
@@ -395,6 +402,39 @@ def upsert_roster_entry(
         (event_id, station_key.upper(), display_label, category,
          int(expects_aprs), operator_name, tracked_by),
     )
+
+
+@transactional
+def place_unit(
+    conn: sqlite3.Connection, event_id: int, station_key: str,
+    lat: float, lon: float, placed_by: str | None = None,
+) -> PositionReport:
+    """Put a hand-placed unit at a position (#196) and say who and when.
+
+    The position table already holds ONE row per station, so a move replaces
+    the last one. The time is `received_at` (now - this is when a person said
+    so, not a fix), and `comment` carries who moved it: both are shown on
+    the pin, because a hand-placed marker otherwise reads as live tracking.
+    """
+    from . import clock
+    station_key = station_key.upper()
+    row = conn.execute(
+        "SELECT tracked_by FROM roster WHERE event_id = ? AND station_key = ?",
+        (event_id, station_key)).fetchone()
+    if row is None:
+        raise ValueError(f"{station_key} is not on this event's roster.")
+    if row["tracked_by"] != TRACKED_BY_MANUAL:
+        raise ValueError(f"{station_key} is not a hand-placed unit.")
+    lat, lon = float(lat), float(lon)
+    if not (-90.0 <= lat <= 90.0) or not (-180.0 <= lon <= 180.0):
+        raise ValueError(f"Position out of range: {lat}, {lon}")
+    report = PositionReport(
+        station_key=station_key, received_at=clock.utc_now_iso(), lat=lat, lon=lon,
+        course_deg=None, speed_kmh=None, altitude_m=None, symbol_table=None,
+        symbol_code=None, comment=clean_text(placed_by, 24), aprs_format="manual",
+        raw="")
+    insert_position(conn, event_id, report)
+    return report
 
 
 def tracking_key(row: sqlite3.Row) -> str:
