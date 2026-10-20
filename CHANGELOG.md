@@ -11,6 +11,8 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+## [2026.10.16] - 2026-10-20
+
 ### Changed
 - Setup's buttons and text fields use the same height variable as the live page
   (40px), where setup was 42px and the live page 40px. Buttons inside setup
