@@ -384,7 +384,7 @@ async function refreshTab(name) {
     // discards the edits in progress in it.
     if (name === 'layers' || name === 'roles') return loadLayers();
     if (name === 'leaders') return loadLayers('leaders');
-    if (name === 'units') return renderUnitTable();
+    if (name === 'units') return loadUnitTypes();
     if (name === 'tracking') return loadTracking();
     if (name === 'roster') return loadRoster();
     if (name === 'links') return loadLinks();
@@ -2372,13 +2372,23 @@ async function saveUnitKinds(list) {
   S.events = S.events.map((e) => (e.id === saved.id ? { ...e, ...saved } : e));
 }
 
+async function loadUnitTypes() {
+  // The counts come with the three taxonomies; refreshed on every visit
+  // because units are added on the day, from the live page.
+  const data = await api(`/api/setup/events/${S.eventId}/categories`);
+  S.unitKindsInUse = data.unit_kinds_in_use || {};
+  renderUnitTable();
+}
+
 function renderUnitTable() {
   if (!S.eventId) return;
   $('unit-table').innerHTML = `
-    <table class="grid"><thead><tr><th>Unit type</th><th></th></tr></thead><tbody>`
+    <table class="grid"><thead><tr><th>Unit type</th><th>On the map</th>
+      <th></th></tr></thead><tbody>`
     + unitKinds().map((k) => `<tr>
         <td><input value="${esc(k)}" data-uname="${esc(k)}" maxlength="30"
               style="width:180px"></td>
+        <td>${(S.unitKindsInUse || {})[k] || 0}</td>
         <td class="actions">${iconBtn('remove', {'data-udel': k},
           `Delete ${k}`)}</td>
       </tr>`).join('') + '</tbody></table>';
@@ -2431,6 +2441,7 @@ async function loadLayers(only) {
   S.poiCategories = data.poi_categories;
   S.roles = data.roster_roles;
   S.leaders = data.lead_divisions;
+  S.unitKindsInUse = data.unit_kinds_in_use || {};
   // Three tables on one endpoint, each re-rendered only when asked for.
   // Reloading a table the user has not touched discards edits in progress in
   // it - the same bug that cost twelve renames on the roster, one table over.

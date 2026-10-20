@@ -168,6 +168,16 @@ def unit_kinds(conn: sqlite3.Connection, event_id: int) -> list[str]:
     return [k for k in stored.split("\n") if k] or list(UNIT_KINDS_DEFAULT)
 
 
+def unit_kind_counts(conn: sqlite3.Connection, event_id: int) -> dict[str, int]:
+    """How many hand-placed units of each kind are on the roster now."""
+    return {
+        r["unit_kind"]: r["n"] for r in conn.execute(
+            "SELECT unit_kind, COUNT(*) AS n FROM roster"
+            " WHERE event_id = ? AND tracked_by = ? AND unit_kind IS NOT NULL"
+            " GROUP BY unit_kind", (event_id, db.TRACKED_BY_MANUAL))
+    }
+
+
 @db.transactional
 def create_event(conn: sqlite3.Connection, payload: dict,
                  organization_id: int | None = None) -> dict[str, Any]:
@@ -1315,6 +1325,13 @@ def add_unit(conn: sqlite3.Connection, event_id: int, payload: dict):
         db.upsert_roster_entry(
             conn, event_id, badge, f"{kind} {badge}" if kind else badge,
             category="rover", tracked_by=db.TRACKED_BY_MANUAL)
+    # Stored as its own column so setup can say how many of each are out; a
+    # badge added again with another kind becomes that kind.
+    if kind or existing is None:
+        conn.execute(
+            "UPDATE roster SET unit_kind = ?, display_label = ?"
+            " WHERE event_id = ? AND station_key = ?",
+            (kind, f"{kind} {badge}" if kind else badge, event_id, badge))
     return db.place_unit(conn, event_id, badge, payload.get("lat"),
                          payload.get("lon"), _text(payload, "changed_by", 24)), \
         existing is None

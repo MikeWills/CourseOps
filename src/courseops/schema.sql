@@ -264,6 +264,7 @@ CREATE TABLE IF NOT EXISTS roster (
     -- that posts to the event's tracker URL). A phone entry never goes into
     -- the APRS-IS filter; expects_aprs still says whether silence is an alarm.
     tracked_by    TEXT    NOT NULL DEFAULT 'aprs',
+    unit_kind     TEXT,
     -- A post that is a spot rather than a place (#211): the turn-around, a busy
     -- intersection. poi_id is NULL then. Never a poi row: a stray staffed place
     -- would turn up in the leader's Passed button and on the Places tab.

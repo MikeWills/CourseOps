@@ -146,6 +146,7 @@ _ADDED_COLUMNS: list[tuple[str, str, str]] = [
     ("event", "archived_at", "TEXT"),
     ("event", "net_info", "TEXT"),
     ("event", "unit_kinds", "TEXT"),
+    ("roster", "unit_kind", "TEXT"),
     ("course", "start_time", "TEXT"),
     ("course", "start_poi_id", "INTEGER REFERENCES poi(id) ON DELETE SET NULL"),
     ("course", "finish_poi_id", "INTEGER REFERENCES poi(id) ON DELETE SET NULL"),
@@ -166,6 +167,13 @@ _BACKFILL: dict[tuple[str, str], str] = {
     # from before leaders existed and gets them once at startup. Leaders are
     # the test because they were the one taxonomy seeded lazily, on read -
     # layers and roles have been seeded at startup since they arrived.
+    # Units added before the kind was stored carry it only in their label
+    # ("Officer 3456"): take what precedes the badge.
+    ("roster", "unit_kind"):
+        "UPDATE roster SET unit_kind = substr(display_label, 1,"
+        " length(display_label) - length(station_key) - 1)"
+        " WHERE tracked_by = 'manual' AND display_label != station_key"
+        " AND display_label LIKE '% ' || station_key",
     ("event", "defaults_seeded"):
         "UPDATE event SET defaults_seeded = 1 WHERE EXISTS"
         " (SELECT 1 FROM lead_division WHERE event_id = event.id)",

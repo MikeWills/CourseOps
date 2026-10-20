@@ -11,6 +11,12 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Added
+- The Unit types tab has an **On the map** column, like the Roles tab's count:
+  how many hand-placed units of each type are out. A unit now stores its kind
+  (`roster.unit_kind`) instead of carrying it only in its label; units added
+  before this take it from their label.
+
 ### Changed
 - UI consistency pass. The add-a-unit form wraps instead of squeezing the badge
   box to nothing in the side panel, and its controls match the rest (white,

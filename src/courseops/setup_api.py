@@ -851,6 +851,8 @@ async def setup_categories(
             dict(row) | {"in_use": sightings.get(row["key"], 0)}
             for row in categories.lead_divisions(conn, event_id)
         ],
+        # Units on the map by kind, for the Unit types tab.
+        "unit_kinds_in_use": admin.unit_kind_counts(conn, event_id),
     }
     return JSONResponse(payload)
 
