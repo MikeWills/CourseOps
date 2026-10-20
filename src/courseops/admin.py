@@ -130,6 +130,44 @@ def _net_info(payload: dict) -> str | None:
     return text
 
 
+UNIT_KINDS_DEFAULT = ("Officer", "CSO", "Public Works")
+UNIT_KINDS_MAX = 20
+UNIT_KIND_LEN = 30
+
+
+def _unit_kinds(payload: dict) -> str | None:
+    """The unit kinds, one per line, cleaned: blanks and repeats dropped.
+
+    None clears it back to the default list. A too-long line is refused
+    rather than cut, as with net info - a kind that loses its end is a
+    different word on the picker.
+    """
+    text = _text(payload, "unit_kinds")
+    if text is None:
+        return None
+    kinds: list[str] = []
+    for line in text.replace("\r\n", "\n").replace("\r", "\n").split("\n"):
+        kind = " ".join(line.split())
+        if not kind:
+            continue
+        if len(kind) > UNIT_KIND_LEN:
+            raise ValueError(f"A unit kind is limited to {UNIT_KIND_LEN} characters.")
+        if kind not in kinds:
+            kinds.append(kind)
+    if len(kinds) > UNIT_KINDS_MAX:
+        raise ValueError(f"Up to {UNIT_KINDS_MAX} unit kinds, one per line.")
+    return "\n".join(kinds) or None
+
+
+def unit_kinds(conn: sqlite3.Connection, event_id: int) -> list[str]:
+    """What a unit can be called on the live page: the club list, or the
+    usual three while it has not set one."""
+    row = conn.execute("SELECT unit_kinds FROM event WHERE id = ?",
+                       (event_id,)).fetchone()
+    stored = (row["unit_kinds"] if row else None) or ""
+    return [k for k in stored.split("\n") if k] or list(UNIT_KINDS_DEFAULT)
+
+
 @db.transactional
 def create_event(conn: sqlite3.Connection, payload: dict,
                  organization_id: int | None = None) -> dict[str, Any]:
@@ -203,6 +241,9 @@ def update_event(conn: sqlite3.Connection, event_id: int, payload: dict) -> dict
     if "net_info" in payload:
         fields.append("net_info = ?")
         values.append(_net_info(payload))
+    if "unit_kinds" in payload:
+        fields.append("unit_kinds = ?")
+        values.append(_unit_kinds(payload))
     if "zoom" in payload and payload["zoom"] is not None:
         fields.append("zoom = ?")
         values.append(_zoom(payload["zoom"]))
@@ -281,6 +322,103 @@ EXPORTED_TABLES = (
 # rather than reviving ones that may have been circulated.
 # tests/test_archive.py fails if a new event-scoped table is in neither list.
 NOT_EXPORTED = ("position", "raw_packet", "access_token", "user_event")
+
+
+# A copy (#240) takes the SETUP, parents before children. Everything else an
+# event holds is what happened on the day, or where people were, or this
+# install's links - a copy starts clean of all of it, and
+# tests/test_copy_event.py fails if a table is in neither list.
+COPIED_TABLES = (
+    "poi_category", "roster_role", "lead_division", "poi", "course",
+    "poi_course", "course_stop", "roster", "station_exclusion",
+)
+NOT_COPIED = (
+    "position", "raw_packet", "access_token", "user_event", "import_batch",
+    "import_feature", "incident", "incident_log", "event_note",
+    "lead_sighting", "roster_status_log", "roster_post_log",
+)
+
+
+@db.transactional
+def copy_event(conn: sqlite3.Connection, event_id: int, payload: dict) -> dict:
+    """Make a new event from an existing one, to rehearse on or to reuse.
+
+    Ids are remapped, never shared: the copy's courses point at the copy's
+    places, so editing one event can never reach into the other. Roster
+    entries come across as people to be posted, not as the day went - status
+    back to pending, no bound station, no dropped pin - and a hand-placed
+    unit stays behind, since units are made on the day. The new event has
+    its own links, with tracking off.
+    """
+    source = conn.execute("SELECT * FROM event WHERE id = ?", (event_id,)).fetchone()
+    if source is None:
+        raise ValueError("No such event.")
+    new = create_event(conn, {
+        "slug": payload.get("slug"), "name": payload.get("name"),
+        "event_date": payload.get("event_date") or source["event_date"],
+        "timezone": source["timezone"],
+        "center_lat": source["center_lat"], "center_lon": source["center_lon"],
+        "net_info": source["net_info"],
+    }, source["organization_id"])
+    new_id = new["id"]
+    conn.execute(
+        "UPDATE event SET zoom = ?, aprs_filter_extra = ?, unit_kinds = ?,"
+        " defaults_seeded = 1 WHERE id = ?",
+        (source["zoom"], source["aprs_filter_extra"], source["unit_kinds"], new_id))
+    # Hold exactly what the original holds, including a layer the club
+    # deleted on purpose: clear anything seeded on the way, then clone.
+    for table in ("poi_category", "roster_role", "lead_division"):
+        conn.execute(f"DELETE FROM {table} WHERE event_id = ?", (new_id,))
+
+    ids: dict[str, dict[int, int]] = {"poi": {}, "course": {}}
+
+    def columns(table: str) -> list[str]:
+        return [r[1] for r in conn.execute(f"PRAGMA table_info({table})")
+                if r[1] not in ("id", "event_id")]
+
+    def clone(table: str, where: str = "", fix=None) -> None:
+        cols = columns(table)
+        for row in conn.execute(
+                f"SELECT * FROM {table} WHERE event_id = ? {where} ORDER BY rowid",
+                (event_id,)).fetchall():
+            values = dict(row)
+            if fix is not None:
+                values = fix(values)
+            marks = ", ".join("?" for _ in cols)
+            cur = conn.execute(
+                f"INSERT INTO {table} (event_id, {', '.join(cols)})"
+                f" VALUES (?, {marks})",
+                (new_id, *[values[c] for c in cols]))
+            if table in ids:
+                ids[table][row["id"]] = int(cur.lastrowid)
+
+    for table in ("poi_category", "roster_role", "lead_division", "poi"):
+        clone(table)
+
+    def course_fix(v):
+        v["start_poi_id"] = ids["poi"].get(v["start_poi_id"])
+        v["finish_poi_id"] = ids["poi"].get(v["finish_poi_id"])
+        return v
+
+    clone("course", fix=course_fix)
+
+    def link_fix(v):
+        v["poi_id"] = ids["poi"][v["poi_id"]]
+        v["course_id"] = ids["course"][v["course_id"]]
+        return v
+
+    clone("poi_course", fix=link_fix)
+    clone("course_stop", fix=link_fix)
+
+    def roster_fix(v):
+        v.update(op_status="pending", op_status_at=None, op_status_by=None,
+                 bound_key=None, post_lat=None, post_lon=None, post_name=None,
+                 poi_id=ids["poi"].get(v["poi_id"]))
+        return v
+
+    clone("roster", f"AND tracked_by != '{db.TRACKED_BY_MANUAL}'", roster_fix)
+    clone("station_exclusion")
+    return dict(db.get_event(conn, new["slug"]))
 
 
 def export_event(conn: sqlite3.Connection, event_id: int, path) -> None:

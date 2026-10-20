@@ -11,6 +11,23 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Changed
+- The Links tab lists roles in the order they are run - Net Control, SAG, Liaison,
+  Logistics, Staff - where it was alphabetical (Liaison first, Net Control third).
+  Several links for one role keep their issue order.
+
+### Added
+- Copy an event (#240): the two-squares button on the Events list makes a new
+  event from an existing one - courses, places, layers, roles, leaders,
+  routes and roster - under its own name and short name, with fresh role
+  links and tracking off. Pickups, notes, sightings, posting history,
+  positions and hand-placed units stay behind, and the roster starts as not
+  yet posted. Ids are remapped, so nothing done in the copy reaches the
+  original. For rehearsing without fear of the real event.
+- The unit kinds on the add-a-unit box are the club's (Setup > Events > Edit >
+  Unit kinds, one per line, up to 20); blank keeps Officer, CSO and Public
+  Works. Sent in the event state, so an open page picks the change up.
+
 ## [2026.10.9] - 2026-10-19
 
 ### Added

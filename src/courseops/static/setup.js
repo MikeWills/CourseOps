@@ -695,6 +695,8 @@ async function loadEvents() {
       + iconLink('report', {href: `/setup/events/${e.id}/report`},
                  `After-event report for ${e.name}`)
       + iconBtn('edit', {'data-edite': e.id}, `Edit ${e.name}`)
+      + (mayManage ? iconBtn('copy', {'data-copy': e.id},
+                             `Make a copy of ${e.name}`) : '')
       + (mayManage ? iconBtn('archive', {'data-archive': e.id},
                              `Archive ${e.name}`) : ''))
     + (mayManage ? iconBtn('remove', {'data-del': e.id}, `Delete ${e.name}`) : '');
@@ -732,6 +734,22 @@ async function loadEvents() {
 
   host.querySelectorAll('[data-edite]').forEach((b) => b.addEventListener('click', () => {
     editEvent(S.events.find((e) => e.id === Number(b.dataset.edite)));
+  }));
+  host.querySelectorAll('[data-copy]').forEach((b) => b.addEventListener('click', async () => {
+    const event = S.events.find((e) => e.id === Number(b.dataset.copy));
+    // A name and a short name, because the short name is in every link.
+    const name = prompt(`Name for the copy of "${event.name}":`, `${event.name} (copy)`);
+    if (!name || !name.trim()) return;
+    const slug = prompt('Short name for its links (letters, numbers, - and _):',
+      `${event.slug}-copy`);
+    if (!slug || !slug.trim()) return;
+    try {
+      const made = await post(`/api/setup/events/${event.id}/copy`,
+        {name: name.trim(), slug: slug.trim()});
+      banner(`Made ${made.name}. The original is untouched.`);
+      await loadEvents();
+      enterEvent(made.id);
+    } catch (err) { banner(err.message, true); }
   }));
   host.querySelectorAll('[data-archive]').forEach((b) => b.addEventListener('click', async () => {
     const event = S.events.find((e) => e.id === Number(b.dataset.archive));
@@ -865,6 +883,7 @@ function editEvent(event) {
   $('ev-lat').value = event.center_lat != null ? String(event.center_lat) : '';
   $('ev-lon').value = event.center_lon != null ? String(event.center_lon) : '';
   $('ev-net-info').value = event.net_info || '';
+  $('ev-unit-kinds').value = event.unit_kinds || '';
   $('ev-org-field').hidden = true;
   $('event-submit').textContent = 'Save changes';
   $('event-cancel').hidden = false;
@@ -919,6 +938,7 @@ $('event-form').addEventListener('submit', async (ev) => {
         // Always sent: unlike the centre, an emptied box here means "there
         // is none now", and the section leaves every phone.
         net_info: $('ev-net-info').value,
+        unit_kinds: $('ev-unit-kinds').value,
         ...eventCentre(),
       });
       resetEventForm();

@@ -95,7 +95,8 @@ You add these yourself, on the day, from this page - no setup account and no
 list beforehand, because nobody knows who is working until then.
 
 1. In the **Stations** section, type the unit's **badge number** (`4021`, `PW12`)
-   and pick the kind (Officer, CSO, Public Works, or leave it blank).
+   and pick the kind (the club chooses the list in setup; Officer, CSO and Public
+   Works unless it set its own, or leave it blank).
 2. Press **Place on map** and tap where they are.
 
 The unit appears as a white pill with its badge number. To move it, **drag the

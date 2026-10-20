@@ -225,6 +225,15 @@
         Repeaters, tones and backup frequencies, one per line. Every volunteer
         link shows it exactly as typed.
       </p>
+      <!-- What Liaison and Net Control can call a hand-placed unit when they
+           add one from the live page. Blank means Officer, CSO, Public Works. -->
+      <label class="field"><span>Unit kinds <small>(optional)</small></span>
+        <textarea id="ev-unit-kinds" rows="3" maxlength="700" spellcheck="false"
+          placeholder="Officer&#10;CSO&#10;Public Works"></textarea></label>
+      <p class="muted">
+        The choices on the live page's add-a-unit box, one per line. Leave it
+        blank for Officer, CSO and Public Works.
+      </p>
       <p id="event-error" class="error" hidden></p>
       <div class="row">
         <button id="event-submit" class="primary" type="submit">Create event</button>
