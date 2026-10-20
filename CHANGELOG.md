@@ -11,6 +11,8 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+## [2026.10.9] - 2026-10-19
+
 ### Added
 - **Hand-placed unit pins for police, CSOs and Public Works (#196).** A roster
   entry can be Tracked by **Hand-placed** (`tracked_by = 'manual'`): its key is
