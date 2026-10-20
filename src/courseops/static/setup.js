@@ -883,7 +883,6 @@ function editEvent(event) {
   $('ev-lat').value = event.center_lat != null ? String(event.center_lat) : '';
   $('ev-lon').value = event.center_lon != null ? String(event.center_lon) : '';
   $('ev-net-info').value = event.net_info || '';
-  $('ev-unit-kinds').value = event.unit_kinds || '';
   $('ev-org-field').hidden = true;
   $('event-submit').textContent = 'Save changes';
   $('event-cancel').hidden = false;
@@ -938,7 +937,6 @@ $('event-form').addEventListener('submit', async (ev) => {
         // Always sent: unlike the centre, an emptied box here means "there
         // is none now", and the section leaves every phone.
         net_info: $('ev-net-info').value,
-        unit_kinds: $('ev-unit-kinds').value,
         ...eventCentre(),
       });
       resetEventForm();
@@ -2330,11 +2328,36 @@ function showVersion(info) {
   el.hidden = false;
 }
 
+/* Unit kinds live on the event, so the box is filled from the events list and
+   saved through the event's own route; the saved row replaces the held one so
+   leaving the tab and coming back shows what was saved. */
+function fillUnitKinds() {
+  const event = S.events.find((e) => e.id === S.eventId);
+  $('ev-unit-kinds').value = (event && event.unit_kinds) || '';
+}
+
+$('unit-kinds-form').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  if (!needEvent()) return;
+  $('unit-kinds-error').hidden = true;
+  try {
+    const saved = await post(`/api/setup/events/${S.eventId}`,
+      {unit_kinds: $('ev-unit-kinds').value});
+    S.events = S.events.map((e) => (e.id === saved.id ? {...e, ...saved} : e));
+    fillUnitKinds();
+    banner('Saved unit kinds.');
+  } catch (err) {
+    $('unit-kinds-error').textContent = err.message;
+    $('unit-kinds-error').hidden = false;
+  }
+});
+
 async function loadLayers(only) {
   const data = await api(`/api/setup/events/${S.eventId}/categories`);
   S.poiCategories = data.poi_categories;
   S.roles = data.roster_roles;
   S.leaders = data.lead_divisions;
+  fillUnitKinds();
   // Three tables on one endpoint, each re-rendered only when asked for.
   // Reloading a table the user has not touched discards edits in progress in
   // it - the same bug that cost twelve renames on the roster, one table over.

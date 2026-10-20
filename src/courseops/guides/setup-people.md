@@ -47,6 +47,10 @@ posts to a link you turn on under [Tracking](setup-race-week.md#phone-tracking).
 Silence still counts as an alert for them, because the whole point of tracking a
 medic is knowing where they are.
 
+The choices Liaison and Net Control pick the kind from (Officer, CSO, Public
+Works) are set on the **Roles** tab, under **Unit kinds**, one per line. Leave it
+blank for those three; it reaches pages already open without a reload.
+
 A **hand-placed** unit is never asked for on APRS-IS and never alarms: a quiet
 officer is normal. You do NOT need to enter these here - Liaison and Net Control
 add police, CSO and Public Works units themselves from their own pages on the

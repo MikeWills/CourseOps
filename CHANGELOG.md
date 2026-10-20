@@ -11,6 +11,11 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Changed
+- Unit kinds moved from the event's Edit form to the **Roles** tab, under the
+  Add a role form with its own Save: it is a list of kinds of people, like the
+  roles above it, and on the Edit form nobody would look for it.
+
 ### Fixed
 - The stop picker on Route stops sat at the browser's small default size beside two
   42px buttons. A select directly in a button row now has the buttons' height,

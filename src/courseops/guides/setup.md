@@ -81,11 +81,6 @@ the box and the section disappears.
 > you like; the short name cannot, because changing it would 404 every volunteer
 > at once, silently, on the morning they need it.
 
-**Unit kinds** is optional: the choices in the add-a-unit box that Liaison and
-Net Control use on the live page, one per line. Leave it blank and they get
-Officer, CSO and Public Works; type `Police`, `Fire`, `EMS` and that is what
-they pick from. It reaches pages already open without a reload.
-
 Creating an event takes you straight into it, on Import.
 
 ### Make a copy of an event

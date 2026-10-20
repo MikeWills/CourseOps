@@ -64,3 +64,11 @@ def test_a_select_in_a_button_row_matches_the_buttons():
     block = css[css.index(".row > select"):]
     block = block[:block.index("}")]
     assert "min-height: 42px" in block
+
+
+def test_unit_kinds_are_on_the_roles_tab_not_hidden_in_the_event_form():
+    html = (STATIC / "setup.html").read_text(encoding="utf-8")
+    roles = html[html.index('data-panel="roles"'):html.index('data-panel="leaders"')]
+    assert 'id="ev-unit-kinds"' in roles and 'id="unit-kinds-form"' in roles
+    events = html[html.index('data-panel="events"'):html.index('data-panel="course"')]
+    assert "ev-unit-kinds" not in events
