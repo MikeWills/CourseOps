@@ -1590,10 +1590,11 @@ async function loadCourses() {
       <td><input value="${esc(c.name)}" data-name="${c.id}" style="width:130px"></td>
       <td>${miles(c.distance_m)}</td>
       <td><input type="color" value="${esc(c.color || '#d55e00')}" data-color="${c.id}"></td>
-      <td><input type="color" value="${esc(c.bib_color || c.color || '#d55e00')}"
-            data-bib="${c.id}">
+      <td><div class="pair"><input type="color" value="${esc(c.bib_color || c.color || '#d55e00')}"
+            data-bib="${c.id}" aria-label="Bib colour of ${esc(c.name)}">
           <input placeholder="Yellow" value="${esc(c.bib_color_name || '')}"
-            data-bibname="${c.id}" style="width:90px"></td>
+            data-bibname="${c.id}" style="width:90px"
+            aria-label="Name of the bib colour of ${esc(c.name)}"></div></td>
       <td><input type="time" value="${esc(c.start_time || '')}" data-start="${c.id}"
             aria-label="Start time of ${esc(c.name)}"></td>
       <td><select data-startpoi="${c.id}" aria-label="Where ${esc(c.name)} starts">

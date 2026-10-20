@@ -11,6 +11,10 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Fixed
+- The Courses table's Bib colour cell stacked the swatch above its name box, which
+  made each row half as tall again as it needed to be. They sit on one line.
+
 ### Changed
 - The event tabs run in the order an event is set up: Import, Courses, Layers,
   Places, Route stops, Leaders, Roles, Roster, Unit types, Tracking, Links. They

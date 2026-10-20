@@ -270,6 +270,13 @@ button:disabled { opacity: 0.65; cursor: progress; }
 }
 .layer-glyph { display: inline-grid; place-items: center; }
 
+/* A swatch and the box that names it: one line, never stacked. The Courses
+   table's Bib colour cell is narrow, and the two wrapped onto separate lines
+   and made every row half as tall again as its neighbours. */
+.pair { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.pair input[type="color"] { flex: none; }
+.pair input:not([type="color"]) { min-width: 0; }
+
 /* --- tables -------------------------------------------------------------- */
 
 table.grid { width: 100%; border-collapse: collapse; font-size: 14px; }

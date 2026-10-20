@@ -323,3 +323,11 @@ def test_event_tabs_run_in_the_order_an_event_is_set_up():
     assert re.findall(r'data-tab="(\w+)"', nav) == [
         "course", "courses", "layers", "stations", "routes", "leaders",
         "roles", "roster", "units", "tracking", "links"]
+
+
+def test_a_swatch_and_its_name_share_a_line_in_the_courses_table():
+    js = (web.STATIC_DIR / "setup.js").read_text(encoding="utf-8")
+    cell = js[js.index('<div class="pair">'):js.index("data-bibname")]
+    assert 'data-bib="${c.id}"' in cell
+    css = (web.STATIC_DIR / "setup.css").read_text(encoding="utf-8")
+    assert ".pair { display: flex;" in css
