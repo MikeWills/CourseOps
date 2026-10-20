@@ -199,7 +199,7 @@ button.primary {
    and Open sat beside each other on the Links tab looking like two different
    kinds of control. Excluding the class leaves `.icon-btn` as the single
    description of an icon button, so a button and an anchor render alike. */
-.panel button:not(.primary):not(.tab):not(.icon-btn),
+.panel button:not(.primary):not(.tab):not(.icon-btn):not(.icon-opt),
 #pw-form button:not(.primary),
 .gate button:not(.primary):not(.icon-btn) {
   min-height: 42px;
@@ -252,18 +252,20 @@ button:disabled { opacity: 0.65; cursor: progress; }
   display: inline-grid;
   place-items: center;
   width: 34px; height: 34px;
-  border: 1px solid transparent;
+  min-height: 0;
+  padding: 0;            /* the panel's 14px button padding pushed the glyph off centre */
+  border: 0;             /* no outline: the glyph is the control */
   border-radius: var(--radius);
   background: none;
   color: var(--ink-soft);
   cursor: pointer;
 }
 .icon-opt:hover { background: #eef2f7; }
+.icon-opt:focus-visible { outline: 2px solid var(--navy-700); outline-offset: 1px; }
 /* Selection is a filled chip, not a colour change: the glyph itself is the
    thing being chosen, so it must not change appearance when picked. */
 .icon-opt.is-on {
   background: var(--navy-700);
-  border-color: var(--navy-700);
   color: #fff;
 }
 .layer-glyph { display: inline-grid; place-items: center; }
@@ -290,7 +292,7 @@ table.grid .actions { text-align: right; white-space: nowrap; }
    this one is a class and two elements, so its 10px of horizontal padding
    beat `.icon-btn`'s zero and squeezed a 16px glyph into a 14px content
    box - inside tables only, which is where every Save and Delete lives. */
-table.grid button:not(.icon-btn) {
+table.grid button:not(.icon-btn):not(.icon-opt) {
   min-height: 34px;
   padding: 0 10px;
   font-size: 13px;

@@ -11,6 +11,14 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Fixed
+- The icon picker (Add a layer, and a layer's row) drew each glyph off centre in
+  an outlined box. The panel's rule for plain buttons - 14px side padding, a 42px
+  minimum height, a border - outweighed `.icon-opt`, the same trap the icon
+  buttons were already excluded from. The picker is now excluded too, and has no
+  outline; the picked glyph is still a filled chip, and a keyboard focus ring
+  shows where you are.
+
 ### Changed
 - Every button and text field in the live page's rows and sections is the same
   height (`--row-btn-h`, 40px). They were 34, 36, 38, 40 and 44 side by side, so a

@@ -275,3 +275,14 @@ def test_setup_text_fields_match_setup_buttons():
     css = (STATIC / "setup.css").read_text(encoding="utf-8")
     field = css[css.index(".field input, .field select, .field textarea {"):]
     assert "min-height: 42px" in field[:field.index("}")]
+
+
+def test_the_icon_picker_is_not_caught_by_the_plain_button_rules():
+    """Both rules outweighed `.icon-opt`: padding pushed the glyph off centre
+    and a border outlined every one."""
+    css = (STATIC / "setup.css").read_text(encoding="utf-8")
+    assert ".panel button:not(.primary):not(.tab):not(.icon-btn):not(.icon-opt)," in css
+    assert "table.grid button:not(.icon-btn):not(.icon-opt) {" in css
+    block = css[css.index(".icon-opt {"):]
+    block = block[:block.index("}")]
+    assert "padding: 0" in block and "border: 0" in block
