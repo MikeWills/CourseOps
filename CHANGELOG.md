@@ -11,6 +11,13 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Changed
+- Hand-placed units have their own **Units** section above Stations, with the
+  add box and one row per unit, instead of sitting among the roster. They are
+  not counted as stations, and the section is hidden from Staff, who are never
+  sent them. Their Move on map and Remove buttons are styled like the other
+  buttons rather than the browser's default grey.
+
 ## [2026.10.12] - 2026-10-19
 
 ### Changed

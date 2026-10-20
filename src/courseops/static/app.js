@@ -439,9 +439,10 @@ const SIDE_PANEL_BY_ROLE = {
      halfway down a sheet below the lead runners. */
   ncs:       { title: 'Pickups & stations',
                sections: ['incident-section', 'note-section',
-                          'event-note-section', 'station-section'] },
-  logistics: { title: 'Stations', sections: ['station-section'] },
-  liaison:   { title: 'Pickups',  sections: ['incident-section', 'note-section'] },
+                          'event-note-section', 'unit-section', 'station-section'] },
+  logistics: { title: 'Stations', sections: ['unit-section', 'station-section'] },
+  liaison:   { title: 'Pickups',  sections: ['incident-section', 'note-section',
+                                             'unit-section'] },
   // Staff read where everyone is; they are never sent pickups or notes.
   staff:     { title: 'Stations', sections: ['station-section'] },
   /* SAG works the queue and nothing else, so the queue takes the LEFT
@@ -449,7 +450,8 @@ const SIDE_PANEL_BY_ROLE = {
      other role has its working surface. The sheet moves to the right. Only
      the panel's SIDE changes: which sections it holds is unchanged, so a SAG
      phone still lifts the pickups to the top of the sheet the same way. */
-  sag:       { title: 'Pickups',  sections: ['incident-section', 'note-section'],
+  sag:       { title: 'Pickups',  sections: ['incident-section', 'note-section',
+                                             'unit-section'],
                panelLeft: true },
 };
 
@@ -1249,17 +1251,24 @@ function renderStations() {
 
   /* Silent is the alarm, and sorting no longer carries it. A torn-down station
      going quiet is not news, so closed ones are not counted. */
-  const silent = keys.filter((k) => radioStatus(k) === 'silent'
-                                    && opStatusOf(k) !== 'closed').length;
-  document.getElementById('station-count').textContent = keys.length
-    ? `(${keys.length}${silent ? ` · ${silent} silent` : ''})` : '';
+  /* Hand-placed units are listed in their own section (#196), so a unit is
+     neither a station on the roster nor part of its count. */
+  const unitKeys = keys.filter(isUnit);
+  const stationKeys = keys.filter((k) => !isUnit(k));
+  const silent = stationKeys.filter((k) => radioStatus(k) === 'silent'
+                                           && opStatusOf(k) !== 'closed').length;
+  document.getElementById('station-count').textContent = stationKeys.length
+    ? `(${stationKeys.length}${silent ? ` · ${silent} silent` : ''})` : '';
+  document.getElementById('unit-count').textContent = unitKeys.length
+    ? `(${unitKeys.length})` : '';
+  // Shown to whoever can add one, and to anyone who has been sent one.
+  document.getElementById('unit-section').hidden = !(can('unit_move') || unitKeys.length);
+  const unitHost = document.getElementById('unit-list');
+  unitHost.innerHTML = unitKeys.length || !can('unit_move') ? ''
+    : '<p class="muted">No units placed yet. Add one by its badge number.</p>';
 
-  if (!keys.length) {
-    host.innerHTML = '<p class="muted">No stations on the roster yet.</p>';
-    return;
-  }
-
-  host.innerHTML = '';
+  host.innerHTML = stationKeys.length ? ''
+    : '<p class="muted">No stations on the roster yet.</p>';
   keys.forEach((stationKey) => {
     const status = radioStatus(stationKey);
     const position = state.positions.get(stationKey);
@@ -1396,7 +1405,7 @@ function renderStations() {
       row.appendChild(move);
     }
 
-    host.appendChild(row);
+    (isUnit(stationKey) ? unitHost : host).appendChild(row);
   });
 }
 

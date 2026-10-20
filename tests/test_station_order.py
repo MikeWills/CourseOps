@@ -46,7 +46,7 @@ def test_the_old_status_ranks_are_gone():
 def test_silent_stations_are_counted_in_the_heading():
     """Order no longer surfaces them, so the count has to."""
     body = _render_stations_source()
-    assert "silent" in body[body.index("station-count"):body.index("if (!keys.length)")]
+    assert "silent" in body[body.index("station-count"):body.index("unit-section")]
 
 
 @pytest.mark.skipif(NODE is None, reason="node is not installed")
