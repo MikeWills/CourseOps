@@ -123,6 +123,7 @@
     <button class="tab" data-tab="stations" type="button">Places</button>
     <button class="tab" data-tab="layers" type="button">Layers</button>
     <button class="tab" data-tab="roles" type="button">Roles</button>
+    <button class="tab" data-tab="units" type="button">Unit types</button>
     <button class="tab" data-tab="leaders" type="button">Leaders</button>
     <button class="tab" data-tab="tracking" type="button">Tracking</button>
     <button class="tab" data-tab="roster" type="button">Roster</button>
@@ -473,20 +474,35 @@
       <p id="role-error" class="error" hidden></p>
       <button class="primary" type="submit">Add role</button>
     </form>
+  </section>
 
-    <!-- Hand-placed units (police, CSO, Public Works) are added on the day by
-         Liaison and Net Control. This is the menu they pick the kind from. -->
-    <form id="unit-kinds-form" class="card">
-      <h3>Unit kinds</h3>
-      <p class="muted">
-        The choices on the live page's add-a-unit box, one per line. Leave it
-        blank for Officer, CSO and Public Works.
-      </p>
-      <label class="field"><span>Kinds of unit</span>
-        <textarea id="ev-unit-kinds" rows="4" maxlength="700" spellcheck="false"
-          placeholder="Officer&#10;CSO&#10;Public Works"></textarea></label>
-      <p id="unit-kinds-error" class="error" hidden></p>
-      <button class="primary" type="submit">Save unit kinds</button>
+  <!-- Hand-placed units (police, CSO, Public Works) are added on the day by
+       Liaison and Net Control from the live page. This is the menu they pick
+       the kind from: a list of the event's own, like the roles, so it is a
+       tab of its own rather than a box inside another. -->
+  <section class="panel" data-panel="units" hidden>
+    <h2>Unit types</h2>
+    <p class="muted">
+      The kinds of unit Liaison and Net Control can pick when they add a
+      police, CSO or Public Works pin from the live page. Rename them to your
+      own wording and add any the list is missing.
+    </p>
+    <p class="muted">
+      Delete them all and the usual three (Officer, CSO, Public Works) come
+      back. A change reaches pages that are already open.
+    </p>
+    <div id="unit-table"></div>
+    <div class="row">
+      <button id="unit-save-all" class="primary" type="button" hidden></button>
+      <span id="unit-dirty" class="muted"></span>
+    </div>
+
+    <form id="unit-form" class="card">
+      <h3>Add a unit type</h3>
+      <label class="field"><span>Name</span>
+        <input id="unit-name" type="text" maxlength="30" placeholder="Fire" required></label>
+      <p id="unit-error" class="error" hidden></p>
+      <button class="primary" type="submit">Add unit type</button>
     </form>
   </section>
 
