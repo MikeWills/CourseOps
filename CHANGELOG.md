@@ -11,6 +11,8 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+## [2026.10.14] - 2026-10-20
+
 ### Added
 - The Unit types tab has an **On the map** column, like the Roles tab's count:
   how many hand-placed units of each type are out. A unit now stores its kind
