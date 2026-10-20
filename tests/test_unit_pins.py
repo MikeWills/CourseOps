@@ -271,10 +271,14 @@ def test_buttons_and_text_fields_in_the_rows_share_one_height():
         assert "min-height: var(--row-btn-h)" in block, selector
 
 
-def test_setup_text_fields_match_setup_buttons():
+def test_setup_buttons_and_fields_use_the_same_height_as_the_live_page():
+    """One variable, so the two pages cannot drift apart again (42 vs 40)."""
     css = (STATIC / "setup.css").read_text(encoding="utf-8")
-    field = css[css.index(".field input, .field select, .field textarea {"):]
-    assert "min-height: 42px" in field[:field.index("}")]
+    assert "min-height: 42px" not in css
+    for selector in (".field input, .field select, .field textarea {", "button.primary {",
+                     ".panel button:not(.primary)", ".row > select {"):
+        block = css[css.index(selector):]
+        assert "min-height: var(--row-btn-h)" in block[:block.index("}")], selector
 
 
 def test_the_icon_picker_is_not_caught_by_the_plain_button_rules():

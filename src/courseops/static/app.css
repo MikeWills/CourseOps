@@ -39,7 +39,7 @@
   --navy-700:   #0B2545;
   --navy-500:   #1B3B6F;
   --orange:     #FF6A13;   /* safety orange: identity and accent only */
-  --row-btn-h:  40px;      /* every button in a station or unit row: one height */
+  --row-btn-h:  40px;      /* every button and text field, live page AND setup: one height */
   --orange-ink: #B34700;   /* dark enough for text on white (AA) */
 
   /* Ink is navy-derived, not neutral grey, so text and chrome are one
