@@ -10,12 +10,18 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    # 3.11 is the oldest we promise (requires-python); 3.14 is what the
+    # production server's system Python is.
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.14"]
     steps:
       - uses: actions/checkout@v7
 
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.11"
+          python-version: ${{ matrix.python-version }}
 
       - name: Install
         run: |
