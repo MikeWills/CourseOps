@@ -11,6 +11,13 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+## [2026.10.19] - 2026-10-28
+
+### Changed
+- CI runs the suite on Python 3.11 and 3.14. The production server moved to
+  Ubuntu 26.04, whose system Python is 3.14, and nothing had run the suite on
+  it. The server's venv was rebuilt on 3.14 the same day.
+
 ### Fixed
 - A lead runner's pace could read `7:60/mi`. `paceLabel` split the pace into
   minutes and seconds and rounded only the seconds, so anything within half a
