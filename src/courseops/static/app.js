@@ -1788,9 +1788,10 @@ function paceLabel(mps) {
   // Runners think in minutes per mile, never in metres per second.
   const minPerMile = 1609.344 / mps / 60;
   if (!isFinite(minPerMile) || minPerMile > 60) return null;
-  const mins = Math.floor(minPerMile);
-  const secs = Math.round((minPerMile - mins) * 60);
-  return `${mins}:${String(secs).padStart(2, '0')}/mi`;
+  // Round the whole pace to seconds BEFORE splitting it: rounding only the
+  // remainder turned 7:59.6 into "7:60".
+  const total = Math.round(minPerMile * 60);
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}/mi`;
 }
 
 /* "Finish ~16:14 (in ~42 min), estimated from reports", or "Finished 16:14".
