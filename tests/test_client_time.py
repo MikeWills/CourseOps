@@ -142,10 +142,7 @@ def test_pace_label(tmp_path, mps, expected):
     assert _call(tmp_path, f"paceLabel({json.dumps(mps)})") == expected
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "paceLabel rounds the seconds without carrying: 7:59.6 per mile comes out "
-    "as '7:60/mi'. Remove this marker when it is fixed."))
 def test_pace_label_never_prints_sixty_seconds(tmp_path):
-    # 479.6 s per mile -> floor 7 min, round(59.6 s) = 60.
+    # 479.6 s per mile: rounding only the remainder gave "7:60/mi".
     mps = 1609.344 / 479.6
     assert _call(tmp_path, f"paceLabel({mps!r})") == "8:00/mi"

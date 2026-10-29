@@ -11,6 +11,18 @@ month, PATCH counting releases in that month from 0. Before that they were
 
 ## [Unreleased]
 
+### Fixed
+- A lead runner's pace could read `7:60/mi`. `paceLabel` split the pace into
+  minutes and seconds and rounded only the seconds, so anything within half a
+  second of the next minute printed sixty seconds instead of carrying into the
+  minute. It now rounds the whole pace to seconds first, then splits. The pace
+  is read aloud on the net, where "seven sixty" is a number nobody can repeat.
+
+### Added
+- `tests/test_client_time.py` runs `clockTime`, `ageSeconds`, `formatAge` and
+  `paceLabel` in Node. They were only ever checked as source text, and the
+  suite found the `paceLabel` bug above the first time it ran them.
+
 ## [2026.10.18] - 2026-10-20
 
 ### Changed
